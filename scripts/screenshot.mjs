@@ -62,5 +62,10 @@ await page.getByText('combo suggestions').waitFor()
 await page.getByText('3 tracks').waitFor()
 await page.screenshot({ path: `${scratch}/07-restored.png` })
 
+// import a real Rekordbox XML export through the UI
+await page.locator('input[type=file]').setInputFiles('tests/fixtures/rekordbox.xml')
+await page.getByText('4 tracks imported').waitFor()
+await page.screenshot({ path: `${scratch}/08-rekordbox-import.png` })
+
 console.log('CONSOLE ERRORS:', errors.length ? errors : 'none')
 await browser.close()
