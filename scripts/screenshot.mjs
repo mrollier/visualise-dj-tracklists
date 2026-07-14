@@ -44,5 +44,23 @@ await page.waitForTimeout(200)
 await page.keyboard.press('Escape')
 await page.screenshot({ path: `${scratch}/05-walk.png` })
 
+// tracklist panel: reorder second row up, then export M3U8
+const row = page.locator('li.track', { hasText: 'Paper Lanterns' })
+await row.hover()
+await row.getByRole('button', { name: 'Move up' }).click()
+await page.waitForTimeout(200)
+await page.screenshot({ path: `${scratch}/06-tracklist.png` })
+
+const downloadPromise = page.waitForEvent('download')
+await page.getByRole('button', { name: 'Export M3U8' }).click()
+const download = await downloadPromise
+await download.saveAs(`${scratch}/exported.m3u8`)
+
+// reload → autosave must restore library and set
+await page.reload()
+await page.getByText('combo suggestions').waitFor()
+await page.getByText('3 tracks').waitFor()
+await page.screenshot({ path: `${scratch}/07-restored.png` })
+
 console.log('CONSOLE ERRORS:', errors.length ? errors : 'none')
 await browser.close()

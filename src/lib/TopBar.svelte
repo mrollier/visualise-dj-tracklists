@@ -1,6 +1,9 @@
 <script lang="ts">
   import { importCsv } from '../core/importers/csv'
+  import { trackFromTags } from '../core/importers/id3'
   import { importRekordboxXml } from '../core/importers/rekordbox'
+  import { buildReport, type ImportResult } from '../core/model'
+  import { parseProject, serializeProject } from '../core/persist'
   import { SAMPLE_TRACKS } from '../data/sample-tracks'
   import {
     lastImportReport,
@@ -10,21 +13,79 @@
     selectedId,
     tracklist,
   } from '../stores'
+  import { applyProject, currentProject } from './persistence'
+
+  const AUDIO_EXTENSIONS = /\.(mp3|wav|flac|aiff?|m4a|ogg)$/i
 
   let fileInput: HTMLInputElement
+  let importError = $state('')
+
+  async function importAudioFiles(files: File[]): Promise<ImportResult> {
+    const { parseBlob } = await import('music-metadata')
+    const tracks = []
+    const errors: string[] = []
+    for (const [i, file] of files.entries()) {
+      try {
+        const meta = await parseBlob(file, { duration: false })
+        tracks.push(
+          trackFromTags(`id3-${i}`, file.name, {
+            title: meta.common.title,
+            artist: meta.common.artist,
+            key: meta.common.key,
+            bpm: meta.common.bpm,
+            genre: meta.common.genre,
+            year: meta.common.year,
+            durationSec: meta.format.duration,
+          }),
+        )
+      } catch (e) {
+        errors.push(`${file.name}: ${String(e)}`)
+      }
+    }
+    return { tracks, report: buildReport(tracks, errors) }
+  }
 
   async function onFileChosen(event: Event) {
-    const file = (event.target as HTMLInputElement).files?.[0]
-    if (!file) return
+    const files = Array.from((event.target as HTMLInputElement).files ?? [])
+    if (files.length === 0) return
+    importError = ''
+    try {
+      const first = files[0]
+      if (first.name.toLowerCase().endsWith('.json')) {
+        applyProject(parseProject(await first.text()))
+        lastImportReport.set(null)
+        return
+      }
+      const { tracks, report } = AUDIO_EXTENSIONS.test(first.name)
+        ? await importAudioFiles(files.filter((f) => AUDIO_EXTENSIONS.test(f.name)))
+        : await importTextFile(first)
+      library.set(tracks)
+      libraryName.set(files.length > 1 ? `${files.length} audio files` : first.name)
+      lastImportReport.set(report)
+      tracklist.set([])
+      selectedId.set(null)
+    } catch (e) {
+      importError = e instanceof Error ? e.message : String(e)
+    } finally {
+      fileInput.value = ''
+    }
+  }
+
+  async function importTextFile(file: File): Promise<ImportResult> {
     const text = await file.text()
     const isXml = file.name.toLowerCase().endsWith('.xml') || text.trimStart().startsWith('<')
-    const { tracks, report } = isXml ? importRekordboxXml(text) : importCsv(text)
-    library.set(tracks)
-    libraryName.set(file.name)
-    lastImportReport.set(report)
-    tracklist.set([])
-    selectedId.set(null)
-    fileInput.value = ''
+    return isXml ? importRekordboxXml(text) : importCsv(text)
+  }
+
+  function saveProject() {
+    const url = URL.createObjectURL(
+      new Blob([serializeProject(currentProject())], { type: 'application/json' }),
+    )
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'dj-tracklists-project.json'
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   function loadSample() {
@@ -58,18 +119,23 @@
       </select>
     </label>
 
-    <button onclick={() => fileInput.click()}>Import library…</button>
+    <button onclick={() => fileInput.click()}>Import…</button>
     <input
       bind:this={fileInput}
       type="file"
-      accept=".xml,.csv,.txt"
+      accept=".xml,.csv,.txt,.json,.mp3,.wav,.flac,.aif,.aiff,.m4a,.ogg"
+      multiple
       hidden
       onchange={onFileChosen}
     />
     <button onclick={loadSample}>Load sample</button>
+    <button onclick={saveProject} disabled={$library.length === 0}>Save project</button>
   </div>
 
   <div class="status">
+    {#if importError}
+      <span class="error">{importError}</span>
+    {/if}
     {#if $libraryName}
       <span>{$libraryName}</span>
     {/if}
@@ -123,5 +189,9 @@
 
   .status .report {
     color: var(--ink-secondary);
+  }
+
+  .status .error {
+    color: var(--walk-bright);
   }
 </style>
