@@ -83,6 +83,20 @@ export function camelotAngleDeg(key: CamelotKey): number {
   return (camelotNumber(key) % 12) * 30
 }
 
+/**
+ * Angle (degrees clockwise from 12 o'clock) of a key's own slot on the wheel.
+ *
+ * The 24 slots follow the zigzag ordering from the concept paper's figures —
+ * 1A 1B 2B 2A 3A 3B 4B 4A … 12B 12A — which places every harmonically
+ * compatible pair (relative A/B and ±1 same ring) in angularly adjacent slots.
+ */
+export function wheelSlotAngleDeg(key: CamelotKey): number {
+  const n = camelotNumber(key)
+  const ringFirst = n % 2 === 1 ? 'A' : 'B' // odd numbers lead with A, even with B
+  const slot = (n - 1) * 2 + (camelotRing(key) === ringFirst ? 0 : 1)
+  return slot * 15 + 7.5
+}
+
 /** Minimal number of steps between two keys' numbers around the wheel (0..6). */
 export function wheelStepDistance(a: CamelotKey, b: CamelotKey): number {
   const diff = Math.abs(camelotNumber(a) - camelotNumber(b)) % 12

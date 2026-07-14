@@ -19,8 +19,8 @@ export function importRekordboxXml(xml: string): ImportResult {
     return { tracks: [], report: buildReport([], [`Could not parse XML: ${String(e)}`]) }
   }
 
-  const collection = (doc as { DJ_PLAYLISTS?: { COLLECTION?: { TRACK?: unknown } } })
-    ?.DJ_PLAYLISTS?.COLLECTION?.TRACK
+  const collection = (doc as { DJ_PLAYLISTS?: { COLLECTION?: { TRACK?: unknown } } })?.DJ_PLAYLISTS
+    ?.COLLECTION?.TRACK
   if (collection === undefined) {
     return {
       tracks: [],

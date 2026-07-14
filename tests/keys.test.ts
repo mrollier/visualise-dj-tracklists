@@ -6,6 +6,7 @@ import {
   camelotRing,
   keysMatch,
   normalizeKey,
+  wheelSlotAngleDeg,
   wheelStepDistance,
 } from '../src/core/keys'
 
@@ -89,6 +90,22 @@ describe('wheel geometry', () => {
     expect(camelotAngleDeg('3B')).toBe(90)
     expect(camelotAngleDeg('6A')).toBe(180)
     expect(camelotAngleDeg('11B')).toBe(330)
+  })
+
+  test('slot angles follow the zigzag ordering so every compatible key is adjacent', () => {
+    // Order clockwise from the top: 1A 1B 2B 2A 3A 3B 4B 4A ... 12B 12A
+    expect(wheelSlotAngleDeg('1A')).toBe(7.5)
+    expect(wheelSlotAngleDeg('1B')).toBe(22.5)
+    expect(wheelSlotAngleDeg('2B')).toBe(37.5)
+    expect(wheelSlotAngleDeg('2A')).toBe(52.5)
+    expect(wheelSlotAngleDeg('3A')).toBe(67.5)
+    expect(wheelSlotAngleDeg('12B')).toBe(337.5)
+    expect(wheelSlotAngleDeg('12A')).toBe(352.5) // wraps to sit next to 1A
+  })
+
+  test('every key gets a unique slot', () => {
+    const angles = ALL_CAMELOT_KEYS.map(wheelSlotAngleDeg)
+    expect(new Set(angles).size).toBe(24)
   })
 
   test('wheelStepDistance is the minimal number of steps around the wheel', () => {

@@ -22,6 +22,12 @@ export default ts.config(
     },
   },
   {
+    files: ['scripts/**'],
+    languageOptions: {
+      globals: { ...globals.node },
+    },
+  },
+  {
     ignores: ['dist/', 'node_modules/', 'docs/'],
   },
 )

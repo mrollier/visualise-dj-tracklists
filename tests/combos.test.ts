@@ -29,8 +29,9 @@ describe('individual criteria', () => {
     const cfg = config({ threshold: 5 })
     expect(evaluateCombo(base, track({ id: 'b', bpm: 130 }), cfg).matched).toContain('bpm')
     // 120 vs 130 → 8.3% of 120: inside 10%
-    expect(evaluateCombo(track({ id: 'c', bpm: 120 }), track({ id: 'd', bpm: 130 }), cfg).matched)
-      .toContain('bpm')
+    expect(
+      evaluateCombo(track({ id: 'c', bpm: 120 }), track({ id: 'd', bpm: 130 }), cfg).matched,
+    ).toContain('bpm')
     // 128 vs 148 → 15.6%: outside
     expect(evaluateCombo(base, track({ id: 'e', bpm: 148 }), cfg).matched).not.toContain('bpm')
   })
@@ -124,11 +125,7 @@ describe('threshold logic', () => {
 
 describe('computeEdges', () => {
   test('returns each undirected combo once, without self-edges', () => {
-    const tracks = [
-      track({ id: 'a' }),
-      track({ id: 'b', bpm: 126 }),
-      track({ id: 'c', bpm: 127 }),
-    ]
+    const tracks = [track({ id: 'a' }), track({ id: 'b', bpm: 126 }), track({ id: 'c', bpm: 127 })]
     const edges = computeEdges(tracks, config({ threshold: 1 }))
     const pairs = edges.map((e) => `${e.sourceId}-${e.targetId}`)
     expect(new Set(pairs).size).toBe(pairs.length)

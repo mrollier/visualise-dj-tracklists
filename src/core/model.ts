@@ -18,13 +18,7 @@ export interface Track {
 
 export type MetadataField = 'key' | 'bpm' | 'genre' | 'year' | 'rating'
 
-export const METADATA_FIELDS: readonly MetadataField[] = [
-  'key',
-  'bpm',
-  'genre',
-  'year',
-  'rating',
-]
+export const METADATA_FIELDS: readonly MetadataField[] = ['key', 'bpm', 'genre', 'year', 'rating']
 
 export interface ImportReport {
   total: number
