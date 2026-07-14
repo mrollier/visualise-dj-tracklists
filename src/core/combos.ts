@@ -1,5 +1,5 @@
 import { keysMatch } from './keys'
-import type { MetadataField, Track } from './model'
+import type { Track } from './model'
 
 /**
  * The combo engine: decides which pairs of tracks get a suggested-combo edge.
@@ -16,37 +16,41 @@ export interface CriteriaConfig {
   bpm: { enabled: boolean; maxPercent: number }
   genre: { enabled: boolean }
   year: { enabled: boolean; maxYears: number }
-  rating: { enabled: boolean; maxStars: number }
   /** Minimum number of matching criteria for an edge (clamped to #evaluable). */
   threshold: number
 }
 
+// Rating deliberately has no pairwise criterion — it acts as a library
+// filter instead (see filter.ts): you exclude tracks you wouldn't play,
+// rather than requiring neighbours to be similarly rated.
 export const DEFAULT_CRITERIA: CriteriaConfig = {
   key: { enabled: true, advancedMoves: false },
   bpm: { enabled: true, maxPercent: 10 },
   genre: { enabled: true },
   year: { enabled: true, maxYears: 5 },
-  rating: { enabled: true, maxStars: 1 },
   threshold: 3,
 }
 
+/** The metadata fields that act as pairwise combo criteria. */
+export type CriterionField = 'key' | 'bpm' | 'genre' | 'year'
+
 export interface ComboEvaluation {
   /** Criteria that were enabled and had values on both sides. */
-  evaluable: MetadataField[]
+  evaluable: CriterionField[]
   /** Subset of `evaluable` that matched. */
-  matched: MetadataField[]
+  matched: CriterionField[]
   isCombo: boolean
 }
 
 export interface ComboEdge {
   sourceId: string
   targetId: string
-  matched: MetadataField[]
+  matched: CriterionField[]
 }
 
 type Predicate = (a: Track, b: Track, config: CriteriaConfig) => boolean
 
-const PREDICATES: Record<MetadataField, Predicate> = {
+const PREDICATES: Record<CriterionField, Predicate> = {
   key: (a, b, cfg) => keysMatch(a.key!, b.key!, { advancedMoves: cfg.key.advancedMoves }),
   bpm: (a, b, cfg) => {
     const low = Math.min(a.bpm!, b.bpm!)
@@ -54,14 +58,13 @@ const PREDICATES: Record<MetadataField, Predicate> = {
   },
   genre: (a, b) => a.genre!.toLowerCase() === b.genre!.toLowerCase(),
   year: (a, b, cfg) => Math.abs(a.year! - b.year!) <= cfg.year.maxYears,
-  rating: (a, b, cfg) => Math.abs(a.rating! - b.rating!) <= cfg.rating.maxStars,
 }
 
-const FIELDS = Object.keys(PREDICATES) as MetadataField[]
+const FIELDS = Object.keys(PREDICATES) as CriterionField[]
 
 export function evaluateCombo(a: Track, b: Track, config: CriteriaConfig): ComboEvaluation {
-  const evaluable: MetadataField[] = []
-  const matched: MetadataField[] = []
+  const evaluable: CriterionField[] = []
+  const matched: CriterionField[] = []
   for (const field of FIELDS) {
     if (!config[field].enabled) continue
     if (a[field] === null || b[field] === null) continue

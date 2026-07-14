@@ -4,7 +4,7 @@
   import { slotAngleOffsets } from '../core/layout'
   import type { Track } from '../core/model'
   import { SvelteMap, SvelteSet } from 'svelte/reactivity'
-  import { edges, library, neighbours, radialAxis, selectedId, tracklist } from '../stores'
+  import { edges, neighbours, radialAxis, selectedId, tracklist, visibleLibrary } from '../stores'
 
   const SIZE = 820
   const CENTER = SIZE / 2
@@ -30,7 +30,7 @@
   }
 
   const radialValues = $derived(
-    $library.map((t) => t[$radialAxis]).filter((v): v is number => v !== null),
+    $visibleLibrary.map((t) => t[$radialAxis]).filter((v): v is number => v !== null),
   )
 
   const radialScale = $derived.by(() => {
@@ -46,7 +46,7 @@
 
   const nodes = $derived.by(() => {
     const placed: PlacedNode[] = []
-    const unkeyed = $library.filter((t) => t.key === null)
+    const unkeyed = $visibleLibrary.filter((t) => t.key === null)
     unkeyed.forEach((track, i) => {
       const angle = (360 / unkeyed.length) * i
       placed.push({ track, ...polar(angle, R_UNKEYED), unkeyed: true, missingRadial: true })
@@ -54,7 +54,7 @@
     // Group keyed tracks per slot and fan each group out so that tracks with
     // the same key and a similar radius stay individually hoverable.
     const bySlot = new SvelteMap<string, Track[]>()
-    for (const track of $library) {
+    for (const track of $visibleLibrary) {
       if (track.key === null) continue
       if (!bySlot.has(track.key)) bySlot.set(track.key, [])
       bySlot.get(track.key)!.push(track)

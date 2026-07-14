@@ -1,10 +1,9 @@
 <script lang="ts">
-  import { criteria, edges, library } from '../stores'
+  import FiltersSection from './FiltersSection.svelte'
+  import { criteria, edges, library, visibleLibrary } from '../stores'
 
   const enabledCount = $derived(
-    [$criteria.key, $criteria.bpm, $criteria.genre, $criteria.year, $criteria.rating].filter(
-      (c) => c.enabled,
-    ).length,
+    [$criteria.key, $criteria.bpm, $criteria.genre, $criteria.year].filter((c) => c.enabled).length,
   )
 
   // Keep the threshold valid when criteria get disabled.
@@ -18,7 +17,11 @@
 <aside>
   <div class="stats">
     <div class="stat">
-      <span class="value">{$library.length}</span>
+      <span class="value">
+        {$visibleLibrary.length}{#if $visibleLibrary.length !== $library.length}<small>
+            /{$library.length}</small
+          >{/if}
+      </span>
       <span class="label">tracks</span>
     </div>
     <div class="stat">
@@ -26,6 +29,8 @@
       <span class="label">combo suggestions</span>
     </div>
   </div>
+
+  <FiltersSection />
 
   <details open>
     <summary>Combo criteria</summary>
@@ -78,20 +83,6 @@
       </label>
     </div>
 
-    <div class="criterion">
-      <label>
-        <input type="checkbox" bind:checked={$criteria.rating.enabled} />
-        Rating within
-        <input
-          type="number"
-          min="0"
-          max="5"
-          bind:value={$criteria.rating.maxStars}
-          disabled={!$criteria.rating.enabled}
-        /> stars
-      </label>
-    </div>
-
     <div class="criterion threshold">
       <label for="threshold">
         Require <strong>{Math.min($criteria.threshold, enabledCount)}</strong> of
@@ -137,6 +128,12 @@
   .stat .label {
     color: var(--ink-muted);
     font-size: 12px;
+  }
+
+  .stat small {
+    color: var(--ink-muted);
+    font-size: 13px;
+    font-weight: 400;
   }
 
   summary {

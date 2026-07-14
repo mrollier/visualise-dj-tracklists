@@ -44,16 +44,19 @@ describe('individual criteria', () => {
     )
   })
 
-  test('year and rating match within their configured windows', () => {
+  test('year matches within its configured window', () => {
     const cfg = config()
-    const near = track({ id: 'b', year: 2024, rating: 3 }) // Δ4 years, Δ1 star
-    const far = track({ id: 'c', year: 2026, rating: 2 }) // Δ6 years, Δ2 stars
-    expect(evaluateCombo(base, near, cfg).matched).toEqual(
-      expect.arrayContaining(['year', 'rating']),
-    )
-    const farMatched = evaluateCombo(base, far, cfg).matched
-    expect(farMatched).not.toContain('year')
-    expect(farMatched).not.toContain('rating')
+    expect(evaluateCombo(base, track({ id: 'b', year: 2024 }), cfg).matched).toContain('year')
+    expect(evaluateCombo(base, track({ id: 'c', year: 2026 }), cfg).matched).not.toContain('year')
+  })
+
+  test('rating is a library filter, not a combo criterion', () => {
+    // Wildly different ratings must not affect the combo evaluation at all.
+    const cfg = config({ threshold: 4 })
+    const other = track({ id: 'b', rating: 0 })
+    const result = evaluateCombo(base, other, cfg)
+    expect(result.evaluable).toEqual(['key', 'bpm', 'genre', 'year'])
+    expect(result.isCombo).toBe(true)
   })
 
   test('key uses Camelot adjacency', () => {
@@ -75,15 +78,15 @@ describe('threshold logic', () => {
   const base = track({ id: 'a' })
 
   test('edge exists iff at least `threshold` criteria match', () => {
-    // matches on key, bpm, genre; fails year and rating
-    const other = track({ id: 'b', key: '8B', bpm: 126, year: 2000, rating: 1 })
+    // matches on key, bpm, genre; fails year
+    const other = track({ id: 'b', key: '8B', bpm: 126, year: 2000 })
     expect(evaluateCombo(base, other, config({ threshold: 3 })).isCombo).toBe(true)
     expect(evaluateCombo(base, other, config({ threshold: 4 })).isCombo).toBe(false)
   })
 
   test('missing values shrink the denominator instead of failing', () => {
     // Only key and bpm are evaluable; both match → combo even at threshold 4
-    const sparse = track({ id: 'b', genre: null, year: null, rating: null })
+    const sparse = track({ id: 'b', genre: null, year: null })
     const result = evaluateCombo(base, sparse, config({ threshold: 4 }))
     expect(result.evaluable).toEqual(['key', 'bpm'])
     expect(result.isCombo).toBe(true)
@@ -100,7 +103,7 @@ describe('threshold logic', () => {
   })
 
   test('evaluation is symmetric in its arguments', () => {
-    const other = track({ id: 'b', key: '9A', bpm: 120, genre: null, year: 2015, rating: 2 })
+    const other = track({ id: 'b', key: '9A', bpm: 120, genre: null, year: 2015 })
     const ab = evaluateCombo(base, other, config())
     const ba = evaluateCombo(other, base, config())
     expect(ab.matched.sort()).toEqual(ba.matched.sort())
@@ -111,11 +114,11 @@ describe('threshold logic', () => {
     const tracks = [
       base,
       track({ id: 'b', key: '9A', bpm: 132 }),
-      track({ id: 'c', key: '3B', bpm: 174, genre: 'DnB', year: 1998, rating: 1 }),
+      track({ id: 'c', key: '3B', bpm: 174, genre: 'DnB', year: 1998 }),
       track({ id: 'd', genre: null, year: null }),
     ]
     let previous = Infinity
-    for (let threshold = 1; threshold <= 5; threshold++) {
+    for (let threshold = 1; threshold <= 4; threshold++) {
       const count = computeEdges(tracks, config({ threshold })).length
       expect(count).toBeLessThanOrEqual(previous)
       previous = count
@@ -135,7 +138,7 @@ describe('computeEdges', () => {
 
   test('edges carry the matched criteria for UI display', () => {
     const tracks = [track({ id: 'a' }), track({ id: 'b', bpm: 126 })]
-    const [edge] = computeEdges(tracks, config({ threshold: 5 }))
-    expect(edge.matched).toEqual(expect.arrayContaining(['key', 'bpm', 'genre', 'year', 'rating']))
+    const [edge] = computeEdges(tracks, config({ threshold: 4 }))
+    expect(edge.matched).toEqual(expect.arrayContaining(['key', 'bpm', 'genre', 'year']))
   })
 })

@@ -1,0 +1,23 @@
+/**
+ * Display / behaviour settings, adjustable in the Advanced menu and persisted
+ * with the project. Anything that changes *what connects to what* lives in
+ * CriteriaConfig or LibraryFilters instead — settings only shape presentation
+ * and generation defaults.
+ */
+export interface AppSettings {
+  /** Node colour scheme (each ramp validated against the dark surface). */
+  colorScheme: 'blue' | 'aqua' | 'violet'
+  /** Angular fan-out of same-key tracks across their slot, in degrees. */
+  slotSpreadDeg: number
+  /** Base opacity of suggestion edges. */
+  edgeOpacity: number
+  /** Target number of tracks for the suggested-set generator. */
+  suggestLength: number
+}
+
+export const DEFAULT_SETTINGS: AppSettings = {
+  colorScheme: 'blue',
+  slotSpreadDeg: 11,
+  edgeOpacity: 0.35,
+  suggestLength: 15,
+}

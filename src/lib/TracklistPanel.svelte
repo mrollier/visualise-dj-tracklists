@@ -1,20 +1,19 @@
 <script lang="ts">
-  import { evaluateCombo } from '../core/combos'
+  import { evaluateCombo, type CriterionField } from '../core/combos'
   import { exportTracklistCsv } from '../core/exporters/csv'
   import { exportM3u } from '../core/exporters/m3u'
-  import type { MetadataField, Track } from '../core/model'
+  import type { Track } from '../core/model'
   import { criteria, libraryName, selectedId, trackById, tracklist } from '../stores'
 
   const walkTracks = $derived(
     $tracklist.map((id) => $trackById.get(id)).filter((t): t is Track => t !== undefined),
   )
 
-  const FIELD_SHORT: Record<MetadataField, string> = {
+  const FIELD_SHORT: Record<CriterionField, string> = {
     key: 'key',
     bpm: 'bpm',
     genre: 'genre',
     year: 'year',
-    rating: '★',
   }
 
   function transition(a: Track, b: Track) {
