@@ -1,5 +1,7 @@
 <script lang="ts">
   import { scaleLinear } from 'd3-scale'
+  import { select as d3select } from 'd3-selection'
+  import { zoom as d3zoom, zoomIdentity, type D3ZoomEvent } from 'd3-zoom'
   import { ALL_CAMELOT_KEYS, wheelSlotAngleDeg, type CamelotKey } from '../core/keys'
   import { slotAngleOffsets } from '../core/layout'
   import type { Track } from '../core/model'
@@ -169,6 +171,30 @@
 
   const hasUnkeyed = $derived(nodes.some((n) => n.unkeyed))
   const hasMissingRadial = $derived(nodes.some((n) => !n.unkeyed && n.missingRadial))
+
+  // --- zoom & pan (remark 10) ---
+  let svgEl: SVGSVGElement
+  let zoomTransform = $state('translate(0,0) scale(1)')
+  const zoomBehavior = d3zoom<SVGSVGElement, unknown>()
+    .scaleExtent([0.5, 8])
+    .on('zoom', (e: D3ZoomEvent<SVGSVGElement, unknown>) => {
+      zoomTransform = e.transform.toString()
+    })
+
+  $effect(() => {
+    const selection = d3select(svgEl)
+    selection.call(zoomBehavior)
+    selection.on('dblclick.zoom', null) // double-click appends to the set instead
+    return () => selection.on('.zoom', null)
+  })
+
+  function zoomBy(factor: number) {
+    zoomBehavior.scaleBy(d3select(svgEl), factor)
+  }
+
+  function zoomReset() {
+    zoomBehavior.transform(d3select(svgEl), zoomIdentity)
+  }
 </script>
 
 <svelte:window
@@ -186,11 +212,12 @@
   }}
 >
   <svg
+    bind:this={svgEl}
     viewBox="0 0 {WIDTH} {SIZE}"
     role="application"
     aria-label="Camelot wheel of the track library"
   >
-    <g class="zoom-layer">
+    <g class="zoom-layer" transform={zoomTransform}>
       <!-- Radial grid + tick labels -->
       {#each gridTicks as tick (tick)}
         <circle cx={CX} cy={CY} r={radialScale(tick)} class="gridline" />
@@ -324,6 +351,13 @@
     </g>
   </svg>
 
+  <!-- Zoom controls -->
+  <div class="zoom-controls">
+    <button aria-label="Zoom in" title="Zoom in" onclick={() => zoomBy(1.4)}>+</button>
+    <button aria-label="Zoom out" title="Zoom out" onclick={() => zoomBy(1 / 1.4)}>−</button>
+    <button aria-label="Reset zoom" title="Reset zoom" onclick={zoomReset}>⌂</button>
+  </div>
+
   <!-- Legend -->
   <div class="legend">
     <span class="legend-title">Colour: {AXIS_LABEL[$effectiveColorAxis]}</span>
@@ -454,6 +488,23 @@
   .node:focus-visible .dot {
     stroke: var(--accent);
     stroke-width: 3;
+  }
+
+  .zoom-controls {
+    position: absolute;
+    right: 12px;
+    bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .zoom-controls button {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    font-size: 15px;
+    line-height: 1;
   }
 
   .legend {
