@@ -12,8 +12,11 @@ import { DEFAULT_SETTINGS, type AppSettings } from './core/settings'
 
 export type RadialAxis = 'bpm' | 'rating' | 'year'
 export type ColorAxis = 'auto' | RadialAxis
+export type ViewMode = 'wheel' | 'genres'
 
 export const library = writable<Track[]>([])
+/** Central view: the Camelot wheel or the genre map. Session-only. */
+export const viewMode = writable<ViewMode>('wheel')
 export const libraryName = writable<string>('')
 export const lastImportReport = writable<ImportReport | null>(null)
 export const criteria = writable<CriteriaConfig>(structuredClone(DEFAULT_CRITERIA))

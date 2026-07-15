@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'vitest'
-import { genreComponents, genreSimilarity, normalizeGenre } from '../src/core/genre'
+import {
+  genreComponents,
+  genreSimilarity,
+  normalizeGenre,
+  packNeighbours,
+  UMBRELLA_GENRES,
+} from '../src/core/genre'
 
 describe('normalizeGenre', () => {
   test('lowercases, trims, and unifies separators', () => {
@@ -44,6 +50,21 @@ describe('genreSimilarity: multi-genre fields', () => {
     const plain = genreSimilarity('Techno', 'Minimal Techno', 'taxonomy')
     expect(compound).toBe(plain)
     expect(genreSimilarity('House / Techno', 'Techno', 'exact')).toBe(1)
+  })
+})
+
+describe('packNeighbours', () => {
+  test('returns nearby genres from the hybrid pack, skipping umbrella tags', () => {
+    const neighbours = packNeighbours('Techno', 3)
+    expect(neighbours.length).toBe(3)
+    for (const [label, score] of neighbours) {
+      expect(UMBRELLA_GENRES).not.toContain(label)
+      expect(score).toBeGreaterThan(0)
+    }
+  })
+
+  test('unknown labels yield nothing', () => {
+    expect(packNeighbours('Zydeco Fusion Wave', 3)).toEqual([])
   })
 })
 

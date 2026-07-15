@@ -16,6 +16,7 @@
     resetSuggestions,
     selectedId,
     tracklist,
+    viewMode,
   } from '../stores'
   import AdvancedMenu from './AdvancedMenu.svelte'
   import ResetDialog from './ResetDialog.svelte'
@@ -141,6 +142,19 @@
   <h1>visualise-dj-tracklists</h1>
 
   <div class="controls">
+    <div class="view-switch" role="group" aria-label="Central view">
+      <button
+        class:active={$viewMode === 'wheel'}
+        onclick={() => viewMode.set('wheel')}
+        disabled={$library.length === 0}>Wheel</button
+      >
+      <button
+        class:active={$viewMode === 'genres'}
+        onclick={() => viewMode.set('genres')}
+        disabled={$library.length === 0}>Genres</button
+      >
+    </div>
+
     <label>
       Radius
       <select bind:value={$radialAxis}>
@@ -212,6 +226,25 @@
     font-weight: 600;
     margin: 0;
     letter-spacing: 0.2px;
+  }
+
+  .view-switch {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .view-switch button {
+    border: none;
+    border-radius: 0;
+    padding: 4px 10px;
+  }
+
+  .view-switch button.active {
+    background: var(--accent);
+    color: #08222a;
+    font-weight: 600;
   }
 
   .controls {

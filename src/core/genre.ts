@@ -216,6 +216,11 @@ class PackSection {
     return this.squashed.get(label.replace(/[\s&']+/g, ''))
   }
 
+  /** The stored neighbour list of a canonical label (best first). */
+  neighbours(label: string): [string, number][] {
+    return this.lists[label] ?? []
+  }
+
   /** Score between two canonical labels; either side's list may hold it. */
   score(a: string, b: string): number {
     const hit =
@@ -234,6 +239,20 @@ class PackSection {
 
 const embeddingSection = new PackSection(embeddingPack.embedding as unknown as NeighbourLists)
 const hybridSection = new PackSection(embeddingPack.hybrid as unknown as NeighbourLists)
+
+/**
+ * A genre's nearest pack neighbours (hybrid section) — used by the genre map
+ * to suggest nearby genres you don't own. Umbrella tags are skipped.
+ */
+export function packNeighbours(rawLabel: string, limit: number): [string, number][] {
+  const canonical = hybridSection.label(normalizeGenre(rawLabel))
+  if (canonical === undefined) return []
+  const umbrella = new Set(UMBRELLA_GENRES)
+  return hybridSection
+    .neighbours(canonical)
+    .filter(([label]) => !umbrella.has(label))
+    .slice(0, limit)
+}
 
 /** Similarity between two already-normalized single genre labels. */
 export function labelSimilarity(a: string, b: string, method: GenreMethod): number {

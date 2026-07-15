@@ -1,10 +1,11 @@
 <script lang="ts">
   import CriteriaPanel from './lib/CriteriaPanel.svelte'
+  import GenreMapView from './lib/GenreMapView.svelte'
   import { restoreAutosave, startAutosave } from './lib/persistence'
   import TopBar from './lib/TopBar.svelte'
   import TracklistPanel from './lib/TracklistPanel.svelte'
   import WheelView from './lib/WheelView.svelte'
-  import { library } from './stores'
+  import { library, viewMode } from './stores'
 
   restoreAutosave()
   startAutosave()
@@ -24,7 +25,11 @@
       <p class="privacy">Everything stays in your browser. Nothing is uploaded.</p>
     </div>
   {:else}
-    <WheelView />
+    {#if $viewMode === 'genres'}
+      <GenreMapView />
+    {:else}
+      <WheelView />
+    {/if}
     <TracklistPanel />
   {/if}
 </main>
