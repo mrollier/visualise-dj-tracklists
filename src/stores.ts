@@ -7,7 +7,7 @@ import {
 } from './core/combos'
 import { applyFilters, EMPTY_FILTERS, type LibraryFilters } from './core/filter'
 import { computeGenreClasses } from './core/genreClasses'
-import type { ImportReport, Track } from './core/model'
+import type { ImportReport, Playlist, Track } from './core/model'
 import { DEFAULT_SETTINGS, type AppSettings } from './core/settings'
 
 export type RadialAxis = 'bpm' | 'rating' | 'year'
@@ -15,6 +15,8 @@ export type ColorAxis = 'auto' | RadialAxis
 export type ViewMode = 'wheel' | 'genres'
 
 export const library = writable<Track[]>([])
+/** Playlists imported with the library (Rekordbox XML); [] otherwise. */
+export const playlists = writable<Playlist[]>([])
 /** Central view: the Camelot wheel or the genre map. Session-only. */
 export const viewMode = writable<ViewMode>('wheel')
 /** Right aside: the set, or the advanced settings in its place. Session-only. */
@@ -61,8 +63,9 @@ export function resetSuggestions(): void {
 }
 
 /** The filtered library: what the wheel, edges and suggestions operate on. */
-export const visibleLibrary = derived([library, filters], ([$library, $filters]) =>
-  applyFilters($library, $filters),
+export const visibleLibrary = derived(
+  [library, filters, playlists],
+  ([$library, $filters, $playlists]) => applyFilters($library, $filters, $playlists),
 )
 
 /** Colour axis resolved: 'auto' = rating, or BPM when the radius shows rating. */

@@ -1,6 +1,6 @@
 import { XMLParser } from 'fast-xml-parser'
 import { normalizeKey } from '../keys'
-import { buildReport, type ImportResult, type Track } from '../model'
+import { buildReport, type ImportResult, type Playlist, type Track } from '../model'
 
 /**
  * Import a Rekordbox library export (File → Export Collection in xml format).
@@ -9,7 +9,36 @@ import { buildReport, type ImportResult, type Track } from '../model'
  * - Rating is stored as 0–255 in steps of 51 (= 0–5 stars).
  * - AverageBpm="0.00" and Year="0" are placeholders for "unknown".
  * - Tonality may be Camelot ("8A") or classical ("Am") depending on settings.
+ * - PLAYLISTS is a NODE tree: folders are Type="0" (ROOT included), playlists
+ *   Type="1"; members are <TRACK Key="…"/> where Key = the collection TrackID.
  */
+
+interface PlaylistNode {
+  Type?: string | number
+  Name?: string | number
+  NODE?: PlaylistNode | PlaylistNode[]
+  TRACK?: { Key?: string | number } | { Key?: string | number }[]
+}
+
+function collectPlaylists(node: PlaylistNode | PlaylistNode[], prefix: string, out: Playlist[]) {
+  for (const n of Array.isArray(node) ? node : [node]) {
+    const name = n.Name === undefined ? '' : String(n.Name)
+    if (String(n.Type) === '0') {
+      // A folder: ROOT stays invisible, deeper folders prefix their children.
+      const path =
+        name === '' || name === 'ROOT' ? prefix : prefix === '' ? name : `${prefix} / ${name}`
+      if (n.NODE !== undefined) collectPlaylists(n.NODE, path, out)
+      continue
+    }
+    const members = n.TRACK === undefined ? [] : Array.isArray(n.TRACK) ? n.TRACK : [n.TRACK]
+    out.push({
+      name: prefix === '' ? name : `${prefix} / ${name}`,
+      trackIds: members
+        .filter((m) => m.Key !== undefined)
+        .map((m) => `rb-${String(m.Key)}`),
+    })
+  }
+}
 export function importRekordboxXml(xml: string): ImportResult {
   const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '' })
   let doc: unknown
@@ -19,8 +48,15 @@ export function importRekordboxXml(xml: string): ImportResult {
     return { tracks: [], report: buildReport([], [`Could not parse XML: ${String(e)}`]) }
   }
 
-  const collection = (doc as { DJ_PLAYLISTS?: { COLLECTION?: { TRACK?: unknown } } })?.DJ_PLAYLISTS
-    ?.COLLECTION?.TRACK
+  const root = (
+    doc as {
+      DJ_PLAYLISTS?: {
+        COLLECTION?: { TRACK?: unknown }
+        PLAYLISTS?: { NODE?: PlaylistNode | PlaylistNode[] }
+      }
+    }
+  )?.DJ_PLAYLISTS
+  const collection = root?.COLLECTION?.TRACK
   if (collection === undefined) {
     return {
       tracks: [],
@@ -64,5 +100,8 @@ export function importRekordboxXml(xml: string): ImportResult {
     })
   }
 
-  return { tracks, report: buildReport(tracks, errors) }
+  const playlists: Playlist[] = []
+  if (root?.PLAYLISTS?.NODE !== undefined) collectPlaylists(root.PLAYLISTS.NODE, '', playlists)
+
+  return { tracks, report: buildReport(tracks, errors), playlists }
 }

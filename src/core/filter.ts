@@ -1,4 +1,4 @@
-import type { Track } from './model'
+import type { Playlist, Track } from './model'
 
 /**
  * Library-level filters (remarks 2, 6, 8): they decide which tracks are
@@ -13,13 +13,23 @@ export interface LibraryFilters {
   rating: [number, number] | null
   /** Allow-list of genres (compared case-insensitively); null = all genres. */
   genres: string[] | null
+  /**
+   * Selected playlist names (may include NOT_IN_PLAYLIST); null = the
+   * playlist filter is inactive. A fresh collection import with playlists
+   * starts at [] — nothing selected, empty wheel (design-v5 §D).
+   */
+  playlists: string[] | null
 }
+
+/** Pseudo-playlist name: tracks that appear in no playlist at all. */
+export const NOT_IN_PLAYLIST = '__not-in-a-playlist__'
 
 export const EMPTY_FILTERS: LibraryFilters = {
   bpm: null,
   year: null,
   rating: null,
   genres: null,
+  playlists: null,
 }
 
 export interface LibraryExtents {
@@ -46,14 +56,34 @@ function inRange(value: number | null, range: [number, number] | null): boolean 
   return value >= range[0] && value <= range[1]
 }
 
-export function applyFilters(tracks: Track[], filters: LibraryFilters): Track[] {
+export function applyFilters(
+  tracks: Track[],
+  filters: LibraryFilters,
+  playlists: Playlist[] = [],
+): Track[] {
   const allowed =
     filters.genres === null ? null : new Set(filters.genres.map((g) => g.toLowerCase()))
+  let allowedIds: Set<string> | null = null
+  if (filters.playlists !== null && playlists.length > 0) {
+    const selected = new Set(filters.playlists)
+    allowedIds = new Set<string>()
+    for (const playlist of playlists) {
+      if (!selected.has(playlist.name)) continue
+      for (const id of playlist.trackIds) allowedIds.add(id)
+    }
+    if (selected.has(NOT_IN_PLAYLIST)) {
+      const inAny = new Set(playlists.flatMap((p) => p.trackIds))
+      for (const track of tracks) {
+        if (!inAny.has(track.id)) allowedIds.add(track.id)
+      }
+    }
+  }
   return tracks.filter(
     (t) =>
       inRange(t.bpm, filters.bpm) &&
       inRange(t.year, filters.year) &&
       inRange(t.rating, filters.rating) &&
-      (allowed === null || t.genre === null || allowed.has(t.genre.toLowerCase())),
+      (allowed === null || t.genre === null || allowed.has(t.genre.toLowerCase())) &&
+      (allowedIds === null || allowedIds.has(t.id)),
   )
 }

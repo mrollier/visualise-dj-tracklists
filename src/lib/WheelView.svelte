@@ -489,6 +489,13 @@
     </g>
   </svg>
 
+  {#if $visibleLibrary.length === 0}
+    <div class="no-visible">
+      <strong>Nothing to show yet.</strong>
+      <span>Select a playlist or loosen the filters on the left to populate the wheel.</span>
+    </div>
+  {/if}
+
   <!-- Zoom controls -->
   <div class="zoom-controls">
     <button aria-label="Zoom in" title="Zoom in" onclick={() => zoomBy(1.4)}>+</button>
@@ -565,6 +572,25 @@
   .wheel-wrap > svg {
     width: 100%;
     height: 100%;
+  }
+
+  .no-visible {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: center;
+    text-align: center;
+    color: var(--ink-secondary);
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 20px;
+    font-size: 13px;
+    max-width: 320px;
   }
 
   .gridline {

@@ -11,6 +11,7 @@ import {
   lastImportReport,
   library,
   libraryName,
+  playlists,
   radialAxis,
   resetSuggestions,
   sampleHistory,
@@ -31,6 +32,7 @@ export function currentProject(): Project {
     filters: get(filters),
     settings: get(settings),
     tracklist: get(tracklist),
+    playlists: get(playlists),
     radialAxis: get(radialAxis),
     colorAxis: get(colorAxis),
   }
@@ -43,6 +45,7 @@ export function applyProject(project: Project): void {
   filters.set(project.filters)
   settings.set(project.settings)
   tracklist.set(project.tracklist)
+  playlists.set(project.playlists)
   radialAxis.set(project.radialAxis)
   colorAxis.set(project.colorAxis)
   selectedId.set(null)
@@ -53,6 +56,7 @@ export function loadSamplePack(pack: SamplePack): void {
   library.set(pack.tracks)
   libraryName.set(`${pack.name} (sample)`)
   tracklist.set(pack.set)
+  playlists.set([])
   filters.set(structuredClone(EMPTY_FILTERS))
   lastImportReport.set(null)
   selectedId.set(null)
@@ -93,6 +97,7 @@ export function startAutosave(): void {
     filters,
     settings,
     tracklist,
+    playlists,
     radialAxis,
     colorAxis,
   ]) {
@@ -105,6 +110,7 @@ export function resetEverything(): void {
   localStorage.removeItem(STORAGE_KEY)
   library.set([])
   libraryName.set('')
+  playlists.set([])
   criteria.set(structuredClone(DEFAULT_CRITERIA))
   filters.set(structuredClone(EMPTY_FILTERS))
   settings.set(structuredClone(DEFAULT_SETTINGS))

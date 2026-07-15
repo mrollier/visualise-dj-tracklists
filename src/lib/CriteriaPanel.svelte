@@ -1,5 +1,6 @@
 <script lang="ts">
   import FiltersSection from './FiltersSection.svelte'
+  import PlaylistsSection from './PlaylistsSection.svelte'
   import { criteria, edges, library, visibleLibrary } from '../stores'
 
   const enabledCount = $derived(
@@ -29,6 +30,8 @@
       <span class="label">combo suggestions</span>
     </div>
   </div>
+
+  <PlaylistsSection />
 
   <FiltersSection />
 

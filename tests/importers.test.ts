@@ -5,6 +5,7 @@ import { importRekordboxXml } from '../src/core/importers/rekordbox'
 import { importCsv } from '../src/core/importers/csv'
 
 const rekordboxXml = readFileSync(join(__dirname, 'fixtures', 'rekordbox.xml'), 'utf-8')
+const playlistsXml = readFileSync(join(__dirname, 'fixtures', 'rekordbox-playlists.xml'), 'utf-8')
 
 describe('importRekordboxXml', () => {
   const { tracks, report } = importRekordboxXml(rekordboxXml)
@@ -65,6 +66,36 @@ describe('importRekordboxXml', () => {
     const { tracks: none, report: bad } = importRekordboxXml('<foo><bar/></foo>')
     expect(none).toEqual([])
     expect(bad.errors.length).toBeGreaterThan(0)
+  })
+})
+
+describe('importRekordboxXml playlists', () => {
+  const result = importRekordboxXml(playlistsXml)
+
+  test('reads the PLAYLISTS tree alongside the collection', () => {
+    expect(result.tracks).toHaveLength(4)
+    expect(result.playlists?.map((p) => p.name)).toEqual([
+      'Warm-up & After',
+      'Gigs / Bosfeest 2026',
+      'Gigs / Oudjaar',
+      'CUE Analysis Playlist',
+    ])
+  })
+
+  test('playlist members reference collection track ids in order', () => {
+    const byName = new Map(result.playlists?.map((p) => [p.name, p.trackIds]))
+    expect(byName.get('Warm-up & After')).toEqual(['rb-102', 'rb-103'])
+    expect(byName.get('Gigs / Bosfeest 2026')).toEqual(['rb-101']) // single member, not an array
+    expect(byName.get('Gigs / Oudjaar')).toEqual(['rb-101', 'rb-104'])
+  })
+
+  test('empty playlists are kept with zero tracks', () => {
+    const cue = result.playlists?.find((p) => p.name === 'CUE Analysis Playlist')
+    expect(cue?.trackIds).toEqual([])
+  })
+
+  test('a collection without playlists yields an empty list', () => {
+    expect(importRekordboxXml(rekordboxXml).playlists).toEqual([])
   })
 })
 

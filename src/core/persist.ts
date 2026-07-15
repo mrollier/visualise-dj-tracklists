@@ -1,6 +1,6 @@
 import { DEFAULT_CRITERIA, type CriteriaConfig } from './combos'
 import { EMPTY_FILTERS, type LibraryFilters } from './filter'
-import type { Track } from './model'
+import type { Playlist, Track } from './model'
 import { DEFAULT_SETTINGS, type AppSettings } from './settings'
 
 /**
@@ -17,6 +17,8 @@ export interface Project {
   filters: LibraryFilters
   settings: AppSettings
   tracklist: string[]
+  /** Playlists from the source library (Rekordbox XML); [] elsewhere. */
+  playlists: Playlist[]
   radialAxis: 'bpm' | 'rating' | 'year'
   colorAxis: 'auto' | 'bpm' | 'rating' | 'year'
 }
@@ -83,9 +85,12 @@ export function parseProject(json: string): Project {
     libraryName: typeof p.libraryName === 'string' ? p.libraryName : '',
     tracks: p.tracks as Track[],
     criteria: migrateCriteria(p.criteria as unknown as Record<string, unknown>),
-    filters: (p.filters as LibraryFilters | undefined) ?? structuredClone(EMPTY_FILTERS),
+    // Merge-defaults: saves from before the playlists filter existed gain
+    // playlists: null (inactive) rather than failing to parse.
+    filters: { ...structuredClone(EMPTY_FILTERS), ...(p.filters as object | undefined) },
     settings,
     tracklist: (p.tracklist as string[]).filter((id) => knownIds.has(id)),
+    playlists: Array.isArray(p.playlists) ? (p.playlists as Playlist[]) : [],
     radialAxis: p.radialAxis === 'rating' || p.radialAxis === 'year' ? p.radialAxis : 'bpm',
     colorAxis:
       p.colorAxis === 'bpm' || p.colorAxis === 'rating' || p.colorAxis === 'year'

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DJ_PLAYLISTS Version="1.0.0">
+  <PRODUCT Name="rekordbox" Version="7.2.16" Company="AlphaTheta"/>
+  <COLLECTION Entries="4">
+    <TRACK TrackID="101" Name="Midnight Drive" Artist="Nova Pulse" Genre="Techno"
+           TotalTime="372" Year="2019" AverageBpm="128.00" Rating="204"
+           Location="file://localhost/Users/dj/Music/midnight-drive.mp3" Tonality="8A"/>
+    <TRACK TrackID="102" Name="Glasswork" Artist="Aurora Fields" Genre="Melodic House"
+           TotalTime="401" Year="2021" AverageBpm="122.50" Rating="255"
+           Location="file://localhost/Users/dj/Music/glasswork.wav" Tonality="Am"/>
+    <TRACK TrackID="103" Name="Untitled Dub" Artist="" Genre="" TotalTime="298" Year="0"
+           AverageBpm="0.00" Rating="0"
+           Location="file://localhost/Users/dj/Music/untitled-dub.mp3" Tonality=""/>
+    <TRACK TrackID="104" Name="Seven Bridges" Artist="Kasteel" Genre="Drum &amp; Bass"
+           TotalTime="334" Year="2023" AverageBpm="174.00" Rating="153"
+           Location="file://localhost/Users/dj/Music/seven-bridges.aiff" Tonality="F#m"/>
+  </COLLECTION>
+  <PLAYLISTS>
+    <NODE Type="0" Name="ROOT" Count="3">
+      <NODE Name="Warm-up &amp; After" Type="1" KeyType="0" Entries="2">
+        <TRACK Key="102"/>
+        <TRACK Key="103"/>
+      </NODE>
+      <NODE Type="0" Name="Gigs" Count="2">
+        <NODE Name="Bosfeest 2026" Type="1" KeyType="0" Entries="1">
+          <TRACK Key="101"/>
+        </NODE>
+        <NODE Name="Oudjaar" Type="1" KeyType="0" Entries="2">
+          <TRACK Key="101"/>
+          <TRACK Key="104"/>
+        </NODE>
+      </NODE>
+      <NODE Name="CUE Analysis Playlist" Type="1" KeyType="0" Entries="0"/>
+    </NODE>
+  </PLAYLISTS>
+</DJ_PLAYLISTS>

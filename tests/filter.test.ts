@@ -3,6 +3,7 @@ import {
   applyFilters,
   EMPTY_FILTERS,
   libraryExtents,
+  NOT_IN_PLAYLIST,
   type LibraryFilters,
 } from '../src/core/filter'
 import type { Track } from '../src/core/model'
@@ -76,5 +77,45 @@ describe('libraryExtents', () => {
     const unrated = [track({ id: 'x', rating: null })]
     expect(libraryExtents(unrated).rating).toBeNull()
     expect(libraryExtents([])).toEqual({ bpm: null, year: null, rating: null })
+  })
+})
+
+describe('playlist filtering', () => {
+  const playlists = [
+    { name: 'Openers', trackIds: ['a', 'b'] },
+    { name: 'Peak', trackIds: ['b', 'c'] },
+  ]
+
+  test('null selection means the playlist filter is inactive', () => {
+    expect(applyFilters(tracks, filters({ playlists: null }), playlists)).toHaveLength(4)
+  })
+
+  test('an empty selection hides everything (fresh collection import)', () => {
+    expect(applyFilters(tracks, filters({ playlists: [] }), playlists)).toEqual([])
+  })
+
+  test('selected playlists union their members', () => {
+    const visible = applyFilters(tracks, filters({ playlists: ['Openers'] }), playlists)
+    expect(visible.map((t) => t.id)).toEqual(['a', 'b'])
+    const both = applyFilters(tracks, filters({ playlists: ['Openers', 'Peak'] }), playlists)
+    expect(both.map((t) => t.id)).toEqual(['a', 'b', 'c'])
+  })
+
+  test('the NOT_IN_PLAYLIST pseudo-playlist selects the leftovers', () => {
+    const visible = applyFilters(tracks, filters({ playlists: [NOT_IN_PLAYLIST] }), playlists)
+    expect(visible.map((t) => t.id)).toEqual(['d'])
+  })
+
+  test('playlist selection intersects with the other filters', () => {
+    const visible = applyFilters(
+      tracks,
+      filters({ playlists: ['Openers', 'Peak'], bpm: [130, 180] }),
+      playlists,
+    )
+    expect(visible.map((t) => t.id)).toEqual(['b', 'c'])
+  })
+
+  test('a selection with no imported playlists filters nothing', () => {
+    expect(applyFilters(tracks, filters({ playlists: [] }), [])).toHaveLength(4)
   })
 })

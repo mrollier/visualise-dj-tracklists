@@ -10,9 +10,11 @@
   import { ALL_SAMPLE_PACKS } from '../data/samples'
   import {
     colorAxis,
+    filters,
     lastImportReport,
     library,
     libraryName,
+    playlists,
     radialAxis,
     resetSuggestions,
     rightPanel,
@@ -76,6 +78,8 @@
           library.set(result.tracks)
           libraryName.set(first.name)
           tracklist.set(result.tracks.map((t) => t.id))
+          playlists.set([])
+          filters.update((f) => ({ ...f, playlists: null }))
           selectedId.set(null)
           lastImportReport.set(result.report)
           resetSuggestions()
@@ -95,15 +99,21 @@
         if (get(libraryName) === '') libraryName.set(first.name)
         return
       }
-      const { tracks, report } = AUDIO_EXTENSIONS.test(first.name)
+      const result = AUDIO_EXTENSIONS.test(first.name)
         ? await importAudioFiles(files.filter((f) => AUDIO_EXTENSIONS.test(f.name)))
         : await importTextFile(first)
+      const { tracks, report } = result
       // A collection import replaces the library, but a playlist imported
       // earlier keeps its order: bare M3U tracks are re-matched against the
       // fresh collection and pick up its metadata.
       const rematch = rematchAfterImport(get(library), get(tracklist), tracks)
       library.set(rematch.library)
       libraryName.set(files.length > 1 ? `${files.length} audio files` : first.name)
+      // A collection carrying playlists starts with NONE selected: the wheel
+      // stays empty until playlists are toggled on the left (design-v5 §D).
+      const imported = result.playlists ?? []
+      playlists.set(imported)
+      filters.update((f) => ({ ...f, playlists: imported.length > 0 ? [] : null }))
       if (rematch.matched > 0) {
         report.notes = [
           ...(report.notes ?? []),

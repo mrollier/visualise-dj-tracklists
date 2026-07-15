@@ -28,9 +28,17 @@ export interface ImportReport {
   notes?: string[]
 }
 
+/** A named playlist from the source library: track ids in playlist order. */
+export interface Playlist {
+  name: string
+  trackIds: string[]
+}
+
 export interface ImportResult {
   tracks: Track[]
   report: ImportReport
+  /** Playlists found in the source (Rekordbox XML); absent elsewhere. */
+  playlists?: Playlist[]
 }
 
 export function buildReport(tracks: Track[], errors: string[]): ImportReport {

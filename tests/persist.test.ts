@@ -10,9 +10,10 @@ const project: Project = {
   libraryName: 'My crate',
   tracks: SAMPLE_TRACKS,
   criteria: { ...structuredClone(DEFAULT_CRITERIA), threshold: 4 },
-  filters: { ...structuredClone(EMPTY_FILTERS), bpm: [120, 140] },
+  filters: { ...structuredClone(EMPTY_FILTERS), bpm: [120, 140], playlists: ['Openers'] },
   settings: { ...structuredClone(DEFAULT_SETTINGS), colorScheme: 'aqua' },
   tracklist: [SAMPLE_TRACKS[0].id, SAMPLE_TRACKS[2].id],
+  playlists: [{ name: 'Openers', trackIds: [SAMPLE_TRACKS[0].id] }],
   radialAxis: 'year',
   colorAxis: 'bpm',
 }
@@ -91,6 +92,22 @@ describe('project persistence (v2)', () => {
     expect(migrated.criteria.threshold).toBe(4) // clamped to the 4 criteria left
     expect(migrated.criteria.bpm.maxPercent).toBe(8)
     expect(migrated.tracklist).toEqual([SAMPLE_TRACKS[1].id])
+  })
+
+  test('saves from before playlists existed default to none and an inactive filter', () => {
+    const legacy = JSON.stringify({
+      version: 2,
+      libraryName: '',
+      tracks: SAMPLE_TRACKS,
+      criteria: structuredClone(DEFAULT_CRITERIA),
+      filters: { bpm: null, year: null, rating: null, genres: null }, // no playlists field
+      settings: structuredClone(DEFAULT_SETTINGS),
+      tracklist: [],
+      radialAxis: 'bpm',
+    })
+    const parsed = parseProject(legacy)
+    expect(parsed.playlists).toEqual([])
+    expect(parsed.filters.playlists).toBeNull()
   })
 
   test('saves without advancedMoves default both split key flags to off', () => {
