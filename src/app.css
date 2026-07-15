@@ -1,30 +1,24 @@
-/* Design tokens — dark-first (node ramp validated against surface #1a1a19). */
+/* Design tokens — dark pro-DJ chrome (node ramps validated against the
+   wheel surface #1a1a19; panel chrome sits darker, like DJ software). */
 :root {
   color-scheme: dark;
 
-  --page: #0d0d0d;
+  --page: #0b0b0b;
   --surface: #1a1a19;
-  --surface-raised: #222221;
-  --ink: #ffffff;
+  --surface-raised: #202020;
+  --ink: #f2f2f0;
   --ink-secondary: #c3c2b7;
-  --ink-muted: #898781;
+  --ink-muted: #8a8880;
   --grid: #2c2c2a;
   --baseline: #383835;
-  --border: rgba(255, 255, 255, 0.1);
+  --border: rgba(255, 255, 255, 0.09);
 
-  /* Ordinal rating ramp, 0-5 stars (blue; validated for dark ordinal use) */
-  --rating-0: #184f95;
-  --rating-1: #256abf;
-  --rating-2: #3987e5;
-  --rating-3: #6da7ec;
-  --rating-4: #9ec5f4;
-  --rating-5: #cde2fb;
   --missing: #565550;
-
   --edge: #52514e;
   --walk: #c98500;
   --walk-bright: #eda100;
-  --accent: #3987e5;
+  --accent: #27a6c4;
+  --danger: #d03b3b;
 
   font-family:
     system-ui,
@@ -55,21 +49,51 @@ button,
 select,
 input {
   font: inherit;
+  font-size: 12.5px;
   color: var(--ink);
   background: var(--surface-raised);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 0.3rem 0.65rem;
+  border-radius: 4px;
+  padding: 0.28rem 0.6rem;
 }
 
 button {
   cursor: pointer;
+  transition: border-color 0.12s ease;
 }
 
-button:hover {
-  border-color: var(--ink-muted);
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+button.danger {
+  color: var(--danger);
+  border-color: rgba(208, 59, 59, 0.4);
+}
+
+button.danger:hover:not(:disabled) {
+  border-color: var(--danger);
 }
 
 label {
   color: var(--ink-secondary);
+}
+
+/* Section micro-headers, DJ-software style */
+.micro-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--ink-muted);
+}
+
+/* Numbers that need to align (BPM, keys in lists) */
+.tabular {
+  font-variant-numeric: tabular-nums;
 }

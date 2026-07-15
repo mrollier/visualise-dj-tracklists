@@ -33,7 +33,7 @@
   <FiltersSection />
 
   <details open>
-    <summary>Combo criteria</summary>
+    <summary class="micro-label">Combo criteria</summary>
 
     <div class="criterion">
       <label>
@@ -152,12 +152,6 @@
     align-items: center;
     gap: 6px;
     flex-wrap: wrap;
-  }
-
-  .criterion .sub {
-    margin: 6px 0 0 22px;
-    font-size: 12px;
-    color: var(--ink-muted);
   }
 
   input[type='number'] {

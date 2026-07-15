@@ -71,7 +71,7 @@
 
 <aside>
   <div class="head">
-    <h2>Your set</h2>
+    <h2 class="micro-label">Your set</h2>
     <span class="count">{walkTracks.length} tracks</span>
   </div>
 
@@ -108,7 +108,7 @@
               <strong>{track.title}</strong>
               <small>{track.artist ?? 'Unknown artist'}</small>
             </span>
-            <span class="meta">{track.key ?? '—'} · {track.bpm ?? '—'}</span>
+            <span class="meta tabular">{track.key ?? '—'} · {track.bpm ?? '—'}</span>
           </button>
           <span class="actions">
             <button title="Move up" aria-label="Move up" onclick={() => move(i, -1)}>↑</button>

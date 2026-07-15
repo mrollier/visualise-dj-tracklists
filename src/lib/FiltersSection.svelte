@@ -44,7 +44,7 @@
 </script>
 
 <details>
-  <summary>
+  <summary class="micro-label">
     Filters
     <span class="summary-count">{$visibleLibrary.length} of {$library.length} tracks</span>
   </summary>

@@ -17,11 +17,13 @@
     tracklist,
   } from '../stores'
   import AdvancedMenu from './AdvancedMenu.svelte'
+  import ResetDialog from './ResetDialog.svelte'
   import { applyProject, currentProject } from './persistence'
 
   const AUDIO_EXTENSIONS = /\.(mp3|wav|flac|aiff?|m4a|ogg)$/i
 
   let fileInput: HTMLInputElement
+  let resetDialog: ResetDialog
   let importError = $state('')
 
   async function importAudioFiles(files: File[]): Promise<ImportResult> {
@@ -157,6 +159,8 @@
     <button onclick={loadSample}>Load sample</button>
     <button onclick={saveProject} disabled={$library.length === 0}>Save project</button>
     <AdvancedMenu />
+    <button class="danger" onclick={() => resetDialog.open()}>Reset</button>
+    <ResetDialog bind:this={resetDialog} />
   </div>
 
   <div class="status">
