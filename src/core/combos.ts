@@ -45,7 +45,7 @@ export interface CriteriaConfig {
 export const DEFAULT_CRITERIA: CriteriaConfig = {
   key: { enabled: true, plusTwo: false, plusSeven: false, vinylMode: false },
   bpm: { enabled: true, maxPercent: 10, halfDouble: false },
-  genre: { enabled: true, method: 'lexical', mode: 'topk', k: 5, threshold: 0.2 },
+  genre: { enabled: true, method: 'hybrid', mode: 'topk', k: 5, threshold: 0.2 },
   year: { enabled: true, maxYears: 5 },
   threshold: 3,
 }

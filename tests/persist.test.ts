@@ -99,10 +99,11 @@ describe('project persistence (v2)', () => {
     expect(migrated.filters).toEqual(EMPTY_FILTERS)
     expect(migrated.settings).toEqual(DEFAULT_SETTINGS)
     expect(migrated.colorAxis).toBe('auto')
-    // v1 stored no genre threshold, so the modern default (mutual top-k) applies.
+    // v1 stored no genre method/threshold, so the modern defaults apply
+    // (hybrid + mutual top-k — design-v6 §F).
     expect(migrated.criteria.genre).toEqual({
       enabled: true,
-      method: 'lexical',
+      method: 'hybrid',
       mode: 'topk',
       k: 5,
       threshold: 0.2,
@@ -165,5 +166,18 @@ describe('project persistence (v2)', () => {
     expect(migrated.criteria.genre.mode).toBe('threshold')
     expect(migrated.criteria.genre.threshold).toBe(0.36)
     expect(migrated.criteria.genre.k).toBe(DEFAULT_CRITERIA.genre.k)
+  })
+})
+
+describe('genre method persistence (design-v6 §F)', () => {
+  test("a save that stored 'lexical' explicitly keeps it — no forced upgrade", () => {
+    const saved = serializeProject({
+      ...project,
+      criteria: {
+        ...structuredClone(DEFAULT_CRITERIA),
+        genre: { enabled: true, method: 'lexical', mode: 'topk', k: 5, threshold: 0.2 },
+      },
+    })
+    expect(parseProject(saved).criteria.genre.method).toBe('lexical')
   })
 })

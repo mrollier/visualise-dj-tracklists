@@ -25,6 +25,16 @@ export const GENRE_METHODS: readonly GenreMethod[] = [
   'hybrid',
 ]
 
+/** Short UI labels, shared by the criteria panel and the advanced menu. */
+export const METHOD_LABEL: Record<GenreMethod, string> = {
+  exact: 'Exact match',
+  lexical: 'Lexical (word overlap)',
+  graph: 'Genre graph (curated relations)',
+  taxonomy: 'Taxonomy (Lin, rooted tree)',
+  embedding: 'Embedding (co-occurrence pack)',
+  hybrid: 'Hybrid (embedding + tree)',
+}
+
 /** Decay per graph step: neighbours score 0.6, two steps 0.36, ... */
 const GRAPH_DECAY = 0.6
 

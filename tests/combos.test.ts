@@ -36,18 +36,18 @@ describe('individual criteria', () => {
     expect(evaluateCombo(base, track({ id: 'e', bpm: 148 }), cfg).matched).not.toContain('bpm')
   })
 
-  test('genre defaults to lexical word overlap, case-insensitively', () => {
+  test('genre defaults to the hybrid method (design-v6 §F), case-insensitively', () => {
     const cfg = config()
-    expect(DEFAULT_CRITERIA.genre.method).toBe('lexical')
+    expect(DEFAULT_CRITERIA.genre.method).toBe('hybrid')
     expect(evaluateCombo(base, track({ id: 'b', genre: 'techno' }), cfg).matched).toContain('genre')
-    // no shared words → no match, even lexically
-    expect(evaluateCombo(base, track({ id: 'c', genre: 'Tech House' }), cfg).matched).not.toContain(
+    // hybrid knows relatedness beyond shared words: Tech House ~ Techno
+    expect(evaluateCombo(base, track({ id: 'c', genre: 'Tech House' }), cfg).matched).toContain(
       'genre',
     )
-    // shared head word at the default 0.5 threshold → match
-    const melodic = track({ id: 'd', genre: 'Melodic House' })
-    const house = track({ id: 'e', genre: 'House' })
-    expect(evaluateCombo(melodic, house, cfg).matched).toContain('genre')
+    // unrelated genres still do not match
+    expect(evaluateCombo(base, track({ id: 'f', genre: 'Country' }), cfg).matched).not.toContain(
+      'genre',
+    )
   })
 
   test('genre criterion can use a similarity method with a threshold', () => {

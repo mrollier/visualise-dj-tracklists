@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { GENRE_METHODS } from '../core/genre'
+  import { GENRE_METHODS, METHOD_LABEL, type GenreMethod } from '../core/genre'
   import type { Track } from '../core/model'
   import { type BpmProgression } from '../core/settings'
   import {
@@ -49,21 +49,12 @@
     $mustInclude.map((id) => $trackById.get(id)).filter((t): t is Track => t !== undefined),
   )
 
-  const METHOD_LABEL = {
-    exact: 'Exact match',
-    lexical: 'Lexical (word overlap)',
-    graph: 'Genre graph (curated relations)',
-    taxonomy: 'Taxonomy (Lin, rooted tree)',
-    embedding: 'Embedding (co-occurrence pack)',
-    hybrid: 'Hybrid (embedding + tree)',
-  } as const
-
   interface MethodInfo {
     text: string
     sources: { label: string; href: string }[]
   }
 
-  const METHOD_EXPLAINER: Record<keyof typeof METHOD_LABEL, MethodInfo> = {
+  const METHOD_EXPLAINER: Record<GenreMethod, MethodInfo> = {
     exact: {
       text: 'Only identical genres match, after alias normalization (DnB = Drum & Bass). Strict but blind to relatedness.',
       sources: [

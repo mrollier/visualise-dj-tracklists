@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { GENRE_METHODS, METHOD_LABEL } from '../core/genre'
   import FiltersSection from './FiltersSection.svelte'
   import PlaylistsSection from './PlaylistsSection.svelte'
   import { criteria, edges, library, visibleLibrary } from '../stores'
@@ -75,11 +76,20 @@
           {#if $criteria.genre.method === 'exact'}
             same genre
           {:else if $criteria.genre.mode === 'topk'}
-            top-{$criteria.genre.k} mutual ({$criteria.genre.method})
+            top-{$criteria.genre.k} mutual
           {:else}
-            ≥ {$criteria.genre.threshold.toFixed(2)} ({$criteria.genre.method})
+            ≥ {$criteria.genre.threshold.toFixed(2)}
           {/if}
         </span>
+      </label>
+      <!-- The method itself is a first-class choice (ISSUES.md #10); its
+           parameters (mode/k/threshold) stay in the advanced menu. -->
+      <label class="sub-option method">
+        <select bind:value={$criteria.genre.method} disabled={!$criteria.genre.enabled}>
+          {#each GENRE_METHODS as method (method)}
+            <option value={method}>{METHOD_LABEL[method]}</option>
+          {/each}
+        </select>
       </label>
     </div>
 
@@ -171,6 +181,11 @@
 
   .criterion .sub-option {
     margin: 4px 0 0 22px;
+  }
+
+  .criterion .method select {
+    width: 100%;
+    font-size: 12px;
   }
 
   input[type='number'] {
