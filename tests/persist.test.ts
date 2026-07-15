@@ -80,10 +80,30 @@ describe('project persistence (v2)', () => {
       k: 5,
       threshold: 0.2,
     })
+    // v1's single advancedMoves toggle fans out to both split flags.
+    expect(migrated.criteria.key).toEqual({
+      enabled: true,
+      plusTwo: true,
+      plusSeven: true,
+      vinylMode: false,
+    })
     expect('rating' in migrated.criteria).toBe(false)
     expect(migrated.criteria.threshold).toBe(4) // clamped to the 4 criteria left
     expect(migrated.criteria.bpm.maxPercent).toBe(8)
     expect(migrated.tracklist).toEqual([SAMPLE_TRACKS[1].id])
+  })
+
+  test('saves without advancedMoves default both split key flags to off', () => {
+    const saved = JSON.stringify({
+      version: 2,
+      libraryName: '',
+      tracks: SAMPLE_TRACKS,
+      criteria: { ...structuredClone(DEFAULT_CRITERIA), key: { enabled: true, vinylMode: true } },
+      tracklist: [],
+      radialAxis: 'bpm',
+    })
+    const key = parseProject(saved).criteria.key
+    expect(key).toEqual({ enabled: true, plusTwo: false, plusSeven: false, vinylMode: true })
   })
 
   test('projects saved with a genre threshold keep threshold semantics', () => {

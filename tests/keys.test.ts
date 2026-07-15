@@ -141,11 +141,13 @@ describe('keysMatch (combo criterion)', () => {
     expect(keysMatch('8A', '3A')).toBe(false)
   })
 
-  test('advanced moves (+2 / +7 same ring) only match when enabled', () => {
+  test('+2 and +7-semitone same-ring moves are gated independently', () => {
     expect(keysMatch('8A', '10A')).toBe(false)
-    expect(keysMatch('8A', '10A', { advancedMoves: true })).toBe(true)
-    expect(keysMatch('8A', '3A', { advancedMoves: true })).toBe(true) // +7
-    expect(keysMatch('8A', '10B', { advancedMoves: true })).toBe(false)
+    expect(keysMatch('8A', '10A', { plusTwo: true })).toBe(true) // 2 steps
+    expect(keysMatch('8A', '10A', { plusSeven: true })).toBe(false)
+    expect(keysMatch('8A', '3A', { plusSeven: true })).toBe(true) // 5 steps = +7 semitones
+    expect(keysMatch('8A', '3A', { plusTwo: true })).toBe(false)
+    expect(keysMatch('8A', '10B', { plusTwo: true, plusSeven: true })).toBe(false) // cross-ring
   })
 })
 

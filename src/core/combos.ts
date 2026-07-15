@@ -19,7 +19,7 @@ import type { Track } from './model'
  * A pair with no evaluable criteria never forms an edge.
  */
 export interface CriteriaConfig {
-  key: { enabled: boolean; advancedMoves: boolean; vinylMode: boolean }
+  key: { enabled: boolean; plusTwo: boolean; plusSeven: boolean; vinylMode: boolean }
   bpm: { enabled: boolean; maxPercent: number; halfDouble: boolean }
   genre: {
     enabled: boolean
@@ -43,7 +43,7 @@ export interface CriteriaConfig {
 // filter instead (see filter.ts): you exclude tracks you wouldn't play,
 // rather than requiring neighbours to be similarly rated.
 export const DEFAULT_CRITERIA: CriteriaConfig = {
-  key: { enabled: true, advancedMoves: false, vinylMode: false },
+  key: { enabled: true, plusTwo: false, plusSeven: false, vinylMode: false },
   bpm: { enabled: true, maxPercent: 10, halfDouble: false },
   genre: { enabled: true, method: 'lexical', mode: 'topk', k: 5, threshold: 0.2 },
   year: { enabled: true, maxYears: 5 },
@@ -131,7 +131,7 @@ export function bpmCompatibleRatio(a: Track, b: Track, cfg: CriteriaConfig): num
 
 const PREDICATES: Record<CriterionField, Predicate> = {
   key: (a, b, cfg) => {
-    const opts = { advancedMoves: cfg.key.advancedMoves }
+    const opts = { plusTwo: cfg.key.plusTwo, plusSeven: cfg.key.plusSeven }
     // Vinyl mode: beatmatching by pitch shifts the key along with the tempo,
     // so keys are compared *after* that shift (design-v5 §B). The plain
     // comparison only applies without vinyl mode or when a tempo is unknown.

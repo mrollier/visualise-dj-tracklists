@@ -29,8 +29,16 @@ export function serializeProject(project: Project): string {
 function migrateCriteria(raw: Record<string, unknown>): CriteriaConfig {
   const defaults = structuredClone(DEFAULT_CRITERIA)
   const genre = (raw.genre ?? {}) as Partial<CriteriaConfig['genre']>
+  // Saves from before the split carried a single advancedMoves toggle
+  // covering both the +2 and +7-semitone moves — fan it out to both flags.
+  const key = (raw.key ?? {}) as Partial<CriteriaConfig['key']> & { advancedMoves?: boolean }
   const criteria: CriteriaConfig = {
-    key: { ...defaults.key, ...(raw.key as object) },
+    key: {
+      enabled: key.enabled ?? defaults.key.enabled,
+      plusTwo: key.plusTwo ?? key.advancedMoves ?? defaults.key.plusTwo,
+      plusSeven: key.plusSeven ?? key.advancedMoves ?? defaults.key.plusSeven,
+      vinylMode: key.vinylMode ?? defaults.key.vinylMode,
+    },
     bpm: { ...defaults.bpm, ...(raw.bpm as object) },
     genre: {
       enabled: genre.enabled ?? defaults.genre.enabled,

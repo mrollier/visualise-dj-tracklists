@@ -142,7 +142,7 @@
               Minimum score <strong>{$criteria.genre.threshold.toFixed(2)}</strong>
               <input
                 type="range"
-                min="0.05"
+                min="0"
                 max="1"
                 step="0.05"
                 bind:value={$criteria.genre.threshold}
@@ -162,7 +162,7 @@
               Similarity ≥ <strong>{$criteria.genre.threshold.toFixed(2)}</strong>
               <input
                 type="range"
-                min="0.05"
+                min="0"
                 max="1"
                 step="0.05"
                 bind:value={$criteria.genre.threshold}
@@ -179,8 +179,12 @@
       <section>
         <h3>Key</h3>
         <label class="row">
-          <input type="checkbox" bind:checked={$criteria.key.advancedMoves} />
-          allow +2 / +7-semitone moves
+          <input type="checkbox" bind:checked={$criteria.key.plusTwo} />
+          allow +2 moves (energy jump)
+        </label>
+        <label class="row">
+          <input type="checkbox" bind:checked={$criteria.key.plusSeven} />
+          allow +7-semitone moves
         </label>
         <label class="row">
           <input type="checkbox" bind:checked={$criteria.key.vinylMode} />
@@ -210,7 +214,7 @@
         </label>
         <label>
           Edge opacity <strong>{$settings.edgeOpacity.toFixed(2)}</strong>
-          <input type="range" min="0.05" max="0.9" step="0.05" bind:value={$settings.edgeOpacity} />
+          <input type="range" min="0" max="0.9" step="0.05" bind:value={$settings.edgeOpacity} />
         </label>
         <label>
           Max genre classes <strong>{$settings.maxGenreClasses}</strong>
