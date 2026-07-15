@@ -16,7 +16,8 @@
   import { ALL_CAMELOT_KEYS, wheelSlotAngleDeg, type CamelotKey } from '../core/keys'
   import { annularSectorPath, slotAngleOffsets } from '../core/layout'
   import type { Track } from '../core/model'
-  import { COLOR_SCHEMES, makeNodeColor, MISSING_COLOR } from '../core/scales'
+  import { COLOR_SCHEMES, makeNodeColor, MISSING_COLORS } from '../core/scales'
+  import { effectiveTheme } from './theme'
   import { suggestNext } from '../core/suggest'
   import { SvelteMap, SvelteSet } from 'svelte/reactivity'
   import {
@@ -193,8 +194,10 @@
     return counts
   })
 
-  const nodeColor = $derived(makeNodeColor($effectiveColorAxis, colorDomain, $settings.colorScheme))
-  const ramp = $derived(COLOR_SCHEMES[$settings.colorScheme])
+  const nodeColor = $derived(
+    makeNodeColor($effectiveColorAxis, colorDomain, $settings.colorScheme, $effectiveTheme),
+  )
+  const ramp = $derived(COLOR_SCHEMES[$effectiveTheme][$settings.colorScheme])
 
   const walkPairs = $derived(
     $tracklist.slice(0, -1).map((id, i) => [id, $tracklist[i + 1]] as const),
@@ -516,7 +519,7 @@
       ></span>
       <span class="chip">{colorDomain[1]}</span>
     {/if}
-    <span class="chip"><i style="background: {MISSING_COLOR}"></i>missing</span>
+    <span class="chip"><i style="background: {MISSING_COLORS[$effectiveTheme]}"></i>missing</span>
     {#if $genreClasses !== null}
       {#each $genreClasses.classes as cls, i (cls.label)}
         {@const visible = visibleClassCounts.get(i) ?? 0}

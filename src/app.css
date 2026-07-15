@@ -1,5 +1,8 @@
-/* Design tokens — dark pro-DJ chrome (node ramps validated against the
-   wheel surface #1a1a19; panel chrome sits darker, like DJ software). */
+/* Design tokens — dark pro-DJ chrome by default (node ramps validated
+   against the wheel surface #1a1a19; panel chrome sits darker, like DJ
+   software). Light overrides live on [data-theme='light'] below; the
+   effective theme is stamped on <html> by src/lib/theme.ts (system
+   preference unless the user flipped the switch). */
 :root {
   color-scheme: dark;
 
@@ -22,6 +25,7 @@
   --walk: #c98500;
   --walk-bright: #eda100;
   --accent: #27a6c4;
+  --on-accent: #08222a;
   --danger: #d03b3b;
 
   font-family:
@@ -31,6 +35,32 @@
     sans-serif;
   font-size: 14px;
   line-height: 1.45;
+}
+
+/* Light theme: same warm-neutral character on paper (wheel surface
+   #f7f6f2; method overlay palette re-validated against it). */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --page: #e9e7e1;
+  --surface: #f7f6f2;
+  --surface-raised: #ffffff;
+  --ink: #1d1d1b;
+  --ink-secondary: #4c4b44;
+  --ink-muted: #7d7b72;
+  --grid: #dedcd4;
+  --baseline: #c6c4bb;
+  --border: rgba(0, 0, 0, 0.13);
+
+  --missing: #a3a199;
+  --edge: #b2b0a7;
+  --sector-minor: rgba(70, 100, 220, 0.06);
+  --sector-major: rgba(200, 130, 20, 0.055);
+  --walk: #a86f00;
+  --walk-bright: #8a5a00;
+  --accent: #0d7d99;
+  --on-accent: #ffffff;
+  --danger: #b32424;
 }
 
 * {

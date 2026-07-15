@@ -34,8 +34,9 @@
   const HEIGHT = 820
 
   // Method overlay colours: first six dark categorical slots of the palette,
-  // validated against --surface #1a1a19 (see docs/designs/design-v4.md §F). Taxonomy
-  // is dashed as secondary encoding for the graph↔taxonomy CVD floor pair.
+  // validated against both surfaces (dark #1a1a19, light #f7f6f2; see
+  // docs/designs/design-v4.md §F and design-v5.md §E). Taxonomy is dashed as
+  // secondary encoding for the graph↔taxonomy CVD floor pair.
   const METHOD_COLOR: Record<GenreMethod, string> = {
     exact: '#3987e5',
     lexical: '#199e70',

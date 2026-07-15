@@ -26,6 +26,7 @@
   } from '../stores'
   import ResetDialog from './ResetDialog.svelte'
   import { applyProject, currentProject, loadSamplePack } from './persistence'
+  import { effectiveTheme, toggleTheme } from './theme'
 
   const AUDIO_EXTENSIONS = /\.(mp3|wav|flac|aiff?|m4a|ogg)$/i
 
@@ -254,12 +255,21 @@
     {/if}
     <button onclick={saveProject} disabled={$library.length === 0}>Save project</button>
     <button
+      class="advanced-toggle"
       aria-pressed={$rightPanel === 'advanced'}
       class:active={$rightPanel === 'advanced'}
       title="Advanced options"
       onclick={() => rightPanel.update((p) => (p === 'advanced' ? 'set' : 'advanced'))}
     >
       ⚙ Advanced
+    </button>
+    <button
+      class="theme-toggle"
+      title={$effectiveTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+      aria-label={$effectiveTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+      onclick={toggleTheme}
+    >
+      {$effectiveTheme === 'dark' ? '☀' : '☾'}
     </button>
     <button class="danger" onclick={() => resetDialog.open()}>Reset</button>
     <ResetDialog bind:this={resetDialog} />
@@ -318,7 +328,7 @@
 
   .view-switch button.active {
     background: var(--accent);
-    color: #08222a;
+    color: var(--on-accent);
     font-weight: 600;
   }
 
@@ -328,7 +338,7 @@
     gap: 8px;
   }
 
-  .controls button.active {
+  .advanced-toggle.active {
     border-color: var(--accent);
     color: var(--accent);
   }

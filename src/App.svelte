@@ -3,12 +3,14 @@
   import CriteriaPanel from './lib/CriteriaPanel.svelte'
   import GenreMapView from './lib/GenreMapView.svelte'
   import { restoreAutosave, startAutosave } from './lib/persistence'
+  import { startTheme } from './lib/theme'
   import TopBar from './lib/TopBar.svelte'
   import TracklistPanel from './lib/TracklistPanel.svelte'
   import WheelView from './lib/WheelView.svelte'
   import { library, rightPanel, viewMode } from './stores'
 
   restoreAutosave()
+  startTheme()
   startAutosave()
 </script>
 

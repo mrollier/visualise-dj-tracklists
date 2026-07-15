@@ -5,7 +5,9 @@
  * and generation defaults.
  */
 export interface AppSettings {
-  /** Node colour scheme (each ramp validated against the dark surface). */
+  /** Explicit theme choice; null = follow the system preference. */
+  theme: 'light' | 'dark' | null
+  /** Node colour scheme (per-theme ramps in scales.ts). */
   colorScheme: 'blue' | 'aqua' | 'violet'
   /** Angular fan-out of same-key tracks across their slot, in degrees. */
   slotSpreadDeg: number
@@ -24,6 +26,7 @@ export interface AppSettings {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  theme: null,
   colorScheme: 'blue',
   slotSpreadDeg: 7.5,
   edgeOpacity: 0.35,
