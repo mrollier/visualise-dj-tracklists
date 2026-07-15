@@ -17,6 +17,8 @@ export type ViewMode = 'wheel' | 'genres'
 export const library = writable<Track[]>([])
 /** Central view: the Camelot wheel or the genre map. Session-only. */
 export const viewMode = writable<ViewMode>('wheel')
+/** Right aside: the set, or the advanced settings in its place. Session-only. */
+export const rightPanel = writable<'set' | 'advanced'>('set')
 export const libraryName = writable<string>('')
 export const lastImportReport = writable<ImportReport | null>(null)
 export const criteria = writable<CriteriaConfig>(structuredClone(DEFAULT_CRITERIA))
@@ -42,6 +44,13 @@ export const suggestionIndex = writable(-1)
  */
 export const pinnedFirst = writable<string | null>(null)
 export const pinnedLast = writable<string | null>(null)
+
+/**
+ * Session-only history of loaded sample packs (pack ids), mirroring the
+ * suggestion arrows: ◀ reloads the previous sample, ▶ picks a fresh one.
+ */
+export const sampleHistory = writable<string[]>([])
+export const sampleIndex = writable(-1)
 
 /** Clear the suggestion history — call whenever the library is replaced. */
 export function resetSuggestions(): void {

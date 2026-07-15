@@ -1,5 +1,6 @@
 import { normalizeKey } from '../core/keys'
 import type { Track } from '../core/model'
+import { SAMPLE_TRACKS } from './sample-tracks'
 
 /**
  * Ten themed sample libraries (remark 9), selectable in the advanced menu.
@@ -334,3 +335,19 @@ export const SAMPLE_PACKS: SamplePack[] = [
     [16, 0, 1, 4, 5, 7, 8, 11],
   ),
 ]
+
+/**
+ * The original mixed demo library, folded into the pack pool so the top bar's
+ * sample cycling (◀ / ▶) can reach it like any themed pack. Its demo set is
+ * empty — it predates pack sets and stays a blank canvas.
+ */
+export const CLASSIC_PACK: SamplePack = {
+  id: 'classic',
+  name: 'Classic demo',
+  description: 'The original mixed demo library: house, techno, trance and edge cases.',
+  tracks: SAMPLE_TRACKS,
+  set: [],
+}
+
+/** Every loadable sample: the classic demo first, then the themed packs. */
+export const ALL_SAMPLE_PACKS: SamplePack[] = [CLASSIC_PACK, ...SAMPLE_PACKS]

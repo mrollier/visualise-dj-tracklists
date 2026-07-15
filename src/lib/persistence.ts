@@ -13,10 +13,10 @@ import {
   libraryName,
   radialAxis,
   resetSuggestions,
+  sampleHistory,
+  sampleIndex,
   selectedId,
   settings,
-  suggestionHistory,
-  suggestionIndex,
   tracklist,
 } from '../stores'
 
@@ -112,6 +112,7 @@ export function resetEverything(): void {
   radialAxis.set('bpm')
   colorAxis.set('auto')
   selectedId.set(null)
-  suggestionHistory.set([])
-  suggestionIndex.set(-1)
+  resetSuggestions()
+  sampleHistory.set([])
+  sampleIndex.set(-1)
 }

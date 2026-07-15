@@ -147,9 +147,7 @@ export function suggestWalk(
 
   const pinnedEnd = endId !== null && byId.has(endId) ? endId : null
   const start =
-    seedId !== null && byId.has(seedId)
-      ? seedId
-      : randomStart(tracks, neighbours, pinnedEnd, rand)
+    seedId !== null && byId.has(seedId) ? seedId : randomStart(tracks, neighbours, pinnedEnd, rand)
   const end = pinnedEnd !== null && pinnedEnd !== start ? pinnedEnd : null
 
   if (end === null) {

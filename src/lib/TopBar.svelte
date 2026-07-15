@@ -6,7 +6,7 @@
   import { importRekordboxXml } from '../core/importers/rekordbox'
   import { buildReport, type ImportResult } from '../core/model'
   import { parseProject, serializeProject } from '../core/persist'
-  import { SAMPLE_TRACKS } from '../data/sample-tracks'
+  import { ALL_SAMPLE_PACKS } from '../data/samples'
   import {
     colorAxis,
     lastImportReport,
@@ -14,13 +14,15 @@
     libraryName,
     radialAxis,
     resetSuggestions,
+    rightPanel,
+    sampleHistory,
+    sampleIndex,
     selectedId,
     tracklist,
     viewMode,
   } from '../stores'
-  import AdvancedMenu from './AdvancedMenu.svelte'
   import ResetDialog from './ResetDialog.svelte'
-  import { applyProject, currentProject } from './persistence'
+  import { applyProject, currentProject, loadSamplePack } from './persistence'
 
   const AUDIO_EXTENSIONS = /\.(mp3|wav|flac|aiff?|m4a|ogg)$/i
 
@@ -119,13 +121,39 @@
     URL.revokeObjectURL(url)
   }
 
-  function loadSample() {
-    library.set(SAMPLE_TRACKS)
-    libraryName.set('Sample library')
+  // Sample cycling (remark: like the set-suggestion arrows): the first click
+  // loads the classic demo, ▶ picks a fresh pack at random, ◀ steps back.
+  function confirmSampleSwap(name: string): boolean {
+    const overwritingOwnWork =
+      get(library).length > 0 && !get(libraryName).toLowerCase().includes('sample')
+    return !overwritingOwnWork || confirm(`Replace the current library and set with "${name}"?`)
+  }
+
+  function showSample(index: number) {
+    const pack = ALL_SAMPLE_PACKS.find((p) => p.id === get(sampleHistory)[index])
+    if (pack === undefined || !confirmSampleSwap(pack.name)) return
+    sampleIndex.set(index)
+    loadSamplePack(pack)
     lastImportReport.set(null)
-    tracklist.set([])
-    selectedId.set(null)
-    resetSuggestions()
+  }
+
+  function loadNewSample() {
+    if (get(sampleIndex) < get(sampleHistory).length - 1) {
+      showSample(get(sampleIndex) + 1)
+      return
+    }
+    const history = get(sampleHistory)
+    const unvisited = ALL_SAMPLE_PACKS.filter((p) => !history.includes(p.id))
+    const pool = unvisited.length > 0 ? unvisited : ALL_SAMPLE_PACKS
+    const pack =
+      history.length === 0 ? ALL_SAMPLE_PACKS[0] : pool[Math.floor(Math.random() * pool.length)]
+    if (!confirmSampleSwap(pack.name)) return
+    sampleHistory.update((h) => [...h, pack.id])
+    showSample(history.length)
+  }
+
+  function samplePrevious() {
+    if (get(sampleIndex) > 0) showSample(get(sampleIndex) - 1)
   }
 
   const missingSummary = $derived.by(() => {
@@ -183,9 +211,29 @@
       hidden
       onchange={onFileChosen}
     />
-    <button onclick={loadSample}>Load sample</button>
+    {#if $sampleHistory.length === 0}
+      <button onclick={loadNewSample}>Load sample</button>
+    {:else}
+      <div class="sample-nav" role="group" aria-label="Sample libraries">
+        <button
+          onclick={samplePrevious}
+          disabled={$sampleIndex <= 0}
+          title="Back to the previous sample library"
+        >
+          ◀
+        </button>
+        <button onclick={loadNewSample} title="Load another sample library">sample ▶</button>
+      </div>
+    {/if}
     <button onclick={saveProject} disabled={$library.length === 0}>Save project</button>
-    <AdvancedMenu />
+    <button
+      aria-pressed={$rightPanel === 'advanced'}
+      class:active={$rightPanel === 'advanced'}
+      title="Advanced options"
+      onclick={() => rightPanel.update((p) => (p === 'advanced' ? 'set' : 'advanced'))}
+    >
+      ⚙ Advanced
+    </button>
     <button class="danger" onclick={() => resetDialog.open()}>Reset</button>
     <ResetDialog bind:this={resetDialog} />
   </div>
@@ -251,6 +299,20 @@
     display: flex;
     align-items: center;
     gap: 8px;
+  }
+
+  .controls button.active {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .sample-nav {
+    display: inline-flex;
+    gap: 2px;
+  }
+
+  .sample-nav button {
+    white-space: nowrap;
   }
 
   .controls label {

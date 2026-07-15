@@ -61,7 +61,10 @@ describe('suggestWalk', () => {
   test('without a seed, the opening track varies with the seed (fully random start)', () => {
     const clique = Array.from({ length: 6 }, (_, i) => track({ id: `t${i}` }))
     const starts = new Set(
-      Array.from({ length: 10 }, (_, seed) => suggestWalk(clique, config(), { length: 3, seed })[0]),
+      Array.from(
+        { length: 10 },
+        (_, seed) => suggestWalk(clique, config(), { length: 3, seed })[0],
+      ),
     )
     expect(starts.size).toBeGreaterThan(1)
   })

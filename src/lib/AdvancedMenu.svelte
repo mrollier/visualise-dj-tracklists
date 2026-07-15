@@ -1,11 +1,9 @@
 <script lang="ts">
   import { GENRE_METHODS } from '../core/genre'
   import { SAMPLE_PACKS } from '../data/samples'
-  import { criteria, library, libraryName, settings } from '../stores'
+  import { criteria, library, libraryName, rightPanel, settings } from '../stores'
   import { loadSamplePack } from './persistence'
 
-  let open = $state(false)
-  let menuEl: HTMLDivElement | undefined = $state()
   let packId = $state(SAMPLE_PACKS[0].id)
 
   const selectedPack = $derived(SAMPLE_PACKS.find((p) => p.id === packId) ?? SAMPLE_PACKS[0])
@@ -86,202 +84,198 @@
     },
   }
 
-  function onWindowClick(e: MouseEvent) {
-    if (open && menuEl && !menuEl.contains(e.target as Node)) open = false
+  function close() {
+    rightPanel.set('set')
   }
 </script>
 
 <svelte:window
-  onclick={onWindowClick}
   onkeydown={(e) => {
-    if (e.key === 'Escape') open = false
+    if (e.key === 'Escape') close()
   }}
 />
 
-<div class="advanced" bind:this={menuEl}>
-  <button
-    aria-haspopup="true"
-    aria-expanded={open}
-    title="Advanced options"
-    onclick={() => (open = !open)}
-  >
-    ⚙ Advanced
-  </button>
+<!-- Lives in the right aside, swapping with "Your set" (design-v5 §E), so
+     the wheel stays visible while settings change. -->
+<aside class="panel">
+  <div class="head">
+    <h2 class="micro-label">Advanced settings</h2>
+    <button
+      class="close"
+      aria-label="Close advanced settings"
+      title="Back to your set"
+      onclick={close}
+    >
+      ✕
+    </button>
+  </div>
 
-  {#if open}
-    <div class="panel" role="menu">
-      <section>
-        <h3>Genre matching</h3>
+  <section>
+    <h3>Genre matching</h3>
+    <label>
+      Method
+      <select bind:value={$criteria.genre.method}>
+        {#each GENRE_METHODS as method (method)}
+          <option value={method}>{METHOD_LABEL[method]}</option>
+        {/each}
+      </select>
+    </label>
+    <p class="hint">
+      {METHOD_EXPLAINER[$criteria.genre.method].text}
+      {#each METHOD_EXPLAINER[$criteria.genre.method].sources as source (source.href)}
+        <a href={source.href} target="_blank" rel="noreferrer">[{source.label}]</a>
+      {/each}
+    </p>
+    {#if $criteria.genre.method !== 'exact'}
+      <label class="row">
+        <input type="radio" value="topk" bind:group={$criteria.genre.mode} />
+        k nearest (mutual)
+        <input type="radio" value="threshold" bind:group={$criteria.genre.mode} />
+        score threshold
+      </label>
+      {#if $criteria.genre.mode === 'topk'}
         <label>
-          Method
-          <select bind:value={$criteria.genre.method}>
-            {#each GENRE_METHODS as method (method)}
-              <option value={method}>{METHOD_LABEL[method]}</option>
-            {/each}
-          </select>
+          Link each genre to its <strong>{$criteria.genre.k}</strong> nearest
+          <input type="range" min="1" max="15" step="1" bind:value={$criteria.genre.k} />
+        </label>
+        <label>
+          Minimum score <strong>{$criteria.genre.threshold.toFixed(2)}</strong>
+          <input type="range" min="0" max="1" step="0.05" bind:value={$criteria.genre.threshold} />
         </label>
         <p class="hint">
-          {METHOD_EXPLAINER[$criteria.genre.method].text}
-          {#each METHOD_EXPLAINER[$criteria.genre.method].sources as source (source.href)}
-            <a href={source.href} target="_blank" rel="noreferrer">[{source.label}]</a>
-          {/each}
+          Genres link when each is in the other's top-k — self-calibrating where genre space is
+          dense (electronic) or sparse; umbrella tags never count as neighbours.
+          <a href="https://jmlr.org/papers/v11/radovanovic10a.html" target="_blank" rel="noreferrer"
+            >[Radovanović et al. 2010]</a
+          >
         </p>
-        {#if $criteria.genre.method !== 'exact'}
-          <label class="row">
-            <input type="radio" value="topk" bind:group={$criteria.genre.mode} />
-            k nearest (mutual)
-            <input type="radio" value="threshold" bind:group={$criteria.genre.mode} />
-            score threshold
-          </label>
-          {#if $criteria.genre.mode === 'topk'}
-            <label>
-              Link each genre to its <strong>{$criteria.genre.k}</strong> nearest
-              <input type="range" min="1" max="15" step="1" bind:value={$criteria.genre.k} />
-            </label>
-            <label>
-              Minimum score <strong>{$criteria.genre.threshold.toFixed(2)}</strong>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                bind:value={$criteria.genre.threshold}
-              />
-            </label>
-            <p class="hint">
-              Genres link when each is in the other's top-k — self-calibrating where genre space is
-              dense (electronic) or sparse; umbrella tags never count as neighbours.
-              <a
-                href="https://jmlr.org/papers/v11/radovanovic10a.html"
-                target="_blank"
-                rel="noreferrer">[Radovanović et al. 2010]</a
-              >
-            </p>
-          {:else}
-            <label>
-              Similarity ≥ <strong>{$criteria.genre.threshold.toFixed(2)}</strong>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                bind:value={$criteria.genre.threshold}
-              />
-            </label>
-            <p class="hint">
-              Lower = looser matching. With the graph method, 0.6 accepts direct relatives, 0.36 two
-              steps apart.
-            </p>
-          {/if}
-        {/if}
-      </section>
-
-      <section>
-        <h3>Key</h3>
-        <label class="row">
-          <input type="checkbox" bind:checked={$criteria.key.plusTwo} />
-          allow +2 moves (energy jump)
-        </label>
-        <label class="row">
-          <input type="checkbox" bind:checked={$criteria.key.plusSeven} />
-          allow +7-semitone moves
-        </label>
-        <label class="row">
-          <input type="checkbox" bind:checked={$criteria.key.vinylMode} />
-          vinyl mode
+      {:else}
+        <label>
+          Similarity ≥ <strong>{$criteria.genre.threshold.toFixed(2)}</strong>
+          <input type="range" min="0" max="1" step="0.05" bind:value={$criteria.genre.threshold} />
         </label>
         <p class="hint">
-          Beatmatching on vinyl shifts pitch with tempo, so keys are compared after the shift
-          needed to beatmatch. Tempo gaps landing on a whole semitone transpose the key (+7
-          Camelot); gaps in between detune it — even same-key tracks lose their match. Gaps
-          beyond the BPM tolerance (the pitch fader's range) can't beatmatch at all.
+          Lower = looser matching. With the graph method, 0.6 accepts direct relatives, 0.36 two
+          steps apart.
         </p>
-      </section>
+      {/if}
+    {/if}
+  </section>
 
-      <section>
-        <h3>Display</h3>
-        <label>
-          Colour scheme
-          <select bind:value={$settings.colorScheme}>
-            <option value="blue">Blue</option>
-            <option value="aqua">Aqua</option>
-            <option value="violet">Violet</option>
-          </select>
-        </label>
-        <label>
-          Same-key spread <strong>{$settings.slotSpreadDeg}°</strong>
-          <input type="range" min="0" max="7.5" step="0.5" bind:value={$settings.slotSpreadDeg} />
-        </label>
-        <label>
-          Edge opacity <strong>{$settings.edgeOpacity.toFixed(2)}</strong>
-          <input type="range" min="0" max="0.9" step="0.05" bind:value={$settings.edgeOpacity} />
-        </label>
-        <label>
-          Max genre classes <strong>{$settings.maxGenreClasses}</strong>
-          <input type="range" min="2" max="6" step="1" bind:value={$settings.maxGenreClasses} />
-        </label>
-        <p class="hint">
-          Clearly different genre families get distinct node shapes (circle, square, triangle, …) up
-          to this many classes — clustered with the selected genre method. Everything stays a circle
-          when the library doesn't separate.
-        </p>
-      </section>
+  <section>
+    <h3>Key</h3>
+    <label class="row">
+      <input type="checkbox" bind:checked={$criteria.key.plusTwo} />
+      allow +2 moves (energy jump)
+    </label>
+    <label class="row">
+      <input type="checkbox" bind:checked={$criteria.key.plusSeven} />
+      allow +7-semitone moves
+    </label>
+    <label class="row">
+      <input type="checkbox" bind:checked={$criteria.key.vinylMode} />
+      vinyl mode
+    </label>
+    <p class="hint">
+      Beatmatching on vinyl shifts pitch with tempo, so keys are compared after the shift needed to
+      beatmatch. Tempo gaps landing on a whole semitone transpose the key (+7 Camelot); gaps in
+      between detune it — even same-key tracks lose their match. Gaps beyond the BPM tolerance (the
+      pitch fader's range) can't beatmatch at all.
+    </p>
+  </section>
 
-      <section>
-        <h3>Suggestions</h3>
-        <label>
-          Suggested set length
-          <input type="number" min="2" max="99" bind:value={$settings.suggestLength} />
-        </label>
-        <label>
-          Adventurousness <strong>{$settings.suggestRandomness.toFixed(2)}</strong>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.05"
-            bind:value={$settings.suggestRandomness}
-          />
-        </label>
-        <p class="hint">
-          0 always picks the safest transition; higher values embrace dissonance. Genre closeness
-          always counts in the ranking.
-        </p>
-      </section>
+  <section>
+    <h3>Display</h3>
+    <label>
+      Colour scheme
+      <select bind:value={$settings.colorScheme}>
+        <option value="blue">Blue</option>
+        <option value="aqua">Aqua</option>
+        <option value="violet">Violet</option>
+      </select>
+    </label>
+    <label>
+      Same-key spread <strong>{$settings.slotSpreadDeg}°</strong>
+      <input type="range" min="0" max="7.5" step="0.5" bind:value={$settings.slotSpreadDeg} />
+    </label>
+    <label>
+      Edge opacity <strong>{$settings.edgeOpacity.toFixed(2)}</strong>
+      <input type="range" min="0" max="0.9" step="0.05" bind:value={$settings.edgeOpacity} />
+    </label>
+    <label>
+      Max genre classes <strong>{$settings.maxGenreClasses}</strong>
+      <input type="range" min="2" max="6" step="1" bind:value={$settings.maxGenreClasses} />
+    </label>
+    <p class="hint">
+      Clearly different genre families get distinct node shapes (circle, square, triangle, …) up to
+      this many classes — clustered with the selected genre method. Everything stays a circle when
+      the library doesn't separate.
+    </p>
+  </section>
 
-      <section>
-        <h3>Sample libraries</h3>
-        <label>
-          Pack
-          <select bind:value={packId}>
-            {#each SAMPLE_PACKS as p (p.id)}
-              <option value={p.id}>{p.name}</option>
-            {/each}
-          </select>
-        </label>
-        <p class="hint">{selectedPack.description}</p>
-        <button class="load-pack" onclick={loadPack}>Load pack + demo set</button>
-      </section>
-    </div>
-  {/if}
-</div>
+  <section>
+    <h3>Suggestions</h3>
+    <label>
+      Suggested set length
+      <input type="number" min="2" max="99" bind:value={$settings.suggestLength} />
+    </label>
+    <label>
+      Adventurousness <strong>{$settings.suggestRandomness.toFixed(2)}</strong>
+      <input type="range" min="0" max="1" step="0.05" bind:value={$settings.suggestRandomness} />
+    </label>
+    <p class="hint">
+      0 always picks the safest transition; higher values embrace dissonance. Genre closeness always
+      counts in the ranking.
+    </p>
+  </section>
+
+  <section>
+    <h3>Sample libraries</h3>
+    <label>
+      Pack
+      <select bind:value={packId}>
+        {#each SAMPLE_PACKS as p (p.id)}
+          <option value={p.id}>{p.name}</option>
+        {/each}
+      </select>
+    </label>
+    <p class="hint">{selectedPack.description}</p>
+    <button class="load-pack" onclick={loadPack}>Load pack + demo set</button>
+  </section>
+</aside>
 
 <style>
-  .advanced {
-    position: relative;
+  .panel {
+    width: 280px;
+    flex-shrink: 0;
+    background: var(--page);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 0 14px 12px;
   }
 
-  .panel {
-    position: absolute;
-    top: calc(100% + 6px);
-    right: 0;
-    z-index: 20;
-    width: 280px;
-    background: var(--surface-raised);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 10px 14px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+  .head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 12px 0 2px;
+  }
+
+  h2 {
+    font-size: 14px;
+    margin: 0;
+  }
+
+  .close {
+    background: none;
+    border: none;
+    color: var(--ink-muted);
+    font-size: 12px;
+    padding: 2px 4px;
+  }
+
+  .close:hover {
+    color: var(--ink);
   }
 
   section {

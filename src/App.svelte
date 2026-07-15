@@ -1,11 +1,12 @@
 <script lang="ts">
+  import AdvancedMenu from './lib/AdvancedMenu.svelte'
   import CriteriaPanel from './lib/CriteriaPanel.svelte'
   import GenreMapView from './lib/GenreMapView.svelte'
   import { restoreAutosave, startAutosave } from './lib/persistence'
   import TopBar from './lib/TopBar.svelte'
   import TracklistPanel from './lib/TracklistPanel.svelte'
   import WheelView from './lib/WheelView.svelte'
-  import { library, viewMode } from './stores'
+  import { library, rightPanel, viewMode } from './stores'
 
   restoreAutosave()
   startAutosave()
@@ -24,12 +25,16 @@
       </p>
       <p class="privacy">Everything stays in your browser. Nothing is uploaded.</p>
     </div>
+  {:else if $viewMode === 'genres'}
+    <GenreMapView />
   {:else}
-    {#if $viewMode === 'genres'}
-      <GenreMapView />
-    {:else}
-      <WheelView />
-    {/if}
+    <WheelView />
+  {/if}
+  <!-- The right aside: advanced settings swap in where the set lives, so the
+       wheel stays visible while settings change (design-v5 §E). -->
+  {#if $rightPanel === 'advanced'}
+    <AdvancedMenu />
+  {:else if $library.length > 0}
     <TracklistPanel />
   {/if}
 </main>
