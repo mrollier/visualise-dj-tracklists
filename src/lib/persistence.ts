@@ -1,9 +1,10 @@
 import { get } from 'svelte/store'
 import { DEFAULT_CRITERIA } from '../core/combos'
 import { EMPTY_FILTERS } from '../core/filter'
+import type { ImportReport, Playlist, Track } from '../core/model'
 import { parseProject, serializeProject, type Project } from '../core/persist'
 import { DEFAULT_SETTINGS } from '../core/settings'
-import type { SamplePack } from '../data/samples'
+import { ALL_SAMPLE_PACKS, type SamplePack } from '../data/samples'
 import {
   colorAxis,
   criteria,
@@ -49,18 +50,54 @@ export function applyProject(project: Project): void {
   radialAxis.set(project.radialAxis)
   colorAxis.set(project.colorAxis)
   selectedId.set(null)
+  lastImportReport.set(null)
+  resetSuggestions()
+}
+
+/**
+ * Replace the loaded library wholesale — the single path every import and
+ * sample load goes through, so stale filters, selection, suggestion state and
+ * the import report can never leak from the previous library.
+ */
+export function replaceLibrary(replacement: {
+  tracks: Track[]
+  name: string
+  /** The set (tracklist) that comes with the import; empty otherwise. */
+  set?: string[]
+  playlists?: Playlist[]
+  report?: ImportReport | null
+}): void {
+  const { tracks, name, set = [], playlists: imported = [], report = null } = replacement
+  library.set(tracks)
+  libraryName.set(name)
+  tracklist.set(set)
+  playlists.set(imported)
+  // A collection carrying playlists starts with NONE selected — empty wheel
+  // until playlists are toggled on (design-v5 §D); otherwise inactive.
+  filters.set({ ...structuredClone(EMPTY_FILTERS), playlists: imported.length > 0 ? [] : null })
+  lastImportReport.set(report)
+  selectedId.set(null)
+  resetSuggestions()
 }
 
 /** Load a themed sample pack: library plus its demo set. */
 export function loadSamplePack(pack: SamplePack): void {
-  library.set(pack.tracks)
-  libraryName.set(`${pack.name} (sample)`)
-  tracklist.set(pack.set)
-  playlists.set([])
-  filters.set(structuredClone(EMPTY_FILTERS))
-  lastImportReport.set(null)
-  selectedId.set(null)
-  resetSuggestions()
+  replaceLibrary({ tracks: pack.tracks, name: `${pack.name} (sample)`, set: pack.set })
+}
+
+// The classic pack's tracks predate the pack scheme and carry 'sample-' ids.
+const SAMPLE_ID_PREFIXES = ['sample-', ...ALL_SAMPLE_PACKS.map((p) => `${p.id}-`)]
+
+/** Sample libraries are disposable: replacing one never needs confirmation. */
+export function isSampleLibrary(tracks: Track[]): boolean {
+  return tracks.length > 0 && SAMPLE_ID_PREFIXES.some((p) => tracks[0].id.startsWith(p))
+}
+
+/** Ask before a sample pack replaces user work (samples replace silently). */
+export function confirmReplaceLibrary(packName: string): boolean {
+  const current = get(library)
+  if (current.length === 0 || isSampleLibrary(current)) return true
+  return confirm(`Replace the current library and set with "${packName}"?`)
 }
 
 /** Restore the autosaved project, if any. Returns whether something loaded. */
@@ -118,6 +155,7 @@ export function resetEverything(): void {
   radialAxis.set('bpm')
   colorAxis.set('auto')
   selectedId.set(null)
+  lastImportReport.set(null)
   resetSuggestions()
   sampleHistory.set([])
   sampleIndex.set(-1)

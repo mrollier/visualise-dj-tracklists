@@ -1,21 +1,15 @@
 <script lang="ts">
   import { GENRE_METHODS } from '../core/genre'
   import { SAMPLE_PACKS } from '../data/samples'
-  import { criteria, library, libraryName, rightPanel, settings } from '../stores'
-  import { loadSamplePack } from './persistence'
+  import { criteria, rightPanel, settings } from '../stores'
+  import { confirmReplaceLibrary, loadSamplePack } from './persistence'
 
   let packId = $state(SAMPLE_PACKS[0].id)
 
   const selectedPack = $derived(SAMPLE_PACKS.find((p) => p.id === packId) ?? SAMPLE_PACKS[0])
 
   function loadPack() {
-    const overwritingOwnWork = $library.length > 0 && !$libraryName.toLowerCase().includes('sample')
-    if (
-      overwritingOwnWork &&
-      !confirm(`Replace the current library and set with "${selectedPack.name}"?`)
-    ) {
-      return
-    }
+    if (!confirmReplaceLibrary(selectedPack.name)) return
     loadSamplePack(selectedPack)
   }
 

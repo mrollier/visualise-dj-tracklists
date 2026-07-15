@@ -7,16 +7,13 @@
   import { importRekordboxTxt, isRekordboxTxt } from '../core/importers/rekordboxTxt'
   import { buildReport, type ImportResult } from '../core/model'
   import { parseProject, serializeProject } from '../core/persist'
-  import { ALL_SAMPLE_PACKS } from '../data/samples'
+  import { ALL_SAMPLE_PACKS, type SamplePack } from '../data/samples'
   import {
     colorAxis,
-    filters,
     lastImportReport,
     library,
     libraryName,
-    playlists,
     radialAxis,
-    resetSuggestions,
     rightPanel,
     sampleHistory,
     sampleIndex,
@@ -25,7 +22,13 @@
     viewMode,
   } from '../stores'
   import ResetDialog from './ResetDialog.svelte'
-  import { applyProject, currentProject, loadSamplePack } from './persistence'
+  import {
+    applyProject,
+    confirmReplaceLibrary,
+    currentProject,
+    loadSamplePack,
+    replaceLibrary,
+  } from './persistence'
   import { effectiveTheme, toggleTheme } from './theme'
 
   const AUDIO_EXTENSIONS = /\.(mp3|wav|flac|aiff?|m4a|ogg)$/i
@@ -67,7 +70,6 @@
       const first = files[0]
       if (first.name.toLowerCase().endsWith('.json')) {
         applyProject(parseProject(await first.text()))
-        lastImportReport.set(null)
         return
       }
       if (first.name.toLowerCase().endsWith('.txt')) {
@@ -76,14 +78,17 @@
           // A Rekordbox playlist TXT carries full metadata in playlist order:
           // it becomes the library AND the set (design-v5 §D).
           const result = importRekordboxTxt(buffer)
-          library.set(result.tracks)
-          libraryName.set(first.name)
-          tracklist.set(result.tracks.map((t) => t.id))
-          playlists.set([])
-          filters.update((f) => ({ ...f, playlists: null }))
-          selectedId.set(null)
-          lastImportReport.set(result.report)
-          resetSuggestions()
+          if (result.tracks.length === 0) {
+            // Nothing usable in the file: report it, keep the current library.
+            lastImportReport.set(result.report)
+            return
+          }
+          replaceLibrary({
+            tracks: result.tracks,
+            name: first.name,
+            set: result.tracks.map((t) => t.id),
+            report: result.report,
+          })
           return
         }
         // A plain .txt falls through to the CSV importer below.
@@ -104,27 +109,28 @@
         ? await importAudioFiles(files.filter((f) => AUDIO_EXTENSIONS.test(f.name)))
         : await importTextFile(first)
       const { tracks, report } = result
+      if (tracks.length === 0) {
+        // Nothing usable in the file: report it, keep the current library.
+        lastImportReport.set(report)
+        return
+      }
       // A collection import replaces the library, but a playlist imported
       // earlier keeps its order: bare M3U tracks are re-matched against the
       // fresh collection and pick up its metadata.
       const rematch = rematchAfterImport(get(library), get(tracklist), tracks)
-      library.set(rematch.library)
-      libraryName.set(files.length > 1 ? `${files.length} audio files` : first.name)
-      // A collection carrying playlists starts with NONE selected: the wheel
-      // stays empty until playlists are toggled on the left (design-v5 §D).
-      const imported = result.playlists ?? []
-      playlists.set(imported)
-      filters.update((f) => ({ ...f, playlists: imported.length > 0 ? [] : null }))
       if (rematch.matched > 0) {
         report.notes = [
           ...(report.notes ?? []),
           `${rematch.matched} playlist track${rematch.matched === 1 ? '' : 's'} matched to the imported collection`,
         ]
       }
-      lastImportReport.set(report)
-      tracklist.set(rematch.tracklist)
-      selectedId.set(null)
-      resetSuggestions()
+      replaceLibrary({
+        tracks: rematch.library,
+        name: files.length > 1 ? `${files.length} audio files` : first.name,
+        set: rematch.tracklist,
+        playlists: result.playlists,
+        report,
+      })
     } catch (e) {
       importError = e instanceof Error ? e.message : String(e)
     } finally {
@@ -151,18 +157,17 @@
 
   // Sample cycling (remark: like the set-suggestion arrows): the first click
   // loads the classic demo, ▶ picks a fresh pack at random, ◀ steps back.
-  function confirmSampleSwap(name: string): boolean {
-    const overwritingOwnWork =
-      get(library).length > 0 && !get(libraryName).toLowerCase().includes('sample')
-    return !overwritingOwnWork || confirm(`Replace the current library and set with "${name}"?`)
+  // Each action confirms exactly once, and only a confirmed pack enters the
+  // history — cancelling leaves the session untouched.
+  function applySample(pack: SamplePack, index: number) {
+    sampleIndex.set(index)
+    loadSamplePack(pack)
   }
 
   function showSample(index: number) {
     const pack = ALL_SAMPLE_PACKS.find((p) => p.id === get(sampleHistory)[index])
-    if (pack === undefined || !confirmSampleSwap(pack.name)) return
-    sampleIndex.set(index)
-    loadSamplePack(pack)
-    lastImportReport.set(null)
+    if (pack === undefined || !confirmReplaceLibrary(pack.name)) return
+    applySample(pack, index)
   }
 
   function loadNewSample() {
@@ -175,9 +180,9 @@
     const pool = unvisited.length > 0 ? unvisited : ALL_SAMPLE_PACKS
     const pack =
       history.length === 0 ? ALL_SAMPLE_PACKS[0] : pool[Math.floor(Math.random() * pool.length)]
-    if (!confirmSampleSwap(pack.name)) return
+    if (!confirmReplaceLibrary(pack.name)) return
     sampleHistory.update((h) => [...h, pack.id])
-    showSample(history.length)
+    applySample(pack, history.length)
   }
 
   function samplePrevious() {
