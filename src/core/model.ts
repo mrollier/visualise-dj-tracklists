@@ -24,6 +24,8 @@ export interface ImportReport {
   total: number
   missing: Record<MetadataField, number>
   errors: string[]
+  /** Informational messages (not failures), e.g. playlist rematch results. */
+  notes?: string[]
 }
 
 export interface ImportResult {

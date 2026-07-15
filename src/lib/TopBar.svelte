@@ -2,7 +2,7 @@
   import { get } from 'svelte/store'
   import { importCsv } from '../core/importers/csv'
   import { trackFromTags } from '../core/importers/id3'
-  import { importM3u } from '../core/importers/m3u'
+  import { importM3u, rematchAfterImport } from '../core/importers/m3u'
   import { importRekordboxXml } from '../core/importers/rekordbox'
   import { buildReport, type ImportResult } from '../core/model'
   import { parseProject, serializeProject } from '../core/persist'
@@ -77,10 +77,20 @@
       const { tracks, report } = AUDIO_EXTENSIONS.test(first.name)
         ? await importAudioFiles(files.filter((f) => AUDIO_EXTENSIONS.test(f.name)))
         : await importTextFile(first)
-      library.set(tracks)
+      // A collection import replaces the library, but a playlist imported
+      // earlier keeps its order: bare M3U tracks are re-matched against the
+      // fresh collection and pick up its metadata.
+      const rematch = rematchAfterImport(get(library), get(tracklist), tracks)
+      library.set(rematch.library)
       libraryName.set(files.length > 1 ? `${files.length} audio files` : first.name)
+      if (rematch.matched > 0) {
+        report.notes = [
+          ...(report.notes ?? []),
+          `${rematch.matched} playlist track${rematch.matched === 1 ? '' : 's'} matched to the imported collection`,
+        ]
+      }
       lastImportReport.set(report)
-      tracklist.set([])
+      tracklist.set(rematch.tracklist)
       selectedId.set(null)
     } catch (e) {
       importError = e instanceof Error ? e.message : String(e)
@@ -175,6 +185,9 @@
         {$lastImportReport.total} tracks imported{missingSummary ? ` — ${missingSummary}` : ''}
         {#if $lastImportReport.errors.length > 0}
           · {$lastImportReport.errors.length} skipped
+        {/if}
+        {#if $lastImportReport.notes?.length}
+          · {$lastImportReport.notes.join(' · ')}
         {/if}
       </span>
     {/if}
