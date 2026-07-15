@@ -1,7 +1,13 @@
 import { describe, expect, test } from 'vitest'
 import { DEFAULT_CRITERIA, type CriteriaConfig } from '../src/core/combos'
 import type { Track } from '../src/core/model'
-import { suggestNext, suggestWalk } from '../src/core/suggest'
+import {
+  nextAnchorId,
+  nextExhausted,
+  progressionFit,
+  suggestNext,
+  suggestWalk,
+} from '../src/core/suggest'
 
 function track(overrides: Partial<Track> & { id: string }): Track {
   return {
@@ -234,5 +240,166 @@ describe('suggestNext', () => {
 
   test('returns null for an empty library', () => {
     expect(suggestNext([], chainCfg(), [], {})).toBeNull()
+  })
+})
+
+describe('progressionFit', () => {
+  test("missing BPM or 'any' is neutral", () => {
+    expect(progressionFit(null, 130, 0, 'rising')).toBe(0.5)
+    expect(progressionFit(128, null, 0, 'rising')).toBe(0.5)
+    expect(progressionFit(128, 132, 0, 'any')).toBe(0.5)
+  })
+
+  test('steady peaks at a flat step and decays with distance', () => {
+    expect(progressionFit(128, 128, 0, 'steady')).toBe(1)
+    expect(progressionFit(128, 131, 0, 'steady')).toBeLessThan(1)
+    expect(progressionFit(128, 131, 0, 'steady')).toBeGreaterThan(
+      progressionFit(128, 140, 0, 'steady'),
+    )
+  })
+
+  test('rising is monotone in the BPM step; falling mirrors it', () => {
+    const up = progressionFit(128, 132, 0, 'rising')
+    const flat = progressionFit(128, 128, 0, 'rising')
+    const down = progressionFit(128, 124, 0, 'rising')
+    expect(up).toBeGreaterThan(flat)
+    expect(flat).toBeCloseTo(0.5)
+    expect(flat).toBeGreaterThan(down)
+    expect(progressionFit(128, 124, 0, 'falling')).toBeCloseTo(up)
+  })
+
+  test('sawtooth rises, with every fourth transition a breather', () => {
+    expect(progressionFit(128, 132, 0, 'sawtooth')).toBeGreaterThan(
+      progressionFit(128, 124, 0, 'sawtooth'),
+    )
+    // steps 3, 7, … drop back
+    expect(progressionFit(128, 124, 3, 'sawtooth')).toBeGreaterThan(
+      progressionFit(128, 132, 3, 'sawtooth'),
+    )
+    expect(progressionFit(128, 124, 7, 'sawtooth')).toBeGreaterThan(
+      progressionFit(128, 132, 7, 'sawtooth'),
+    )
+  })
+})
+
+describe('suggestWalk with a BPM progression', () => {
+  // One anchor with two equally matching neighbours that differ only in BPM.
+  const fork = [
+    track({ id: 'a', bpm: 126 }),
+    track({ id: 'x1', bpm: 123 }),
+    track({ id: 'x2', bpm: 129 }),
+  ]
+
+  test('rising picks the faster candidate, falling the slower', () => {
+    expect(suggestWalk(fork, config(), { seedId: 'a', length: 2, progression: 'rising' })).toEqual([
+      'a',
+      'x2',
+    ])
+    expect(suggestWalk(fork, config(), { seedId: 'a', length: 2, progression: 'falling' })).toEqual(
+      ['a', 'x1'],
+    )
+  })
+
+  test("'any' reproduces the default walk exactly (regression pin)", () => {
+    const plain = suggestWalk(tracks, config(), { seedId: 'a', length: 10 })
+    const anyProg = suggestWalk(tracks, config(), { seedId: 'a', length: 10, progression: 'any' })
+    expect(anyProg).toEqual(plain)
+  })
+})
+
+describe('suggestWalk with must-include tracks', () => {
+  test('a must-include neighbour beats an otherwise better-matching rival', () => {
+    // x1 shares a's genre exactly; x2 is genre-distant — normally x1 wins.
+    const trio = [
+      track({ id: 'a', genre: 'Techno' }),
+      track({ id: 'x1', genre: 'Techno' }),
+      track({ id: 'x2', genre: 'Folk', year: 2021 }),
+    ]
+    const walk = suggestWalk(trio, config(), {
+      seedId: 'a',
+      length: 2,
+      mustIncludeIds: ['x2'],
+    })
+    expect(walk).toEqual(['a', 'x2'])
+  })
+
+  test('a must-include track appears exactly once', () => {
+    const walk = suggestWalk(tracks, config(), { seedId: 'a', length: 10, mustIncludeIds: ['b'] })
+    expect(walk.filter((id) => id === 'b')).toHaveLength(1)
+  })
+
+  test('an unreachable must-include track is silently skipped', () => {
+    const walk = suggestWalk(tracks, config(), { seedId: 'a', length: 10, mustIncludeIds: ['e'] })
+    expect(walk).not.toContain('e')
+  })
+
+  test('unknown ids and an empty list are no-ops', () => {
+    const plain = suggestWalk(tracks, config(), { seedId: 'a', length: 10 })
+    expect(suggestWalk(tracks, config(), { seedId: 'a', length: 10, mustIncludeIds: [] })).toEqual(
+      plain,
+    )
+    expect(
+      suggestWalk(tracks, config(), { seedId: 'a', length: 10, mustIncludeIds: ['nope'] }),
+    ).toEqual(plain)
+  })
+})
+
+describe('nextAnchorId / nextExhausted', () => {
+  const neighbourMap = new Map<string, Set<string>>([
+    ['a', new Set(['b'])],
+    ['b', new Set(['a', 'c'])],
+    ['c', new Set(['b'])],
+  ])
+
+  test('the anchor is the selected set track, else the last track, else null', () => {
+    expect(nextAnchorId([], 'a')).toBeNull()
+    expect(nextAnchorId(['a', 'b'], 'a')).toBe('a')
+    expect(nextAnchorId(['a', 'b'], 'zzz')).toBe('b')
+    expect(nextAnchorId(['a', 'b'], null)).toBe('b')
+  })
+
+  test('exhausted when every neighbour of the anchor is already in the set', () => {
+    expect(nextExhausted(neighbourMap, ['b', 'a'], null)).toBe(true) // a's only neighbour used
+    expect(nextExhausted(neighbourMap, ['a'], null)).toBe(false) // b still free
+    expect(nextExhausted(neighbourMap, [], null)).toBe(false) // empty set always has an opener
+    expect(nextExhausted(neighbourMap, ['x'], null)).toBe(true) // no neighbours at all
+  })
+})
+
+describe('suggestNext forced mode', () => {
+  const chain = [
+    track({ id: 'a', year: 2000 }),
+    track({ id: 'b', year: 2003 }),
+    track({ id: 'c', year: 2006 }),
+    track({ id: 'd', year: 2009 }),
+  ]
+  const chainCfg = () => config({ threshold: 4 })
+
+  test('falls back to the best non-neighbour when the anchor is exhausted', () => {
+    // a's only neighbour b is used; forced mode ranks c and d instead.
+    const next = suggestNext(chain, chainCfg(), ['b', 'a'], { force: true })
+    expect(next).toEqual({ trackId: 'c', insertIndex: 2 })
+  })
+
+  test('without force the same situation still yields null', () => {
+    expect(suggestNext(chain, chainCfg(), ['b', 'a'], {})).toBeNull()
+  })
+
+  test('is deterministic under a fixed seed', () => {
+    const first = suggestNext(chain, chainCfg(), ['b', 'a'], {
+      force: true,
+      randomness: 1,
+      seed: 5,
+    })
+    const second = suggestNext(chain, chainCfg(), ['b', 'a'], {
+      force: true,
+      randomness: 1,
+      seed: 5,
+    })
+    expect(first).toEqual(second)
+  })
+
+  test('returns null even when forced once every track is used', () => {
+    expect(suggestNext(chain, chainCfg(), ['a', 'b', 'c', 'd'], { force: true })).toBeNull()
   })
 })

@@ -59,6 +59,12 @@ describe('project persistence (v2)', () => {
     expect(parsed.tracklist).toEqual([SAMPLE_TRACKS[0].id, 'ok-1'])
   })
 
+  test('older saves without bpmProgression are backfilled with the default', () => {
+    const saved = JSON.parse(serializeProject(project)) as { settings: Record<string, unknown> }
+    delete saved.settings.bpmProgression
+    expect(parseProject(JSON.stringify(saved)).settings.bpmProgression).toBe('any')
+  })
+
   test('clamps slotSpreadDeg to 7.5° (older saves allowed up to 15 or 20)', () => {
     const wide = serializeProject({
       ...project,

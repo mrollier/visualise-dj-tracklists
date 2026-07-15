@@ -53,6 +53,12 @@ export const pinnedFirst = writable<string | null>(null)
 export const pinnedLast = writable<string | null>(null)
 
 /**
+ * Tracks the user marked "must include" for generated sets (session-only,
+ * like the pins): a strong bias, not a guarantee — see design-v6 §C.
+ */
+export const mustInclude = writable<string[]>([])
+
+/**
  * Session-only history of loaded sample packs (pack ids), mirroring the
  * suggestion arrows: ◀ reloads the previous sample, ▶ picks a fresh one.
  */
@@ -65,6 +71,7 @@ export function resetSuggestions(): void {
   suggestionIndex.set(-1)
   pinnedFirst.set(null)
   pinnedLast.set(null)
+  mustInclude.set([])
 }
 
 /** The filtered library: what the wheel, edges and suggestions operate on. */

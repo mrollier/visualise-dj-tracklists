@@ -8,6 +8,7 @@ import {
 import { genreSimilarity } from './genre'
 import type { Track } from './model'
 import { mulberry32 } from './random'
+import type { BpmProgression } from './settings'
 
 /**
  * Set suggestions (remarks 6/7): greedy walks over the combo graph, with an
@@ -31,6 +32,54 @@ export interface SuggestOptions {
   randomness?: number
   /** PRNG seed: drives the random opener and (with randomness > 0) sampling. */
   seed?: number
+  /** Preferred BPM trajectory; 'any' (the default) adds no term at all. */
+  progression?: BpmProgression
+  /** Tracks to bias into the walk (a strong bonus until each is placed). */
+  mustIncludeIds?: readonly string[]
+}
+
+/** Sawtooth cycle length: every SAWTOOTH_PERIODth transition drops back. */
+const SAWTOOTH_PERIOD = 4
+/**
+ * Below the matched-criteria unit weight in aggregate, so a progression
+ * re-ranks ties and near-ties without overriding harmonic matches.
+ */
+const PROGRESSION_WEIGHT = 0.8
+/** Strictly above the maximum matched-criteria score (4 criteria). */
+const MUST_INCLUDE_BONUS = 5
+
+/**
+ * How well a BPM step fits the preferred trajectory, in [0, 1]. Missing BPMs
+ * are neutral (0.5) — missing data must never punish a candidate. `step` is
+ * the zero-based transition index in play order (sawtooth phase).
+ */
+export function progressionFit(
+  currentBpm: number | null,
+  candidateBpm: number | null,
+  step: number,
+  progression: BpmProgression,
+): number {
+  if (progression === 'any' || currentBpm === null || candidateBpm === null) return 0.5
+  const delta = candidateBpm - currentBpm
+  const rising = 1 / (1 + Math.exp(-delta / 2))
+  switch (progression) {
+    case 'steady':
+      return 1 / (1 + Math.abs(delta) / 3)
+    case 'rising':
+      return rising
+    case 'falling':
+      return 1 - rising
+    case 'sawtooth':
+      // Build up, then breathe: every SAWTOOTH_PERIODth transition drops.
+      return step % SAWTOOTH_PERIOD === SAWTOOTH_PERIOD - 1 ? 1 - rising : rising
+  }
+}
+
+/** The backward-growing arm of a two-ended walk sees time reversed. */
+function invertProgression(progression: BpmProgression): BpmProgression {
+  if (progression === 'rising') return 'falling'
+  if (progression === 'falling') return 'rising'
+  return progression
 }
 
 function scoreCandidate(
@@ -134,7 +183,15 @@ export function suggestWalk(
   criteria: CriteriaConfig,
   options: SuggestOptions = {},
 ): string[] {
-  const { seedId = null, endId = null, length = 15, randomness = 0, seed = 0 } = options
+  const {
+    seedId = null,
+    endId = null,
+    length = 15,
+    randomness = 0,
+    seed = 0,
+    progression = 'any',
+    mustIncludeIds = [],
+  } = options
   if (tracks.length === 0) return []
 
   const byId = new Map(tracks.map((t) => [t.id, t]))
@@ -150,16 +207,39 @@ export function suggestWalk(
     seedId !== null && byId.has(seedId) ? seedId : randomStart(tracks, neighbours, pinnedEnd, rand)
   const end = pinnedEnd !== null && pinnedEnd !== start ? pinnedEnd : null
 
+  // Must-include bias: a strong bonus until each marked track is placed.
+  // Biased, not guaranteed — a track that never neighbours the walk's tip
+  // (or a walk that fills up first) skips it (design-v6 §C).
+  const pending = new Set(mustIncludeIds.filter((id) => byId.has(id)))
+  pending.delete(start)
+  if (end !== null) pending.delete(end)
+  const pendingBonus = (candidate: Track) => (pending.has(candidate.id) ? MUST_INCLUDE_BONUS : 0)
+  const progressionTerm = (current: Track, step: number, arm: BpmProgression) =>
+    arm === 'any'
+      ? () => 0
+      : (candidate: Track) =>
+          PROGRESSION_WEIGHT * progressionFit(current.bpm, candidate.bpm, step, arm)
+
   if (end === null) {
     const walk = [start]
     const visited = new Set([start])
     while (walk.length < length) {
       const current = byId.get(walk[walk.length - 1])!
-      const candidates = rankedCandidates(current, neighbours, byId, visited, criteria, genreMatch)
+      const fitTerm = progressionTerm(current, walk.length - 1, progression)
+      const candidates = rankedCandidates(
+        current,
+        neighbours,
+        byId,
+        visited,
+        criteria,
+        genreMatch,
+        (candidate) => pendingBonus(candidate) + fitTerm(candidate),
+      )
       if (candidates.length === 0) break
       const next = pick(candidates, randomness, rand)
       walk.push(next)
       visited.add(next)
+      pending.delete(next)
     }
     return walk
   }
@@ -168,6 +248,9 @@ export function suggestWalk(
   // backward — always extending the arm with the better candidate, nudged
   // toward each other by a genre-similarity convergence bonus. The seam
   // where the arms meet is not guaranteed to be a combo edge (design-v5 §C).
+  // The end arm grows backward in play order, so it sees the progression
+  // time-reversed (rising ↔ falling; the sawtooth phase there is an
+  // approximation — the arm's final play positions aren't known yet).
   const startArm = [start]
   const endArm = [end]
   const visited = new Set([start, end])
@@ -178,6 +261,10 @@ export function suggestWalk(
   while (startArm.length + endArm.length < length) {
     const tipA = byId.get(startArm[startArm.length - 1])!
     const tipB = byId.get(endArm[endArm.length - 1])!
+    const towardsB = towards(tipB)
+    const towardsA = towards(tipA)
+    const fitA = progressionTerm(tipA, startArm.length - 1, progression)
+    const fitB = progressionTerm(tipB, endArm.length - 1, invertProgression(progression))
     const fromStart = rankedCandidates(
       tipA,
       neighbours,
@@ -185,7 +272,7 @@ export function suggestWalk(
       visited,
       criteria,
       genreMatch,
-      towards(tipB),
+      (candidate) => towardsB(candidate) + pendingBonus(candidate) + fitA(candidate),
     )
     const fromEnd = rankedCandidates(
       tipB,
@@ -194,7 +281,7 @@ export function suggestWalk(
       visited,
       criteria,
       genreMatch,
-      towards(tipA),
+      (candidate) => towardsA(candidate) + pendingBonus(candidate) + fitB(candidate),
     )
     if (fromStart.length === 0 && fromEnd.length === 0) break
     const extendStart =
@@ -202,6 +289,7 @@ export function suggestWalk(
     const next = pick(extendStart ? fromStart : fromEnd, randomness, rand)
     ;(extendStart ? startArm : endArm).push(next)
     visited.add(next)
+    pending.delete(next)
   }
   return [...startArm, ...endArm.reverse()]
 }
@@ -212,20 +300,65 @@ export interface NextSuggestion {
   insertIndex: number
 }
 
+/** The hub's insertion anchor: the selected set track, else the last one. */
+function nextAnchorIndex(tracklist: string[], selectedId: string | null): number {
+  return selectedId !== null && tracklist.includes(selectedId)
+    ? tracklist.indexOf(selectedId)
+    : tracklist.length - 1
+}
+
+/** The track the hub button would extend from; null when the set is empty. */
+export function nextAnchorId(tracklist: string[], selectedId: string | null): string | null {
+  if (tracklist.length === 0) return null
+  return tracklist[nextAnchorIndex(tracklist, selectedId)]
+}
+
+/**
+ * True when the hub's anchor has no unused combo neighbour left — the state
+ * where suggestNext would return null and only a forced (non-matching) pick
+ * remains (design-v6 §C). Takes the stores' adjacency map shape so the view
+ * derives it without re-running edge computation. An empty set is never
+ * exhausted: it always has an opener.
+ */
+export function nextExhausted(
+  neighbours: ReadonlyMap<string, ReadonlySet<string>>,
+  tracklist: string[],
+  selectedId: string | null,
+): boolean {
+  const anchorId = nextAnchorId(tracklist, selectedId)
+  if (anchorId === null) return false
+  const used = new Set(tracklist)
+  for (const id of neighbours.get(anchorId) ?? []) {
+    if (!used.has(id)) return false
+  }
+  return true
+}
+
 /**
  * Suggest a single next track for the current set (the wheel's hub button).
  * Anchored at the selected track when it is in the set (inserting between it
  * and its successor, scored against *both* neighbours), otherwise appended
  * after the last track. An empty set starts with the selection, or the
- * best-connected track.
+ * best-connected track. With `force`, an exhausted anchor falls back to the
+ * best-scoring track that is NOT a combo neighbour — the "break the rules
+ * knowingly" path; null then only means every track is already in the set.
  */
 export function suggestNext(
   tracks: Track[],
   criteria: CriteriaConfig,
   tracklist: string[],
-  options: Omit<SuggestOptions, 'seedId' | 'length'> & { selectedId?: string | null } = {},
+  options: Omit<SuggestOptions, 'seedId' | 'length' | 'mustIncludeIds'> & {
+    selectedId?: string | null
+    force?: boolean
+  } = {},
 ): NextSuggestion | null {
-  const { selectedId = null, randomness = 0, seed = 0 } = options
+  const {
+    selectedId = null,
+    randomness = 0,
+    seed = 0,
+    progression = 'any',
+    force = false,
+  } = options
   if (tracks.length === 0) return null
 
   const byId = new Map(tracks.map((t) => [t.id, t]))
@@ -241,25 +374,37 @@ export function suggestNext(
     return { trackId, insertIndex: 0 }
   }
 
-  const anchorIndex =
-    selectedId !== null && tracklist.includes(selectedId)
-      ? tracklist.indexOf(selectedId)
-      : tracklist.length - 1
+  const anchorIndex = nextAnchorIndex(tracklist, selectedId)
   const anchor = byId.get(tracklist[anchorIndex])
   if (anchor === undefined) return null
   const successor = byId.get(tracklist[anchorIndex + 1] ?? '')
 
   const used = new Set(tracklist)
-  const candidates = rankedCandidates(
+  const scoreExtra = (candidate: Track) =>
+    (successor !== undefined ? scoreCandidate(candidate, successor, criteria, genreMatch) : 0) +
+    (progression === 'any'
+      ? 0
+      : PROGRESSION_WEIGHT * progressionFit(anchor.bpm, candidate.bpm, anchorIndex, progression))
+  let candidates = rankedCandidates(
     anchor,
     neighbours,
     byId,
     used,
     criteria,
     genreMatch,
-    (candidate) =>
-      successor !== undefined ? scoreCandidate(candidate, successor, criteria, genreMatch) : 0,
+    scoreExtra,
   )
+
+  if (candidates.length === 0 && force) {
+    // Forced: rank every unused track by the same score, edge gate ignored.
+    candidates = tracks
+      .filter((t) => !used.has(t.id))
+      .map((t) => ({
+        item: t.id,
+        score: scoreCandidate(anchor, t, criteria, genreMatch) + scoreExtra(t),
+      }))
+      .sort((a, b) => b.score - a.score || a.item.localeCompare(b.item))
+  }
   if (candidates.length === 0) return null
 
   const trackId = pick(candidates, randomness, mulberry32(seed))

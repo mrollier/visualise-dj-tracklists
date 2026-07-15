@@ -1,4 +1,10 @@
 /**
+ * Preferred BPM trajectory for generated sets (design-v6 §C): 'any' adds no
+ * preference, 'sawtooth' builds up and drops back in cycles.
+ */
+export type BpmProgression = 'any' | 'steady' | 'rising' | 'falling' | 'sawtooth'
+
+/**
  * Display / behaviour settings, adjustable in the Advanced menu and persisted
  * with the project. Anything that changes *what connects to what* lives in
  * CriteriaConfig or LibraryFilters instead — settings only shape presentation
@@ -23,6 +29,8 @@ export interface AppSettings {
    * actually separate in the selected similarity space.
    */
   maxGenreClasses: number
+  /** Preferred BPM trajectory for generated sets. */
+  bpmProgression: BpmProgression
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -33,4 +41,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   suggestLength: 15,
   suggestRandomness: 0.25,
   maxGenreClasses: 4,
+  bpmProgression: 'any',
 }
