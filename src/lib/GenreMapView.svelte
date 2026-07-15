@@ -1,10 +1,11 @@
 <script lang="ts">
   import {
-    forceCenter,
     forceCollide,
     forceLink,
     forceManyBody,
     forceSimulation,
+    forceX,
+    forceY,
     type Simulation,
     type SimulationLinkDatum,
     type SimulationNodeDatum,
@@ -34,6 +35,8 @@
 
   const WIDTH = 900
   const HEIGHT = 820
+  /** Gentle centre gravity: contains disconnected components (issue 12). */
+  const CONTAIN_STRENGTH = 0.05
 
   // Method overlay colours: first six dark categorical slots of the palette,
   // validated against both surfaces (dark #1a1a19, light #f7f6f2; see
@@ -209,12 +212,21 @@
           .distance((l) => 40 + 220 * (1 - l.score))
           .strength((l) => 0.3 + 0.5 * l.score),
       )
-      .force('charge', forceManyBody().strength(-260))
+      .force(
+        'charge',
+        // Ghosts repel less: neighbourhood context shouldn't blow the map up.
+        forceManyBody<GenreNode>().strength((d) => (d.ghost ? -160 : -260)),
+      )
       .force(
         'collide',
         forceCollide<GenreNode>().radius((d) => nodeRadius(d) + 16),
       )
-      .force('center', forceCenter(WIDTH / 2, HEIGHT / 2))
+      // Weak positional gravity instead of forceCenter: forceCenter only
+      // recentres the mean, so disconnected components drift apart under
+      // the charge with nothing pulling them back (ISSUES.md #12). The
+      // pull must stay gentle or connected layouts visibly compress.
+      .force('x', forceX(WIDTH / 2).strength(CONTAIN_STRENGTH))
+      .force('y', forceY(HEIGHT / 2).strength(CONTAIN_STRENGTH))
       .on('tick', () => {
         const current = simulation!.nodes() as GenreNode[]
         for (const n of current) {
