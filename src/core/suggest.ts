@@ -39,11 +39,7 @@ function scoreCandidate(current: Track, candidate: Track, criteria: CriteriaConf
 }
 
 /** Pick from scored candidates: argmax, or softmax sampling when randomness > 0. */
-function pick<T>(
-  scored: { item: T; score: number }[],
-  randomness: number,
-  rand: () => number,
-): T {
+function pick<T>(scored: { item: T; score: number }[], randomness: number, rand: () => number): T {
   if (randomness <= 0 || scored.length === 1) return scored[0].item
   const temperature = 0.5 * randomness
   const max = scored[0].score
@@ -150,9 +146,7 @@ export function suggestNext(
 
   if (tracklist.length === 0) {
     const trackId =
-      selectedId !== null && byId.has(selectedId)
-        ? selectedId
-        : bestConnected(tracks, neighbours)
+      selectedId !== null && byId.has(selectedId) ? selectedId : bestConnected(tracks, neighbours)
     return { trackId, insertIndex: 0 }
   }
 
