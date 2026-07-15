@@ -42,38 +42,62 @@ await page.waitForTimeout(300)
 await page.keyboard.press('Escape')
 await page.screenshot({ path: `${scratch}/05-suggested-set.png` })
 
-// filters: open panel, restrict genre
+// suggestion history: two fresh suggestions, then back to the previous one
+await page.getByRole('button', { name: /new/ }).click()
+await page.waitForTimeout(200)
+await page.getByRole('button', { name: /new/ }).click()
+await page.waitForTimeout(200)
+await page.getByRole('button', { name: /previous/ }).click()
+await page.waitForTimeout(200)
+await page.screenshot({ path: `${scratch}/06-suggestion-arrows.png` })
+
+// hub button: suggest the next track (appends to the set)
+const setCountBefore = await page.locator('aside ol li.track').count()
+await page.locator('g.hub').click()
+await page.waitForTimeout(200)
+const setCountAfter = await page.locator('aside ol li.track').count()
+if (setCountAfter !== setCountBefore + 1) {
+  errors.push(`hub button did not append: ${setCountBefore} -> ${setCountAfter}`)
+}
+await page.screenshot({ path: `${scratch}/07-hub-next.png` })
+
+// filters: open panel, restrict genre; range inputs show library extremes
 await page.locator('summary', { hasText: 'Filters' }).click()
+const bpmMin = await page.locator('.filter-row input').first().inputValue()
+if (bpmMin === '') errors.push('filter inputs not seeded with library extremes')
 await page.locator('summary', { hasText: 'Genres' }).click()
 await page.getByRole('button', { name: 'None' }).click()
 await page.getByRole('checkbox', { name: 'Drum & Bass' }).check()
 await page.waitForTimeout(300)
-await page.screenshot({ path: `${scratch}/06-genre-filter.png` })
+await page.screenshot({ path: `${scratch}/08-genre-filter.png` })
 await page.getByRole('button', { name: 'All' }).click()
 
-// advanced menu: switch genre method to graph
+// advanced menu: genre method explainer + vinyl mode; half/double in criteria
 await page.getByRole('button', { name: /Advanced/ }).click()
 await page.locator('.panel select').first().selectOption('graph')
-await page.screenshot({ path: `${scratch}/07-advanced.png` })
+await page.getByRole('checkbox', { name: 'vinyl mode' }).check()
+await page.screenshot({ path: `${scratch}/09-advanced.png` })
 await page.keyboard.press('Escape')
+await page.getByRole('checkbox', { name: /half\/double/ }).check()
+await page.waitForTimeout(300)
 
 // colour axis auto-swap when radius = rating
 await page.locator('header select').first().selectOption('rating')
 await page.waitForTimeout(300)
-await page.screenshot({ path: `${scratch}/08-color-swap.png` })
+await page.screenshot({ path: `${scratch}/10-color-swap.png` })
 await page.locator('header select').first().selectOption('bpm')
 
-// zoom
+// zoom: node disks must keep their screen size
 await page.getByRole('button', { name: 'Zoom in' }).click()
 await page.getByRole('button', { name: 'Zoom in' }).click()
 await page.waitForTimeout(300)
-await page.screenshot({ path: `${scratch}/09-zoomed.png` })
+await page.screenshot({ path: `${scratch}/11-zoomed.png` })
 await page.getByRole('button', { name: 'Reset zoom' }).click()
 
 // M3U8 import becomes the set (3 matched + 1 new track)
 await page.locator('input[type=file]').setInputFiles('tests/fixtures/playlist.m3u8')
 await page.getByText('4 tracks', { exact: true }).waitFor()
-await page.screenshot({ path: `${scratch}/10-m3u-import.png` })
+await page.screenshot({ path: `${scratch}/12-m3u-import.png` })
 
 // export the set as M3U8
 const downloadPromise = page.waitForEvent('download')
@@ -86,20 +110,32 @@ await page.waitForTimeout(700)
 await page.reload()
 await page.getByText('combo suggestions').waitFor()
 await page.getByText('4 tracks', { exact: true }).waitFor()
-await page.screenshot({ path: `${scratch}/11-restored.png` })
+await page.screenshot({ path: `${scratch}/13-restored.png` })
 
 // import a real Rekordbox XML export through the UI
 await page.locator('input[type=file]').setInputFiles('tests/fixtures/rekordbox.xml')
 await page.getByText('4 tracks imported').waitFor()
-await page.screenshot({ path: `${scratch}/12-rekordbox-import.png` })
+await page.screenshot({ path: `${scratch}/14-rekordbox-import.png` })
+
+// themed sample pack with demo set from the advanced menu
+await page.getByRole('button', { name: /Advanced/ }).click()
+await page.locator('.panel select').last().selectOption('halftime-bass')
+page.once('dialog', (d) => d.accept())
+await page.getByRole('button', { name: 'Load pack + demo set' }).click()
+await page.waitForTimeout(400)
+await page.keyboard.press('Escape')
+await page.getByText('Halftime & Bass (sample)').waitFor()
+await page.getByRole('checkbox', { name: /half\/double/ }).check()
+await page.waitForTimeout(300)
+await page.screenshot({ path: `${scratch}/15-sample-pack.png` })
 
 // reset with confirmation dialog
 await page.getByRole('button', { name: 'Reset', exact: true }).click()
 await page.getByText('Reset everything?').waitFor()
-await page.screenshot({ path: `${scratch}/13-reset-dialog.png` })
+await page.screenshot({ path: `${scratch}/16-reset-dialog.png` })
 await page.getByRole('button', { name: 'Reset everything' }).click()
 await page.getByText('Your library as a web of combos').waitFor()
-await page.screenshot({ path: `${scratch}/14-after-reset.png` })
+await page.screenshot({ path: `${scratch}/17-after-reset.png` })
 
 console.log('CONSOLE ERRORS:', errors.length ? errors : 'none')
 await browser.close()
