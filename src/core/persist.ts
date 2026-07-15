@@ -1,5 +1,6 @@
 import { DEFAULT_CRITERIA, type CriteriaConfig } from './combos'
 import { EMPTY_FILTERS, type LibraryFilters } from './filter'
+import { normalizeKey } from './keys'
 import type { Playlist, Track } from './model'
 import { DEFAULT_SETTINGS, type AppSettings } from './settings'
 
@@ -58,6 +59,32 @@ function migrateCriteria(raw: Record<string, unknown>): CriteriaConfig {
   return criteria
 }
 
+/**
+ * Guard one stored track: project files are hand-editable JSON, so nothing
+ * in them is trusted. Entries without a string id/title are dropped;
+ * wrong-typed optional fields become missing rather than poisoning the app.
+ */
+function sanitizeTrack(raw: unknown): Track | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const entry = raw as Record<string, unknown>
+  if (typeof entry.id !== 'string' || typeof entry.title !== 'string') return null
+  const num = (v: unknown): number | null =>
+    typeof v === 'number' && Number.isFinite(v) ? v : null
+  const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null)
+  return {
+    id: entry.id,
+    title: entry.title,
+    artist: str(entry.artist),
+    key: normalizeKey(str(entry.key)),
+    bpm: num(entry.bpm),
+    genre: str(entry.genre),
+    year: num(entry.year),
+    rating: num(entry.rating),
+    durationSec: num(entry.durationSec),
+    location: str(entry.location),
+  }
+}
+
 export function parseProject(json: string): Project {
   let raw: unknown
   try {
@@ -73,7 +100,8 @@ export function parseProject(json: string): Project {
   if (!Array.isArray(p.tracks) || !Array.isArray(p.tracklist) || typeof p.criteria !== 'object') {
     throw new Error('Not a valid project file: missing tracks, tracklist or criteria')
   }
-  const knownIds = new Set((p.tracks as Track[]).map((t) => t.id))
+  const tracks = (p.tracks as unknown[]).map(sanitizeTrack).filter((t): t is Track => t !== null)
+  const knownIds = new Set(tracks.map((t) => t.id))
   const settings: AppSettings = {
     ...structuredClone(DEFAULT_SETTINGS),
     ...(p.settings as object | undefined),
@@ -83,7 +111,7 @@ export function parseProject(json: string): Project {
   return {
     version: 2,
     libraryName: typeof p.libraryName === 'string' ? p.libraryName : '',
-    tracks: p.tracks as Track[],
+    tracks,
     criteria: migrateCriteria(p.criteria as unknown as Record<string, unknown>),
     // Merge-defaults: saves from before the playlists filter existed gain
     // playlists: null (inactive) rather than failing to parse.

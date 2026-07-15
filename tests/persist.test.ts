@@ -39,6 +39,26 @@ describe('project persistence (v2)', () => {
     expect(parseProject(withGhost).tracklist).toEqual([SAMPLE_TRACKS[0].id])
   })
 
+  test('sanitizes hand-edited track entries instead of trusting them', () => {
+    const junk = JSON.stringify({
+      ...project,
+      tracks: [
+        SAMPLE_TRACKS[0],
+        'garbage', // not an object
+        { title: 'No id' }, // missing required field
+        { id: 'ok-1', title: 'Wrong types', bpm: '128', year: NaN, rating: 3, key: 'nonsense' },
+      ],
+      tracklist: [SAMPLE_TRACKS[0].id, 'ok-1'],
+    })
+    const parsed = parseProject(junk)
+    expect(parsed.tracks).toHaveLength(2)
+    expect(parsed.tracks[0]).toEqual(SAMPLE_TRACKS[0])
+    // Wrong-typed fields become missing; valid ones survive.
+    expect(parsed.tracks[1]).toMatchObject({ id: 'ok-1', bpm: null, year: null, rating: 3 })
+    expect(parsed.tracks[1].key).toBeNull()
+    expect(parsed.tracklist).toEqual([SAMPLE_TRACKS[0].id, 'ok-1'])
+  })
+
   test('clamps slotSpreadDeg to 7.5° (older saves allowed up to 15 or 20)', () => {
     const wide = serializeProject({
       ...project,

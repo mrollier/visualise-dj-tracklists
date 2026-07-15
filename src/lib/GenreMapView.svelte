@@ -6,6 +6,7 @@
     forceManyBody,
     forceSimulation,
     type Simulation,
+    type SimulationLinkDatum,
     type SimulationNodeDatum,
   } from 'd3-force'
   import { select as d3select } from 'd3-selection'
@@ -82,6 +83,10 @@
     a: string
     b: string
     method: GenreMethod
+    score: number
+  }
+
+  interface GenreLink extends SimulationLinkDatum<GenreNode> {
     score: number
   }
 
@@ -187,7 +192,7 @@
         y: previous?.y,
       }
     })
-    const links = [...pairStrength.entries()].map(([key, score]) => {
+    const links: GenreLink[] = [...pairStrength.entries()].map(([key, score]) => {
       const [a, b] = key.split('\u001f')
       return { source: a, target: b, score }
     })
@@ -195,10 +200,10 @@
     simulation = forceSimulation(nodes)
       .force(
         'link',
-        forceLink(links)
-          .id((d) => (d as GenreNode).id)
-          .distance((l) => 40 + 220 * (1 - (l as unknown as { score: number }).score))
-          .strength((l) => 0.3 + 0.5 * (l as unknown as { score: number }).score),
+        forceLink<GenreNode, GenreLink>(links)
+          .id((d) => d.id)
+          .distance((l) => 40 + 220 * (1 - l.score))
+          .strength((l) => 0.3 + 0.5 * l.score),
       )
       .force('charge', forceManyBody().strength(-260))
       .force(
