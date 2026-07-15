@@ -26,4 +26,4 @@ dist-ssr
 # screenshot script output
 screenshots/
 out/
-data/
+/data/
