@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { get } from 'svelte/store'
   import { importCsv } from '../core/importers/csv'
   import { trackFromTags } from '../core/importers/id3'
+  import { importM3u } from '../core/importers/m3u'
   import { importRekordboxXml } from '../core/importers/rekordbox'
   import { buildReport, type ImportResult } from '../core/model'
   import { parseProject, serializeProject } from '../core/persist'
@@ -55,6 +57,18 @@
       if (first.name.toLowerCase().endsWith('.json')) {
         applyProject(parseProject(await first.text()))
         lastImportReport.set(null)
+        return
+      }
+      if (/\.m3u8?$/i.test(first.name)) {
+        // Playlist import: becomes the set, matched against the loaded library.
+        const result = importM3u(await first.text(), get(library))
+        if (result.newTracks.length > 0) {
+          library.update((tracks) => [...tracks, ...result.newTracks])
+        }
+        tracklist.set(result.tracklist)
+        selectedId.set(null)
+        lastImportReport.set(result.report)
+        if (get(libraryName) === '') libraryName.set(first.name)
         return
       }
       const { tracks, report } = AUDIO_EXTENSIONS.test(first.name)
@@ -134,7 +148,7 @@
     <input
       bind:this={fileInput}
       type="file"
-      accept=".xml,.csv,.txt,.json,.mp3,.wav,.flac,.aif,.aiff,.m4a,.ogg"
+      accept=".xml,.csv,.txt,.json,.m3u,.m3u8,.mp3,.wav,.flac,.aif,.aiff,.m4a,.ogg"
       multiple
       hidden
       onchange={onFileChosen}
