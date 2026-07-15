@@ -1,5 +1,18 @@
 # Some ideas in no particular order
 
+## Research
+
+1. Further read through the ChatGPT and Mistral research and make some key conclusions for the genre distance stuff.
+
+## Other existing ideas to explore and research
+
+Probably useful to do a full research on this
+
+1. Mixed In Key
+2. Mixlog
+3. Mixgraph
+4. ...
+
 ## Ideas for other types of edges (combos)
 
 1. Edges based on lyrics
@@ -9,6 +22,7 @@
 5. Edges from musical rhyme (using similar melody structures in distinct keys)
 6. Make vinyl mode partially applicable to individual nodes, and allow user input for vinyl (that is typically not digitally available)
 7. Edges based on links between comments
+8. Get more parameters, including energy, melody, and things like that (that are used Mixed In Key and such). Include the possibility to analyse mp3s directly if no information is available.
 
 ## Design ideas
 

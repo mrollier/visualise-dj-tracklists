@@ -98,8 +98,10 @@ Your library never leaves your machine — there is no backend, no account, no u
 criterion supports six methods (picked in the combo panel; parameters and sourced
 explainers in advanced menu → Genre matching), implementing the
 recommendations of a literature review on genre distance measures
-([docs/designs/design-v4.md](docs/designs/design-v4.md) has the design; the full report
-lives in [docs/research/](docs/research/)):
+([docs/designs/design-v4.md](docs/designs/design-v4.md) has the design; the research
+reports live in [docs/research/](docs/research/), and
+[docs/science/genre-distance-measures.md](docs/science/genre-distance-measures.md)
+documents the technical choices, the evidence behind them, and the open questions):
 
 | Method             | How it works                                                                                  | Data                                                              | Grounding                            |
 | ------------------ | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------ |

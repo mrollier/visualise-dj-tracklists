@@ -30,3 +30,7 @@ dist-ssr
 
 # personal Rekordbox exports (real collection data — tests use synthetic fixtures)
 /docs/rekordbox/
+
+# downloaded papers (heavy, and redistribution would infringe copyright —
+# docs/science/genre-distance-measures.md lists what belongs here and where to get it)
+/docs/articles/
