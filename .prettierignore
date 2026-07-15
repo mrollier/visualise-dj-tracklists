@@ -4,3 +4,5 @@ docs/
 package-lock.json
 # generated data pack (scripts/build-genre-embedding.mjs)
 src/data/genre-embedding.json
+# agent skill assets, not app code
+.claude/

@@ -29,7 +29,7 @@ Your library never leaves your machine — there is no backend, no account, no u
   each family gets its own node shape (circle, square, triangle, …) — clustered in
   whichever similarity space you selected, capped by a "max genre classes" setting.
 - **A static background**: the axes, rings and genre-class shapes are properties of
-  your *library*, not of the current filters — filtering and playlist toggling only
+  your _library_, not of the current filters — filtering and playlist toggling only
   add or remove nodes, never rescale the frame, and the legend greys out classes
   instead of dropping them. Rating and year rings only sit on whole values.
 - **Map the genres**: a second central view (Wheel | Genres switch) lays your library's
@@ -44,7 +44,7 @@ Your library never leaves your machine — there is no backend, no account, no u
   a combo. **Half/double-time** BPM matching links 85 ↔ 170 worlds; the **+2** and
   **+7-semitone** key moves toggle independently; **vinyl mode** models the physics of
   beatmatching on turntables — pitch shifts the key with the tempo, so keys are always
-  compared *after* that shift: same-key tracks at different tempos detune apart, and
+  compared _after_ that shift: same-key tracks at different tempos detune apart, and
   clean-semitone gaps transpose into new matches. Toggling it visibly rewires the graph.
 - **Match genres that aren't spelled the same**: six selectable similarity methods
   (see below) with sourced explainers in the advanced menu. The criterion defaults to

@@ -33,9 +33,7 @@ function collectPlaylists(node: PlaylistNode | PlaylistNode[], prefix: string, o
     const members = n.TRACK === undefined ? [] : Array.isArray(n.TRACK) ? n.TRACK : [n.TRACK]
     out.push({
       name: prefix === '' ? name : `${prefix} / ${name}`,
-      trackIds: members
-        .filter((m) => m.Key !== undefined)
-        .map((m) => `rb-${String(m.Key)}`),
+      trackIds: members.filter((m) => m.Key !== undefined).map((m) => `rb-${String(m.Key)}`),
     })
   }
 }

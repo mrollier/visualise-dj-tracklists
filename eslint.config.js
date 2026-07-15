@@ -28,6 +28,7 @@ export default ts.config(
     },
   },
   {
-    ignores: ['dist/', 'node_modules/', 'docs/'],
+    // .claude/ holds editor-agent skill assets, not app code.
+    ignores: ['dist/', 'node_modules/', 'docs/', '.claude/'],
   },
 )

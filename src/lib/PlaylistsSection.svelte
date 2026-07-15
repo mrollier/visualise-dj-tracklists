@@ -17,10 +17,13 @@
 
   function toggle(name: string, on: boolean) {
     filters.update((f) => {
-      const current = new Set(f.playlists ?? allNames)
-      if (on) current.add(name)
-      else current.delete(name)
-      return { ...f, playlists: [...current] }
+      const current = f.playlists ?? allNames
+      const next = on
+        ? current.includes(name)
+          ? current
+          : [...current, name]
+        : current.filter((n) => n !== name)
+      return { ...f, playlists: next }
     })
   }
 
