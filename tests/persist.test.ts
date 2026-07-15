@@ -38,12 +38,17 @@ describe('project persistence (v2)', () => {
     expect(parseProject(withGhost).tracklist).toEqual([SAMPLE_TRACKS[0].id])
   })
 
-  test('clamps slotSpreadDeg to the 15° slot width (older saves allowed up to 20)', () => {
+  test('clamps slotSpreadDeg to 7.5° (older saves allowed up to 15 or 20)', () => {
     const wide = serializeProject({
       ...project,
-      settings: { ...structuredClone(DEFAULT_SETTINGS), slotSpreadDeg: 20 },
+      settings: { ...structuredClone(DEFAULT_SETTINGS), slotSpreadDeg: 11 },
     })
-    expect(parseProject(wide).settings.slotSpreadDeg).toBe(15)
+    expect(parseProject(wide).settings.slotSpreadDeg).toBe(7.5)
+    const narrow = serializeProject({
+      ...project,
+      settings: { ...structuredClone(DEFAULT_SETTINGS), slotSpreadDeg: 5 },
+    })
+    expect(parseProject(narrow).settings.slotSpreadDeg).toBe(5)
   })
 
   test('migrates v1 projects: defaults for filters/settings, criteria upgraded', () => {

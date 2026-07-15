@@ -110,7 +110,13 @@
       .nice()
   })
 
-  const gridTicks = $derived(radialValues.length > 0 ? radialScale.ticks(4) : [])
+  // Ratings and years are inherently whole — a ring at "4.6 stars" means
+  // nothing, so fractional ticks are dropped for those axes (remark 14).
+  const gridTicks = $derived.by(() => {
+    if (radialValues.length === 0) return []
+    const ticks = radialScale.ticks(4)
+    return $radialAxis === 'bpm' ? ticks : ticks.filter(Number.isInteger)
+  })
 
   /** Same scale as the wheel radius, mapped onto the vertical gutter strip. */
   function gutterY(value: number): number {
@@ -371,6 +377,7 @@
             y2={gutterY(tick)}
             class="spoke"
           />
+          <text x={GUTTER_X + 9} y={gutterY(tick) + 3} class="gutter-tick-label">{tick}</text>
         {/each}
         <text x={GUTTER_X} y={gutterTop - 26} class="zone-label" text-anchor="middle">no key</text>
         <text
@@ -596,6 +603,12 @@
   .key-label {
     fill: var(--ink-muted);
     font-size: 11px;
+  }
+
+  .gutter-tick-label {
+    fill: var(--ink-muted);
+    font-size: 9.5px;
+    opacity: 0.8;
   }
 
   .zone-label {

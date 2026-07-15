@@ -128,7 +128,7 @@
   </div>
 
   <details class="genres">
-    <summary>Genres <span class="summary-count">{genreSummary}</span></summary>
+    <summary class="micro-label">Genres <span class="summary-count">{genreSummary}</span></summary>
     <div class="genre-actions">
       <button onclick={() => setAllGenres(true)}>All</button>
       <button onclick={() => setAllGenres(false)}>None</button>
@@ -188,11 +188,6 @@
 
   .genres {
     margin-top: 6px;
-  }
-
-  .genres summary {
-    font-weight: 400;
-    color: var(--ink-secondary);
   }
 
   .genre-actions {

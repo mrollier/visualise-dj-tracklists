@@ -68,8 +68,8 @@ export function parseProject(json: string): Project {
     ...structuredClone(DEFAULT_SETTINGS),
     ...(p.settings as object | undefined),
   }
-  // The spread must stay within one 15° key slot (older saves allowed 20).
-  settings.slotSpreadDeg = Math.min(15, settings.slotSpreadDeg)
+  // The spread caps at half a 15° key slot (older saves allowed 15 or 20).
+  settings.slotSpreadDeg = Math.min(7.5, settings.slotSpreadDeg)
   return {
     version: 2,
     libraryName: typeof p.libraryName === 'string' ? p.libraryName : '',

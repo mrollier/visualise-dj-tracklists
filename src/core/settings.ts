@@ -25,7 +25,7 @@ export interface AppSettings {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   colorScheme: 'blue',
-  slotSpreadDeg: 11,
+  slotSpreadDeg: 7.5,
   edgeOpacity: 0.35,
   suggestLength: 15,
   suggestRandomness: 0.25,
