@@ -3,7 +3,16 @@
   import { exportTracklistCsv } from '../core/exporters/csv'
   import { exportM3u } from '../core/exporters/m3u'
   import type { Track } from '../core/model'
-  import { criteria, libraryName, selectedId, trackById, tracklist } from '../stores'
+  import { suggestWalk } from '../core/suggest'
+  import {
+    criteria,
+    libraryName,
+    selectedId,
+    settings,
+    trackById,
+    tracklist,
+    visibleLibrary,
+  } from '../stores'
 
   const walkTracks = $derived(
     $tracklist.map((id) => $trackById.get(id)).filter((t): t is Track => t !== undefined),
@@ -44,6 +53,20 @@
   }
 
   const exportBase = $derived(($libraryName || 'tracklist').replace(/\.[a-z0-9]+$/i, ''))
+
+  function suggest() {
+    if (
+      walkTracks.length > 0 &&
+      !confirm('Replace your current set with a suggested one? This cannot be undone.')
+    ) {
+      return
+    }
+    const walk = suggestWalk($visibleLibrary, $criteria, {
+      seedId: $selectedId,
+      length: $settings.suggestLength,
+    })
+    tracklist.set(walk)
+  }
 </script>
 
 <aside>
@@ -52,10 +75,17 @@
     <span class="count">{walkTracks.length} tracks</span>
   </div>
 
+  <div class="suggest-row">
+    <button onclick={suggest} disabled={$visibleLibrary.length === 0}>
+      ✨ Suggest a set{$selectedId !== null ? ' from selection' : ''}
+    </button>
+  </div>
+
   {#if walkTracks.length === 0}
     <p class="hint">
       Double-click a track on the wheel to start your set. Each next double-click appends;
-      transitions are checked against your combo criteria.
+      transitions are checked against your combo criteria. Or let the app suggest a walk and edit
+      from there.
     </p>
   {:else}
     <ol>
@@ -129,6 +159,15 @@
 
   .count {
     color: var(--ink-muted);
+    font-size: 12px;
+  }
+
+  .suggest-row {
+    padding: 0 14px 8px;
+  }
+
+  .suggest-row button {
+    width: 100%;
     font-size: 12px;
   }
 
