@@ -4,6 +4,7 @@
   import { exportM3u } from '../core/exporters/m3u'
   import type { Track } from '../core/model'
   import { suggestWalk } from '../core/suggest'
+  import { promptExportName } from './exportName'
   import {
     criteria,
     genreMatcher,
@@ -49,8 +50,11 @@
     })
   }
 
-  function download(filename: string, content: string, mime: string) {
-    const url = URL.createObjectURL(new Blob([content], { type: mime }))
+  /** Ask for a name first (ISSUES.md #15); cancelling aborts the export. */
+  function download(ext: string, content: () => string, mime: string) {
+    const filename = promptExportName(exportBase, ext)
+    if (filename === null) return
+    const url = URL.createObjectURL(new Blob([content()], { type: mime }))
     const a = document.createElement('a')
     a.href = url
     a.download = filename
@@ -191,14 +195,10 @@
     </ol>
 
     <div class="footer">
-      <button
-        onclick={() => download(`${exportBase}.m3u8`, exportM3u(walkTracks), 'audio/x-mpegurl')}
-      >
+      <button onclick={() => download('.m3u8', () => exportM3u(walkTracks), 'audio/x-mpegurl')}>
         Export M3U8
       </button>
-      <button
-        onclick={() => download(`${exportBase}.csv`, exportTracklistCsv(walkTracks), 'text/csv')}
-      >
+      <button onclick={() => download('.csv', () => exportTracklistCsv(walkTracks), 'text/csv')}>
         Export CSV
       </button>
       <button class="danger" onclick={() => tracklist.set([])}>Clear</button>

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { exportTracklistCsv } from '../src/core/exporters/csv'
+import { ensureExtension } from '../src/core/exporters/filename'
 import { exportM3u } from '../src/core/exporters/m3u'
 import { importCsv } from '../src/core/importers/csv'
 import type { Track } from '../src/core/model'
@@ -77,5 +78,24 @@ describe('exportTracklistCsv', () => {
     expect(out).toContain('"One, Two"')
     const { tracks: back } = importCsv(out)
     expect(back[0].title).toBe('One, Two')
+  })
+})
+
+describe('ensureExtension', () => {
+  test('appends the extension when missing', () => {
+    expect(ensureExtension('my set', '.m3u8')).toBe('my set.m3u8')
+  })
+
+  test('keeps an existing extension, case-insensitively', () => {
+    expect(ensureExtension('set.m3u8', '.m3u8')).toBe('set.m3u8')
+    expect(ensureExtension('SET.M3U8', '.m3u8')).toBe('SET.M3U8')
+  })
+
+  test('trims surrounding whitespace', () => {
+    expect(ensureExtension('  project ', '.json')).toBe('project.json')
+  })
+
+  test('a different extension is treated as part of the name', () => {
+    expect(ensureExtension('set.v2', '.csv')).toBe('set.v2.csv')
   })
 })

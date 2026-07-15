@@ -19,6 +19,7 @@
     viewMode,
   } from '../stores'
   import ResetDialog from './ResetDialog.svelte'
+  import { promptExportName } from './exportName'
   import {
     applyProject,
     confirmReplaceLibrary,
@@ -73,17 +74,23 @@
         const buffer = await first.arrayBuffer()
         if (isRekordboxTxt(buffer)) {
           // A Rekordbox playlist TXT carries full metadata in playlist order:
-          // it becomes the library AND the set (design-v5 §D).
+          // it becomes the library AND the set, plus a playlist named after
+          // the file — toggled on, so the collection view shows immediately
+          // (design-v6 §E).
           const result = importRekordboxTxt(buffer)
           if (result.tracks.length === 0) {
             // Nothing usable in the file: report it, keep the current library.
             lastImportReport.set(result.report)
             return
           }
+          const playlistName = first.name.replace(/\.[^.]+$/, '')
+          const trackIds = result.tracks.map((t) => t.id)
           replaceLibrary({
             tracks: result.tracks,
             name: first.name,
-            set: result.tracks.map((t) => t.id),
+            set: trackIds,
+            playlists: [{ name: playlistName, trackIds }],
+            selectedPlaylists: [playlistName],
             report: result.report,
           })
           return
@@ -142,12 +149,14 @@
   }
 
   function saveProject() {
+    const filename = promptExportName('dj-tracklists-project', '.json')
+    if (filename === null) return
     const url = URL.createObjectURL(
       new Blob([serializeProject(currentProject())], { type: 'application/json' }),
     )
     const a = document.createElement('a')
     a.href = url
-    a.download = 'dj-tracklists-project.json'
+    a.download = filename
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -239,32 +248,45 @@
     <ResetDialog bind:this={resetDialog} />
   </div>
 
+  <!-- Just the collection name; the import details live behind the ⓘ icon
+       (hover or focus it) so the header stays uncrowded (ISSUES.md #7/#13). -->
   <div class="status">
     {#if importError}
       <span class="error">{importError}</span>
     {/if}
     {#if $libraryName}
-      <span>{$libraryName}</span>
+      <span class="name">{$libraryName}</span>
     {/if}
     {#if $lastImportReport}
-      <span class="report">
-        {$lastImportReport.total} tracks imported{missingSummary ? ` — ${missingSummary}` : ''}
-        {#if $lastImportReport.errors.length > 0}
-          · {$lastImportReport.errors.length} skipped
-        {/if}
-        {#if $lastImportReport.notes?.length}
-          · {$lastImportReport.notes.join(' · ')}
-        {/if}
+      <span class="info-wrap">
+        <button class="info" aria-label="Import details" aria-describedby="import-report-tip">
+          ⓘ
+        </button>
+        <div class="tooltip" role="tooltip" id="import-report-tip">
+          <strong>{$lastImportReport.total} tracks imported</strong>
+          {#if missingSummary}
+            <span>{missingSummary}</span>
+          {/if}
+          {#if $lastImportReport.errors.length > 0}
+            <span>{$lastImportReport.errors.length} skipped</span>
+          {/if}
+          {#each $lastImportReport.notes ?? [] as note (note)}
+            <span>{note}</span>
+          {/each}
+        </div>
       </span>
     {/if}
   </div>
 </header>
 
 <style>
+  /* The header may wrap on narrow windows, and the flexible pieces shrink
+     with ellipsis — the view switch must never clip (ISSUES.md #13). */
   header {
     display: flex;
     align-items: center;
-    gap: 18px;
+    flex-wrap: wrap;
+    gap: 8px 18px;
     padding: 8px 14px;
     border-bottom: 1px solid var(--border);
     background: var(--page);
@@ -279,6 +301,7 @@
 
   .view-switch {
     display: inline-flex;
+    flex-shrink: 0;
     border: 1px solid var(--border);
     border-radius: 6px;
     overflow: hidden;
@@ -288,6 +311,7 @@
     border: none;
     border-radius: 0;
     padding: 4px 10px;
+    white-space: nowrap;
   }
 
   .view-switch button.active {
@@ -299,7 +323,9 @@
   .controls {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 8px;
+    min-width: 0;
   }
 
   .advanced-toggle.active {
@@ -318,14 +344,70 @@
     color: var(--ink-muted);
     font-size: 12px;
     display: flex;
-    gap: 10px;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
   }
 
-  .status .report {
+  .status .name {
     color: var(--ink-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .status .error {
     color: var(--walk-bright);
+  }
+
+  .info-wrap {
+    position: relative;
+    flex-shrink: 0;
+    display: inline-flex;
+  }
+
+  .info {
+    background: none;
+    border: none;
+    padding: 0 2px;
+    font-size: 13px;
+    color: var(--ink-muted);
+    cursor: help;
+  }
+
+  .info:hover,
+  .info:focus-visible {
+    color: var(--ink);
+  }
+
+  .tooltip {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 20;
+    min-width: 200px;
+    max-width: 320px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+    color: var(--ink-secondary);
+    text-align: left;
+  }
+
+  .tooltip strong {
+    display: block;
+    color: var(--ink);
+  }
+
+  .tooltip span {
+    display: block;
+  }
+
+  .info-wrap:hover .tooltip,
+  .info:focus-visible + .tooltip {
+    display: block;
   }
 </style>

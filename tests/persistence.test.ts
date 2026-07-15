@@ -135,3 +135,24 @@ describe('resetEverything', () => {
     expect(get(filters)).toEqual(EMPTY_FILTERS)
   })
 })
+
+describe('replaceLibrary with selectedPlaylists', () => {
+  test('pre-selects the given playlists instead of starting empty', () => {
+    replaceLibrary({
+      tracks: [track('txt-0')],
+      name: 'set.txt',
+      playlists: [{ name: 'set', trackIds: ['txt-0'] }],
+      selectedPlaylists: ['set'],
+    })
+    expect(get(filters).playlists).toEqual(['set'])
+  })
+
+  test('without it, playlists still start unselected (unchanged default)', () => {
+    replaceLibrary({
+      tracks: [track('rb-1')],
+      name: 'coll.xml',
+      playlists: [{ name: 'A', trackIds: ['rb-1'] }],
+    })
+    expect(get(filters).playlists).toEqual([])
+  })
+})

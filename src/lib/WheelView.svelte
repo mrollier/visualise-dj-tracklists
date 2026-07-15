@@ -874,6 +874,11 @@
     position: absolute;
     left: 12px;
     bottom: 10px;
+    /* Bounded on the right (zoom controls live there) and wrapping: on
+       narrow windows the legend must never spill over the side panels
+       and swallow their clicks (ISSUES.md #13). */
+    right: 72px;
+    flex-wrap: wrap;
     display: flex;
     align-items: center;
     gap: 8px;

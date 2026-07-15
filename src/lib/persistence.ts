@@ -65,16 +65,32 @@ export function replaceLibrary(replacement: {
   /** The set (tracklist) that comes with the import; empty otherwise. */
   set?: string[]
   playlists?: Playlist[]
+  /**
+   * Playlists to start toggled ON (a single-playlist TXT import shows its
+   * wheel immediately — design-v6 §E). Default: none selected.
+   */
+  selectedPlaylists?: string[]
   report?: ImportReport | null
 }): void {
-  const { tracks, name, set = [], playlists: imported = [], report = null } = replacement
+  const {
+    tracks,
+    name,
+    set = [],
+    playlists: imported = [],
+    selectedPlaylists = [],
+    report = null,
+  } = replacement
   library.set(tracks)
   libraryName.set(name)
   tracklist.set(set)
   playlists.set(imported)
-  // A collection carrying playlists starts with NONE selected — empty wheel
-  // until playlists are toggled on (design-v5 §D); otherwise inactive.
-  filters.set({ ...structuredClone(EMPTY_FILTERS), playlists: imported.length > 0 ? [] : null })
+  // A collection carrying playlists starts with only `selectedPlaylists`
+  // toggled on — by default none, i.e. an empty wheel until the user picks
+  // (design-v5 §D); without playlists the filter is inactive.
+  filters.set({
+    ...structuredClone(EMPTY_FILTERS),
+    playlists: imported.length > 0 ? selectedPlaylists : null,
+  })
   lastImportReport.set(report)
   selectedId.set(null)
   resetSuggestions()
