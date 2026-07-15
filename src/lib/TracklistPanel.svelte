@@ -8,6 +8,8 @@
     criteria,
     genreMatcher,
     libraryName,
+    pinnedFirst,
+    pinnedLast,
     selectedId,
     settings,
     suggestionHistory,
@@ -71,7 +73,8 @@
       return
     }
     const walk = suggestWalk($visibleLibrary, $criteria, {
-      seedId: $selectedId,
+      seedId: $pinnedFirst ?? $selectedId,
+      endId: $pinnedLast,
       length: $settings.suggestLength,
       randomness: $settings.suggestRandomness,
       seed: $suggestionHistory.length,
@@ -82,6 +85,16 @@
 
   function suggestPrevious() {
     if ($suggestionIndex > 0) showSuggestion($suggestionIndex - 1)
+  }
+
+  // A pin only makes sense while its track is in the set.
+  $effect(() => {
+    if ($pinnedFirst !== null && !$tracklist.includes($pinnedFirst)) pinnedFirst.set(null)
+    if ($pinnedLast !== null && !$tracklist.includes($pinnedLast)) pinnedLast.set(null)
+  })
+
+  function togglePin(store: typeof pinnedFirst, id: string, pinned: boolean) {
+    store.set(pinned ? null : id)
   }
 </script>
 
@@ -145,6 +158,22 @@
             </span>
             <span class="meta tabular">{track.key ?? '—'} · {track.bpm ?? '—'}</span>
           </button>
+          {#if i === 0 || i === walkTracks.length - 1}
+            {@const isFirst = i === 0}
+            {@const pinned = isFirst ? $pinnedFirst === track.id : $pinnedLast === track.id}
+            <button
+              class="pin"
+              class:pinned
+              title={isFirst
+                ? 'Keep as the opening track of suggested sets'
+                : 'Keep as the closing track of suggested sets'}
+              aria-label={isFirst ? 'Pin as first track' : 'Pin as last track'}
+              aria-pressed={pinned}
+              onclick={() => togglePin(isFirst ? pinnedFirst : pinnedLast, track.id, pinned)}
+            >
+              📌
+            </button>
+          {/if}
           <span class="actions">
             <button title="Move up" aria-label="Move up" onclick={() => move(i, -1)}>↑</button>
             <button title="Move down" aria-label="Move down" onclick={() => move(i, 1)}>↓</button>
@@ -288,6 +317,27 @@
     color: var(--ink-secondary);
     font-size: 11px;
     white-space: nowrap;
+  }
+
+  .pin {
+    display: none;
+    background: none;
+    border: none;
+    padding: 1px 2px;
+    font-size: 11px;
+    filter: grayscale(1);
+    opacity: 0.5;
+  }
+
+  .track:hover .pin,
+  .track:focus-within .pin,
+  .pin.pinned {
+    display: inline-flex;
+  }
+
+  .pin.pinned {
+    filter: none;
+    opacity: 1;
   }
 
   .actions {

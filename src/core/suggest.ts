@@ -22,11 +22,14 @@ import { mulberry32 } from './random'
  * seed.
  */
 export interface SuggestOptions {
+  /** Pin the walk's opening track. Without it the opener is random. */
   seedId?: string | null
+  /** Pin the walk's closing track: the walk grows from both ends inward. */
+  endId?: string | null
   length?: number
   /** 0 = always the safest pick, 1 = adventurous sampling. */
   randomness?: number
-  /** PRNG seed; only used when randomness > 0. */
+  /** PRNG seed: drives the random opener and (with randomness > 0) sampling. */
   seed?: number
 }
 
@@ -78,13 +81,31 @@ function buildNeighbours(tracks: Track[], criteria: CriteriaConfig): Map<string,
   return neighbours
 }
 
-/** Best-connected track, ties broken by id — the default walk opener. */
+/** Best-connected track, ties broken by id — the empty-set hub suggestion. */
 function bestConnected(tracks: Track[], neighbours: Map<string, string[]>): string {
   return [...tracks].sort(
     (a, b) =>
       (neighbours.get(b.id)?.length ?? 0) - (neighbours.get(a.id)?.length ?? 0) ||
       a.id.localeCompare(b.id),
   )[0].id
+}
+
+/**
+ * Uniformly random walk opener (remark: generated sets must not always open
+ * with the same track): a connected track when any exists, excluding the
+ * pinned end so a two-ended walk never collapses onto itself.
+ */
+function randomStart(
+  tracks: Track[],
+  neighbours: Map<string, string[]>,
+  exclude: string | null,
+  rand: () => number,
+): string {
+  const eligible = tracks.filter((t) => t.id !== exclude)
+  const pool = eligible.length > 0 ? eligible : tracks
+  const connected = pool.filter((t) => (neighbours.get(t.id)?.length ?? 0) > 0)
+  const from = connected.length > 0 ? connected : pool
+  return from[Math.min(from.length - 1, Math.floor(rand() * from.length))].id
 }
 
 /** Rank unvisited neighbours of `current` by score (descending, id tie-break). */
@@ -113,7 +134,7 @@ export function suggestWalk(
   criteria: CriteriaConfig,
   options: SuggestOptions = {},
 ): string[] {
-  const { seedId = null, length = 15, randomness = 0, seed = 0 } = options
+  const { seedId = null, endId = null, length = 15, randomness = 0, seed = 0 } = options
   if (tracks.length === 0) return []
 
   const byId = new Map(tracks.map((t) => [t.id, t]))
@@ -124,19 +145,67 @@ export function suggestWalk(
   )
   const rand = mulberry32(seed)
 
-  const start = seedId !== null && byId.has(seedId) ? seedId : bestConnected(tracks, neighbours)
+  const pinnedEnd = endId !== null && byId.has(endId) ? endId : null
+  const start =
+    seedId !== null && byId.has(seedId)
+      ? seedId
+      : randomStart(tracks, neighbours, pinnedEnd, rand)
+  const end = pinnedEnd !== null && pinnedEnd !== start ? pinnedEnd : null
 
-  const walk = [start]
-  const visited = new Set([start])
-  while (walk.length < length) {
-    const current = byId.get(walk[walk.length - 1])!
-    const candidates = rankedCandidates(current, neighbours, byId, visited, criteria, genreMatch)
-    if (candidates.length === 0) break
-    const next = pick(candidates, randomness, rand)
-    walk.push(next)
+  if (end === null) {
+    const walk = [start]
+    const visited = new Set([start])
+    while (walk.length < length) {
+      const current = byId.get(walk[walk.length - 1])!
+      const candidates = rankedCandidates(current, neighbours, byId, visited, criteria, genreMatch)
+      if (candidates.length === 0) break
+      const next = pick(candidates, randomness, rand)
+      walk.push(next)
+      visited.add(next)
+    }
+    return walk
+  }
+
+  // Pinned closer: grow two arms — from the opener forward and the closer
+  // backward — always extending the arm with the better candidate, nudged
+  // toward each other by a genre-similarity convergence bonus. The seam
+  // where the arms meet is not guaranteed to be a combo edge (design-v5 §C).
+  const startArm = [start]
+  const endArm = [end]
+  const visited = new Set([start, end])
+  const towards = (other: Track) => (candidate: Track) =>
+    other.genre !== null && candidate.genre !== null
+      ? 0.3 * genreSimilarity(candidate.genre, other.genre, criteria.genre.method)
+      : 0
+  while (startArm.length + endArm.length < length) {
+    const tipA = byId.get(startArm[startArm.length - 1])!
+    const tipB = byId.get(endArm[endArm.length - 1])!
+    const fromStart = rankedCandidates(
+      tipA,
+      neighbours,
+      byId,
+      visited,
+      criteria,
+      genreMatch,
+      towards(tipB),
+    )
+    const fromEnd = rankedCandidates(
+      tipB,
+      neighbours,
+      byId,
+      visited,
+      criteria,
+      genreMatch,
+      towards(tipA),
+    )
+    if (fromStart.length === 0 && fromEnd.length === 0) break
+    const extendStart =
+      fromEnd.length === 0 || (fromStart.length > 0 && fromStart[0].score >= fromEnd[0].score)
+    const next = pick(extendStart ? fromStart : fromEnd, randomness, rand)
+    ;(extendStart ? startArm : endArm).push(next)
     visited.add(next)
   }
-  return walk
+  return [...startArm, ...endArm.reverse()]
 }
 
 export interface NextSuggestion {

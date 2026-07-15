@@ -58,18 +58,19 @@ describe('suggestWalk', () => {
     expect(walk).toHaveLength(2)
   })
 
-  test('without a seed, starts from the best-connected track', () => {
-    // Year chain at threshold 4: a(2000)–b(2003)–c(2006)–d(2009); only
-    // adjacent pairs match all four criteria, so b and c have degree 2 and
-    // the id tie-break picks b.
-    const chain = [
-      track({ id: 'a', year: 2000 }),
-      track({ id: 'b', year: 2003 }),
-      track({ id: 'c', year: 2006 }),
-      track({ id: 'd', year: 2009 }),
-    ]
-    const walk = suggestWalk(chain, config({ threshold: 4 }), { length: 10 })
-    expect(walk[0]).toBe('b')
+  test('without a seed, the opening track varies with the seed (fully random start)', () => {
+    const clique = Array.from({ length: 6 }, (_, i) => track({ id: `t${i}` }))
+    const starts = new Set(
+      Array.from({ length: 10 }, (_, seed) => suggestWalk(clique, config(), { length: 3, seed })[0]),
+    )
+    expect(starts.size).toBeGreaterThan(1)
+  })
+
+  test('without a seed, never opens on an isolated track while connected ones exist', () => {
+    for (let seed = 0; seed < 12; seed++) {
+      const walk = suggestWalk(tracks, config(), { length: 5, seed })
+      expect(walk[0]).not.toBe('e')
+    }
   })
 
   test('is deterministic', () => {
@@ -135,6 +136,56 @@ describe('suggestWalk', () => {
       ),
     )
     expect(walks.size).toBeGreaterThan(1)
+  })
+
+  describe('pinned endpoints', () => {
+    // Year chain at threshold 4: only adjacent pairs are combo edges.
+    const chain = [
+      track({ id: 'a', year: 2000 }),
+      track({ id: 'b', year: 2003 }),
+      track({ id: 'c', year: 2006 }),
+      track({ id: 'd', year: 2009 }),
+    ]
+
+    test('a pinned end makes the walk finish there', () => {
+      const walk = suggestWalk(chain, config({ threshold: 4 }), {
+        seedId: 'a',
+        endId: 'd',
+        length: 3,
+      })
+      expect(walk[0]).toBe('a')
+      expect(walk.at(-1)).toBe('d')
+      expect(walk).toHaveLength(3)
+      expect(new Set(walk).size).toBe(3)
+    })
+
+    test('pinned first and last, full length: all tracks distinct', () => {
+      const clique = Array.from({ length: 6 }, (_, i) => track({ id: `t${i}` }))
+      const walk = suggestWalk(clique, config(), {
+        seedId: 't0',
+        endId: 't5',
+        length: 6,
+        randomness: 1,
+        seed: 2,
+      })
+      expect(walk[0]).toBe('t0')
+      expect(walk.at(-1)).toBe('t5')
+      expect(walk).toHaveLength(6)
+      expect(new Set(walk).size).toBe(6)
+    })
+
+    test('a pinned end alone still closes the walk, with a random opener', () => {
+      const walk = suggestWalk(chain, config({ threshold: 4 }), { endId: 'd', length: 2, seed: 1 })
+      expect(walk.at(-1)).toBe('d')
+      expect(walk).toHaveLength(2)
+    })
+
+    test('the same seed reproduces the same pinned walk', () => {
+      const opts = { seedId: 'a', endId: 'd', length: 4, randomness: 1, seed: 7 }
+      expect(suggestWalk(chain, config({ threshold: 4 }), opts)).toEqual(
+        suggestWalk(chain, config({ threshold: 4 }), opts),
+      )
+    })
   })
 })
 

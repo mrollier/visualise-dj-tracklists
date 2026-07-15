@@ -35,10 +35,20 @@ export const tracklist = writable<string[]>([])
 export const suggestionHistory = writable<string[][]>([])
 export const suggestionIndex = writable(-1)
 
+/**
+ * Pinned opener/closer for generated sets (session-only): DJs often fix the
+ * first and last track and regenerate the middle. Cleared when the pinned
+ * track leaves the set or the library is replaced.
+ */
+export const pinnedFirst = writable<string | null>(null)
+export const pinnedLast = writable<string | null>(null)
+
 /** Clear the suggestion history — call whenever the library is replaced. */
 export function resetSuggestions(): void {
   suggestionHistory.set([])
   suggestionIndex.set(-1)
+  pinnedFirst.set(null)
+  pinnedLast.set(null)
 }
 
 /** The filtered library: what the wheel, edges and suggestions operate on. */

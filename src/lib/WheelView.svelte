@@ -439,7 +439,9 @@
           <path d="M 0 1 L 9 5 L 0 9 z" fill="var(--walk)" />
         </marker>
       </defs>
-      {#each walkPairs as [fromId, toId] (fromId + '→' + toId)}
+      <!-- Keyed by position: the same ordered pair can occur twice when a
+           track appears in the set more than once (remark 15). -->
+      {#each walkPairs as [fromId, toId], pairIndex (pairIndex)}
         {@const a = nodeById.get(fromId)}
         {@const b = nodeById.get(toId)}
         {#if a && b}
