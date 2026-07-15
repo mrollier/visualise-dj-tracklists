@@ -1,7 +1,7 @@
 import { genreComponents, labelSimilarity, type GenreMethod } from './genre'
 
 /**
- * Genre classes for the wheel's node shapes (docs/design-v4.md §E): the
+ * Genre classes for the wheel's node shapes (docs/designs/design-v4.md §E): the
  * library's genres, clustered in the *currently selected* similarity space,
  * so the shapes literally visualise the distance measure. Average-linkage
  * agglomerative clustering; two clusters merge while they are still similar

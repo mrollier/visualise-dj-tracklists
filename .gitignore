@@ -27,3 +27,6 @@ dist-ssr
 screenshots/
 out/
 /data/
+
+# personal Rekordbox exports (real collection data — tests use synthetic fixtures)
+/docs/rekordbox/

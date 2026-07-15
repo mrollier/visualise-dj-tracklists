@@ -44,7 +44,7 @@
 
   const AXIS_LABEL = { bpm: 'BPM', rating: 'rating', year: 'year' } as const
 
-  // Genre-class node shapes (docs/design-v4.md §E): class 0 (largest) keeps
+  // Genre-class node shapes (docs/designs/design-v4.md §E): class 0 (largest) keeps
   // the circle; further classes get increasingly angular symbols.
   const CLASS_SYMBOLS: SymbolType[] = [
     symbolCircle,

@@ -59,7 +59,8 @@ Your library never leaves your machine — there is no backend, no account, no u
 "Tech House" and "Techno" are different strings but not unrelated music. The genre
 criterion supports six methods (advanced menu → Genre matching), implementing the
 recommendations of a literature review on genre distance measures
-([docs/design-v4.md](docs/design-v4.md) has the design; the full report sits next to it):
+([docs/designs/design-v4.md](docs/designs/design-v4.md) has the design; the full report
+lives in [docs/research/](docs/research/)):
 
 | Method              | How it works                                                                                  | Data                                                              | Grounding                            |
 | ------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------ |
@@ -116,7 +117,7 @@ view layer over it.
 The concept — track set graphs, track vector walks, and DJ "fingerprints" as statistics
 over walks — is laid out in the concept paper at
 [docs/visualise-dj-tracklists.pdf](docs/visualise-dj-tracklists.pdf); the v1 design and
-decisions live in [docs/design-v1.md](docs/design-v1.md).
+decisions live in [docs/designs/](docs/designs/).
 
 Planned next (in rough order): force-layout "free" view for _tracks_ (the genre map
 already ships the d3-force groundwork), weighted edges with per-criterion weight

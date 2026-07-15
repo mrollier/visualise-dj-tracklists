@@ -4,7 +4,7 @@ Date: 2026-07-15. Status: approved.
 
 ## Context
 
-The Claude Research report ([compass_artifact…](compass_artifact_wf-7c0d9085-6d44-5af2-8e8c-9effdf10364d_text_markdown.md))
+The Claude Research report ([../research/claude-research-v1.md](../research/claude-research-v1.md))
 reviewed distance measures between music genres and recommends: PPMI + **truncated SVD**
 (not random projection) at our vocabulary size, **mutual proximity** (Schnitzer et al.
 2012) to fix umbrella-label hubness, **mutual top-k** matching instead of a lone global
