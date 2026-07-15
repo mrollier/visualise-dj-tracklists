@@ -187,8 +187,10 @@
           vinyl mode
         </label>
         <p class="hint">
-          Beatmatching on vinyl shifts pitch with tempo: keys are compared after the tempo-induced
-          transposition (when the gap lands on a whole semitone).
+          Beatmatching on vinyl shifts pitch with tempo, so keys are compared after the shift
+          needed to beatmatch. Tempo gaps landing on a whole semitone transpose the key (+7
+          Camelot); gaps in between detune it — even same-key tracks lose their match. Gaps
+          beyond the BPM tolerance (the pitch fader's range) can't beatmatch at all.
         </p>
       </section>
 

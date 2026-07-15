@@ -132,15 +132,17 @@ export function bpmCompatibleRatio(a: Track, b: Track, cfg: CriteriaConfig): num
 const PREDICATES: Record<CriterionField, Predicate> = {
   key: (a, b, cfg) => {
     const opts = { advancedMoves: cfg.key.advancedMoves }
-    if (keysMatch(a.key!, b.key!, opts)) return true
-    if (!cfg.key.vinylMode) return false
-    // Vinyl mode: beatmatching by pitch shifts the key along with the tempo.
-    // Only tempo gaps landing on a whole semitone yield a clean transposition.
+    // Vinyl mode: beatmatching by pitch shifts the key along with the tempo,
+    // so keys are compared *after* that shift (design-v5 §B). The plain
+    // comparison only applies without vinyl mode or when a tempo is unknown.
+    if (!cfg.key.vinylMode || a.bpm === null || b.bpm === null) {
+      return keysMatch(a.key!, b.key!, opts)
+    }
     const ratio = bpmCompatibleRatio(a, b, cfg)
-    if (ratio === null) return false
-    const semitones = 12 * Math.log2(a.bpm! / (b.bpm! * ratio))
+    if (ratio === null) return false // beyond the pitch fader: unbeatmatchable
+    const semitones = 12 * Math.log2(a.bpm / (b.bpm * ratio))
     const shift = Math.round(semitones)
-    if (shift === 0 || Math.abs(semitones - shift) > 0.35) return false
+    if (Math.abs(semitones - shift) > 0.35) return false // detuned, between keys
     return keysMatch(a.key!, transposeCamelot(b.key!, shift), opts)
   },
   bpm: (a, b, cfg) => bpmCompatibleRatio(a, b, cfg) !== null,

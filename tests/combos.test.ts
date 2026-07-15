@@ -178,6 +178,52 @@ describe('individual criteria', () => {
     expect(evaluateCombo(a, b, cfg).matched).not.toContain('key')
   })
 
+  test('vinyl mode is strict: same-key tracks a semitone apart in tempo lose their key match', () => {
+    // Beatmatching b (122.7 → 130) shifts its 8A up a semitone to 3A ≠ 8A.
+    const a = track({ id: 'a5', key: '8A', bpm: 130 })
+    const b = track({ id: 'b5', key: '8A', bpm: 122.7 })
+    expect(evaluateCombo(a, b, config()).matched).toContain('key')
+    const cfg = config()
+    cfg.key.vinylMode = true
+    expect(evaluateCombo(a, b, cfg).matched).not.toContain('key')
+    expect(evaluateCombo(b, a, cfg).matched).not.toContain('key') // symmetric
+  })
+
+  test('vinyl mode is strict: same-key tracks detuned by a half semitone lose their key match', () => {
+    // 130/126.3 ≈ +0.5 semitone: after beatmatching the keys sit between slots.
+    const a = track({ id: 'a6', key: '8A', bpm: 130 })
+    const b = track({ id: 'b6', key: '8A', bpm: 126.3 })
+    expect(evaluateCombo(a, b, config()).matched).toContain('key')
+    const cfg = config()
+    cfg.key.vinylMode = true
+    expect(evaluateCombo(a, b, cfg).matched).not.toContain('key')
+  })
+
+  test('vinyl mode is strict: unbeatmatchable tempo gaps have no key relation', () => {
+    // 130 vs 100 is beyond the pitch-fader range (bpm.maxPercent): on vinyl
+    // these two can never play together, so same key or not, no key match.
+    const a = track({ id: 'a7', key: '8A', bpm: 130 })
+    const b = track({ id: 'b7', key: '8A', bpm: 100 })
+    expect(evaluateCombo(a, b, config()).matched).toContain('key')
+    const cfg = config()
+    cfg.key.vinylMode = true
+    expect(evaluateCombo(a, b, cfg).matched).not.toContain('key')
+  })
+
+  test('vinyl mode: near-equal tempos and missing BPMs fall back to the plain comparison', () => {
+    const cfg = config()
+    cfg.key.vinylMode = true
+    // ~0 semitone shift: plain same-key match survives
+    const a = track({ id: 'a8', key: '8A', bpm: 128 })
+    expect(evaluateCombo(a, track({ id: 'b8', key: '8A', bpm: 128.5 }), cfg).matched).toContain(
+      'key',
+    )
+    // no tempo data on one side: cannot model the shift, compare keys as-is
+    expect(evaluateCombo(a, track({ id: 'c8', key: '8A', bpm: null }), cfg).matched).toContain(
+      'key',
+    )
+  })
+
   test('vinyl mode works across a half/double-time bridge', () => {
     // b played double-time at 164.2 then pitched to 174 is +1 semitone: 1A → 8A.
     const a = track({ id: 'a4', key: '8A', bpm: 174 })
