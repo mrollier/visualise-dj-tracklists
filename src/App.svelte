@@ -22,8 +22,9 @@
     <div class="empty">
       <h2>Your library as a web of combos</h2>
       <p>
-        Import a Rekordbox XML export, a CSV, or tagged audio files — or load the sample library —
-        to see your tracks on the Camelot wheel, with suggested combos as edges between them.
+        Import a Rekordbox collection XML or playlist TXT, a CSV, an M3U8 playlist, or tagged audio
+        files — or load the sample library — to see your tracks on the Camelot wheel, with suggested
+        combos as edges between them.
       </p>
       <p class="privacy">Everything stays in your browser. Nothing is uploaded.</p>
     </div>

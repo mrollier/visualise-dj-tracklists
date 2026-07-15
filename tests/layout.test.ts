@@ -3,7 +3,7 @@ import { annularSectorPath, slotAngleOffsets } from '../src/core/layout'
 
 describe('slotAngleOffsets', () => {
   test('a single node sits on the slot centre', () => {
-    expect(slotAngleOffsets(1)).toEqual([0])
+    expect(slotAngleOffsets(1, 7.5)).toEqual([0])
   })
 
   test('multiple nodes fan out symmetrically across the slot', () => {

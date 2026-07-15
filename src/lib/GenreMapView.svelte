@@ -21,7 +21,8 @@
     type SymbolType,
   } from 'd3-shape'
   import { zoom as d3zoom, zoomIdentity, type D3ZoomEvent } from 'd3-zoom'
-  import { SvelteMap, SvelteSet } from 'svelte/reactivity'
+  import { get } from 'svelte/store'
+  import { SvelteSet } from 'svelte/reactivity'
   import {
     genreComponents,
     GENRE_METHODS,
@@ -65,7 +66,6 @@
   // Default overlay = the criterion's active method, seeded once at mount —
   // the user's chip toggles must stick afterwards. SvelteSet mutations are
   // reactive on their own.
-  import { get } from 'svelte/store'
   const enabledMethods = new SvelteSet<GenreMethod>([get(criteria).genre.method])
 
   function toggleMethod(method: GenreMethod) {
@@ -92,7 +92,10 @@
 
   // --- data: library genres (+ optional pack ghosts) --------------------------
   const genreCounts = $derived.by(() => {
-    const counts = new SvelteMap<string, number>()
+    // Plain Map/Set on purpose here and below: derived-local collections,
+    // rebuilt wholesale — reactivity lives in the $derived itself.
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
+    const counts = new Map<string, number>()
     for (const track of $visibleLibrary) {
       if (track.genre === null) continue
       for (const label of genreComponents(track.genre)) {
@@ -103,8 +106,9 @@
   })
 
   const ghostLabels = $derived.by(() => {
-    if (!showNeighbours) return new SvelteSet<string>()
-    const ghosts = new SvelteSet<string>()
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived-local
+    const ghosts = new Set<string>()
+    if (!showNeighbours) return ghosts
     for (const label of genreCounts.keys()) {
       for (const [neighbour] of packNeighbours(label, GHOSTS_PER_GENRE)) {
         if (!genreCounts.has(neighbour)) ghosts.add(neighbour)
@@ -133,9 +137,9 @@
 
   /** Strongest score per pair across enabled overlays — drives the layout. */
   const pairStrength = $derived.by(() => {
-    const best = new SvelteMap<string, number>()
-    for (const { a, b, method, score } of edges) {
-      void method
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived-local
+    const best = new Map<string, number>()
+    for (const { a, b, score } of edges) {
       const key = `${a}\u001f${b}`
       best.set(key, Math.max(best.get(key) ?? 0, score))
     }
@@ -249,10 +253,11 @@
   let mouse = $state({ x: 0, y: 0 })
 
   const hoveredScores = $derived.by(() => {
-    if (hoveredPair === null) return []
+    const pair = hoveredPair
+    if (pair === null) return []
     return GENRE_METHODS.map((method) => ({
       method,
-      score: labelSimilarity(hoveredPair!.a, hoveredPair!.b, method),
+      score: labelSimilarity(pair.a, pair.b, method),
     }))
   })
 
@@ -286,7 +291,7 @@
     aria-label="Genre map of the library"
   >
     <g class="zoom-layer" transform={zoomTransform}>
-      {#each edges as edge (edge.method + edge.a + edge.b)}
+      {#each edges as edge (`${edge.method}→${edge.a}→${edge.b}`)}
         {@const a = nodeById.get(edge.a)}
         {@const b = nodeById.get(edge.b)}
         {#if a && b}
@@ -416,7 +421,7 @@
   .genre-node .mark {
     fill: var(--accent);
     fill-opacity: 0.85;
-    stroke: rgba(255, 255, 255, 0.3);
+    stroke: var(--node-ring);
     stroke-width: 1;
   }
 

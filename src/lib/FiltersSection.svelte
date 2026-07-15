@@ -48,7 +48,11 @@
   function toggleGenre(genre: string, on: boolean) {
     filters.update((f) => {
       const current = f.genres ?? $libraryGenres
-      const next = on ? [...current, genre] : current.filter((g) => g !== genre)
+      const next = on
+        ? current.includes(genre)
+          ? current
+          : [...current, genre]
+        : current.filter((g) => g !== genre)
       // All genres selected = no filter.
       return { ...f, genres: next.length >= $libraryGenres.length ? null : next }
     })

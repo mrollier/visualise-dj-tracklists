@@ -16,8 +16,12 @@
   --baseline: #383835;
   --border: rgba(255, 255, 255, 0.09);
 
+  /* Mirrored by MISSING_COLORS in src/core/scales.ts (SVG fills are computed
+     in TS) — keep the two in sync. */
   --missing: #565550;
   --edge: #52514e;
+  /* Thin outline separating node marks from the surface and each other. */
+  --node-ring: rgba(255, 255, 255, 0.25);
   /* Per-key sector tints: cool for minor (A), warm for major (B). Kept at
      very low alpha so the validated node colour ramps stay legible. */
   --sector-minor: rgba(124, 152, 255, 0.05);
@@ -54,6 +58,7 @@
 
   --missing: #a3a199;
   --edge: #b2b0a7;
+  --node-ring: rgba(0, 0, 0, 0.22);
   --sector-minor: rgba(70, 100, 220, 0.06);
   --sector-major: rgba(200, 130, 20, 0.055);
   --walk: #a86f00;
@@ -107,7 +112,7 @@ button:disabled {
 
 button.danger {
   color: var(--danger);
-  border-color: rgba(208, 59, 59, 0.4);
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
 }
 
 button.danger:hover:not(:disabled) {

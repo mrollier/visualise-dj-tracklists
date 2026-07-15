@@ -19,7 +19,6 @@
   import { COLOR_SCHEMES, makeNodeColor, MISSING_COLORS } from '../core/scales'
   import { effectiveTheme } from './theme'
   import { suggestNext } from '../core/suggest'
-  import { SvelteMap, SvelteSet } from 'svelte/reactivity'
   import {
     criteria,
     edges,
@@ -28,6 +27,7 @@
     library,
     neighbours,
     radialAxis,
+    rightPanel,
     selectedId,
     settings,
     tracklist,
@@ -134,7 +134,10 @@
     const unkeyed = $visibleLibrary
       .filter((t) => t.key === null)
       .sort((a, b) => (b[$radialAxis] ?? -1) - (a[$radialAxis] ?? -1) || a.id.localeCompare(b.id))
-    const byBand = new SvelteMap<number, Track[]>()
+    // Plain Maps on purpose throughout this computation: derived-local
+    // temporaries, rebuilt wholesale — reactivity lives in the $derived.
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
+    const byBand = new Map<number, Track[]>()
     for (const track of unkeyed) {
       const value = track[$radialAxis]
       const y = value === null ? gutterBottom + GUTTER_MISSING_Y_GAP : gutterY(value)
@@ -153,7 +156,8 @@
 
     // Keyed tracks: group per slot and fan out so same-key tracks with a
     // similar radius stay individually hoverable.
-    const bySlot = new SvelteMap<string, Track[]>()
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
+    const bySlot = new Map<string, Track[]>()
     for (const track of $visibleLibrary) {
       if (track.key === null) continue
       if (!bySlot.has(track.key)) bySlot.set(track.key, [])
@@ -186,7 +190,8 @@
 
   /** Tracks per genre class among the *visible* nodes — greys out legend chips. */
   const visibleClassCounts = $derived.by(() => {
-    const counts = new SvelteMap<number, number>()
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived-local
+    const counts = new Map<number, number>()
     for (const track of $visibleLibrary) {
       const index = classIndexOf(track)
       if (index !== null) counts.set(index, (counts.get(index) ?? 0) + 1)
@@ -205,7 +210,8 @@
 
   const focusSet = $derived.by(() => {
     if ($selectedId === null) return null
-    const set = new SvelteSet([$selectedId])
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived-local
+    const set = new Set([$selectedId])
     for (const n of $neighbours.get($selectedId) ?? []) set.add(n)
     return set
   })
@@ -287,7 +293,8 @@
 
 <svelte:window
   onkeydown={(e) => {
-    if (e.key === 'Escape') selectedId.set(null)
+    // With the advanced panel open, Escape belongs to closing the panel.
+    if (e.key === 'Escape' && $rightPanel === 'set') selectedId.set(null)
   }}
 />
 
@@ -412,7 +419,7 @@
       {/if}
 
       <!-- Suggestion edges -->
-      {#each $edges as edge (edge.sourceId + edge.targetId)}
+      {#each $edges as edge (`${edge.sourceId}→${edge.targetId}`)}
         {@const a = nodeById.get(edge.sourceId)}
         {@const b = nodeById.get(edge.targetId)}
         {#if a && b}
@@ -701,7 +708,7 @@
   }
 
   .dot {
-    stroke: rgba(255, 255, 255, 0.25);
+    stroke: var(--node-ring);
     stroke-width: 1;
   }
 

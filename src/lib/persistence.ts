@@ -22,6 +22,8 @@ import {
   tracklist,
 } from '../stores'
 
+// ":v1" names the storage slot, not the project schema (parseProject
+// migrates whatever schema version it finds in the slot).
 const STORAGE_KEY = 'visualise-dj-tracklists:project:v1'
 
 export function currentProject(): Project {
