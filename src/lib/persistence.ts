@@ -12,6 +12,8 @@ import {
   radialAxis,
   selectedId,
   settings,
+  suggestionHistory,
+  suggestionIndex,
   tracklist,
 } from '../stores'
 
@@ -96,4 +98,6 @@ export function resetEverything(): void {
   radialAxis.set('bpm')
   colorAxis.set('auto')
   selectedId.set(null)
+  suggestionHistory.set([])
+  suggestionIndex.set(-1)
 }

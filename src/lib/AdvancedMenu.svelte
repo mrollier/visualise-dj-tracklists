@@ -107,6 +107,20 @@
           Suggested set length
           <input type="number" min="2" max="99" bind:value={$settings.suggestLength} />
         </label>
+        <label>
+          Adventurousness <strong>{$settings.suggestRandomness.toFixed(2)}</strong>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            bind:value={$settings.suggestRandomness}
+          />
+        </label>
+        <p class="hint">
+          0 always picks the safest transition; higher values embrace dissonance. Genre closeness
+          always counts in the ranking.
+        </p>
       </section>
     </div>
   {/if}

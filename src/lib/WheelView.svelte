@@ -6,8 +6,10 @@
   import { annularSectorPath, slotAngleOffsets } from '../core/layout'
   import type { Track } from '../core/model'
   import { COLOR_SCHEMES, makeNodeColor, MISSING_COLOR } from '../core/scales'
+  import { suggestNext } from '../core/suggest'
   import { SvelteMap, SvelteSet } from 'svelte/reactivity'
   import {
+    criteria,
     edges,
     effectiveColorAxis,
     neighbours,
@@ -199,6 +201,20 @@
   function zoomReset() {
     zoomBehavior.transform(d3select(svgEl), zoomIdentity)
   }
+
+  // --- hub button: suggest the next track (remark 7) ---
+  // Inserts after the selected track when it sits mid-set (fitting both
+  // neighbours), otherwise appends after the last track.
+  let hubSeed = 0
+  function hubSuggest() {
+    const suggestion = suggestNext($visibleLibrary, $criteria, $tracklist, {
+      selectedId: $selectedId,
+      randomness: $settings.suggestRandomness,
+      seed: hubSeed++,
+    })
+    if (suggestion === null) return
+    tracklist.update((ids) => ids.toSpliced(suggestion.insertIndex, 0, suggestion.trackId))
+  }
 </script>
 
 <svelte:window
@@ -306,6 +322,24 @@
         >
           no value
         </text>
+      {/if}
+
+      <!-- Hub button: suggest the next track for the set -->
+      {#if $visibleLibrary.length > 0}
+        <g
+          class="hub"
+          role="button"
+          tabindex="0"
+          aria-label="Suggest next track"
+          onclick={hubSuggest}
+          onkeydown={(e) => {
+            if (e.key === 'Enter') hubSuggest()
+          }}
+        >
+          <circle cx={CX} cy={CY} r="34" class="hub-circle" vector-effect="non-scaling-stroke" />
+          <text x={CX} y={CY - 2} class="hub-plus" text-anchor="middle">+</text>
+          <text x={CX} y={CY + 16} class="hub-label" text-anchor="middle">next</text>
+        </g>
       {/if}
 
       <!-- Suggestion edges -->
@@ -518,6 +552,37 @@
   .node {
     cursor: pointer;
     outline: none;
+  }
+
+  .hub {
+    cursor: pointer;
+    outline: none;
+  }
+
+  .hub-circle {
+    fill: var(--surface-raised);
+    stroke: var(--baseline);
+    stroke-width: 1;
+    stroke-dasharray: 4 4;
+  }
+
+  .hub:hover .hub-circle,
+  .hub:focus-visible .hub-circle {
+    stroke: var(--accent);
+    stroke-dasharray: none;
+  }
+
+  .hub-plus {
+    fill: var(--ink-secondary);
+    font-size: 22px;
+    dominant-baseline: middle;
+  }
+
+  .hub-label {
+    fill: var(--ink-muted);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
   }
 
   .dot {

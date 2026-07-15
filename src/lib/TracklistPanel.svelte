@@ -9,6 +9,8 @@
     libraryName,
     selectedId,
     settings,
+    suggestionHistory,
+    suggestionIndex,
     trackById,
     tracklist,
     visibleLibrary,
@@ -54,18 +56,31 @@
 
   const exportBase = $derived(($libraryName || 'tracklist').replace(/\.[a-z0-9]+$/i, ''))
 
-  function suggest() {
-    if (
-      walkTracks.length > 0 &&
-      !confirm('Replace your current set with a suggested one? This cannot be undone.')
-    ) {
+  // Suggestion history: ◀ steps back, ▶ steps forward through earlier
+  // suggestions and generates a fresh one at the head. No confirmations —
+  // the previous suggestion is always one ◀ away.
+  function showSuggestion(index: number) {
+    suggestionIndex.set(index)
+    tracklist.set($suggestionHistory[index])
+  }
+
+  function suggestNew() {
+    if ($suggestionIndex < $suggestionHistory.length - 1) {
+      showSuggestion($suggestionIndex + 1)
       return
     }
     const walk = suggestWalk($visibleLibrary, $criteria, {
       seedId: $selectedId,
       length: $settings.suggestLength,
+      randomness: $settings.suggestRandomness,
+      seed: $suggestionHistory.length,
     })
-    tracklist.set(walk)
+    suggestionHistory.update((h) => [...h, walk])
+    showSuggestion($suggestionHistory.length - 1)
+  }
+
+  function suggestPrevious() {
+    if ($suggestionIndex > 0) showSuggestion($suggestionIndex - 1)
   }
 </script>
 
@@ -76,9 +91,28 @@
   </div>
 
   <div class="suggest-row">
-    <button onclick={suggest} disabled={$visibleLibrary.length === 0}>
-      ✨ Suggest a set{$selectedId !== null ? ' from selection' : ''}
-    </button>
+    {#if $suggestionHistory.length === 0}
+      <button onclick={suggestNew} disabled={$visibleLibrary.length === 0}>
+        ✨ Suggest a set{$selectedId !== null ? ' from selection' : ''}
+      </button>
+    {:else}
+      <button
+        class="arrow"
+        onclick={suggestPrevious}
+        disabled={$suggestionIndex <= 0}
+        title="Back to the previous suggestion"
+      >
+        ◀ previous
+      </button>
+      <button
+        class="arrow primary"
+        onclick={suggestNew}
+        disabled={$visibleLibrary.length === 0}
+        title="Suggest a new set"
+      >
+        {$suggestionIndex < $suggestionHistory.length - 1 ? 'next' : '✨ new'} ▶
+      </button>
+    {/if}
   </div>
 
   {#if walkTracks.length === 0}
@@ -164,11 +198,23 @@
 
   .suggest-row {
     padding: 0 14px 8px;
+    display: flex;
+    gap: 6px;
   }
 
   .suggest-row button {
     width: 100%;
     font-size: 12px;
+  }
+
+  .suggest-row .arrow {
+    width: auto;
+    flex: 1;
+    white-space: nowrap;
+  }
+
+  .suggest-row .primary {
+    flex: 1.4;
   }
 
   .hint {

@@ -18,6 +18,14 @@ export const colorAxis = writable<ColorAxis>('auto')
 export const selectedId = writable<string | null>(null)
 export const tracklist = writable<string[]>([])
 
+/**
+ * Session-only history of generated set suggestions (not persisted): the
+ * ◀ previous / new ▶ arrows walk through it. `suggestionIndex` points at the
+ * currently shown suggestion, -1 when none has been generated yet.
+ */
+export const suggestionHistory = writable<string[][]>([])
+export const suggestionIndex = writable(-1)
+
 /** The filtered library: what the wheel, edges and suggestions operate on. */
 export const visibleLibrary = derived([library, filters], ([$library, $filters]) =>
   applyFilters($library, $filters),

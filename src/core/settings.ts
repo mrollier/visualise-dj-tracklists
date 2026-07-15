@@ -13,6 +13,8 @@ export interface AppSettings {
   edgeOpacity: number
   /** Target number of tracks for the suggested-set generator. */
   suggestLength: number
+  /** 0 = safest transitions, 1 = adventurous/dissonant sampling. */
+  suggestRandomness: number
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -20,4 +22,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   slotSpreadDeg: 11,
   edgeOpacity: 0.35,
   suggestLength: 15,
+  suggestRandomness: 0.25,
 }
