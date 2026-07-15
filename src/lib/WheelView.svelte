@@ -54,6 +54,9 @@
     symbolStar,
     symbolWye,
   ]
+  // Plain Map on purpose: a render-time memo of static path strings, never
+  // a reactive source (writing a SvelteMap during render would be a bug).
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity
   const shapeCache = new Map<string, string>()
   function shapePath(classIndex: number | null, r: number): string {
     const type =

@@ -20,6 +20,7 @@
     type SymbolType,
   } from 'd3-shape'
   import { zoom as d3zoom, zoomIdentity, type D3ZoomEvent } from 'd3-zoom'
+  import { SvelteMap, SvelteSet } from 'svelte/reactivity'
   import {
     genreComponents,
     GENRE_METHODS,
@@ -59,23 +60,15 @@
   ]
 
   let showNeighbours = $state(false)
-  let enabledMethods = $state(new Set<GenreMethod>())
-  let seededFromCriteria = $state(false)
-
-  // Default overlay = the criterion's active method (once, not reactively —
-  // the user's chip toggles must stick).
-  $effect(() => {
-    if (!seededFromCriteria) {
-      enabledMethods = new Set([$criteria.genre.method])
-      seededFromCriteria = true
-    }
-  })
+  // Default overlay = the criterion's active method, seeded once at mount —
+  // the user's chip toggles must stick afterwards. SvelteSet mutations are
+  // reactive on their own.
+  import { get } from 'svelte/store'
+  const enabledMethods = new SvelteSet<GenreMethod>([get(criteria).genre.method])
 
   function toggleMethod(method: GenreMethod) {
-    const next = new Set(enabledMethods)
-    if (next.has(method)) next.delete(method)
-    else next.add(method)
-    enabledMethods = next
+    if (enabledMethods.has(method)) enabledMethods.delete(method)
+    else enabledMethods.add(method)
   }
 
   interface GenreNode extends SimulationNodeDatum {
@@ -93,7 +86,7 @@
 
   // --- data: library genres (+ optional pack ghosts) --------------------------
   const genreCounts = $derived.by(() => {
-    const counts = new Map<string, number>()
+    const counts = new SvelteMap<string, number>()
     for (const track of $visibleLibrary) {
       if (track.genre === null) continue
       for (const label of genreComponents(track.genre)) {
@@ -104,8 +97,8 @@
   })
 
   const ghostLabels = $derived.by(() => {
-    if (!showNeighbours) return new Set<string>()
-    const ghosts = new Set<string>()
+    if (!showNeighbours) return new SvelteSet<string>()
+    const ghosts = new SvelteSet<string>()
     for (const label of genreCounts.keys()) {
       for (const [neighbour] of packNeighbours(label, GHOSTS_PER_GENRE)) {
         if (!genreCounts.has(neighbour)) ghosts.add(neighbour)
@@ -134,7 +127,7 @@
 
   /** Strongest score per pair across enabled overlays — drives the layout. */
   const pairStrength = $derived.by(() => {
-    const best = new Map<string, number>()
+    const best = new SvelteMap<string, number>()
     for (const { a, b, method, score } of edges) {
       void method
       const key = `${a}\u001f${b}`
@@ -148,6 +141,9 @@
     return $genreClasses?.classOf.get(label) ?? null
   }
 
+  // Plain Map on purpose: a render-time memo of static path strings, never
+  // a reactive source (writing a SvelteMap during render would be a bug).
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity
   const shapeCache = new Map<string, string>()
   function shapePath(classIndex: number | null, r: number): string {
     const idx = classIndex === null ? -1 : classIndex % CLASS_SYMBOLS.length
@@ -172,8 +168,10 @@
   let positioned = $state<GenreNode[]>([])
   let simulation: Simulation<GenreNode, undefined> | null = null
   const nodeById = $derived(new Map(positioned.map((n) => [n.id, n])))
-  // Plain (non-reactive) position memory: the layout effect must not read
-  // `positioned`, or every tick would restart the simulation.
+  // Plain Map on purpose: non-reactive position memory. The layout effect
+  // must not subscribe to it, or every simulation tick would restart the
+  // simulation.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity
   const lastPosition = new Map<string, { x: number; y: number }>()
 
   $effect(() => {
