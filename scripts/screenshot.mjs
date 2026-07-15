@@ -27,6 +27,11 @@ await page.getByRole('button', { name: 'Load sample' }).click()
 await page.getByText('combo suggestions').waitFor()
 await page.screenshot({ path: `${scratch}/02-wheel.png` })
 
+// genre-class shapes: the legend must carry shape chips for the sample
+if ((await page.locator('.shape-chip').count()) === 0) {
+  errors.push('no genre-class shape chips in the legend')
+}
+
 // hover a node to show the tooltip
 const node = page.locator('g.node[aria-label*="Seven Bridges"]')
 await node.hover()
@@ -61,6 +66,21 @@ if (setCountAfter !== setCountBefore + 1) {
 }
 await page.screenshot({ path: `${scratch}/07-hub-next.png` })
 
+// genre map view: overlays, all-method edge tooltip data, nearby ghosts
+await page.getByRole('button', { name: 'Genres', exact: true }).click()
+await page.waitForTimeout(1200)
+await page.getByRole('button', { name: 'hybrid' }).click()
+await page.getByRole('button', { name: 'taxonomy' }).click()
+await page.getByRole('checkbox', { name: 'show nearby genres' }).check()
+await page.waitForTimeout(1800)
+const mapNodes = await page.locator('.genre-node').count()
+const ghostNodes = await page.locator('.genre-node.ghost').count()
+if (mapNodes === 0) errors.push('genre map rendered no nodes')
+if (ghostNodes === 0) errors.push('genre map rendered no ghost neighbours')
+await page.screenshot({ path: `${scratch}/07b-genre-map.png` })
+await page.getByRole('button', { name: 'Wheel', exact: true }).click()
+await page.waitForTimeout(200)
+
 // filters: open panel, restrict genre; range inputs show library extremes
 await page.locator('summary', { hasText: 'Filters' }).click()
 const bpmMin = await page.locator('.filter-row input').first().inputValue()
@@ -72,9 +92,17 @@ await page.waitForTimeout(300)
 await page.screenshot({ path: `${scratch}/08-genre-filter.png` })
 await page.getByRole('button', { name: 'All' }).click()
 
-// advanced menu: genre method explainer + vinyl mode; half/double in criteria
+// advanced menu: hybrid method with sourced explainer, top-k controls,
+// max-genre-classes slider, vinyl mode; half/double in criteria
 await page.getByRole('button', { name: /Advanced/ }).click()
-await page.locator('.panel select').first().selectOption('graph')
+await page.locator('.panel select').first().selectOption('hybrid')
+if ((await page.locator('.panel .hint a').count()) === 0) {
+  errors.push('method explainer carries no source links')
+}
+await page.getByText('Link each genre to its').waitFor() // top-k mode controls
+await page.getByRole('radio').nth(1).check() // switch to threshold mode…
+await page.getByText('Similarity ≥').waitFor()
+await page.getByRole('radio').first().check() // …and back to mutual top-k
 await page.getByRole('checkbox', { name: 'vinyl mode' }).check()
 await page.screenshot({ path: `${scratch}/09-advanced.png` })
 await page.keyboard.press('Escape')
