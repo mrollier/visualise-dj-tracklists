@@ -99,6 +99,41 @@ describe('importRekordboxXml playlists', () => {
   })
 })
 
+describe('importRekordboxXml dirty input', () => {
+  // Hand-edited or corrupted exports: values the app must not trust.
+  const dirtyXml = `<?xml version="1.0" encoding="UTF-8"?>
+    <DJ_PLAYLISTS Version="1.0.0">
+      <COLLECTION Entries="3">
+        <TRACK TrackID="7" Name="First" Rating="204"/>
+        <TRACK TrackID="7" Name="Duplicate id" Rating="corrupt"/>
+        <TRACK TrackID="8" Name="Third"/>
+      </COLLECTION>
+      <PLAYLISTS>
+        <NODE Type="0" Name="ROOT" Count="2">
+          <NODE Type="1" Name="Set" Entries="1"><TRACK Key="7"/></NODE>
+          <NODE Type="1" Name="Set" Entries="1"><TRACK Key="8"/></NODE>
+        </NODE>
+      </PLAYLISTS>
+    </DJ_PLAYLISTS>`
+  const result = importRekordboxXml(dirtyXml)
+
+  test('duplicate TrackIDs still yield unique track ids', () => {
+    const ids = result.tracks.map((t) => t.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(ids[0]).toBe('rb-7') // the first occurrence keeps the plain id
+  })
+
+  test('a non-numeric Rating becomes missing, not NaN', () => {
+    expect(result.tracks[1].rating).toBeNull()
+  })
+
+  test('identically named playlists get unique names', () => {
+    const names = result.playlists?.map((p) => p.name) ?? []
+    expect(new Set(names).size).toBe(names.length)
+    expect(names[0]).toBe('Set')
+  })
+})
+
 describe('importCsv', () => {
   test('imports rows with canonical headers', () => {
     const csv = [

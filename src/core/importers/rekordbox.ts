@@ -37,6 +37,7 @@ function collectPlaylists(node: PlaylistNode | PlaylistNode[], prefix: string, o
     })
   }
 }
+
 export function importRekordboxXml(xml: string): ImportResult {
   const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '' })
   let doc: unknown
@@ -69,6 +70,7 @@ export function importRekordboxXml(xml: string): ImportResult {
 
   const errors: string[] = []
   const tracks: Track[] = []
+  const usedIds = new Set<string>()
   for (const entry of entries) {
     const str = (field: string): string | null => {
       const value = entry[field]
@@ -82,17 +84,22 @@ export function importRekordboxXml(xml: string): ImportResult {
     }
     const bpm = Number(str('AverageBpm') ?? 0)
     const year = Number(str('Year') ?? 0)
-    const rawRating = str('Rating')
+    const rating = Number(str('Rating') ?? NaN)
     const duration = Number(str('TotalTime') ?? 0)
+    // Hand-edited exports can repeat TrackIDs; node ids must stay unique.
+    const base = `rb-${str('TrackID') ?? `row${tracks.length}`}`
+    let id = base
+    for (let n = 2; usedIds.has(id); n++) id = `${base}-${n}`
+    usedIds.add(id)
     tracks.push({
-      id: `rb-${str('TrackID') ?? `row${tracks.length}`}`,
+      id,
       title,
       artist: str('Artist'),
       key: normalizeKey(str('Tonality')),
       bpm: bpm > 0 ? bpm : null,
       genre: str('Genre'),
       year: year > 0 ? year : null,
-      rating: rawRating === null ? null : Math.round(Number(rawRating) / 51),
+      rating: Number.isFinite(rating) ? Math.round(rating / 51) : null,
       durationSec: duration > 0 ? duration : null,
       location: str('Location'),
     })
@@ -100,6 +107,14 @@ export function importRekordboxXml(xml: string): ImportResult {
 
   const playlists: Playlist[] = []
   if (root?.PLAYLISTS?.NODE !== undefined) collectPlaylists(root.PLAYLISTS.NODE, '', playlists)
+  // Names key the playlist filter and UI list — force them unique.
+  const seenNames = new Set<string>()
+  for (const playlist of playlists) {
+    let name = playlist.name
+    for (let n = 2; seenNames.has(name); n++) name = `${playlist.name} (${n})`
+    seenNames.add(name)
+    playlist.name = name
+  }
 
   return { tracks, report: buildReport(tracks, errors), playlists }
 }

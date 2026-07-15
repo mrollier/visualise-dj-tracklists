@@ -9,9 +9,11 @@ import { buildReport, type ImportResult, type Track } from '../model'
  * library and a ready-made set (design-v5 §D).
  */
 
-/** Column header → Track field (case-insensitive). Unknown columns are ignored. */
-const HEADER_MAP: Record<string, keyof Track | 'order'> = {
-  '#': 'order',
+/**
+ * Column header → Track field (case-insensitive). Unknown columns are
+ * ignored — including "#", since rows already arrive in playlist order.
+ */
+const HEADER_MAP: Record<string, keyof Track> = {
   title: 'title',
   'track title': 'title',
   artist: 'artist',
