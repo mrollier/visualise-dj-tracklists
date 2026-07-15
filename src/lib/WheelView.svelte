@@ -3,15 +3,30 @@
   import { ALL_CAMELOT_KEYS, wheelSlotAngleDeg, type CamelotKey } from '../core/keys'
   import { slotAngleOffsets } from '../core/layout'
   import type { Track } from '../core/model'
+  import { COLOR_SCHEMES, makeNodeColor, MISSING_COLOR } from '../core/scales'
   import { SvelteMap, SvelteSet } from 'svelte/reactivity'
-  import { edges, neighbours, radialAxis, selectedId, tracklist, visibleLibrary } from '../stores'
+  import {
+    edges,
+    effectiveColorAxis,
+    neighbours,
+    radialAxis,
+    selectedId,
+    settings,
+    tracklist,
+    visibleLibrary,
+  } from '../stores'
 
   const SIZE = 820
-  const CENTER = SIZE / 2
+  const WIDTH = SIZE + 80 // extra room for the no-key gutter on the right
+  const CX = SIZE / 2
+  const CY = SIZE / 2
   const R_MAX = 330
   const R_MIN = 110
-  const R_FALLBACK = 70 // dashed inner circle for tracks missing the radial value
-  const R_UNKEYED = 32 // small hub for tracks with no key
+  const R_FALLBACK = 70 // dashed inner circle: keyed tracks missing the radial value
+  const GUTTER_X = SIZE + 26 // vertical strip for tracks with no key
+  const GUTTER_MISSING_Y_GAP = 42
+
+  const AXIS_LABEL = { bpm: 'BPM', rating: 'rating', year: 'year' } as const
 
   interface PlacedNode {
     track: Track
@@ -26,7 +41,7 @@
 
   function polar(angleDeg: number, r: number): { x: number; y: number } {
     const rad = ((angleDeg - 90) * Math.PI) / 180 // 0° at 12 o'clock, clockwise
-    return { x: CENTER + r * Math.cos(rad), y: CENTER + r * Math.sin(rad) }
+    return { x: CX + r * Math.cos(rad), y: CY + r * Math.sin(rad) }
   }
 
   const radialValues = $derived(
@@ -44,15 +59,40 @@
 
   const gridTicks = $derived(radialValues.length > 0 ? radialScale.ticks(4) : [])
 
+  /** Same scale as the wheel radius, mapped onto the vertical gutter strip. */
+  function gutterY(value: number): number {
+    return CY - (radialScale(value) - (R_MIN + R_MAX) / 2)
+  }
+  const gutterTop = $derived(CY - (R_MAX - R_MIN) / 2)
+  const gutterBottom = $derived(CY + (R_MAX - R_MIN) / 2)
+
   const nodes = $derived.by(() => {
     const placed: PlacedNode[] = []
-    const unkeyed = $visibleLibrary.filter((t) => t.key === null)
-    unkeyed.forEach((track, i) => {
-      const angle = (360 / unkeyed.length) * i
-      placed.push({ track, ...polar(angle, R_UNKEYED), unkeyed: true, missingRadial: true })
-    })
-    // Group keyed tracks per slot and fan each group out so that tracks with
-    // the same key and a similar radius stay individually hoverable.
+
+    // Tracks without a key live in the gutter, still positioned by the radial
+    // value (remark 3: a missing key must not hide a known BPM/year/rating).
+    const unkeyed = $visibleLibrary
+      .filter((t) => t.key === null)
+      .sort((a, b) => (b[$radialAxis] ?? -1) - (a[$radialAxis] ?? -1) || a.id.localeCompare(b.id))
+    const byBand = new SvelteMap<number, Track[]>()
+    for (const track of unkeyed) {
+      const value = track[$radialAxis]
+      const y = value === null ? gutterBottom + GUTTER_MISSING_Y_GAP : gutterY(value)
+      const band = Math.round(y / 16)
+      if (!byBand.has(band)) byBand.set(band, [])
+      byBand.get(band)!.push(track)
+    }
+    for (const [band, group] of byBand) {
+      group.forEach((track, i) => {
+        const value = track[$radialAxis]
+        const y = value === null ? gutterBottom + GUTTER_MISSING_Y_GAP : gutterY(value)
+        const x = GUTTER_X + (i - (group.length - 1) / 2) * 14
+        placed.push({ track, x, y, unkeyed: true, missingRadial: value === null })
+      })
+    }
+
+    // Keyed tracks: group per slot and fan out so same-key tracks with a
+    // similar radius stay individually hoverable.
     const bySlot = new SvelteMap<string, Track[]>()
     for (const track of $visibleLibrary) {
       if (track.key === null) continue
@@ -63,7 +103,7 @@
       group.sort(
         (a, b) => (a[$radialAxis] ?? 0) - (b[$radialAxis] ?? 0) || a.id.localeCompare(b.id),
       )
-      const offsets = slotAngleOffsets(group.length)
+      const offsets = slotAngleOffsets(group.length, $settings.slotSpreadDeg)
       group.forEach((track, i) => {
         const value = track[$radialAxis]
         const angle = wheelSlotAngleDeg(key as CamelotKey) + offsets[i]
@@ -76,10 +116,16 @@
 
   const nodeById = $derived(new Map(nodes.map((n) => [n.track.id, n])))
 
-  function ratingColor(track: Track): string {
-    if (track.rating === null) return 'var(--missing)'
-    return `var(--rating-${Math.max(0, Math.min(5, Math.round(track.rating)))})`
-  }
+  const colorDomain = $derived.by((): [number, number] => {
+    const values = $visibleLibrary
+      .map((t) => t[$effectiveColorAxis])
+      .filter((v): v is number => v !== null)
+    if (values.length === 0) return [0, 1]
+    return [Math.min(...values), Math.max(...values)]
+  })
+
+  const nodeColor = $derived(makeNodeColor($effectiveColorAxis, colorDomain, $settings.colorScheme))
+  const ramp = $derived(COLOR_SCHEMES[$settings.colorScheme])
 
   const walkPairs = $derived(
     $tracklist.slice(0, -1).map((id, i) => [id, $tracklist[i + 1]] as const),
@@ -93,13 +139,13 @@
   })
 
   function nodeOpacity(node: PlacedNode): number {
-    const base = node.unkeyed || node.missingRadial ? 0.55 : 1
+    const base = node.missingRadial ? 0.55 : 1
     if (focusSet !== null && !focusSet.has(node.track.id)) return 0.12
     return base
   }
 
   function edgeOpacity(sourceId: string, targetId: string): number {
-    if (focusSet === null) return 0.35
+    if (focusSet === null) return $settings.edgeOpacity
     return focusSet.has(sourceId) && focusSet.has(targetId) ? 0.6 : 0.05
   }
 
@@ -120,6 +166,9 @@
   function trackSummary(t: Track): string {
     return [t.key ?? '—', t.bpm !== null ? `${t.bpm} BPM` : '—', t.genre ?? '—'].join(' · ')
   }
+
+  const hasUnkeyed = $derived(nodes.some((n) => n.unkeyed))
+  const hasMissingRadial = $derived(nodes.some((n) => !n.unkeyed && n.missingRadial))
 </script>
 
 <svelte:window
@@ -137,114 +186,158 @@
   }}
 >
   <svg
-    viewBox="0 0 {SIZE} {SIZE}"
+    viewBox="0 0 {WIDTH} {SIZE}"
     role="application"
     aria-label="Camelot wheel of the track library"
   >
-    <!-- Radial grid + tick labels -->
-    {#each gridTicks as tick (tick)}
-      <circle cx={CENTER} cy={CENTER} r={radialScale(tick)} class="gridline" />
-      <text x={CENTER + 6} y={CENTER - radialScale(tick) - 4} class="tick-label">{tick}</text>
-    {/each}
-    <circle cx={CENTER} cy={CENTER} r={R_FALLBACK} class="gridline dashed" />
-
-    <!-- Sector boundaries between Camelot numbers -->
-    {#each Array.from({ length: 12 }, (_, i) => i * 30) as boundary (boundary)}
-      {@const inner = polar(boundary, R_MIN - 30)}
-      {@const outer = polar(boundary, R_MAX + 12)}
-      <line x1={inner.x} y1={inner.y} x2={outer.x} y2={outer.y} class="spoke" />
-    {/each}
-
-    <!-- Key slot labels; minor (A) inside the ring line, major (B) outside -->
-    <circle cx={CENTER} cy={CENTER} r={R_MAX + 12} class="ring" />
-    {#each ALL_CAMELOT_KEYS as key (key)}
-      {@const pos = keyLabelPos(key)}
-      <text
-        x={pos.x}
-        y={pos.y}
-        class="key-label"
-        class:major={key.endsWith('B')}
-        dominant-baseline="middle"
-        text-anchor="middle">{key}</text
-      >
-    {/each}
-
-    <!-- Suggestion edges -->
-    {#each $edges as edge (edge.sourceId + edge.targetId)}
-      {@const a = nodeById.get(edge.sourceId)}
-      {@const b = nodeById.get(edge.targetId)}
-      {#if a && b}
-        <line
-          x1={a.x}
-          y1={a.y}
-          x2={b.x}
-          y2={b.y}
-          class="combo-edge"
-          opacity={edgeOpacity(edge.sourceId, edge.targetId)}
-        />
+    <g class="zoom-layer">
+      <!-- Radial grid + tick labels -->
+      {#each gridTicks as tick (tick)}
+        <circle cx={CX} cy={CY} r={radialScale(tick)} class="gridline" />
+        <text x={CX + 6} y={CY - radialScale(tick) - 4} class="tick-label">{tick}</text>
+      {/each}
+      {#if hasMissingRadial}
+        <circle cx={CX} cy={CY} r={R_FALLBACK} class="gridline dashed" />
+        <text x={CX} y={CY - R_FALLBACK - 8} class="zone-label" text-anchor="middle">
+          no {AXIS_LABEL[$radialAxis]} value
+        </text>
       {/if}
-    {/each}
 
-    <!-- Walk (current tracklist) drawn above suggestions -->
-    <defs>
-      <marker
-        id="walk-arrow"
-        viewBox="0 0 10 10"
-        refX="9"
-        refY="5"
-        markerWidth="7"
-        markerHeight="7"
-        orient="auto-start-reverse"
-      >
-        <path d="M 0 1 L 9 5 L 0 9 z" fill="var(--walk)" />
-      </marker>
-    </defs>
-    {#each walkPairs as [fromId, toId] (fromId + '→' + toId)}
-      {@const a = nodeById.get(fromId)}
-      {@const b = nodeById.get(toId)}
-      {#if a && b}
-        <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} class="walk-edge" marker-end="url(#walk-arrow)" />
+      <!-- Sector boundaries between Camelot numbers -->
+      {#each Array.from({ length: 12 }, (_, i) => i * 30) as boundary (boundary)}
+        {@const inner = polar(boundary, R_MIN - 30)}
+        {@const outer = polar(boundary, R_MAX + 12)}
+        <line x1={inner.x} y1={inner.y} x2={outer.x} y2={outer.y} class="spoke" />
+      {/each}
+
+      <!-- Key slot labels -->
+      <circle cx={CX} cy={CY} r={R_MAX + 12} class="ring" />
+      {#each ALL_CAMELOT_KEYS as key (key)}
+        {@const pos = keyLabelPos(key)}
+        <text
+          x={pos.x}
+          y={pos.y}
+          class="key-label"
+          class:major={key.endsWith('B')}
+          dominant-baseline="middle"
+          text-anchor="middle">{key}</text
+        >
+      {/each}
+
+      <!-- No-key gutter: same scale as the wheel radius, vertically -->
+      {#if hasUnkeyed}
+        <line x1={GUTTER_X} y1={gutterTop - 10} x2={GUTTER_X} y2={gutterBottom + 10} class="ring" />
+        {#each gridTicks as tick (tick)}
+          <line
+            x1={GUTTER_X - 4}
+            y1={gutterY(tick)}
+            x2={GUTTER_X + 4}
+            y2={gutterY(tick)}
+            class="spoke"
+          />
+        {/each}
+        <text x={GUTTER_X} y={gutterTop - 26} class="zone-label" text-anchor="middle">no key</text>
+        <text
+          x={GUTTER_X}
+          y={gutterBottom + GUTTER_MISSING_Y_GAP + 20}
+          class="zone-label"
+          text-anchor="middle"
+        >
+          no value
+        </text>
       {/if}
-    {/each}
 
-    <!-- Nodes -->
-    {#each nodes as node (node.track.id)}
-      <g
-        class="node"
-        opacity={nodeOpacity(node)}
-        role="button"
-        tabindex="0"
-        aria-label="{node.track.title} — {trackSummary(node.track)}"
-        onmouseenter={() => (hovered = node)}
-        onmouseleave={() => (hovered = null)}
-        onclick={() => select(node)}
-        ondblclick={() => appendToTracklist(node)}
-        onkeydown={(e) => {
-          if (e.key === 'Enter') select(node)
-          if (e.key === '+') appendToTracklist(node)
-        }}
-      >
-        <circle cx={node.x} cy={node.y} r="11" fill="transparent" />
-        <circle
-          cx={node.x}
-          cy={node.y}
-          r={node.track.id === $selectedId ? 7 : 5}
-          fill={ratingColor(node.track)}
-          class="dot"
-          class:selected={node.track.id === $selectedId}
-          class:in-walk={$tracklist.includes(node.track.id)}
-        />
-      </g>
-    {/each}
+      <!-- Suggestion edges -->
+      {#each $edges as edge (edge.sourceId + edge.targetId)}
+        {@const a = nodeById.get(edge.sourceId)}
+        {@const b = nodeById.get(edge.targetId)}
+        {#if a && b}
+          <line
+            x1={a.x}
+            y1={a.y}
+            x2={b.x}
+            y2={b.y}
+            class="combo-edge"
+            opacity={edgeOpacity(edge.sourceId, edge.targetId)}
+          />
+        {/if}
+      {/each}
+
+      <!-- Walk (current tracklist) drawn above suggestions -->
+      <defs>
+        <marker
+          id="walk-arrow"
+          viewBox="0 0 10 10"
+          refX="9"
+          refY="5"
+          markerWidth="7"
+          markerHeight="7"
+          orient="auto-start-reverse"
+        >
+          <path d="M 0 1 L 9 5 L 0 9 z" fill="var(--walk)" />
+        </marker>
+      </defs>
+      {#each walkPairs as [fromId, toId] (fromId + '→' + toId)}
+        {@const a = nodeById.get(fromId)}
+        {@const b = nodeById.get(toId)}
+        {#if a && b}
+          <line
+            x1={a.x}
+            y1={a.y}
+            x2={b.x}
+            y2={b.y}
+            class="walk-edge"
+            marker-end="url(#walk-arrow)"
+          />
+        {/if}
+      {/each}
+
+      <!-- Nodes -->
+      {#each nodes as node (node.track.id)}
+        <g
+          class="node"
+          opacity={nodeOpacity(node)}
+          role="button"
+          tabindex="0"
+          aria-label="{node.track.title} — {trackSummary(node.track)}"
+          onmouseenter={() => (hovered = node)}
+          onmouseleave={() => (hovered = null)}
+          onclick={() => select(node)}
+          ondblclick={() => appendToTracklist(node)}
+          onkeydown={(e) => {
+            if (e.key === 'Enter') select(node)
+            if (e.key === '+') appendToTracklist(node)
+          }}
+        >
+          <circle cx={node.x} cy={node.y} r="11" fill="transparent" />
+          <circle
+            cx={node.x}
+            cy={node.y}
+            r={node.track.id === $selectedId ? 7 : 5}
+            fill={nodeColor(node.track[$effectiveColorAxis])}
+            class="dot"
+            class:selected={node.track.id === $selectedId}
+            class:in-walk={$tracklist.includes(node.track.id)}
+          />
+        </g>
+      {/each}
+    </g>
   </svg>
 
   <!-- Legend -->
   <div class="legend">
-    <span class="legend-title">Rating</span>
-    {#each [0, 1, 2, 3, 4, 5] as stars (stars)}
-      <span class="chip"><i style="background: var(--rating-{stars})"></i>{stars}</span>
-    {/each}
-    <span class="chip"><i style="background: var(--missing)"></i>none</span>
+    <span class="legend-title">Colour: {AXIS_LABEL[$effectiveColorAxis]}</span>
+    {#if $effectiveColorAxis === 'rating'}
+      {#each [0, 1, 2, 3, 4, 5] as stars (stars)}
+        <span class="chip"><i style="background: {ramp[stars]}"></i>{stars}</span>
+      {/each}
+    {:else}
+      <span class="chip">{colorDomain[0]}</span>
+      <span class="gradient" style="background: linear-gradient(to right, {ramp.join(', ')})"
+      ></span>
+      <span class="chip">{colorDomain[1]}</span>
+    {/if}
+    <span class="chip"><i style="background: {MISSING_COLOR}"></i>missing</span>
     <span class="chip walk-chip"><i class="walk-line"></i>your set</span>
     <span class="legend-hint">click: focus · double-click: add to set</span>
   </div>
@@ -263,7 +356,11 @@
         <dt>Year</dt>
         <dd>{hovered.track.year ?? 'missing'}</dd>
         <dt>Rating</dt>
-        <dd>{hovered.track.rating ?? 'missing'}</dd>
+        <dd>
+          {hovered.track.rating === null
+            ? 'missing'
+            : '★'.repeat(hovered.track.rating) + '☆'.repeat(5 - hovered.track.rating)}
+        </dd>
       </dl>
     </div>
   {/if}
@@ -310,6 +407,13 @@
   .key-label {
     fill: var(--ink-muted);
     font-size: 11px;
+  }
+
+  .zone-label {
+    fill: var(--ink-muted);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
   }
 
   .key-label.major {
@@ -377,6 +481,13 @@
     width: 10px;
     height: 10px;
     border-radius: 50%;
+    display: inline-block;
+  }
+
+  .gradient {
+    width: 90px;
+    height: 8px;
+    border-radius: 4px;
     display: inline-block;
   }
 

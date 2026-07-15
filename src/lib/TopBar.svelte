@@ -6,6 +6,7 @@
   import { parseProject, serializeProject } from '../core/persist'
   import { SAMPLE_TRACKS } from '../data/sample-tracks'
   import {
+    colorAxis,
     lastImportReport,
     library,
     libraryName,
@@ -115,6 +116,16 @@
       <select bind:value={$radialAxis}>
         <option value="bpm">BPM</option>
         <option value="rating">Rating</option>
+        <option value="year">Year</option>
+      </select>
+    </label>
+
+    <label>
+      Colour
+      <select bind:value={$colorAxis}>
+        <option value="auto">Auto</option>
+        <option value="rating">Rating</option>
+        <option value="bpm">BPM</option>
         <option value="year">Year</option>
       </select>
     </label>
