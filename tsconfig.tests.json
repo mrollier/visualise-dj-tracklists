@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.tests.tsbuildinfo",
+    // The build-script .mjs modules a test imports are exercised for
+    // behaviour, not typechecked (they are plain node JS).
+    "checkJs": false
+  },
+  "include": ["tests/**/*.ts", "src/**/*.ts"]
+}

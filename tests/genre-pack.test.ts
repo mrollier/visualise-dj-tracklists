@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
-// Build-time math for the genre embedding pack (plain JS, node-only).
-// @ts-expect-error -- untyped build-script module, exercised for behaviour
+// Build-time math for the genre embedding pack (plain JS, node-only;
+// declarations in scripts/genre-pack-lib.d.mts).
 import {
   embedRows,
   cosineMatrix,
@@ -24,7 +24,7 @@ describe('embedRows (PPMI → truncated SVD, Levy & Goldberg W = U·Σ^0.5)', ()
     const w = embedRows(m, 2, { normalize: false })
     for (let i = 0; i < 3; i++) {
       for (let j = 0; j < 3; j++) {
-        const dot = w[i].reduce((s: number, v: number, d: number) => s + v * w[j][d], 0)
+        const dot = w[i].reduce((s, v, d) => s + v * w[j][d], 0)
         expect(dot).toBeCloseTo(m[i][j], 6)
       }
     }
@@ -50,7 +50,7 @@ describe('embedRows (PPMI → truncated SVD, Levy & Goldberg W = U·Σ^0.5)', ()
     const w = embedRows(m, 2, { normalize: false })
     for (let i = 0; i < 2; i++) {
       for (let j = 0; j < 2; j++) {
-        const dot = w[i].reduce((s: number, v: number, d: number) => s + v * w[j][d], 0)
+        const dot = w[i].reduce((s, v, d) => s + v * w[j][d], 0)
         expect(dot).toBeCloseTo(0.5, 6)
       }
     }
@@ -64,7 +64,7 @@ describe('embedRows (PPMI → truncated SVD, Levy & Goldberg W = U·Σ^0.5)', ()
     ]
     const w = embedRows(m, 2)
     for (const row of w) {
-      const norm = Math.sqrt(row.reduce((s: number, v: number) => s + v * v, 0))
+      const norm = Math.sqrt(row.reduce((s, v) => s + v * v, 0))
       expect(norm).toBeCloseTo(1, 6)
     }
   })
@@ -192,17 +192,17 @@ describe('topNeighbours', () => {
 
   test('lists each label’s k best neighbours, sorted, without itself', () => {
     const lists = topNeighbours(labels, sim, 2, [])
-    expect(lists['house'].map((e: [string, number]) => e[0])).toEqual(['deep house', 'electronic'])
+    expect(lists['house'].map((e) => e[0])).toEqual(['deep house', 'electronic'])
     expect(lists['house'][0][1]).toBeCloseTo(0.9, 6)
     for (const label of labels) {
       expect(lists[label].length).toBeLessThanOrEqual(2)
-      expect(lists[label].some((e: [string, number]) => e[0] === label)).toBe(false)
+      expect(lists[label].some((e) => e[0] === label)).toBe(false)
     }
   })
 
   test('damps scores of pairs involving an umbrella label', () => {
     const lists = topNeighbours(labels, sim, 3, ['electronic'])
-    const houseToElectronic = lists['house'].find((e: [string, number]) => e[0] === 'electronic')
+    const houseToElectronic = lists['house'].find((e) => e[0] === 'electronic')
     expect(houseToElectronic?.[1]).toBeCloseTo(0.4, 6) // 0.8 × 0.5
     // Damping applies before ranking: deep house (0.9) stays first.
     expect(lists['house'][0][0]).toBe('deep house')

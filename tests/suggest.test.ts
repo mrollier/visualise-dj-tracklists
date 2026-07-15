@@ -96,7 +96,7 @@ describe('suggestWalk', () => {
     // 0.5 graph threshold — but tech house (0.36) beats folk (~0), so the
     // continuous similarity should break the tie despite the id order.
     const cfg = config()
-    cfg.genre = { enabled: true, method: 'graph', threshold: 0.5 }
+    cfg.genre = { enabled: true, method: 'graph', mode: 'threshold', k: 5, threshold: 0.5 }
     const trio = [
       track({ id: 'a', genre: 'Techno' }),
       track({ id: 'x1', genre: 'Folk' }),
