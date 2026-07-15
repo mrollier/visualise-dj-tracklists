@@ -11,11 +11,16 @@ Your library never leaves your machine — there is no backend, no account, no u
 
 ## What it does
 
-- **Import** a Rekordbox XML collection export, a CSV, tagged audio files (ID3/Vorbis/MP4,
-  read in the browser), or an **M3U8 playlist** — playlists become your set, matched
-  against the library, ready to reorder. Playlist entries that aren't in the library yet
-  automatically pick up their metadata when you import the collection XML later. Or load
-  one of **ten themed sample libraries** (advanced menu), each with a demo set.
+- **Import** a Rekordbox XML collection export, a **Rekordbox playlist TXT export**
+  (the UTF-16 tab-separated table — it becomes both library and set, in playlist
+  order), a CSV, tagged audio files (ID3/Vorbis/MP4, read in the browser), or an
+  **M3U8 playlist** — M3U8s become your set, matched against the library, and entries
+  that aren't in the library yet pick up their metadata when you import the collection
+  XML later. The **Load sample** button cycles themed sample libraries like the
+  suggestion arrows: ▶ loads a fresh pack (with its demo set), ◀ steps back.
+- **Work per playlist**: a collection XML that carries playlists starts with an
+  **empty wheel** and a Playlists panel on the left — toggle the playlists you want
+  (plus a "Not in a playlist" bucket for the rest) instead of drowning in 2000 nodes.
 - **See the web**: key as angle on a 24-slot Camelot wheel (every harmonically compatible
   key angularly adjacent, minor/major sectors tinted), switchable radius (BPM / rating /
   year), node colour on its own axis. Tracks without a key sit in a labelled gutter at
@@ -23,6 +28,10 @@ Your library never leaves your machine — there is no backend, no account, no u
   structure magnifies. When your library spans **clearly different genre families**,
   each family gets its own node shape (circle, square, triangle, …) — clustered in
   whichever similarity space you selected, capped by a "max genre classes" setting.
+- **A static background**: the axes, rings and genre-class shapes are properties of
+  your *library*, not of the current filters — filtering and playlist toggling only
+  add or remove nodes, never rescale the frame, and the legend greys out classes
+  instead of dropping them. Rating and year rings only sit on whole values.
 - **Map the genres**: a second central view (Wheel | Genres switch) lays your library's
   genres out with a force simulation — screen distance approximates the distance
   measure. Toggleable per-method edge overlays show where the six similarity methods
@@ -32,9 +41,11 @@ Your library never leaves your machine — there is no backend, no account, no u
   plus an alphabetical genre checklist decide what participates in the graph at all.
 - **Tune the criteria**: key / BPM / genre / year each toggleable and ranged; an edge
   appears when at least _N_ of the enabled criteria match. Missing metadata never blocks
-  a combo. **Half/double-time** BPM matching links 85 ↔ 170 worlds; **vinyl mode**
-  accounts for pitch: beatmatching on turntables transposes the key along with the
-  tempo, and keys are compared after that shift.
+  a combo. **Half/double-time** BPM matching links 85 ↔ 170 worlds; the **+2** and
+  **+7-semitone** key moves toggle independently; **vinyl mode** models the physics of
+  beatmatching on turntables — pitch shifts the key with the tempo, so keys are always
+  compared *after* that shift: same-key tracks at different tempos detune apart, and
+  clean-semitone gaps transpose into new matches. Toggling it visibly rewires the graph.
 - **Match genres that aren't spelled the same**: six selectable similarity methods
   (see below) with sourced explainers in the advanced menu. The criterion defaults to
   **mutual top-k** matching — each genre links to its k nearest genres in _your_
@@ -42,17 +53,26 @@ Your library never leaves your machine — there is no backend, no account, no u
   (electronic) and sparse genre regions; a classic score threshold remains available.
   Umbrella tags ("Electronic", "Dance") never drive a match, and multi-genre fields
   ("House / Techno") match through their best component.
-- **Weave a set**: click to focus, double-click to append, or press the wheel's centre
-  **＋ next** button to slot in the best next track (it inserts _between_ tracks when
-  your selection sits mid-set). **Suggest a set** generates a full walk; the ◀ / ▶
-  arrows step back to earlier suggestions or generate fresh ones — no confirmations.
-  An **adventurousness** setting controls how much dissonance the generator embraces,
-  with continuous genre similarity always part of the ranking.
+- **Weave a set**: click to focus, double-click to append (the same track can appear
+  twice — just not back-to-back), or press the wheel's centre **＋ next** button to
+  slot in the best next track (it inserts _between_ tracks when your selection sits
+  mid-set). **Suggest a set** generates a full walk from a **random opener** each time;
+  the ◀ / ▶ arrows step back to earlier suggestions or generate fresh ones. **Pin** the
+  set's first and/or last track (📌 on the row) to lock the opener and closer across
+  regenerations — with both pinned, the walk grows from both ends inward. An
+  **adventurousness** setting controls how much dissonance the generator embraces.
+- **Make it yours**: the advanced settings live in the right panel (swapping with
+  "Your set"), so the wheel reacts live while you tune. A ☀/☾ switch flips between
+  the dark and light theme; fresh visitors follow the system preference.
 - **Take it with you**: export the set as M3U8 (Rekordbox re-imports it) or CSV; save the
   whole project as JSON. Everything autosaves to the browser; a Reset button (with
   confirmation) wipes the slate.
 
-![The advanced menu over the filtered wheel](docs/screenshots/advanced-filters.png)
+![A Rekordbox collection with the playlists panel](docs/screenshots/playlists.png)
+
+![The advanced settings beside the wheel](docs/screenshots/advanced-filters.png)
+
+![The light theme](docs/screenshots/light-mode.png)
 
 ## Genre similarity
 
