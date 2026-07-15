@@ -20,7 +20,7 @@
   import type { Track } from '../core/model'
   import { COLOR_SCHEMES, makeNodeColor, MISSING_COLORS, radialDomain } from '../core/scales'
   import { effectiveTheme } from './theme'
-  import { suggestNext } from '../core/suggest'
+  import { nextExhausted, suggestNext } from '../core/suggest'
   import {
     criteria,
     edges,
@@ -28,12 +28,14 @@
     filters,
     genreClasses,
     library,
+    mustInclude,
     neighbours,
     playlistScopedLibrary,
     radialAxis,
     rightPanel,
     selectedId,
     settings,
+    trackById,
     tracklist,
     visibleLibrary,
   } from '../stores'
@@ -323,16 +325,33 @@
 
   // --- hub button: suggest the next track (remark 7) ---
   // Inserts after the selected track when it sits mid-set (fitting both
-  // neighbours), otherwise appends after the last track.
+  // neighbours), otherwise appends after the last track. When the anchor's
+  // neighbourhood is exhausted the hub turns into a warning-coloured
+  // "force" button: clicking it knowingly breaks the criteria and picks the
+  // closest non-matching track (ISSUES.md #11, design-v6 §C).
   let hubSeed = 0
+  const hubExhausted = $derived(nextExhausted($neighbours, $tracklist, $selectedId))
   function hubSuggest() {
     const suggestion = suggestNext($visibleLibrary, $criteria, $tracklist, {
       selectedId: $selectedId,
       randomness: $settings.suggestRandomness,
       seed: hubSeed++,
+      progression: $settings.bpmProgression,
+      force: hubExhausted,
     })
     if (suggestion === null) return
     tracklist.update((ids) => ids.toSpliced(suggestion.insertIndex, 0, suggestion.trackId))
+  }
+
+  // --- selected-track card: details + the "must include" mark (design-v6 §C) ---
+  const selectedTrack = $derived(
+    $selectedId === null ? null : ($trackById.get($selectedId) ?? null),
+  )
+  const isMustIncluded = $derived($selectedId !== null && $mustInclude.includes($selectedId))
+  function toggleMustInclude() {
+    const id = $selectedId
+    if (id === null) return
+    mustInclude.update((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]))
   }
 </script>
 
@@ -449,17 +468,27 @@
       {#if $visibleLibrary.length > 0}
         <g
           class="hub"
+          class:warning={hubExhausted}
           role="button"
           tabindex="0"
-          aria-label="Suggest next track"
+          aria-label={hubExhausted
+            ? 'No exact match left — force the closest track'
+            : 'Suggest next track'}
           onclick={hubSuggest}
           onkeydown={(e) => {
             if (e.key === 'Enter') hubSuggest()
           }}
         >
+          <title
+            >{hubExhausted
+              ? 'No track matches your criteria from here — clicking forces the closest one anyway'
+              : 'Suggest the next track'}</title
+          >
           <circle cx={CX} cy={CY} r="34" class="hub-circle" vector-effect="non-scaling-stroke" />
           <text x={CX} y={CY - 2} class="hub-plus" text-anchor="middle">+</text>
-          <text x={CX} y={CY + 16} class="hub-label" text-anchor="middle">next</text>
+          <text x={CX} y={CY + 16} class="hub-label" text-anchor="middle"
+            >{hubExhausted ? 'force' : 'next'}</text
+          >
         </g>
       {/if}
 
@@ -590,6 +619,32 @@
     <span class="chip walk-chip"><i class="walk-line"></i>your set</span>
     <span class="legend-hint">click: focus · double-click: add to set</span>
   </div>
+
+  <!-- Selected-track card: the persistent home of a selection's details,
+       and where a track is marked "must include" (design-v6 §C). -->
+  {#if selectedTrack}
+    <div class="selected-card">
+      <strong>{selectedTrack.title}</strong>
+      <span class="artist">{selectedTrack.artist ?? 'Unknown artist'}</span>
+      <dl>
+        <dt>Key</dt>
+        <dd>{selectedTrack.key ?? 'missing'}</dd>
+        <dt>BPM</dt>
+        <dd>{selectedTrack.bpm ?? 'missing'}</dd>
+        <dt>Genre</dt>
+        <dd>{selectedTrack.genre ?? 'missing'}</dd>
+      </dl>
+      <button
+        class="must-toggle"
+        class:on={isMustIncluded}
+        aria-pressed={isMustIncluded}
+        title="Suggested sets will strongly favour including this track"
+        onclick={toggleMustInclude}
+      >
+        {isMustIncluded ? '★ in suggested sets' : '☆ must include in suggested sets'}
+      </button>
+    </div>
+  {/if}
 
   {#if hovered}
     <div class="tooltip" style="left: {mouse.x + 14}px; top: {mouse.y + 12}px">
@@ -741,6 +796,30 @@
     stroke-dasharray: none;
   }
 
+  /* Exhausted neighbourhood: the hub offers a rule-breaking "force" pick. */
+  .hub.warning .hub-circle {
+    stroke: var(--walk-bright);
+    stroke-dasharray: none;
+    animation: hub-pulse 0.6s ease-out 2;
+  }
+
+  .hub.warning .hub-plus,
+  .hub.warning .hub-label {
+    fill: var(--walk-bright);
+  }
+
+  @keyframes hub-pulse {
+    0% {
+      stroke-width: 1;
+    }
+    50% {
+      stroke-width: 5;
+    }
+    100% {
+      stroke-width: 1;
+    }
+  }
+
   .hub-plus {
     fill: var(--ink-secondary);
     font-size: 22px;
@@ -862,6 +941,56 @@
     padding: 8px 10px;
     pointer-events: none;
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  }
+
+  .selected-card {
+    position: absolute;
+    left: 12px;
+    bottom: 44px;
+    max-width: 240px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .selected-card strong {
+    display: block;
+  }
+
+  .selected-card .artist {
+    color: var(--ink-secondary);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .selected-card dl {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 1px 10px;
+    margin: 0 0 6px;
+    font-size: 12px;
+  }
+
+  .selected-card dt {
+    color: var(--ink-muted);
+  }
+
+  .selected-card dd {
+    margin: 0;
+    color: var(--ink-secondary);
+  }
+
+  .must-toggle {
+    width: 100%;
+    font-size: 11px;
+    color: var(--ink-secondary);
+  }
+
+  .must-toggle.on {
+    color: var(--accent);
+    border-color: var(--accent);
   }
 
   .tooltip strong {

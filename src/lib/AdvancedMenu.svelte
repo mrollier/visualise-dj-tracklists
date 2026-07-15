@@ -1,7 +1,18 @@
 <script lang="ts">
   import { GENRE_METHODS } from '../core/genre'
+  import type { Track } from '../core/model'
+  import { type BpmProgression } from '../core/settings'
   import { SAMPLE_PACKS } from '../data/samples'
-  import { criteria, rightPanel, settings } from '../stores'
+  import {
+    criteria,
+    mustInclude,
+    pinnedFirst,
+    pinnedLast,
+    rightPanel,
+    settings,
+    trackById,
+    visibleLibrary,
+  } from '../stores'
   import { confirmReplaceLibrary, loadSamplePack } from './persistence'
 
   let packId = $state(SAMPLE_PACKS[0].id)
@@ -12,6 +23,42 @@
     if (!confirmReplaceLibrary(selectedPack.name)) return
     loadSamplePack(selectedPack)
   }
+
+  // --- Set order (design-v6 §C) ---
+  // The pickers are the second home of the 📌 pins: picking here pins, and a
+  // pinned set row prefills the picker. Options come from the visible
+  // library; a pin that fell out of visibility is kept selectable on top.
+  const PROGRESSION_LABEL: Record<BpmProgression, string> = {
+    any: 'any (no preference)',
+    steady: 'steady — hold the tempo',
+    rising: 'rising — build up',
+    falling: 'falling — wind down',
+    sawtooth: 'sawtooth — build, drop, repeat',
+  }
+  const PROGRESSIONS = Object.keys(PROGRESSION_LABEL) as BpmProgression[]
+
+  const sortedTracks = $derived(
+    [...$visibleLibrary].sort(
+      (a, b) => (a.artist ?? '~').localeCompare(b.artist ?? '~') || a.title.localeCompare(b.title),
+    ),
+  )
+  function pickerOptions(pinnedId: string | null): Track[] {
+    if (pinnedId === null || sortedTracks.some((t) => t.id === pinnedId)) return sortedTracks
+    const pinned = $trackById.get(pinnedId)
+    return pinned === undefined ? sortedTracks : [pinned, ...sortedTracks]
+  }
+  function trackLabel(track: Track): string {
+    return `${track.artist ?? '?'} — ${track.title}`
+  }
+  function setPin(store: typeof pinnedFirst, value: string) {
+    store.set(value === '' ? null : value)
+  }
+  function unmark(id: string) {
+    mustInclude.update((ids) => ids.filter((x) => x !== id))
+  }
+  const mustIncludeTracks = $derived(
+    $mustInclude.map((id) => $trackById.get(id)).filter((t): t is Track => t !== undefined),
+  )
 
   const METHOD_LABEL = {
     exact: 'Exact match',
@@ -104,8 +151,73 @@
     </button>
   </div>
 
-  <section>
-    <h3>Genre matching</h3>
+  <!-- Grouped into collapsible sections (ISSUES.md #16): the workflow
+       section opens by default, tuning sections stay folded. -->
+  <details class="section" open>
+    <summary>Set order</summary>
+    <label>
+      Opening track
+      <select
+        value={$pinnedFirst ?? ''}
+        onchange={(e) => setPin(pinnedFirst, e.currentTarget.value)}
+      >
+        <option value="">— any —</option>
+        {#each pickerOptions($pinnedFirst) as t (t.id)}
+          <option value={t.id}>{trackLabel(t)}</option>
+        {/each}
+      </select>
+    </label>
+    <label>
+      Closing track
+      <select value={$pinnedLast ?? ''} onchange={(e) => setPin(pinnedLast, e.currentTarget.value)}>
+        <option value="">— any —</option>
+        {#each pickerOptions($pinnedLast) as t (t.id)}
+          <option value={t.id}>{trackLabel(t)}</option>
+        {/each}
+      </select>
+    </label>
+    <p class="hint">
+      Same as the 📌 pins on your set's first and last rows: suggested sets open and close on these
+      tracks (with both set, the walk grows from both ends inward).
+    </p>
+    <label>
+      BPM progression
+      <select bind:value={$settings.bpmProgression}>
+        {#each PROGRESSIONS as p (p)}
+          <option value={p}>{PROGRESSION_LABEL[p]}</option>
+        {/each}
+      </select>
+    </label>
+    <p class="hint">
+      Nudges each next pick toward the preferred tempo trajectory — combo criteria still come first.
+    </p>
+    <div class="must-block">
+      <span class="must-title">Must include</span>
+      {#if mustIncludeTracks.length === 0}
+        <p class="hint">
+          Select a track on the wheel and mark it "must include" — suggested sets will strongly
+          favour working it in.
+        </p>
+      {:else}
+        <ul class="must-list">
+          {#each mustIncludeTracks as t (t.id)}
+            <li>
+              <span class="must-name">{trackLabel(t)}</span>
+              <button
+                class="unmark"
+                title="Remove from must-include"
+                aria-label="Remove {t.title} from must-include"
+                onclick={() => unmark(t.id)}>✕</button
+              >
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </div>
+  </details>
+
+  <details class="section">
+    <summary>Genre matching</summary>
     <label>
       Method
       <select bind:value={$criteria.genre.method}>
@@ -154,10 +266,10 @@
         </p>
       {/if}
     {/if}
-  </section>
+  </details>
 
-  <section>
-    <h3>Key</h3>
+  <details class="section">
+    <summary>Key</summary>
     <label class="row">
       <input type="checkbox" bind:checked={$criteria.key.plusTwo} />
       allow +2 moves (energy jump)
@@ -176,10 +288,10 @@
       between detune it — even same-key tracks lose their match. Gaps beyond the BPM tolerance (the
       pitch fader's range) can't beatmatch at all.
     </p>
-  </section>
+  </details>
 
-  <section>
-    <h3>Display</h3>
+  <details class="section">
+    <summary>Display</summary>
     <label>
       Colour scheme
       <select bind:value={$settings.colorScheme}>
@@ -205,10 +317,10 @@
       this many classes — clustered with the selected genre method. Everything stays a circle when
       the library doesn't separate.
     </p>
-  </section>
+  </details>
 
-  <section>
-    <h3>Suggestions</h3>
+  <details class="section">
+    <summary>Suggestions</summary>
     <label>
       Suggested set length
       <input type="number" min="2" max="99" bind:value={$settings.suggestLength} />
@@ -221,10 +333,10 @@
       0 always picks the safest transition; higher values embrace dissonance. Genre closeness always
       counts in the ranking.
     </p>
-  </section>
+  </details>
 
-  <section>
-    <h3>Sample libraries</h3>
+  <details class="section">
+    <summary>Sample libraries</summary>
     <label>
       Pack
       <select bind:value={packId}>
@@ -235,7 +347,7 @@
     </label>
     <p class="hint">{selectedPack.description}</p>
     <button class="load-pack" onclick={loadPack}>Load pack + demo set</button>
-  </section>
+  </details>
 </aside>
 
 <style>
@@ -272,21 +384,81 @@
     color: var(--ink);
   }
 
-  section {
+  .section {
     padding: 8px 0;
     border-bottom: 1px solid var(--grid);
   }
 
-  section:last-child {
+  .section:last-child {
     border-bottom: none;
   }
 
-  h3 {
+  summary {
+    cursor: pointer;
     margin: 0 0 6px;
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--ink-muted);
+    user-select: none;
+  }
+
+  summary:hover {
+    color: var(--ink-secondary);
+  }
+
+  .must-block {
+    margin-top: 6px;
+  }
+
+  .must-title {
+    display: block;
+    font-size: 11px;
+    color: var(--ink-secondary);
+  }
+
+  .must-list {
+    list-style: none;
+    margin: 4px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .must-list li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 2px 4px 2px 8px;
+  }
+
+  .must-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .unmark {
+    background: none;
+    border: none;
+    color: var(--ink-muted);
+    font-size: 11px;
+    padding: 1px 4px;
+  }
+
+  .unmark:hover {
+    color: var(--ink);
+  }
+
+  select {
+    max-width: 160px;
   }
 
   label {

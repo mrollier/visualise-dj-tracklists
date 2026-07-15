@@ -8,6 +8,7 @@
     criteria,
     genreMatcher,
     libraryName,
+    mustInclude,
     pinnedFirst,
     pinnedLast,
     selectedId,
@@ -78,6 +79,8 @@
       length: $settings.suggestLength,
       randomness: $settings.suggestRandomness,
       seed: $suggestionHistory.length,
+      progression: $settings.bpmProgression,
+      mustIncludeIds: $mustInclude,
     })
     suggestionHistory.update((h) => [...h, walk])
     showSuggestion($suggestionHistory.length - 1)
@@ -87,10 +90,14 @@
     if ($suggestionIndex > 0) showSuggestion($suggestionIndex - 1)
   }
 
-  // A pin only makes sense while its track is in the set.
+  // Pins and must-include marks are library-scoped (design-v6 §C): they
+  // survive set edits — the Set order pickers set them before a set even
+  // exists — and clear only when their track leaves the library.
   $effect(() => {
-    if ($pinnedFirst !== null && !$tracklist.includes($pinnedFirst)) pinnedFirst.set(null)
-    if ($pinnedLast !== null && !$tracklist.includes($pinnedLast)) pinnedLast.set(null)
+    if ($pinnedFirst !== null && !$trackById.has($pinnedFirst)) pinnedFirst.set(null)
+    if ($pinnedLast !== null && !$trackById.has($pinnedLast)) pinnedLast.set(null)
+    if ($mustInclude.some((id) => !$trackById.has(id)))
+      mustInclude.update((ids) => ids.filter((id) => $trackById.has(id)))
   })
 
   function togglePin(store: typeof pinnedFirst, id: string, pinned: boolean) {
