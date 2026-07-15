@@ -7,7 +7,6 @@
   import { importRekordboxTxt, isRekordboxTxt } from '../core/importers/rekordboxTxt'
   import { buildReport, type ImportResult } from '../core/model'
   import { parseProject, serializeProject } from '../core/persist'
-  import { ALL_SAMPLE_PACKS, type SamplePack } from '../data/samples'
   import {
     colorAxis,
     lastImportReport,
@@ -15,8 +14,6 @@
     libraryName,
     radialAxis,
     rightPanel,
-    sampleHistory,
-    sampleIndex,
     selectedId,
     tracklist,
     viewMode,
@@ -26,7 +23,7 @@
     applyProject,
     confirmReplaceLibrary,
     currentProject,
-    loadSamplePack,
+    loadSampleCollection,
     replaceLibrary,
   } from './persistence'
   import { effectiveTheme, toggleTheme } from './theme'
@@ -155,38 +152,11 @@
     URL.revokeObjectURL(url)
   }
 
-  // Sample cycling (remark: like the set-suggestion arrows): the first click
-  // loads the classic demo, ▶ picks a fresh pack at random, ◀ steps back.
-  // Each action confirms exactly once, and only a confirmed pack enters the
-  // history — cancelling leaves the session untouched.
-  function applySample(pack: SamplePack, index: number) {
-    sampleIndex.set(index)
-    loadSamplePack(pack)
-  }
-
-  function showSample(index: number) {
-    const pack = ALL_SAMPLE_PACKS.find((p) => p.id === get(sampleHistory)[index])
-    if (pack === undefined || !confirmReplaceLibrary(pack.name)) return
-    applySample(pack, index)
-  }
-
-  function loadNewSample() {
-    if (get(sampleIndex) < get(sampleHistory).length - 1) {
-      showSample(get(sampleIndex) + 1)
-      return
-    }
-    const history = get(sampleHistory)
-    const unvisited = ALL_SAMPLE_PACKS.filter((p) => !history.includes(p.id))
-    const pool = unvisited.length > 0 ? unvisited : ALL_SAMPLE_PACKS
-    const pack =
-      history.length === 0 ? ALL_SAMPLE_PACKS[0] : pool[Math.floor(Math.random() * pool.length)]
-    if (!confirmReplaceLibrary(pack.name)) return
-    sampleHistory.update((h) => [...h, pack.id])
-    applySample(pack, history.length)
-  }
-
-  function samplePrevious() {
-    if (get(sampleIndex) > 0) showSample(get(sampleIndex) - 1)
+  // One sample collection (design-v6 §D): all packs as playlists in a single
+  // library, loaded like an XML import. Confirms once over user work.
+  function loadSample() {
+    if (!confirmReplaceLibrary('Sample collection')) return
+    loadSampleCollection()
   }
 
   const missingSummary = $derived.by(() => {
@@ -244,20 +214,9 @@
       hidden
       onchange={onFileChosen}
     />
-    {#if $sampleHistory.length === 0}
-      <button onclick={loadNewSample}>Load sample</button>
-    {:else}
-      <div class="sample-nav" role="group" aria-label="Sample libraries">
-        <button
-          onclick={samplePrevious}
-          disabled={$sampleIndex <= 0}
-          title="Back to the previous sample library"
-        >
-          ◀
-        </button>
-        <button onclick={loadNewSample} title="Load another sample library">sample ▶</button>
-      </div>
-    {/if}
+    <button onclick={loadSample} title="Load the sample collection (all themed packs as playlists)"
+      >Load sample</button
+    >
     <button onclick={saveProject} disabled={$library.length === 0}>Save project</button>
     <button
       class="advanced-toggle"
@@ -346,15 +305,6 @@
   .advanced-toggle.active {
     border-color: var(--accent);
     color: var(--accent);
-  }
-
-  .sample-nav {
-    display: inline-flex;
-    gap: 2px;
-  }
-
-  .sample-nav button {
-    white-space: nowrap;
   }
 
   .controls label {

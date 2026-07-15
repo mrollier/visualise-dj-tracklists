@@ -2,10 +2,10 @@ import { get } from 'svelte/store'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { EMPTY_FILTERS } from '../src/core/filter'
 import type { Track } from '../src/core/model'
-import { ALL_SAMPLE_PACKS } from '../src/data/samples'
+import { ALL_SAMPLE_PACKS, SAMPLE_COLLECTION } from '../src/data/samples'
 import {
   isSampleLibrary,
-  loadSamplePack,
+  loadSampleCollection,
   replaceLibrary,
   resetEverything,
 } from '../src/lib/persistence'
@@ -94,14 +94,17 @@ describe('replaceLibrary', () => {
   })
 })
 
-describe('loadSamplePack', () => {
-  test('goes through replaceLibrary: filters and session state reset', () => {
-    const pack = ALL_SAMPLE_PACKS[1]
-    loadSamplePack(pack)
-    expect(get(libraryName)).toBe(`${pack.name} (sample)`)
-    expect(get(tracklist)).toEqual(pack.set)
-    expect(get(filters)).toEqual(EMPTY_FILTERS)
+describe('loadSampleCollection', () => {
+  test('loads all packs as playlists and behaves like an XML import', () => {
+    loadSampleCollection()
+    expect(get(libraryName)).toBe('Sample collection')
+    expect(get(library)).toEqual(SAMPLE_COLLECTION.tracks)
+    expect(get(playlists)).toEqual(SAMPLE_COLLECTION.playlists)
+    // Nothing selected yet: empty wheel until playlists are toggled on.
+    expect(get(filters).playlists).toEqual([])
+    expect(get(tracklist)).toEqual([])
     expect(get(suggestionHistory)).toEqual([])
+    expect(isSampleLibrary(get(library))).toBe(true)
   })
 })
 

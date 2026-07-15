@@ -1,21 +1,20 @@
 import { normalizeKey } from '../core/keys'
-import type { Track } from '../core/model'
+import type { Playlist, Track } from '../core/model'
 import { SAMPLE_TRACKS } from './sample-tracks'
 
 /**
- * Ten themed sample libraries (remark 9), selectable in the advanced menu.
- * Every pack is fictional (artists and titles invented), genre-coherent in
- * keys/BPMs/years, and ships with a pre-built demo set — a walk you can
- * immediately see, reorder and extend. A couple of packs deliberately keep
- * missing-metadata edge cases, like real crates do.
+ * Ten themed sample libraries (remark 9). Every pack is fictional (artists
+ * and titles invented) and genre-coherent in keys/BPMs/years. A couple of
+ * packs deliberately keep missing-metadata edge cases, like real crates do.
+ * They all load together as ONE "Sample collection" whose playlists panel
+ * carries a playlist per pack — exactly like a Rekordbox XML import
+ * (design-v6 §D).
  */
 export interface SamplePack {
   id: string
   name: string
   description: string
   tracks: Track[]
-  /** Demo set: track ids in walk order. */
-  set: string[]
 }
 
 // title, artist, key, bpm, genre, year, rating
@@ -29,13 +28,7 @@ type Row = [
   number | null,
 ]
 
-function pack(
-  id: string,
-  name: string,
-  description: string,
-  rows: Row[],
-  setIndices: number[],
-): SamplePack {
+function pack(id: string, name: string, description: string, rows: Row[]): SamplePack {
   const tracks: Track[] = rows.map(([title, artist, key, bpm, genre, year, rating], i) => ({
     id: `${id}-${i}`,
     title,
@@ -48,7 +41,7 @@ function pack(
     durationSec: null,
     location: null,
   }))
-  return { id, name, description, tracks, set: setIndices.map((i) => `${id}-${i}`) }
+  return { id, name, description, tracks }
 }
 
 export const SAMPLE_PACKS: SamplePack[] = [
@@ -80,7 +73,6 @@ export const SAMPLE_PACKS: SamplePack[] = [
       ['Kiln', 'Duskwerk', '6B', 132, 'Techno', 2023, 3],
       ['Overcurrent', 'KOVA', '7B', 133, 'Hard Techno', 2024, 4],
     ],
-    [0, 1, 4, 6, 7, 5, 10, 13, 15, 16],
   ),
   pack(
     'liquid-dnb',
@@ -108,7 +100,6 @@ export const SAMPLE_PACKS: SamplePack[] = [
       ['Care Label', 'Quiet Engine', '11B', 173, 'Liquid Funk', 2024, 2],
       ['Old Light', 'Tallowe', '12B', 175, 'Drum & Bass', 2022, 3],
     ],
-    [0, 1, 4, 5, 7, 8, 10, 11],
   ),
   pack(
     'melodic-sunset',
@@ -136,7 +127,6 @@ export const SAMPLE_PACKS: SamplePack[] = [
       ['Harbour Lights', 'Nocturne Bay', '6A', 120, 'Deep House', 2022, 3],
       ['Wisteria', 'Kastell', '5A', 118, 'Melodic House', 2021, 2],
     ],
-    [0, 1, 4, 7, 8, 10, 9, 17, 15],
   ),
   pack(
     'trance-journey',
@@ -164,7 +154,6 @@ export const SAMPLE_PACKS: SamplePack[] = [
       ['Afterburn', 'Elara Frost', '8B', 140, 'Uplifting Trance', 2011, 4],
       ['Terminus East', 'Stellar Ferry', '9A', 137, 'Progressive Trance', 2024, 3],
     ],
-    [15, 0, 1, 2, 5, 9, 10, 11, 18],
   ),
   pack(
     'uk-garage',
@@ -192,7 +181,6 @@ export const SAMPLE_PACKS: SamplePack[] = [
       ['Estate Of Mind', 'Marlowe & Dux', '2A', 130, 'UK Garage', 2000, 3],
       ['Last Entry', 'Junia', '10A', 132, 'UK Garage', 2024, 3],
     ],
-    [18, 0, 1, 3, 4, 2, 5],
   ),
   pack(
     'disco-funk',
@@ -220,7 +208,6 @@ export const SAMPLE_PACKS: SamplePack[] = [
       ['Slow Elevator', 'Otis Fontaine', '5B', 106, 'Funk', 1975, 2],
       ['Last Dance Tax', 'Delphine Gold', '2B', 118, 'Disco', 1984, 3],
     ],
-    [17, 0, 1, 3, 4, 2, 9, 10, 13, 11],
   ),
   pack(
     'deep-classic-house',
@@ -248,7 +235,6 @@ export const SAMPLE_PACKS: SamplePack[] = [
       ['Corner Pocket', 'Bram Oduya', '11A', 123, 'House', 2024, 3],
       ['Blue Hour Dub', 'Cato & Pearl', '12B', 122, 'Deep House', 2023, 2],
     ],
-    [0, 1, 3, 4, 7, 8, 10, 11, 18],
   ),
   pack(
     'halftime-bass',
@@ -276,7 +262,6 @@ export const SAMPLE_PACKS: SamplePack[] = [
       ['Sidewinder', 'Split Signal', '1A', 170, 'Drum & Bass', 2019, 3],
       ['Charcoal', 'Vantablack Audio', '7A', 88, 'Halftime', 2023, 2],
     ],
-    [0, 1, 7, 8, 4, 5, 10, 11],
   ),
   pack(
     'organic-downtempo',
@@ -304,7 +289,6 @@ export const SAMPLE_PACKS: SamplePack[] = [
       ['Slow Loom', 'Sol Reverie', '12B', 108, 'Downtempo', 2023, 2],
       ['Bramble', 'Anouk Meadow', '1B', 111, 'Organic House', 2024, 3],
     ],
-    [12, 0, 1, 4, 5, 7, 8, 10, 11],
   ),
   pack(
     'hard-industrial',
@@ -332,22 +316,36 @@ export const SAMPLE_PACKS: SamplePack[] = [
       ['Slow Crusher', 'DK Ostwald', '5B', 146, 'Industrial Techno', 2022, 2],
       ['Full Torque', 'Vice Grip', '6B', 149, 'Hard Techno', 2023, 3],
     ],
-    [16, 0, 1, 4, 5, 7, 8, 11],
   ),
 ]
 
-/**
- * The original mixed demo library, folded into the pack pool so the top bar's
- * sample cycling (◀ / ▶) can reach it like any themed pack. Its demo set is
- * empty — it predates pack sets and stays a blank canvas.
- */
+/** The original mixed demo library, kept as one more pack/playlist. */
 export const CLASSIC_PACK: SamplePack = {
   id: 'classic',
   name: 'Classic demo',
   description: 'The original mixed demo library: house, techno, trance and edge cases.',
   tracks: SAMPLE_TRACKS,
-  set: [],
 }
 
-/** Every loadable sample: the classic demo first, then the themed packs. */
+/** Every sample pack: the classic demo first, then the themed packs. */
 export const ALL_SAMPLE_PACKS: SamplePack[] = [CLASSIC_PACK, ...SAMPLE_PACKS]
+
+export interface SampleCollection {
+  name: string
+  tracks: Track[]
+  playlists: Playlist[]
+}
+
+/**
+ * All packs as one library with a playlist per pack — "Load sample" loads
+ * this, and from there it behaves exactly like an imported collection XML:
+ * empty wheel, playlists panel, toggle what you want to work in.
+ */
+export const SAMPLE_COLLECTION: SampleCollection = {
+  name: 'Sample collection',
+  tracks: ALL_SAMPLE_PACKS.flatMap((p) => p.tracks),
+  playlists: ALL_SAMPLE_PACKS.map((p) => ({
+    name: p.name,
+    trackIds: p.tracks.map((t) => t.id),
+  })),
+}

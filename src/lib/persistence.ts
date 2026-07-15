@@ -4,7 +4,7 @@ import { EMPTY_FILTERS } from '../core/filter'
 import type { ImportReport, Playlist, Track } from '../core/model'
 import { parseProject, serializeProject, type Project } from '../core/persist'
 import { DEFAULT_SETTINGS } from '../core/settings'
-import { ALL_SAMPLE_PACKS, type SamplePack } from '../data/samples'
+import { ALL_SAMPLE_PACKS, SAMPLE_COLLECTION } from '../data/samples'
 import {
   colorAxis,
   criteria,
@@ -15,8 +15,6 @@ import {
   playlists,
   radialAxis,
   resetSuggestions,
-  sampleHistory,
-  sampleIndex,
   selectedId,
   settings,
   tracklist,
@@ -82,9 +80,16 @@ export function replaceLibrary(replacement: {
   resetSuggestions()
 }
 
-/** Load a themed sample pack: library plus its demo set. */
-export function loadSamplePack(pack: SamplePack): void {
-  replaceLibrary({ tracks: pack.tracks, name: `${pack.name} (sample)`, set: pack.set })
+/**
+ * Load the sample collection: every pack as a playlist in one library, which
+ * then behaves exactly like an imported collection XML (design-v6 §D).
+ */
+export function loadSampleCollection(): void {
+  replaceLibrary({
+    tracks: SAMPLE_COLLECTION.tracks,
+    name: SAMPLE_COLLECTION.name,
+    playlists: SAMPLE_COLLECTION.playlists,
+  })
 }
 
 // The classic pack's tracks predate the pack scheme and carry 'sample-' ids.
@@ -159,6 +164,4 @@ export function resetEverything(): void {
   selectedId.set(null)
   lastImportReport.set(null)
   resetSuggestions()
-  sampleHistory.set([])
-  sampleIndex.set(-1)
 }

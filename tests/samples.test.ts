@@ -1,36 +1,54 @@
 import { describe, expect, test } from 'vitest'
-import { DEFAULT_CRITERIA, evaluateCombo } from '../src/core/combos'
-import { SAMPLE_PACKS } from '../src/data/samples'
+import { ALL_SAMPLE_PACKS, SAMPLE_COLLECTION, SAMPLE_PACKS } from '../src/data/samples'
 
 describe('sample packs', () => {
-  test('there are ten themed packs', () => {
+  test('there are ten themed packs plus the classic demo', () => {
     expect(SAMPLE_PACKS).toHaveLength(10)
-    expect(new Set(SAMPLE_PACKS.map((p) => p.id)).size).toBe(10)
+    expect(ALL_SAMPLE_PACKS).toHaveLength(11)
+    expect(new Set(ALL_SAMPLE_PACKS.map((p) => p.id)).size).toBe(11)
   })
 
   test.each(SAMPLE_PACKS.map((p) => [p.name, p] as const))(
-    '%s: has a substantial library and a demo set of known tracks',
+    '%s: has a substantial library of unique tracks',
     (_name, pack) => {
       expect(pack.tracks.length).toBeGreaterThanOrEqual(18)
       expect(new Set(pack.tracks.map((t) => t.id)).size).toBe(pack.tracks.length)
-      expect(pack.set.length).toBeGreaterThanOrEqual(7)
-      const ids = new Set(pack.tracks.map((t) => t.id))
-      for (const id of pack.set) expect(ids.has(id)).toBe(true)
-      expect(new Set(pack.set).size).toBe(pack.set.length)
     },
   )
+})
 
-  test.each(SAMPLE_PACKS.map((p) => [p.name, p] as const))(
-    '%s: every demo-set transition is a combo (half/double-time allowed)',
-    (_name, pack) => {
-      const criteria = structuredClone(DEFAULT_CRITERIA)
-      criteria.bpm.halfDouble = true // the Halftime & Bass pack demos this
-      const byId = new Map(pack.tracks.map((t) => [t.id, t]))
-      for (let i = 1; i < pack.set.length; i++) {
-        const a = byId.get(pack.set[i - 1])!
-        const b = byId.get(pack.set[i])!
-        expect(evaluateCombo(a, b, criteria).isCombo, `${a.title} → ${b.title}`).toBe(true)
-      }
-    },
-  )
+describe('the sample collection', () => {
+  test('is named "Sample collection" and unions every pack', () => {
+    expect(SAMPLE_COLLECTION.name).toBe('Sample collection')
+    expect(SAMPLE_COLLECTION.tracks.length).toBe(
+      ALL_SAMPLE_PACKS.reduce((sum, p) => sum + p.tracks.length, 0),
+    )
+  })
+
+  test('track ids are globally unique across packs', () => {
+    const ids = SAMPLE_COLLECTION.tracks.map((t) => t.id)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  test('one playlist per pack, named after it, in pack order', () => {
+    expect(SAMPLE_COLLECTION.playlists.map((p) => p.name)).toEqual(
+      ALL_SAMPLE_PACKS.map((p) => p.name),
+    )
+  })
+
+  test('every track appears in exactly one playlist', () => {
+    const seen = new Map<string, number>()
+    for (const playlist of SAMPLE_COLLECTION.playlists) {
+      for (const id of playlist.trackIds) seen.set(id, (seen.get(id) ?? 0) + 1)
+    }
+    expect(seen.size).toBe(SAMPLE_COLLECTION.tracks.length)
+    expect([...seen.values()].every((n) => n === 1)).toBe(true)
+  })
+
+  test('playlist members reference real collection tracks', () => {
+    const ids = new Set(SAMPLE_COLLECTION.tracks.map((t) => t.id))
+    for (const playlist of SAMPLE_COLLECTION.playlists) {
+      for (const id of playlist.trackIds) expect(ids.has(id)).toBe(true)
+    }
+  })
 })

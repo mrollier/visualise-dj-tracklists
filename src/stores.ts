@@ -58,13 +58,6 @@ export const pinnedLast = writable<string | null>(null)
  */
 export const mustInclude = writable<string[]>([])
 
-/**
- * Session-only history of loaded sample packs (pack ids), mirroring the
- * suggestion arrows: ◀ reloads the previous sample, ▶ picks a fresh one.
- */
-export const sampleHistory = writable<string[]>([])
-export const sampleIndex = writable(-1)
-
 /** Clear the suggestion history — call whenever the library is replaced. */
 export function resetSuggestions(): void {
   suggestionHistory.set([])

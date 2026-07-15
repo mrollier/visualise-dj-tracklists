@@ -2,7 +2,6 @@
   import { GENRE_METHODS } from '../core/genre'
   import type { Track } from '../core/model'
   import { type BpmProgression } from '../core/settings'
-  import { SAMPLE_PACKS } from '../data/samples'
   import {
     criteria,
     mustInclude,
@@ -13,16 +12,6 @@
     trackById,
     visibleLibrary,
   } from '../stores'
-  import { confirmReplaceLibrary, loadSamplePack } from './persistence'
-
-  let packId = $state(SAMPLE_PACKS[0].id)
-
-  const selectedPack = $derived(SAMPLE_PACKS.find((p) => p.id === packId) ?? SAMPLE_PACKS[0])
-
-  function loadPack() {
-    if (!confirmReplaceLibrary(selectedPack.name)) return
-    loadSamplePack(selectedPack)
-  }
 
   // --- Set order (design-v6 §C) ---
   // The pickers are the second home of the 📌 pins: picking here pins, and a
@@ -334,20 +323,6 @@
       counts in the ranking.
     </p>
   </details>
-
-  <details class="section">
-    <summary>Sample libraries</summary>
-    <label>
-      Pack
-      <select bind:value={packId}>
-        {#each SAMPLE_PACKS as p (p.id)}
-          <option value={p.id}>{p.name}</option>
-        {/each}
-      </select>
-    </label>
-    <p class="hint">{selectedPack.description}</p>
-    <button class="load-pack" onclick={loadPack}>Load pack + demo set</button>
-  </details>
 </aside>
 
 <style>
@@ -495,11 +470,5 @@
     color: var(--ink-secondary);
     margin-left: 4px;
     text-decoration: underline dotted;
-  }
-
-  .load-pack {
-    margin-top: 6px;
-    width: 100%;
-    font-size: 12px;
   }
 </style>
