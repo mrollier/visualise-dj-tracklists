@@ -108,6 +108,11 @@ function graphDistance(a: string, b: string): number {
 // --- embedding method --------------------------------------------------------
 const vectors = embeddingPack.vectors as Record<string, number[]>
 
+/** Pack lookup: exact normalized label, else its space/&-collapsed spelling. */
+function packVector(label: string): number[] | undefined {
+  return vectors[label] ?? vectors[label.replace(/[\s&']+/g, '')]
+}
+
 function cosine(a: number[], b: number[]): number {
   let dot = 0
   let na = 0
@@ -136,8 +141,8 @@ export function genreSimilarity(rawA: string, rawB: string, method: GenreMethod)
       return d === Infinity ? 0 : GRAPH_DECAY ** d
     }
     case 'embedding': {
-      const va = vectors[a]
-      const vb = vectors[b]
+      const va = packVector(a)
+      const vb = packVector(b)
       if (va === undefined || vb === undefined) return lexicalSimilarity(a, b)
       return Math.max(0, Math.min(1, cosine(va, vb)))
     }

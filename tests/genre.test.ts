@@ -94,4 +94,22 @@ describe('genreSimilarity: embedding', () => {
       expect(s).toBeLessThanOrEqual(1)
     }
   })
+
+  test('the real AcousticBrainz pack orders relatedness sensibly', () => {
+    const techHouse = genreSimilarity('Techno', 'Tech House', 'embedding')
+    const house = genreSimilarity('Techno', 'House', 'embedding')
+    const folk = genreSimilarity('Techno', 'Folk', 'embedding')
+    expect(techHouse).toBeGreaterThan(house)
+    expect(house).toBeGreaterThan(folk)
+    expect(genreSimilarity('Trance', 'Progressive Trance', 'embedding')).toBeGreaterThan(0.5)
+    expect(genreSimilarity('Disco', 'Funk', 'embedding')).toBeGreaterThan(
+      genreSimilarity('Disco', 'Death Metal', 'embedding'),
+    )
+  })
+
+  test('space-collapsed pack labels are found from spaced app labels', () => {
+    // The dataset spells some labels without spaces ("eurodance"); a spaced
+    // user label must still hit the same vector, not the lexical fallback.
+    expect(genreSimilarity('Euro Dance', 'Eurodance', 'embedding')).toBe(1)
+  })
 })
