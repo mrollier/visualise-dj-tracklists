@@ -1,3 +1,4 @@
+import { genreSimilarity, type GenreMethod } from './genre'
 import { keysMatch } from './keys'
 import type { Track } from './model'
 
@@ -14,7 +15,7 @@ import type { Track } from './model'
 export interface CriteriaConfig {
   key: { enabled: boolean; advancedMoves: boolean }
   bpm: { enabled: boolean; maxPercent: number }
-  genre: { enabled: boolean }
+  genre: { enabled: boolean; method: GenreMethod; threshold: number }
   year: { enabled: boolean; maxYears: number }
   /** Minimum number of matching criteria for an edge (clamped to #evaluable). */
   threshold: number
@@ -26,7 +27,7 @@ export interface CriteriaConfig {
 export const DEFAULT_CRITERIA: CriteriaConfig = {
   key: { enabled: true, advancedMoves: false },
   bpm: { enabled: true, maxPercent: 10 },
-  genre: { enabled: true },
+  genre: { enabled: true, method: 'exact', threshold: 0.5 },
   year: { enabled: true, maxYears: 5 },
   threshold: 3,
 }
@@ -56,7 +57,8 @@ const PREDICATES: Record<CriterionField, Predicate> = {
     const low = Math.min(a.bpm!, b.bpm!)
     return Math.abs(a.bpm! - b.bpm!) <= (cfg.bpm.maxPercent / 100) * low
   },
-  genre: (a, b) => a.genre!.toLowerCase() === b.genre!.toLowerCase(),
+  genre: (a, b, cfg) =>
+    genreSimilarity(a.genre!, b.genre!, cfg.genre.method) >= cfg.genre.threshold,
   year: (a, b, cfg) => Math.abs(a.year! - b.year!) <= cfg.year.maxYears,
 }
 

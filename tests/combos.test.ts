@@ -36,12 +36,33 @@ describe('individual criteria', () => {
     expect(evaluateCombo(base, track({ id: 'e', bpm: 148 }), cfg).matched).not.toContain('bpm')
   })
 
-  test('genre matches case-insensitively and exactly', () => {
+  test('genre matches case-insensitively and exactly by default', () => {
     const cfg = config()
     expect(evaluateCombo(base, track({ id: 'b', genre: 'techno' }), cfg).matched).toContain('genre')
     expect(evaluateCombo(base, track({ id: 'c', genre: 'Tech House' }), cfg).matched).not.toContain(
       'genre',
     )
+  })
+
+  test('genre criterion can use a similarity method with a threshold', () => {
+    const cfg = config()
+    cfg.genre = { enabled: true, method: 'graph', threshold: 0.3 }
+    // techno ↔ tech house are two steps apart in the curated graph (0.36 ≥ 0.3)
+    expect(evaluateCombo(base, track({ id: 'b', genre: 'Tech House' }), cfg).matched).toContain(
+      'genre',
+    )
+    // raising the threshold excludes them again
+    cfg.genre.threshold = 0.5
+    expect(evaluateCombo(base, track({ id: 'c', genre: 'Tech House' }), cfg).matched).not.toContain(
+      'genre',
+    )
+  })
+
+  test('alias spellings count as the same genre even in exact mode', () => {
+    const cfg = config()
+    const a = track({ id: 'a2', genre: 'DnB' })
+    const b = track({ id: 'b2', genre: 'Drum & Bass' })
+    expect(evaluateCombo(a, b, cfg).matched).toContain('genre')
   })
 
   test('year matches within its configured window', () => {
