@@ -1,47 +1,96 @@
 <script lang="ts">
   import { get } from 'svelte/store'
-  import { libraryExtents, type LibraryFilters } from '../core/filter'
-  import { filters, library, libraryGenres, visibleLibrary } from '../stores'
+  import { clampRange, libraryExtents, wholeExtent, type LibraryFilters } from '../core/filter'
+  import { filters, library, libraryGenres, playlistScopedLibrary, visibleLibrary } from '../stores'
 
   type RangeField = 'bpm' | 'year' | 'rating'
+  type RangeSide = 'min' | 'max'
 
-  // Local min/max fields, seeded from the library's actual extremes (remark 8)
-  // or from an active filter. Only user edits write to the filters store, so
-  // loaded projects keep their saved ranges.
+  const RANGE_ROWS: { field: RangeField; label: string }[] = [
+    { field: 'bpm', label: 'BPM' },
+    { field: 'year', label: 'Year' },
+    { field: 'rating', label: 'Rating' },
+  ]
+
+  // Local min/max fields, seeded from the playlist selection's actual
+  // extremes or from an active filter. Only user edits (and playlist
+  // toggles, which reset the ranges) write to the filters store, so loaded
+  // projects keep their saved ranges.
   let inputs = $state({
     bpm: { min: '', max: '' },
     year: { min: '', max: '' },
     rating: { min: '', max: '' },
   })
 
-  let seededFor: unknown = null
+  // Extents of the playlist-scoped library: the defaults follow the
+  // playlists you work in, not the whole collection.
+  const scopedExtents = $derived(libraryExtents($playlistScopedLibrary))
+
+  let seededForLibrary: unknown = null
+  let seededForPlaylists: unknown = null
   $effect(() => {
     const lib = $library
-    if (lib === seededFor) return
-    seededFor = lib
-    const extents = libraryExtents(lib)
-    const active = get(filters)
-    for (const field of ['bpm', 'year', 'rating'] as RangeField[]) {
-      const range = active[field] ?? extents[field]
-      inputs[field] = {
-        min: range === null ? '' : String(range[0]),
-        max: range === null ? '' : String(range[1]),
+    const selection = $filters.playlists
+    if (lib !== seededForLibrary) {
+      // Fresh library (import or project load): show the saved filter when
+      // the project carries one, else the selection's whole-number extremes.
+      // Never writes to the store here.
+      seededForLibrary = lib
+      seededForPlaylists = selection
+      const active = get(filters)
+      for (const { field } of RANGE_ROWS) {
+        const range = active[field] ?? whole(scopedExtents[field])
+        inputs[field] = {
+          min: range === null ? '' : String(range[0]),
+          max: range === null ? '' : String(range[1]),
+        }
       }
+      return
+    }
+    // Toggling playlists resets every range to the new selection's extremes
+    // (deliberate: stale ranges from another playlist would silently hide
+    // tracks — the user asked for this reset).
+    if (selection !== seededForPlaylists) {
+      seededForPlaylists = selection
+      for (const { field } of RANGE_ROWS) resetRange(field)
     }
   })
 
-  function commit(field: RangeField) {
+  function whole(extent: [number, number] | null): [number, number] | null {
+    return extent === null ? null : wholeExtent(extent)
+  }
+
+  /**
+   * Push the boxes into the store, clamped so min never exceeds max. The
+   * store always receives the clamped range; the boxes themselves are only
+   * rewritten on change (blur/enter), so clamping never fights mid-typing.
+   */
+  function commit(field: RangeField, edited: RangeSide, reflect = false) {
     const { min, max } = inputs[field]
-    // An emptied side falls back to the library extreme (keeps JSON-safe
+    // An emptied side falls back to the selection extreme (keeps JSON-safe
     // finite bounds); both sides empty = not filtering.
-    const extent = libraryExtents(get(library))[field]
-    const range: LibraryFilters[RangeField] =
-      min === '' && max === ''
-        ? null
-        : [
-            min === '' ? (extent?.[0] ?? 0) : Number(min),
-            max === '' ? (extent?.[1] ?? 9999) : Number(max),
-          ]
+    const extent = scopedExtents[field]
+    let range: LibraryFilters[RangeField] = null
+    if (min !== '' || max !== '') {
+      range = clampRange(
+        [
+          min === '' ? (extent?.[0] ?? 0) : Number(min),
+          max === '' ? (extent?.[1] ?? 9999) : Number(max),
+        ],
+        edited,
+      )
+      if (reflect) inputs[field] = { min: String(range[0]), max: String(range[1]) }
+    }
+    filters.update((f) => ({ ...f, [field]: range }))
+  }
+
+  /** Reset a range to the whole numbers just outside the selection's extremes. */
+  function resetRange(field: RangeField) {
+    const range = whole(scopedExtents[field])
+    inputs[field] = {
+      min: range === null ? '' : String(range[0]),
+      max: range === null ? '' : String(range[1]),
+    }
     filters.update((f) => ({ ...f, [field]: range }))
   }
 
@@ -74,62 +123,36 @@
     <span class="summary-count">{$visibleLibrary.length} of {$library.length} tracks</span>
   </summary>
 
-  <div class="filter-row">
-    <span class="filter-label">BPM</span>
-    <input
-      type="number"
-      placeholder="min"
-      min="0"
-      bind:value={inputs.bpm.min}
-      oninput={() => commit('bpm')}
-    />
-    <span class="dash">–</span>
-    <input
-      type="number"
-      placeholder="max"
-      min="0"
-      bind:value={inputs.bpm.max}
-      oninput={() => commit('bpm')}
-    />
-  </div>
-  <div class="filter-row">
-    <span class="filter-label">Year</span>
-    <input
-      type="number"
-      placeholder="min"
-      min="0"
-      bind:value={inputs.year.min}
-      oninput={() => commit('year')}
-    />
-    <span class="dash">–</span>
-    <input
-      type="number"
-      placeholder="max"
-      min="0"
-      bind:value={inputs.year.max}
-      oninput={() => commit('year')}
-    />
-  </div>
-  <div class="filter-row">
-    <span class="filter-label">Rating</span>
-    <input
-      type="number"
-      placeholder="min"
-      min="0"
-      max="5"
-      bind:value={inputs.rating.min}
-      oninput={() => commit('rating')}
-    />
-    <span class="dash">–</span>
-    <input
-      type="number"
-      placeholder="max"
-      min="0"
-      max="5"
-      bind:value={inputs.rating.max}
-      oninput={() => commit('rating')}
-    />
-  </div>
+  {#each RANGE_ROWS as { field, label } (field)}
+    <div class="filter-row">
+      <span class="filter-label">{label}</span>
+      <input
+        type="number"
+        placeholder="min"
+        min="0"
+        max={inputs[field].max === '' ? (field === 'rating' ? '5' : undefined) : inputs[field].max}
+        bind:value={inputs[field].min}
+        oninput={() => commit(field, 'min')}
+        onchange={() => commit(field, 'min', true)}
+      />
+      <span class="dash">–</span>
+      <input
+        type="number"
+        placeholder="max"
+        min={inputs[field].min === '' ? '0' : inputs[field].min}
+        max={field === 'rating' ? '5' : undefined}
+        bind:value={inputs[field].max}
+        oninput={() => commit(field, 'max')}
+        onchange={() => commit(field, 'max', true)}
+      />
+      <button
+        class="range-reset"
+        title="Reset to the selection's range"
+        aria-label="Reset {label} range"
+        onclick={() => resetRange(field)}>↺</button
+      >
+    </div>
+  {/each}
 
   <details class="genres">
     <summary class="micro-label">Genres <span class="summary-count">{genreSummary}</span></summary>
@@ -188,6 +211,17 @@
 
   .dash {
     color: var(--ink-muted);
+  }
+
+  .range-reset {
+    padding: 1px 6px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--ink-muted);
+  }
+
+  .range-reset:hover {
+    color: var(--ink);
   }
 
   .genres {

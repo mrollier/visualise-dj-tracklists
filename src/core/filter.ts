@@ -51,9 +51,64 @@ export function libraryExtents(tracks: Track[]): LibraryExtents {
   return { bpm: extent('bpm'), year: extent('year'), rating: extent('rating') }
 }
 
+/**
+ * Whole numbers just outside the extent: [floor(min), ceil(max)]. The range
+ * filters reset to these, so the bounds read cleanly and still cover every
+ * track in the current selection.
+ */
+export function wholeExtent(extent: [number, number]): [number, number] {
+  return [Math.floor(extent[0]), Math.ceil(extent[1])]
+}
+
+/**
+ * Keep min <= max by pulling the side the user just edited to the other
+ * bound (editing min past max collapses onto max, and vice versa).
+ */
+export function clampRange(range: [number, number], edited: 'min' | 'max'): [number, number] {
+  const [min, max] = range
+  if (min <= max) return range
+  return edited === 'min' ? [max, max] : [min, min]
+}
+
 function inRange(value: number | null, range: [number, number] | null): boolean {
   if (range === null || value === null) return true
   return value >= range[0] && value <= range[1]
+}
+
+/** The track ids the playlist selection allows, or null when it is inert. */
+function playlistMemberIds(
+  tracks: Track[],
+  selected: string[] | null,
+  playlists: Playlist[],
+): Set<string> | null {
+  if (selected === null || playlists.length === 0) return null
+  const chosen = new Set(selected)
+  const allowedIds = new Set<string>()
+  for (const playlist of playlists) {
+    if (!chosen.has(playlist.name)) continue
+    for (const id of playlist.trackIds) allowedIds.add(id)
+  }
+  if (chosen.has(NOT_IN_PLAYLIST)) {
+    const inAny = new Set(playlists.flatMap((p) => p.trackIds))
+    for (const track of tracks) {
+      if (!inAny.has(track.id)) allowedIds.add(track.id)
+    }
+  }
+  return allowedIds
+}
+
+/**
+ * Just the playlist part of the filters: the tracks the current playlist
+ * selection allows, ignoring ranges and genres. The range-filter defaults
+ * (and the radial axis fallback) are scoped to this, not the whole library.
+ */
+export function applyPlaylistFilter(
+  tracks: Track[],
+  selected: string[] | null,
+  playlists: Playlist[],
+): Track[] {
+  const allowedIds = playlistMemberIds(tracks, selected, playlists)
+  return allowedIds === null ? tracks : tracks.filter((t) => allowedIds.has(t.id))
 }
 
 export function applyFilters(
@@ -63,21 +118,7 @@ export function applyFilters(
 ): Track[] {
   const allowed =
     filters.genres === null ? null : new Set(filters.genres.map((g) => g.toLowerCase()))
-  let allowedIds: Set<string> | null = null
-  if (filters.playlists !== null && playlists.length > 0) {
-    const selected = new Set(filters.playlists)
-    allowedIds = new Set<string>()
-    for (const playlist of playlists) {
-      if (!selected.has(playlist.name)) continue
-      for (const id of playlist.trackIds) allowedIds.add(id)
-    }
-    if (selected.has(NOT_IN_PLAYLIST)) {
-      const inAny = new Set(playlists.flatMap((p) => p.trackIds))
-      for (const track of tracks) {
-        if (!inAny.has(track.id)) allowedIds.add(track.id)
-      }
-    }
-  }
+  const allowedIds = playlistMemberIds(tracks, filters.playlists, playlists)
   return tracks.filter(
     (t) =>
       inRange(t.bpm, filters.bpm) &&

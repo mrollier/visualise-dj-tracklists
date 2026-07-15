@@ -1,9 +1,12 @@
 import { describe, expect, test } from 'vitest'
 import {
   applyFilters,
+  applyPlaylistFilter,
+  clampRange,
   EMPTY_FILTERS,
   libraryExtents,
   NOT_IN_PLAYLIST,
+  wholeExtent,
   type LibraryFilters,
 } from '../src/core/filter'
 import type { Track } from '../src/core/model'
@@ -117,5 +120,72 @@ describe('playlist filtering', () => {
 
   test('a selection with no imported playlists filters nothing', () => {
     expect(applyFilters(tracks, filters({ playlists: [] }), [])).toHaveLength(4)
+  })
+})
+
+describe('applyPlaylistFilter', () => {
+  const playlists = [
+    { name: 'Openers', trackIds: ['a', 'b'] },
+    { name: 'Peak', trackIds: ['b', 'c'] },
+  ]
+
+  test('null selection passes everything through', () => {
+    expect(applyPlaylistFilter(tracks, null, playlists)).toHaveLength(4)
+  })
+
+  test('selects the union of the chosen playlists, ignoring range filters entirely', () => {
+    const out = applyPlaylistFilter(tracks, ['Peak'], playlists)
+    expect(out.map((t) => t.id)).toEqual(['b', 'c'])
+  })
+
+  test('NOT_IN_PLAYLIST selects the leftovers; empty selection hides everything', () => {
+    expect(applyPlaylistFilter(tracks, [NOT_IN_PLAYLIST], playlists).map((t) => t.id)).toEqual([
+      'd',
+    ])
+    expect(applyPlaylistFilter(tracks, [], playlists)).toEqual([])
+  })
+
+  test('with no imported playlists any selection is inert', () => {
+    expect(applyPlaylistFilter(tracks, [], [])).toHaveLength(4)
+  })
+
+  test('agrees with applyFilters when only the playlist filter is active', () => {
+    const selected = ['Openers', NOT_IN_PLAYLIST]
+    expect(applyPlaylistFilter(tracks, selected, playlists)).toEqual(
+      applyFilters(tracks, filters({ playlists: selected }), playlists),
+    )
+  })
+})
+
+describe('wholeExtent', () => {
+  test('rounds outward to the surrounding whole numbers', () => {
+    expect(wholeExtent([120.3, 129.1])).toEqual([120, 130])
+  })
+
+  test('integer extents are kept as-is', () => {
+    expect(wholeExtent([120, 174])).toEqual([120, 174])
+  })
+
+  test('negative values round outward too', () => {
+    expect(wholeExtent([-3.5, -1.2])).toEqual([-4, -1])
+  })
+})
+
+describe('clampRange', () => {
+  test('an edited min above the max is pulled down to the max', () => {
+    expect(clampRange([130, 124], 'min')).toEqual([124, 124])
+  })
+
+  test('an edited max below the min is pulled up to the min', () => {
+    expect(clampRange([130, 124], 'max')).toEqual([130, 130])
+  })
+
+  test('valid ranges pass through untouched', () => {
+    expect(clampRange([120, 130], 'min')).toEqual([120, 130])
+    expect(clampRange([120, 130], 'max')).toEqual([120, 130])
+  })
+
+  test('equal bounds are allowed', () => {
+    expect(clampRange([128, 128], 'min')).toEqual([128, 128])
   })
 })

@@ -5,7 +5,12 @@ import {
   makeGenreMatcher,
   type CriteriaConfig,
 } from './core/combos'
-import { applyFilters, EMPTY_FILTERS, type LibraryFilters } from './core/filter'
+import {
+  applyFilters,
+  applyPlaylistFilter,
+  EMPTY_FILTERS,
+  type LibraryFilters,
+} from './core/filter'
 import { computeGenreClasses } from './core/genreClasses'
 import type { ImportReport, Playlist, Track } from './core/model'
 import { DEFAULT_SETTINGS, type AppSettings } from './core/settings'
@@ -66,6 +71,17 @@ export function resetSuggestions(): void {
 export const visibleLibrary = derived(
   [library, filters, playlists],
   ([$library, $filters, $playlists]) => applyFilters($library, $filters, $playlists),
+)
+
+/**
+ * The library scoped to the playlist selection only (ranges and genres are
+ * ignored): the range-filter defaults and the radial axis fallback derive
+ * from this, so they follow the playlists you are actually working in.
+ */
+export const playlistScopedLibrary = derived(
+  [library, filters, playlists],
+  ([$library, $filters, $playlists]) =>
+    applyPlaylistFilter($library, $filters.playlists, $playlists),
 )
 
 /** Colour axis resolved: 'auto' = rating, or BPM when the radius shows rating. */
