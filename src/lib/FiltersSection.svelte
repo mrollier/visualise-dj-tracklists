@@ -1,28 +1,49 @@
 <script lang="ts">
+  import { get } from 'svelte/store'
+  import { libraryExtents, type LibraryFilters } from '../core/filter'
   import { filters, library, libraryGenres, visibleLibrary } from '../stores'
 
-  // Local min/max fields; empty input = unbounded. Converted to LibraryFilters
-  // ranges (null when both ends are empty) on every change.
-  let bpmMin = $state(''),
-    bpmMax = $state(''),
-    yearMin = $state(''),
-    yearMax = $state(''),
-    ratingMin = $state(''),
-    ratingMax = $state('')
+  type RangeField = 'bpm' | 'year' | 'rating'
 
-  function range(min: string, max: string, lo: number, hi: number): [number, number] | null {
-    if (min === '' && max === '') return null
-    return [min === '' ? lo : Number(min), max === '' ? hi : Number(max)]
-  }
-
-  $effect(() => {
-    filters.update((f) => ({
-      ...f,
-      bpm: range(bpmMin, bpmMax, 0, 999),
-      year: range(yearMin, yearMax, 0, 9999),
-      rating: range(ratingMin, ratingMax, 0, 5),
-    }))
+  // Local min/max fields, seeded from the library's actual extremes (remark 8)
+  // or from an active filter. Only user edits write to the filters store, so
+  // loaded projects keep their saved ranges.
+  let inputs = $state({
+    bpm: { min: '', max: '' },
+    year: { min: '', max: '' },
+    rating: { min: '', max: '' },
   })
+
+  let seededFor: unknown = null
+  $effect(() => {
+    const lib = $library
+    if (lib === seededFor) return
+    seededFor = lib
+    const extents = libraryExtents(lib)
+    const active = get(filters)
+    for (const field of ['bpm', 'year', 'rating'] as RangeField[]) {
+      const range = active[field] ?? extents[field]
+      inputs[field] = {
+        min: range === null ? '' : String(range[0]),
+        max: range === null ? '' : String(range[1]),
+      }
+    }
+  })
+
+  function commit(field: RangeField) {
+    const { min, max } = inputs[field]
+    // An emptied side falls back to the library extreme (keeps JSON-safe
+    // finite bounds); both sides empty = not filtering.
+    const extent = libraryExtents(get(library))[field]
+    const range: LibraryFilters[RangeField] =
+      min === '' && max === ''
+        ? null
+        : [
+            min === '' ? (extent?.[0] ?? 0) : Number(min),
+            max === '' ? (extent?.[1] ?? 9999) : Number(max),
+          ]
+    filters.update((f) => ({ ...f, [field]: range }))
+  }
 
   function toggleGenre(genre: string, on: boolean) {
     filters.update((f) => {
@@ -51,21 +72,59 @@
 
   <div class="filter-row">
     <span class="filter-label">BPM</span>
-    <input type="number" placeholder="min" min="0" bind:value={bpmMin} />
+    <input
+      type="number"
+      placeholder="min"
+      min="0"
+      bind:value={inputs.bpm.min}
+      oninput={() => commit('bpm')}
+    />
     <span class="dash">–</span>
-    <input type="number" placeholder="max" min="0" bind:value={bpmMax} />
+    <input
+      type="number"
+      placeholder="max"
+      min="0"
+      bind:value={inputs.bpm.max}
+      oninput={() => commit('bpm')}
+    />
   </div>
   <div class="filter-row">
     <span class="filter-label">Year</span>
-    <input type="number" placeholder="min" min="0" bind:value={yearMin} />
+    <input
+      type="number"
+      placeholder="min"
+      min="0"
+      bind:value={inputs.year.min}
+      oninput={() => commit('year')}
+    />
     <span class="dash">–</span>
-    <input type="number" placeholder="max" min="0" bind:value={yearMax} />
+    <input
+      type="number"
+      placeholder="max"
+      min="0"
+      bind:value={inputs.year.max}
+      oninput={() => commit('year')}
+    />
   </div>
   <div class="filter-row">
     <span class="filter-label">Rating</span>
-    <input type="number" placeholder="min" min="0" max="5" bind:value={ratingMin} />
+    <input
+      type="number"
+      placeholder="min"
+      min="0"
+      max="5"
+      bind:value={inputs.rating.min}
+      oninput={() => commit('rating')}
+    />
     <span class="dash">–</span>
-    <input type="number" placeholder="max" min="0" max="5" bind:value={ratingMax} />
+    <input
+      type="number"
+      placeholder="max"
+      min="0"
+      max="5"
+      bind:value={inputs.rating.max}
+      oninput={() => commit('rating')}
+    />
   </div>
 
   <details class="genres">

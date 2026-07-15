@@ -22,6 +22,25 @@ export const EMPTY_FILTERS: LibraryFilters = {
   genres: null,
 }
 
+export interface LibraryExtents {
+  bpm: [number, number] | null
+  year: [number, number] | null
+  rating: [number, number] | null
+}
+
+/**
+ * Min/max of each filterable numeric field over the library (missing values
+ * ignored; null when no track has the field). The filter inputs default to
+ * these, so freshly imported libraries start with their true ranges visible.
+ */
+export function libraryExtents(tracks: Track[]): LibraryExtents {
+  const extent = (field: 'bpm' | 'year' | 'rating'): [number, number] | null => {
+    const values = tracks.map((t) => t[field]).filter((v): v is number => v !== null)
+    return values.length === 0 ? null : [Math.min(...values), Math.max(...values)]
+  }
+  return { bpm: extent('bpm'), year: extent('year'), rating: extent('rating') }
+}
+
 function inRange(value: number | null, range: [number, number] | null): boolean {
   if (range === null || value === null) return true
   return value >= range[0] && value <= range[1]

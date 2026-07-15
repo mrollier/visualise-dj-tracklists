@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'vitest'
-import { applyFilters, EMPTY_FILTERS, type LibraryFilters } from '../src/core/filter'
+import {
+  applyFilters,
+  EMPTY_FILTERS,
+  libraryExtents,
+  type LibraryFilters,
+} from '../src/core/filter'
 import type { Track } from '../src/core/model'
 
 function track(overrides: Partial<Track> & { id: string }): Track {
@@ -55,5 +60,21 @@ describe('applyFilters', () => {
   test('missing values never fail a range filter', () => {
     const out = applyFilters(tracks, filters({ bpm: [500, 600] }))
     expect(out.map((t) => t.id)).toEqual(['d'])
+  })
+})
+
+describe('libraryExtents', () => {
+  test('reports min/max per numeric field, ignoring missing values', () => {
+    expect(libraryExtents(tracks)).toEqual({
+      bpm: [120, 174],
+      year: [2010, 2023],
+      rating: [2, 5],
+    })
+  })
+
+  test('a field with no values at all yields null', () => {
+    const unrated = [track({ id: 'x', rating: null })]
+    expect(libraryExtents(unrated).rating).toBeNull()
+    expect(libraryExtents([])).toEqual({ bpm: null, year: null, rating: null })
   })
 })
