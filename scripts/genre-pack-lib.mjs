@@ -185,6 +185,37 @@ export function topNeighbours(labels, sim, k, umbrella) {
   return lists
 }
 
+/**
+ * Retrofitting (Faruqui et al. 2015, as used for genre graphs by Epure et
+ * al. 2020): iteratively pull each vector toward its graph neighbours while
+ * an anchor term holds it near its data-derived position. Zero rows (labels
+ * the corpus never saw) have nothing to anchor to and simply adopt their
+ * neighbours' average — this is how curated-tree-only genres get vectors.
+ */
+export function retrofit(rows, edges, { alpha = 1, iterations = 10 } = {}) {
+  const n = rows.length
+  const neighbours = Array.from({ length: n }, () => [])
+  for (const [i, j] of edges) {
+    neighbours[i].push(j)
+    neighbours[j].push(i)
+  }
+  const hasData = rows.map((row) => row.some((x) => x !== 0))
+  let current = rows.map((row) => row.slice())
+  for (let it = 0; it < iterations; it++) {
+    const next = current.map((row, i) => {
+      if (neighbours[i].length === 0) return row.slice()
+      const anchor = hasData[i] ? alpha : 0
+      const acc = rows[i].map((x) => x * anchor)
+      for (const j of neighbours[i]) {
+        for (let d = 0; d < acc.length; d++) acc[d] += current[j][d]
+      }
+      return acc.map((x) => x / (anchor + neighbours[i].length))
+    })
+    current = next
+  }
+  return current
+}
+
 /** Fraction of (anchor, near, far) triplets where sim(anchor,near) > sim(anchor,far). */
 export function tripletAccuracy(simFn, triplets) {
   let correct = 0

@@ -14,7 +14,7 @@ import embeddingPack from '../data/genre-embedding.json'
  * - embedding: cosine similarity between vectors from the bundled data pack.
  * Graph and embedding fall back to lexical when a label is unknown to them.
  */
-export type GenreMethod = 'exact' | 'lexical' | 'graph' | 'taxonomy' | 'embedding'
+export type GenreMethod = 'exact' | 'lexical' | 'graph' | 'taxonomy' | 'embedding' | 'hybrid'
 
 export const GENRE_METHODS: readonly GenreMethod[] = [
   'exact',
@@ -22,6 +22,7 @@ export const GENRE_METHODS: readonly GenreMethod[] = [
   'graph',
   'taxonomy',
   'embedding',
+  'hybrid',
 ]
 
 /** Decay per graph step: neighbours score 0.6, two steps 0.36, ... */
@@ -159,36 +160,53 @@ function linSimilarity(a: string, b: string): number {
   return (2 * lcaIC) / (icA + icB)
 }
 
-// --- embedding method --------------------------------------------------------
+// --- embedding & hybrid methods -----------------------------------------------
 // Pack v2 (see scripts/build-genre-embedding.mjs): per-label top-k neighbour
 // lists with mutual-proximity scores in [0,1]. Pairs absent from both lists
 // are genuinely dissimilar and score 0; umbrella labels arrive pre-damped.
+// 'hybrid' is the same embedding retrofitted toward the curated genre tree.
 type NeighbourLists = Record<string, [string, number][]>
-const neighbourLists = embeddingPack.embedding as unknown as NeighbourLists
 
 /** Umbrella tags ("electronic", …) that must never drive a genre match. */
 export const UMBRELLA_GENRES: readonly string[] = embeddingPack.umbrella
 
-// Space/&-collapsed spelling → canonical pack label ("eurodance" → the pack's
-// own key), so "Euro Dance" and "Eurodance" resolve to the same entry.
-const squashedToPackLabel = new Map<string, string>()
-for (const label of Object.keys(neighbourLists)) {
-  squashedToPackLabel.set(label.replace(/[\s&']+/g, ''), label)
+class PackSection {
+  private lists: NeighbourLists
+  // Space/&-collapsed spelling → canonical pack label ("eurodance" → the
+  // pack's own key), so "Euro Dance" and "Eurodance" hit the same entry.
+  private squashed = new Map<string, string>()
+
+  constructor(lists: NeighbourLists) {
+    this.lists = lists
+    for (const label of Object.keys(lists)) {
+      this.squashed.set(label.replace(/[\s&']+/g, ''), label)
+    }
+  }
+
+  /** Canonical pack label: exact match, else the space-collapsed spelling. */
+  label(label: string): string | undefined {
+    if (label in this.lists) return label
+    return this.squashed.get(label.replace(/[\s&']+/g, ''))
+  }
+
+  /** Score between two canonical labels; either side's list may hold it. */
+  score(a: string, b: string): number {
+    const hit =
+      this.lists[a]?.find(([label]) => label === b) ?? this.lists[b]?.find(([label]) => label === a)
+    return hit === undefined ? 0 : hit[1]
+  }
+
+  similarity(a: string, b: string): number {
+    const pa = this.label(a)
+    const pb = this.label(b)
+    if (pa === undefined || pb === undefined) return lexicalSimilarity(a, b)
+    if (pa === pb) return 1
+    return this.score(pa, pb)
+  }
 }
 
-/** Pack lookup: exact normalized label, else its space/&-collapsed spelling. */
-function packLabel(label: string): string | undefined {
-  if (label in neighbourLists) return label
-  return squashedToPackLabel.get(label.replace(/[\s&']+/g, ''))
-}
-
-/** Score between two canonical pack labels; either side's list may hold it. */
-function packSimilarity(a: string, b: string): number {
-  const hit =
-    neighbourLists[a]?.find(([label]) => label === b) ??
-    neighbourLists[b]?.find(([label]) => label === a)
-  return hit === undefined ? 0 : hit[1]
-}
+const embeddingSection = new PackSection(embeddingPack.embedding as unknown as NeighbourLists)
+const hybridSection = new PackSection(embeddingPack.hybrid as unknown as NeighbourLists)
 
 export function genreSimilarity(rawA: string, rawB: string, method: GenreMethod): number {
   const a = normalizeGenre(rawA)
@@ -208,12 +226,9 @@ export function genreSimilarity(rawA: string, rawB: string, method: GenreMethod)
       if (!treeIC.has(a) || !treeIC.has(b)) return lexicalSimilarity(a, b)
       return linSimilarity(a, b)
     }
-    case 'embedding': {
-      const pa = packLabel(a)
-      const pb = packLabel(b)
-      if (pa === undefined || pb === undefined) return lexicalSimilarity(a, b)
-      if (pa === pb) return 1
-      return packSimilarity(pa, pb)
-    }
+    case 'embedding':
+      return embeddingSection.similarity(a, b)
+    case 'hybrid':
+      return hybridSection.similarity(a, b)
   }
 }

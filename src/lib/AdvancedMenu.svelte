@@ -27,6 +27,7 @@
     graph: 'Genre graph (curated relations)',
     taxonomy: 'Taxonomy (Lin, rooted tree)',
     embedding: 'Embedding (co-occurrence pack)',
+    hybrid: 'Hybrid (embedding + tree)',
   } as const
 
   const METHOD_EXPLAINER = {
@@ -37,6 +38,8 @@
       'Lin similarity over a rooted genre tree: deep shared ancestry counts, umbrella labels do not.',
     embedding:
       'Statistical relatedness learned from how real-world listeners tag music (AcousticBrainz).',
+    hybrid:
+      'The embedding pulled toward the curated tree: real-world data plus hand-audited lineage.',
   } as const
 
   function onWindowClick(e: MouseEvent) {

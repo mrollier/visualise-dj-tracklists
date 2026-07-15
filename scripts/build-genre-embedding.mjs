@@ -29,6 +29,7 @@ import {
   embedRows,
   mutualProximity,
   ppmiMatrix,
+  retrofit,
   topNeighbours,
   tripletAccuracy,
 } from './genre-pack-lib.mjs'
@@ -87,11 +88,55 @@ const TRIPLETS = [
   ['reggae', 'dub', 'eurodance'],
 ]
 
-/** Full v2 pipeline from a symmetric association matrix to neighbour lists. */
-function neighbourLists(labels, matrix, dims) {
-  const cos = cosineMatrix(embedRows(matrix, dims))
+/** Rows → cosine → MP → blended, umbrella-damped top-k neighbour lists. */
+function listsFromRows(labels, rows) {
+  const cos = cosineMatrix(rows)
   const scores = blendScores(mutualProximity(cos), cos)
   return topNeighbours(labels, scores, TOP_K, UMBRELLA)
+}
+
+/**
+ * Hybrid: retrofit the embedding rows toward the curated genre tree
+ * (docs/design-v4.md §A). Tree labels absent from the data vocabulary are
+ * appended with zero rows and inherit their tree neighbourhood's direction —
+ * this is what gives "liquid drum & bass" & friends usable vectors.
+ */
+function retrofitToTree(labels, rows) {
+  const tree = JSON.parse(readFileSync('src/data/genre-tree.json', 'utf-8'))
+  const squash = (s) => s.replace(/[\s&']+/g, '')
+  const canonical = new Map(labels.map((l) => [squash(l), l]))
+  const allLabels = labels.slice()
+  const index = new Map(labels.map((l, i) => [l, i]))
+  const resolve = (label) => {
+    const c = canonical.get(squash(label)) ?? label
+    if (!index.has(c)) {
+      index.set(c, allLabels.length)
+      allLabels.push(c)
+    }
+    return index.get(c)
+  }
+  const edges = []
+  for (const [child, parents] of Object.entries(tree.parents)) {
+    for (const parent of parents) {
+      if (parent === tree.root) continue // the root would be a super-hub
+      edges.push([resolve(child), resolve(parent)])
+    }
+  }
+  const dims = rows[0].length
+  const padded = allLabels.map((_, i) =>
+    i < rows.length ? rows[i].slice() : new Array(dims).fill(0),
+  )
+  return { labels: allLabels, rows: retrofit(padded, edges) }
+}
+
+/** Full v2 pipeline: embedding + tree-retrofitted hybrid neighbour lists. */
+function packSections(labels, matrix, dims) {
+  const rows = embedRows(matrix, dims)
+  const fused = retrofitToTree(labels, rows)
+  return {
+    embedding: listsFromRows(labels, rows),
+    hybrid: listsFromRows(fused.labels, fused.rows),
+  }
 }
 
 function packSimilarity(lists) {
@@ -101,11 +146,15 @@ function packSimilarity(lists) {
   }
 }
 
-function writePack(source, labels, lists, dims) {
-  const embedding = {}
-  for (const label of labels) {
-    embedding[label] = lists[label].map(([other, score]) => [other, Number(score.toFixed(3))])
+function roundLists(lists) {
+  const out = {}
+  for (const [label, entries] of Object.entries(lists)) {
+    out[label] = entries.map(([other, score]) => [other, Number(score.toFixed(3))])
   }
+  return out
+}
+
+function writePack(source, sections, dims) {
   writeFileSync(
     OUT,
     JSON.stringify(
@@ -113,19 +162,26 @@ function writePack(source, labels, lists, dims) {
         _readme:
           `Genre neighbour pack (source: ${source}). Per-label top-${TOP_K} neighbours with ` +
           `mutual-proximity similarity scores in [0,1] (PPMI → truncated SVD d=${dims} → ` +
-          `cosine → Mutual Proximity; umbrella labels damped ×0.5). Pairs absent from both ` +
-          `lists score 0. Regenerate with scripts/build-genre-embedding.mjs.`,
+          `cosine → Mutual Proximity; umbrella labels damped ×0.5). 'hybrid' is the same ` +
+          `embedding retrofitted toward src/data/genre-tree.json (tree-only labels gain ` +
+          `vectors from their neighbourhood). Pairs absent from both lists score 0. ` +
+          `Regenerate with scripts/build-genre-embedding.mjs.`,
         source,
         dims,
         k: TOP_K,
         umbrella: UMBRELLA,
-        embedding,
+        embedding: roundLists(sections.embedding),
+        hybrid: roundLists(sections.hybrid),
       },
       null,
       1,
     ) + '\n',
   )
-  console.log(`Wrote ${OUT}: ${labels.length} genres, top-${TOP_K} lists (d=${dims}, ${source})`)
+  const nE = Object.keys(sections.embedding).length
+  const nH = Object.keys(sections.hybrid).length
+  console.log(
+    `Wrote ${OUT}: ${nE} embedding / ${nH} hybrid genres, top-${TOP_K} (d=${dims}, ${source})`,
+  )
 }
 
 // Mirror of src/core/genre.ts normalizeGenre's separator cleanup, so pack
@@ -187,8 +243,7 @@ function buildFromGraph(dims) {
   for (let t = 0; t < 3; t++) rows = step(rows)
   const sym = rows.map((row, i) => row.map((v, j) => (v + rows[j][i]) / 2))
 
-  const lists = neighbourLists(genres, sym, dims)
-  writePack('curated-graph-diffusion (starter pack)', genres, lists, dims)
+  writePack('curated-graph-diffusion (starter pack)', packSections(genres, sym, dims), dims)
 }
 
 async function readAcousticBrainz(dir) {
@@ -287,22 +342,23 @@ async function buildFromAcousticBrainz(dir, dims, sweep) {
   if (sweep) {
     console.log(`sweep over ${triplets.length}/${TRIPLETS.length} usable triplets:`)
     for (const d of [16, 24, 32, 48, 64]) {
-      const lists = neighbourLists(genres, ppmi, d)
+      const lists = listsFromRows(genres, embedRows(ppmi, d))
       const acc = tripletAccuracy(packSimilarity(lists), triplets)
       console.log(`  d=${String(d).padStart(2)}  triplet accuracy ${(acc * 100).toFixed(1)}%`)
     }
     return
   }
 
-  const lists = neighbourLists(genres, ppmi, dims)
-  const acc = tripletAccuracy(packSimilarity(lists), triplets)
-  console.log(
-    `triplet accuracy at d=${dims}: ${(acc * 100).toFixed(1)}% (${triplets.length} triplets)`,
-  )
+  const sections = packSections(genres, ppmi, dims)
+  for (const [name, lists] of Object.entries(sections)) {
+    const acc = tripletAccuracy(packSimilarity(lists), triplets)
+    console.log(
+      `${name} triplet accuracy at d=${dims}: ${(acc * 100).toFixed(1)}% (${triplets.length} triplets)`,
+    )
+  }
   writePack(
     `acousticbrainz-ppmi-svd-mp (${recordings} recordings; MediaEval AcousticBrainz Genre Dataset, CC BY-NC-SA 4.0)`,
-    genres,
-    lists,
+    sections,
     dims,
   )
 }

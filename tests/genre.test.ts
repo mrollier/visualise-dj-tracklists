@@ -116,6 +116,27 @@ describe('genreSimilarity: taxonomy (Lin over the rooted genre tree)', () => {
   })
 })
 
+describe('genreSimilarity: hybrid (embedding retrofitted toward the curated tree)', () => {
+  test('covers curated club genres the tagging data never saw', () => {
+    // Neither label exists in the AcousticBrainz vocabulary; the retrofit
+    // gives them vectors from their tree neighbourhood (drum & bass).
+    expect(genreSimilarity('Liquid Drum & Bass', 'Neurofunk', 'hybrid')).toBeGreaterThan(0.3)
+    expect(genreSimilarity('Melodic Techno', 'Techno', 'hybrid')).toBeGreaterThan(0.3)
+  })
+
+  test('keeps the embedding’s real-world associations', () => {
+    expect(genreSimilarity('Techno', 'Tech House', 'hybrid')).toBeGreaterThan(0.5)
+    expect(genreSimilarity('Disco', 'Funk', 'hybrid')).toBeGreaterThan(
+      genreSimilarity('Disco', 'Death Metal', 'hybrid'),
+    )
+  })
+
+  test('labels unknown to pack and tree fall back to lexical', () => {
+    expect(genreSimilarity('Warehouse House', 'House', 'hybrid')).toBeGreaterThan(0)
+    expect(genreSimilarity('Zydeco', 'Techno', 'hybrid')).toBe(0)
+  })
+})
+
 describe('genreSimilarity: embedding', () => {
   test('near neighbours in the pack score higher than distant genres', () => {
     const near = genreSimilarity('House', 'Deep House', 'embedding')
@@ -163,6 +184,10 @@ describe('genreSimilarity: embedding', () => {
     expect(genreSimilarity('Disco', 'Funk', 'embedding')).toBeGreaterThan(
       genreSimilarity('Disco', 'Death Metal', 'embedding'),
     )
+  })
+
+  test('umbrella labels are damped in the hybrid too', () => {
+    expect(genreSimilarity('House', 'Electronic', 'hybrid')).toBeLessThanOrEqual(0.5)
   })
 
   test('space-collapsed pack labels are found from spaced app labels', () => {

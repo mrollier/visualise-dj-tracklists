@@ -7,6 +7,7 @@ import {
   mutualProximity,
   ppmiMatrix,
   blendScores,
+  retrofit,
   topNeighbours,
   tripletAccuracy,
 } from '../scripts/genre-pack-lib.mjs'
@@ -207,6 +208,44 @@ describe('topNeighbours', () => {
     expect(lists['house'][0][0]).toBe('deep house')
     // Symmetric: the umbrella's own list is damped too.
     expect(lists['electronic'][0][1]).toBeCloseTo(0.4, 6)
+  })
+})
+
+describe('retrofit (Epure et al. 2020-style graph fusion)', () => {
+  const cosine = (a: number[], b: number[]) => {
+    const dot = a.reduce((s, v, i) => s + v * b[i], 0)
+    const na = Math.sqrt(a.reduce((s, v) => s + v * v, 0))
+    const nb = Math.sqrt(b.reduce((s, v) => s + v * v, 0))
+    return na === 0 || nb === 0 ? 0 : dot / (na * nb)
+  }
+
+  test('gives zero-vector nodes (labels unseen in the data) their tree-neighbour direction', () => {
+    // Node 2 has no data vector but sits between nodes 0 and 1 in the tree.
+    const rows = [
+      [1, 0],
+      [0.8, 0.6],
+      [0, 0],
+    ]
+    const fused = retrofit(rows, [
+      [2, 0],
+      [2, 1],
+    ])
+    expect(cosine(fused[2], [0.9, 0.3])).toBeGreaterThan(0.95)
+  })
+
+  test('pulls tree neighbours together while anchoring nodes with data', () => {
+    const rows = [
+      [1, 0],
+      [0, 1],
+      [-1, 0],
+    ]
+    const fused = retrofit(rows, [[0, 1]])
+    // The connected pair converges…
+    expect(cosine(fused[0], fused[1])).toBeGreaterThan(cosine(rows[0], rows[1]))
+    // …but anchoring keeps each node recognisably itself.
+    expect(cosine(fused[0], rows[0])).toBeGreaterThan(0.7)
+    // Unconnected nodes stay exactly put.
+    expect(fused[2]).toEqual(rows[2])
   })
 })
 
