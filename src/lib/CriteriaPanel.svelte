@@ -54,6 +54,14 @@
           disabled={!$criteria.bpm.enabled}
         /> %
       </label>
+      <label class="sub-option">
+        <input
+          type="checkbox"
+          bind:checked={$criteria.bpm.halfDouble}
+          disabled={!$criteria.bpm.enabled}
+        />
+        <span class="hint">± half/double time (85 ↔ 170)</span>
+      </label>
     </div>
 
     <div class="criterion">
@@ -152,6 +160,10 @@
     align-items: center;
     gap: 6px;
     flex-wrap: wrap;
+  }
+
+  .criterion .sub-option {
+    margin: 4px 0 0 22px;
   }
 
   input[type='number'] {

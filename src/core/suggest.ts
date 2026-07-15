@@ -30,10 +30,13 @@ function scoreCandidate(current: Track, candidate: Track, criteria: CriteriaConf
     current.genre !== null && candidate.genre !== null
       ? genreSimilarity(current.genre, candidate.genre, criteria.genre.method)
       : 0
-  const bpm =
-    current.bpm !== null && candidate.bpm !== null
-      ? 1 / (1 + Math.abs(current.bpm - candidate.bpm) / 4)
-      : 0
+  let bpm = 0
+  if (current.bpm !== null && candidate.bpm !== null) {
+    // With half/double-time on, an exact 2× tempo is as close as an exact 1×.
+    const ratios = criteria.bpm.halfDouble ? [1, 2, 0.5] : [1]
+    const delta = Math.min(...ratios.map((r) => Math.abs(current.bpm! - candidate.bpm! * r)))
+    bpm = 1 / (1 + delta / 4)
+  }
   // Matched criteria dominate; genre closeness breaks ties; BPM nudges last.
   return matched + 0.5 * genre + 0.1 * bpm
 }

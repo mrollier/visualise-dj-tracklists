@@ -6,6 +6,7 @@ import {
   camelotRing,
   keysMatch,
   normalizeKey,
+  transposeCamelot,
   wheelSlotAngleDeg,
   wheelStepDistance,
 } from '../src/core/keys'
@@ -145,5 +146,26 @@ describe('keysMatch (combo criterion)', () => {
     expect(keysMatch('8A', '10A', { advancedMoves: true })).toBe(true)
     expect(keysMatch('8A', '3A', { advancedMoves: true })).toBe(true) // +7
     expect(keysMatch('8A', '10B', { advancedMoves: true })).toBe(false)
+  })
+})
+
+describe('transposeCamelot (vinyl pitch shifts)', () => {
+  test('+1 semitone moves +7 Camelot numbers on the same ring', () => {
+    expect(transposeCamelot('8A', 1)).toBe('3A')
+    expect(transposeCamelot('8B', 1)).toBe('3B')
+  })
+
+  test('-1 semitone moves -7 numbers (A minor down to G# minor)', () => {
+    expect(transposeCamelot('8A', -1)).toBe('1A')
+  })
+
+  test('an octave (±12 semitones) or no shift is the identity', () => {
+    expect(transposeCamelot('5B', 0)).toBe('5B')
+    expect(transposeCamelot('5B', 12)).toBe('5B')
+    expect(transposeCamelot('5B', -12)).toBe('5B')
+  })
+
+  test('shifts compose: two +1 shifts equal one +2 shift', () => {
+    expect(transposeCamelot(transposeCamelot('4A', 1), 1)).toBe(transposeCamelot('4A', 2))
   })
 })

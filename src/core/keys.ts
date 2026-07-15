@@ -103,6 +103,16 @@ export function wheelStepDistance(a: CamelotKey, b: CamelotKey): number {
   return Math.min(diff, 12 - diff)
 }
 
+/**
+ * The key after transposing by `semitones` (vinyl pitch shifts): one semitone
+ * up moves +7 Camelot numbers (a fifth of a fifth), same ring.
+ */
+export function transposeCamelot(key: CamelotKey, semitones: number): CamelotKey {
+  const n = camelotNumber(key)
+  const shifted = ((((n - 1 + 7 * semitones) % 12) + 12) % 12) + 1
+  return `${shifted}${camelotRing(key)}` as CamelotKey
+}
+
 export interface KeyMatchOptions {
   /** Also accept the +2 (two steps) and +7-semitone (five steps) same-ring moves. */
   advancedMoves?: boolean

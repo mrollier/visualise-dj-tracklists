@@ -71,6 +71,50 @@ describe('individual criteria', () => {
     expect(evaluateCombo(a, b, cfg).matched).toContain('genre')
   })
 
+  test('half/double-time BPM only matches when enabled', () => {
+    const dnb = track({ id: 'x', bpm: 174 })
+    const halftime = track({ id: 'y', bpm: 87 })
+    expect(evaluateCombo(dnb, halftime, config()).matched).not.toContain('bpm')
+    const cfg = config()
+    cfg.bpm.halfDouble = true
+    expect(evaluateCombo(dnb, halftime, cfg).matched).toContain('bpm')
+    // still respects the tolerance after doubling: 174 vs 2×78 = 156 → 11.5%
+    expect(evaluateCombo(dnb, track({ id: 'z', bpm: 78 }), cfg).matched).not.toContain('bpm')
+  })
+
+  test('vinyl mode: beatmatching pitch shift transposes the key before matching', () => {
+    // b pitched up from 122.7 to 130 BPM (+1 semitone) turns 1A into 8A.
+    const a = track({ id: 'a2', key: '8A', bpm: 130 })
+    const b = track({ id: 'b2', key: '1A', bpm: 122.7 })
+    expect(evaluateCombo(a, b, config()).matched).not.toContain('key')
+    const cfg = config()
+    cfg.key.vinylMode = true
+    expect(evaluateCombo(a, b, cfg).matched).toContain('key')
+    expect(evaluateCombo(b, a, cfg).matched).toContain('key') // symmetric
+  })
+
+  test('vinyl mode ignores tempo gaps that land between semitones', () => {
+    // 130/126.3 ≈ +0.5 semitone: not a clean transposition, no key match.
+    const a = track({ id: 'a3', key: '8A', bpm: 130 })
+    const b = track({ id: 'b3', key: '1A', bpm: 126.3 })
+    const cfg = config()
+    cfg.key.vinylMode = true
+    expect(evaluateCombo(a, b, cfg).matched).not.toContain('key')
+  })
+
+  test('vinyl mode works across a half/double-time bridge', () => {
+    // b played double-time at 164.2 then pitched to 174 is +1 semitone: 1A → 8A.
+    const a = track({ id: 'a4', key: '8A', bpm: 174 })
+    const b = track({ id: 'b4', key: '1A', bpm: 82.1 })
+    const cfg = config()
+    cfg.key.vinylMode = true
+    cfg.bpm.halfDouble = true
+    expect(evaluateCombo(a, b, cfg).matched).toContain('key')
+    // without halfDouble the tempos are un-beatmatchable → no vinyl shift
+    cfg.bpm.halfDouble = false
+    expect(evaluateCombo(a, b, cfg).matched).not.toContain('key')
+  })
+
   test('year matches within its configured window', () => {
     const cfg = config()
     expect(evaluateCombo(base, track({ id: 'b', year: 2024 }), cfg).matched).toContain('year')

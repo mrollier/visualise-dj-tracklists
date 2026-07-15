@@ -102,6 +102,18 @@ describe('suggestWalk', () => {
     expect(walk).toEqual(['a', 'x2'])
   })
 
+  test('with half/double enabled, an exact double-time candidate beats a drifted same-time one', () => {
+    const cfg = config()
+    cfg.bpm.halfDouble = true
+    const trio = [
+      track({ id: 'a', bpm: 87 }),
+      track({ id: 'x1', bpm: 92 }), // same-time but 5 BPM off
+      track({ id: 'x2', bpm: 174 }), // exact double
+    ]
+    const walk = suggestWalk(trio, cfg, { seedId: 'a', length: 2 })
+    expect(walk).toEqual(['a', 'x2'])
+  })
+
   test('randomness 0 is deterministic regardless of seed', () => {
     const a = suggestWalk(tracks, config(), { seedId: 'a', length: 10, randomness: 0, seed: 1 })
     const b = suggestWalk(tracks, config(), { seedId: 'a', length: 10, randomness: 0, seed: 99 })

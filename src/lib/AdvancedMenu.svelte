@@ -79,6 +79,14 @@
           <input type="checkbox" bind:checked={$criteria.key.advancedMoves} />
           allow +2 / +7-semitone moves
         </label>
+        <label class="row">
+          <input type="checkbox" bind:checked={$criteria.key.vinylMode} />
+          vinyl mode
+        </label>
+        <p class="hint">
+          Beatmatching on vinyl shifts pitch with tempo: keys are compared after the tempo-induced
+          transposition (when the gap lands on a whole semitone).
+        </p>
       </section>
 
       <section>
