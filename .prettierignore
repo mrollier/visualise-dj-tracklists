@@ -2,3 +2,5 @@ dist/
 node_modules/
 docs/
 package-lock.json
+# generated data pack (scripts/build-genre-embedding.mjs)
+src/data/genre-embedding.json
