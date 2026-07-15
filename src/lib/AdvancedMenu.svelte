@@ -25,6 +25,7 @@
     exact: 'Exact match',
     lexical: 'Lexical (word overlap)',
     graph: 'Genre graph (curated relations)',
+    taxonomy: 'Taxonomy (Lin, rooted tree)',
     embedding: 'Embedding (co-occurrence pack)',
   } as const
 
@@ -32,6 +33,8 @@
     exact: 'Only identical genres match (after normalization: DnB = Drum & Bass).',
     lexical: 'Genres sharing words match: Melodic House ~ House, but not Techno ~ Tech House.',
     graph: 'Follows a curated genre family tree (editable JSON in the repo): Techno ~ Tech House.',
+    taxonomy:
+      'Lin similarity over a rooted genre tree: deep shared ancestry counts, umbrella labels do not.',
     embedding:
       'Statistical relatedness learned from how real-world listeners tag music (AcousticBrainz).',
   } as const
