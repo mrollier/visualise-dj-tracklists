@@ -270,15 +270,48 @@ if (backName !== cycledName) {
 }
 await page.screenshot({ path: `${scratch}/15b-sample-cycling.png` })
 
-// theme switch: light mode stamps data-theme and restyles everything
+// importing a new library resets stale filters from the previous one
+const yearMin = page.locator('.filter-row input').nth(2)
+if (!(await yearMin.isVisible())) await page.locator('summary', { hasText: 'Filters' }).click()
+await yearMin.fill('2999') // filters the current library out entirely
+await page.waitForTimeout(300)
+await page.locator('input[type=file]').setInputFiles('tests/fixtures/rekordbox.xml')
+await page.getByText('4 tracks imported').waitFor()
+if ((await page.locator('g.node').count()) !== 4) {
+  errors.push('importing a new library kept stale filters from the previous one')
+}
+
+// replacing own work with a sample asks for confirmation exactly once
+let dialogCount = 0
+const countDialog = (d) => {
+  dialogCount++
+  return d.accept()
+}
+page.on('dialog', countDialog)
+await page.getByRole('button', { name: 'sample ▶' }).click()
+await page.waitForTimeout(400)
+page.off('dialog', countDialog)
+if (dialogCount !== 1) {
+  errors.push(`replacing own work with a sample confirmed ${dialogCount} times, not once`)
+}
+
+// an import that yields no tracks reports, but keeps the current library
+const nodesBeforeGarbage = await page.locator('g.node').count()
+await page.locator('input[type=file]').setInputFiles('tests/fixtures/empty-playlist.txt')
+await page.getByText('0 tracks imported').waitFor()
+if ((await page.locator('g.node').count()) !== nodesBeforeGarbage) {
+  errors.push('a zero-track import wiped the current library')
+}
+
+// theme switch: from the emulated dark system preference, the first
+// toggle must land on light and stamp data-theme
 await page.locator('button.theme-toggle').click()
 await page.waitForTimeout(300)
 const theme = await page.evaluate(() => document.documentElement.dataset.theme)
-if (theme !== 'light' && theme !== 'dark') {
-  errors.push(`theme toggle left data-theme at "${theme}"`)
+if (theme !== 'light') {
+  errors.push(`first toggle from the dark system theme should land on light, got "${theme}"`)
 }
-const flipped = theme
-await page.screenshot({ path: `${scratch}/15c-theme-${flipped}.png` })
+await page.screenshot({ path: `${scratch}/15c-theme-light.png` })
 await page.locator('button.theme-toggle').click()
 await page.waitForTimeout(200)
 
@@ -288,6 +321,9 @@ await page.getByText('Reset everything?').waitFor()
 await page.screenshot({ path: `${scratch}/16-reset-dialog.png` })
 await page.getByRole('button', { name: 'Reset everything' }).click()
 await page.getByText('Your library as a web of combos').waitFor()
+if ((await page.locator('header .status .report').count()) !== 0) {
+  errors.push('reset left a stale import report in the top bar')
+}
 await page.screenshot({ path: `${scratch}/17-after-reset.png` })
 
 console.log('CONSOLE ERRORS:', errors.length ? errors : 'none')

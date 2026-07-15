@@ -23,9 +23,9 @@ dist-ssr
 *.sln
 *.sw?
 
-# screenshot script output
-screenshots/
-out/
+# screenshot script output (anchored: docs/screenshots/ IS tracked — the README embeds it)
+/screenshots/
+/out/
 /data/
 
 # personal Rekordbox exports (real collection data — tests use synthetic fixtures)
