@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { computeEdges, DEFAULT_CRITERIA, evaluateCombo } from '../src/core/combos'
+import { computeEdges, DEFAULT_CRITERIA, evaluateCombo, makeGenreMatcher } from '../src/core/combos'
 import type { CriteriaConfig } from '../src/core/combos'
 import type { Track } from '../src/core/model'
 
@@ -52,7 +52,7 @@ describe('individual criteria', () => {
 
   test('genre criterion can use a similarity method with a threshold', () => {
     const cfg = config()
-    cfg.genre = { enabled: true, method: 'graph', threshold: 0.3 }
+    cfg.genre = { ...cfg.genre, method: 'graph', mode: 'threshold', threshold: 0.3 }
     // techno ↔ tech house are two steps apart in the curated graph (0.36 ≥ 0.3)
     expect(evaluateCombo(base, track({ id: 'b', genre: 'Tech House' }), cfg).matched).toContain(
       'genre',
@@ -69,6 +69,82 @@ describe('individual criteria', () => {
     const a = track({ id: 'a2', genre: 'DnB' })
     const b = track({ id: 'b2', genre: 'Drum & Bass' })
     expect(evaluateCombo(a, b, cfg).matched).toContain('genre')
+  })
+
+  describe('mutual top-k genre matching', () => {
+    const topkConfig = (genre: Partial<CriteriaConfig['genre']> = {}): CriteriaConfig => {
+      const cfg = config()
+      cfg.genre = { ...cfg.genre, mode: 'topk', k: 1, threshold: 0.1, ...genre }
+      return cfg
+    }
+
+    test('accepts pairs that are mutually each other’s nearest genres', () => {
+      const cfg = topkConfig({ method: 'lexical' })
+      const matcher = makeGenreMatcher(['Deep House', 'Tech House', 'Jazz'], cfg)
+      expect(matcher('Deep House', 'Tech House')).toBe(true)
+      expect(matcher('Deep House', 'Jazz')).toBe(false)
+    })
+
+    test('identical genres always match', () => {
+      const cfg = topkConfig({ method: 'embedding' })
+      const matcher = makeGenreMatcher(['Electronic', 'Techno'], cfg)
+      expect(matcher('Electronic', 'Electronic')).toBe(true)
+    })
+
+    test('umbrella labels never rank as neighbours', () => {
+      const cfg = topkConfig({ method: 'embedding', k: 3 })
+      const matcher = makeGenreMatcher(['Electronic', 'Techno', 'Tech House'], cfg)
+      expect(matcher('Techno', 'Tech House')).toBe(true)
+      expect(matcher('Electronic', 'Techno')).toBe(false)
+    })
+
+    test('the threshold acts as a secondary score floor', () => {
+      const strict = makeGenreMatcher(
+        ['Deep House', 'Tech House'],
+        topkConfig({ method: 'lexical', threshold: 0.9 }),
+      )
+      expect(strict('Deep House', 'Tech House')).toBe(false) // sim ⅓ < 0.9
+      const loose = makeGenreMatcher(
+        ['Deep House', 'Tech House'],
+        topkConfig({ method: 'lexical', threshold: 0.3 }),
+      )
+      expect(loose('Deep House', 'Tech House')).toBe(true)
+    })
+
+    test('k widens the neighbourhood', () => {
+      // With graph decay: house–deep house 0.6, house–techno 0.6,
+      // deep house–techno 0.36 (two steps).
+      const genres = ['House', 'Deep House', 'Techno']
+      const k1 = makeGenreMatcher(genres, topkConfig({ method: 'graph', k: 1 }))
+      // deep house's single nearest is house, techno's single nearest is house
+      // (alphabetical tie-break) — deep house ↔ techno only appears at k=2.
+      expect(k1('Deep House', 'Techno')).toBe(false)
+      const k2 = makeGenreMatcher(genres, topkConfig({ method: 'graph', k: 2 }))
+      expect(k2('Deep House', 'Techno')).toBe(true)
+    })
+
+    test('multi-genre fields match through any component', () => {
+      const cfg = topkConfig({ method: 'lexical' })
+      const matcher = makeGenreMatcher(['House / Techno', 'Minimal Techno', 'Jazz'], cfg)
+      expect(matcher('House / Techno', 'Minimal Techno')).toBe(true)
+      expect(matcher('Jazz', 'Minimal Techno')).toBe(false)
+    })
+
+    test('computeEdges links mutual top-k genres and nothing else', () => {
+      const cfg = topkConfig({ method: 'lexical' })
+      cfg.key.enabled = false
+      cfg.bpm.enabled = false
+      cfg.year.enabled = false
+      cfg.threshold = 1
+      const tracks = [
+        track({ id: 'a', genre: 'Deep House' }),
+        track({ id: 'b', genre: 'Tech House' }),
+        track({ id: 'c', genre: 'Jazz' }),
+      ]
+      const edges = computeEdges(tracks, cfg)
+      expect(edges).toHaveLength(1)
+      expect([edges[0].sourceId, edges[0].targetId].sort()).toEqual(['a', 'b'])
+    })
   })
 
   test('half/double-time BPM only matches when enabled', () => {

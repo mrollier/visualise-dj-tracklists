@@ -6,6 +6,7 @@
   import { suggestWalk } from '../core/suggest'
   import {
     criteria,
+    genreMatcher,
     libraryName,
     selectedId,
     settings,
@@ -28,7 +29,7 @@
   }
 
   function transition(a: Track, b: Track) {
-    return evaluateCombo(a, b, $criteria)
+    return evaluateCombo(a, b, $criteria, $genreMatcher)
   }
 
   function removeAt(index: number) {

@@ -1,5 +1,10 @@
 import { derived, writable } from 'svelte/store'
-import { computeEdges, DEFAULT_CRITERIA, type CriteriaConfig } from './core/combos'
+import {
+  computeEdges,
+  DEFAULT_CRITERIA,
+  makeGenreMatcher,
+  type CriteriaConfig,
+} from './core/combos'
 import { applyFilters, EMPTY_FILTERS, type LibraryFilters } from './core/filter'
 import type { ImportReport, Track } from './core/model'
 import { DEFAULT_SETTINGS, type AppSettings } from './core/settings'
@@ -56,6 +61,14 @@ export const libraryGenres = derived(library, ($library) => {
 
 export const edges = derived([visibleLibrary, criteria], ([$visibleLibrary, $criteria]) =>
   computeEdges($visibleLibrary, $criteria),
+)
+
+/** Library-wide genre matcher, so pairwise UI (set transitions) agrees with the wheel's edges. */
+export const genreMatcher = derived([visibleLibrary, criteria], ([$visibleLibrary, $criteria]) =>
+  makeGenreMatcher(
+    $visibleLibrary.map((t) => t.genre),
+    $criteria,
+  ),
 )
 
 export const trackById = derived(library, ($library) => new Map($library.map((t) => [t.id, t])))

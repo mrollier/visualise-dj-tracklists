@@ -50,21 +50,48 @@ const ALIASES: Record<string, string> = {
   'indie-dance': 'indie dance',
   'intelligent dance music': 'idm',
   'melodic house & techno': 'melodic house',
-  'organic house / downtempo': 'organic house',
+  // Lookups happen after separator cleanup, so "Organic House / Downtempo"
+  // (a Beatport category, not two genres) arrives with its slash spaced out.
+  'organic house downtempo': 'organic house',
   'two step': '2 step',
   'two-step': '2 step',
 }
 
-export function normalizeGenre(label: string): string {
+function cleanupGenre(label: string): string {
   let s = label
     .trim()
     .toLowerCase()
     .replace(/[-_/]+/g, ' ')
   s = s.replace(/\s*&\s*/g, ' & ').replace(/\s+and\s+/g, ' & ')
-  s = s.replace(/\s+/g, ' ').trim()
-  // Apply the alias table both before and after separator cleanup so entries
-  // like "drum'n'bass" (apostrophes survive the cleanup) still resolve.
+  return s.replace(/\s+/g, ' ').trim()
+}
+
+export function normalizeGenre(label: string): string {
+  // Apply the alias table after separator cleanup so entries like
+  // "drum'n'bass" (apostrophes survive the cleanup) still resolve.
+  const s = cleanupGenre(label)
   return ALIASES[s] ?? s
+}
+
+/**
+ * Multi-genre fields ("House / Techno", "Melodic House, Techno") split into
+ * their component genres; similarity then takes the best component pair.
+ * '&' never separates — "Drum & Bass" is one genre — and compound labels the
+ * alias table knows ("Organic House / Downtempo") stay whole.
+ */
+export function genreComponents(raw: string): string[] {
+  if (/[/,;]/.test(raw) && ALIASES[cleanupGenre(raw)] === undefined) {
+    const parts = [
+      ...new Set(
+        raw
+          .split(/[/,;]/)
+          .map(normalizeGenre)
+          .filter((s) => s !== ''),
+      ),
+    ]
+    if (parts.length > 1) return parts
+  }
+  return [normalizeGenre(raw)]
 }
 
 function tokens(normalized: string): Set<string> {
@@ -208,9 +235,8 @@ class PackSection {
 const embeddingSection = new PackSection(embeddingPack.embedding as unknown as NeighbourLists)
 const hybridSection = new PackSection(embeddingPack.hybrid as unknown as NeighbourLists)
 
-export function genreSimilarity(rawA: string, rawB: string, method: GenreMethod): number {
-  const a = normalizeGenre(rawA)
-  const b = normalizeGenre(rawB)
+/** Similarity between two already-normalized single genre labels. */
+export function labelSimilarity(a: string, b: string, method: GenreMethod): number {
   if (a === b) return 1
   switch (method) {
     case 'exact':
@@ -231,4 +257,15 @@ export function genreSimilarity(rawA: string, rawB: string, method: GenreMethod)
     case 'hybrid':
       return hybridSection.similarity(a, b)
   }
+}
+
+export function genreSimilarity(rawA: string, rawB: string, method: GenreMethod): number {
+  let best = 0
+  for (const a of genreComponents(rawA)) {
+    for (const b of genreComponents(rawB)) {
+      best = Math.max(best, labelSimilarity(a, b, method))
+      if (best === 1) return 1
+    }
+  }
+  return best
 }

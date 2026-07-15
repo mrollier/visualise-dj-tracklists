@@ -30,17 +30,61 @@
     hybrid: 'Hybrid (embedding + tree)',
   } as const
 
-  const METHOD_EXPLAINER = {
-    exact: 'Only identical genres match (after normalization: DnB = Drum & Bass).',
-    lexical: 'Genres sharing words match: Melodic House ~ House, but not Techno ~ Tech House.',
-    graph: 'Follows a curated genre family tree (editable JSON in the repo): Techno ~ Tech House.',
-    taxonomy:
-      'Lin similarity over a rooted genre tree: deep shared ancestry counts, umbrella labels do not.',
-    embedding:
-      'Statistical relatedness learned from how real-world listeners tag music (AcousticBrainz).',
-    hybrid:
-      'The embedding pulled toward the curated tree: real-world data plus hand-audited lineage.',
-  } as const
+  interface MethodInfo {
+    text: string
+    sources: { label: string; href: string }[]
+  }
+
+  const METHOD_EXPLAINER: Record<keyof typeof METHOD_LABEL, MethodInfo> = {
+    exact: {
+      text: 'Only identical genres match, after alias normalization (DnB = Drum & Bass). Strict but blind to relatedness.',
+      sources: [
+        {
+          label: 'Schreiber 2015',
+          href: 'https://archives.ismir.net/ismir2015/paper/000102.pdf',
+        },
+      ],
+    },
+    lexical: {
+      text: 'Word overlap (token Jaccard): Melodic House ~ House, but not Techno ~ Tech House. No data pack, no opinions.',
+      sources: [
+        {
+          label: 'Tversky 1977',
+          href: 'https://doi.org/10.1037/0033-295X.84.4.327',
+        },
+      ],
+    },
+    graph: {
+      text: 'Shortest path through a curated genre-relation graph (editable JSON in the repo), decaying per step: Techno ~ Tech House. Treats every link as equally long — its known weakness.',
+      sources: [{ label: 'Rada et al. 1989', href: 'https://doi.org/10.1109/21.24528' }],
+    },
+    taxonomy: {
+      text: 'Lin similarity over a rooted genre tree: pairs sharing a deep, specific ancestor (Liquid DnB & Neurofunk) score high; pairs relating only through umbrella nodes (Electronic) score low.',
+      sources: [
+        {
+          label: 'Lin 1998',
+          href: 'https://dl.acm.org/doi/10.5555/645527.657297',
+        },
+      ],
+    },
+    embedding: {
+      text: 'Statistical relatedness learned from ~2M real-world tag co-occurrences (AcousticBrainz), via PPMI + truncated SVD, with mutual-proximity hub correction.',
+      sources: [
+        {
+          label: 'Levy & Goldberg 2014',
+          href: 'https://papers.nips.cc/paper_files/paper/2014/hash/feab05aa91085b7a8012516bc3533958-Abstract.html',
+        },
+        {
+          label: 'Schnitzer et al. 2012',
+          href: 'https://jmlr.org/papers/v13/schnitzer12a.html',
+        },
+      ],
+    },
+    hybrid: {
+      text: 'The embedding retrofitted toward the curated tree: real-world data where it exists, hand-audited lineage where it doesn’t. Best coverage of club subgenres — the recommended method.',
+      sources: [{ label: 'Epure et al. 2020', href: 'https://arxiv.org/abs/2009.07755' }],
+    },
+  }
 
   function onWindowClick(e: MouseEvent) {
     if (open && menuEl && !menuEl.contains(e.target as Node)) open = false
@@ -76,22 +120,59 @@
             {/each}
           </select>
         </label>
-        <p class="hint">{METHOD_EXPLAINER[$criteria.genre.method]}</p>
+        <p class="hint">
+          {METHOD_EXPLAINER[$criteria.genre.method].text}
+          {#each METHOD_EXPLAINER[$criteria.genre.method].sources as source (source.href)}
+            <a href={source.href} target="_blank" rel="noreferrer">[{source.label}]</a>
+          {/each}
+        </p>
         {#if $criteria.genre.method !== 'exact'}
-          <label>
-            Similarity ≥ <strong>{$criteria.genre.threshold.toFixed(2)}</strong>
-            <input
-              type="range"
-              min="0.05"
-              max="1"
-              step="0.05"
-              bind:value={$criteria.genre.threshold}
-            />
+          <label class="row">
+            <input type="radio" value="topk" bind:group={$criteria.genre.mode} />
+            k nearest (mutual)
+            <input type="radio" value="threshold" bind:group={$criteria.genre.mode} />
+            score threshold
           </label>
-          <p class="hint">
-            Lower = looser matching. With the graph method, 0.6 accepts direct relatives, 0.36 two
-            steps apart.
-          </p>
+          {#if $criteria.genre.mode === 'topk'}
+            <label>
+              Link each genre to its <strong>{$criteria.genre.k}</strong> nearest
+              <input type="range" min="1" max="15" step="1" bind:value={$criteria.genre.k} />
+            </label>
+            <label>
+              Minimum score <strong>{$criteria.genre.threshold.toFixed(2)}</strong>
+              <input
+                type="range"
+                min="0.05"
+                max="1"
+                step="0.05"
+                bind:value={$criteria.genre.threshold}
+              />
+            </label>
+            <p class="hint">
+              Genres link when each is in the other's top-k — self-calibrating where genre space is
+              dense (electronic) or sparse; umbrella tags never count as neighbours.
+              <a
+                href="https://jmlr.org/papers/v11/radovanovic10a.html"
+                target="_blank"
+                rel="noreferrer">[Radovanović et al. 2010]</a
+              >
+            </p>
+          {:else}
+            <label>
+              Similarity ≥ <strong>{$criteria.genre.threshold.toFixed(2)}</strong>
+              <input
+                type="range"
+                min="0.05"
+                max="1"
+                step="0.05"
+                bind:value={$criteria.genre.threshold}
+              />
+            </label>
+            <p class="hint">
+              Lower = looser matching. With the graph method, 0.6 accepts direct relatives, 0.36 two
+              steps apart.
+            </p>
+          {/if}
         {/if}
       </section>
 
@@ -233,6 +314,12 @@
     color: var(--ink-muted);
     font-size: 11px;
     margin: 2px 0 0;
+  }
+
+  .hint a {
+    color: var(--ink-secondary);
+    margin-left: 4px;
+    text-decoration: underline dotted;
   }
 
   .load-pack {

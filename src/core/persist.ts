@@ -35,6 +35,10 @@ function migrateCriteria(raw: Record<string, unknown>): CriteriaConfig {
     genre: {
       enabled: genre.enabled ?? defaults.genre.enabled,
       method: genre.method ?? defaults.genre.method,
+      // Projects saved before mutual top-k existed keep their threshold
+      // semantics untouched; only fresh configs default to 'topk'.
+      mode: genre.mode ?? (genre.threshold !== undefined ? 'threshold' : defaults.genre.mode),
+      k: genre.k ?? defaults.genre.k,
       threshold: genre.threshold ?? defaults.genre.threshold,
     },
     year: { ...defaults.year, ...(raw.year as object) },

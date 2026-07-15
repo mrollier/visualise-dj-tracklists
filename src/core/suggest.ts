@@ -1,4 +1,10 @@
-import { computeEdges, evaluateCombo, type CriteriaConfig } from './combos'
+import {
+  computeEdges,
+  evaluateCombo,
+  makeGenreMatcher,
+  type CriteriaConfig,
+  type GenreMatcher,
+} from './combos'
 import { genreSimilarity } from './genre'
 import type { Track } from './model'
 import { mulberry32 } from './random'
@@ -24,8 +30,13 @@ export interface SuggestOptions {
   seed?: number
 }
 
-function scoreCandidate(current: Track, candidate: Track, criteria: CriteriaConfig): number {
-  const matched = evaluateCombo(current, candidate, criteria).matched.length
+function scoreCandidate(
+  current: Track,
+  candidate: Track,
+  criteria: CriteriaConfig,
+  genreMatch: GenreMatcher,
+): number {
+  const matched = evaluateCombo(current, candidate, criteria, genreMatch).matched.length
   const genre =
     current.genre !== null && candidate.genre !== null
       ? genreSimilarity(current.genre, candidate.genre, criteria.genre.method)
@@ -83,13 +94,15 @@ function rankedCandidates(
   byId: Map<string, Track>,
   used: ReadonlySet<string>,
   criteria: CriteriaConfig,
+  genreMatch: GenreMatcher,
   scoreExtra?: (candidate: Track) => number,
 ): { item: string; score: number }[] {
   return (neighbours.get(current.id) ?? [])
     .filter((id) => !used.has(id))
     .map((id) => {
       const candidate = byId.get(id)!
-      const score = scoreCandidate(current, candidate, criteria) + (scoreExtra?.(candidate) ?? 0)
+      const score =
+        scoreCandidate(current, candidate, criteria, genreMatch) + (scoreExtra?.(candidate) ?? 0)
       return { item: id, score }
     })
     .sort((a, b) => b.score - a.score || a.item.localeCompare(b.item))
@@ -105,6 +118,10 @@ export function suggestWalk(
 
   const byId = new Map(tracks.map((t) => [t.id, t]))
   const neighbours = buildNeighbours(tracks, criteria)
+  const genreMatch = makeGenreMatcher(
+    tracks.map((t) => t.genre),
+    criteria,
+  )
   const rand = mulberry32(seed)
 
   const start = seedId !== null && byId.has(seedId) ? seedId : bestConnected(tracks, neighbours)
@@ -113,7 +130,7 @@ export function suggestWalk(
   const visited = new Set([start])
   while (walk.length < length) {
     const current = byId.get(walk[walk.length - 1])!
-    const candidates = rankedCandidates(current, neighbours, byId, visited, criteria)
+    const candidates = rankedCandidates(current, neighbours, byId, visited, criteria, genreMatch)
     if (candidates.length === 0) break
     const next = pick(candidates, randomness, rand)
     walk.push(next)
@@ -146,6 +163,10 @@ export function suggestNext(
 
   const byId = new Map(tracks.map((t) => [t.id, t]))
   const neighbours = buildNeighbours(tracks, criteria)
+  const genreMatch = makeGenreMatcher(
+    tracks.map((t) => t.genre),
+    criteria,
+  )
 
   if (tracklist.length === 0) {
     const trackId =
@@ -162,8 +183,15 @@ export function suggestNext(
   const successor = byId.get(tracklist[anchorIndex + 1] ?? '')
 
   const used = new Set(tracklist)
-  const candidates = rankedCandidates(anchor, neighbours, byId, used, criteria, (candidate) =>
-    successor !== undefined ? scoreCandidate(candidate, successor, criteria) : 0,
+  const candidates = rankedCandidates(
+    anchor,
+    neighbours,
+    byId,
+    used,
+    criteria,
+    genreMatch,
+    (candidate) =>
+      successor !== undefined ? scoreCandidate(candidate, successor, criteria, genreMatch) : 0,
   )
   if (candidates.length === 0) return null
 

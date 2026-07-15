@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { genreSimilarity, normalizeGenre } from '../src/core/genre'
+import { genreComponents, genreSimilarity, normalizeGenre } from '../src/core/genre'
 
 describe('normalizeGenre', () => {
   test('lowercases, trims, and unifies separators', () => {
@@ -15,6 +15,35 @@ describe('normalizeGenre', () => {
     expect(normalizeGenre('RnB')).toBe('r&b')
     expect(normalizeGenre('Hip-Hop')).toBe('hip hop')
     expect(normalizeGenre('Psy Trance')).toBe('psytrance')
+  })
+})
+
+describe('genreComponents', () => {
+  test('plain labels stay whole', () => {
+    expect(genreComponents('Deep House')).toEqual(['deep house'])
+    // '&' is never a separator: these are atomic genre names.
+    expect(genreComponents('Drum & Bass')).toEqual(['drum & bass'])
+  })
+
+  test('splits multi-genre fields on slashes and commas', () => {
+    expect(genreComponents('House / Techno')).toEqual(['house', 'techno'])
+    expect(genreComponents('Melodic House, Techno')).toEqual(['melodic house', 'techno'])
+  })
+
+  test('known compound labels resolve as aliases instead of splitting', () => {
+    // "Organic House / Downtempo" is a Beatport category, not two genres.
+    expect(genreComponents('Organic House / Downtempo')).toEqual(['organic house'])
+  })
+})
+
+describe('genreSimilarity: multi-genre fields', () => {
+  test('takes the best component pair', () => {
+    // "House / Techno" contains techno, so it must match Minimal Techno as
+    // well as plain "Techno" does.
+    const compound = genreSimilarity('House / Techno', 'Minimal Techno', 'taxonomy')
+    const plain = genreSimilarity('Techno', 'Minimal Techno', 'taxonomy')
+    expect(compound).toBe(plain)
+    expect(genreSimilarity('House / Techno', 'Techno', 'exact')).toBe(1)
   })
 })
 

@@ -69,9 +69,13 @@
         <input type="checkbox" bind:checked={$criteria.genre.enabled} />
         Genre
         <span class="hint">
-          {$criteria.genre.method === 'exact'
-            ? 'same genre'
-            : `similar (${$criteria.genre.method})`}
+          {#if $criteria.genre.method === 'exact'}
+            same genre
+          {:else if $criteria.genre.mode === 'topk'}
+            top-{$criteria.genre.k} mutual ({$criteria.genre.method})
+          {:else}
+            ≥ {$criteria.genre.threshold.toFixed(2)} ({$criteria.genre.method})
+          {/if}
         </span>
       </label>
     </div>
