@@ -40,12 +40,6 @@
         <input type="checkbox" bind:checked={$criteria.key.enabled} />
         Key <span class="hint">adjacent on the wheel</span>
       </label>
-      {#if $criteria.key.enabled}
-        <label class="sub">
-          <input type="checkbox" bind:checked={$criteria.key.advancedMoves} />
-          allow +2 / +7-semitone moves
-        </label>
-      {/if}
     </div>
 
     <div class="criterion">
@@ -65,7 +59,12 @@
     <div class="criterion">
       <label>
         <input type="checkbox" bind:checked={$criteria.genre.enabled} />
-        Genre <span class="hint">same genre</span>
+        Genre
+        <span class="hint">
+          {$criteria.genre.method === 'exact'
+            ? 'same genre'
+            : `similar (${$criteria.genre.method})`}
+        </span>
       </label>
     </div>
 

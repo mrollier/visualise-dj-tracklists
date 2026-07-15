@@ -16,6 +16,7 @@
     selectedId,
     tracklist,
   } from '../stores'
+  import AdvancedMenu from './AdvancedMenu.svelte'
   import { applyProject, currentProject } from './persistence'
 
   const AUDIO_EXTENSIONS = /\.(mp3|wav|flac|aiff?|m4a|ogg)$/i
@@ -155,6 +156,7 @@
     />
     <button onclick={loadSample}>Load sample</button>
     <button onclick={saveProject} disabled={$library.length === 0}>Save project</button>
+    <AdvancedMenu />
   </div>
 
   <div class="status">

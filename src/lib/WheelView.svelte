@@ -84,7 +84,7 @@
       if (!byBand.has(band)) byBand.set(band, [])
       byBand.get(band)!.push(track)
     }
-    for (const [band, group] of byBand) {
+    for (const [, group] of byBand) {
       group.forEach((track, i) => {
         const value = track[$radialAxis]
         const y = value === null ? gutterBottom + GUTTER_MISSING_Y_GAP : gutterY(value)

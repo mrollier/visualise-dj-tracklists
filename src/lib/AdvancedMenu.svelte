@@ -1,0 +1,170 @@
+<script lang="ts">
+  import { GENRE_METHODS } from '../core/genre'
+  import { criteria, settings } from '../stores'
+
+  let open = $state(false)
+  let menuEl: HTMLDivElement | undefined = $state()
+
+  const METHOD_LABEL = {
+    exact: 'Exact match',
+    lexical: 'Lexical (word overlap)',
+    graph: 'Genre graph (curated relations)',
+    embedding: 'Embedding (co-occurrence pack)',
+  } as const
+
+  function onWindowClick(e: MouseEvent) {
+    if (open && menuEl && !menuEl.contains(e.target as Node)) open = false
+  }
+</script>
+
+<svelte:window
+  onclick={onWindowClick}
+  onkeydown={(e) => {
+    if (e.key === 'Escape') open = false
+  }}
+/>
+
+<div class="advanced" bind:this={menuEl}>
+  <button
+    aria-haspopup="true"
+    aria-expanded={open}
+    title="Advanced options"
+    onclick={() => (open = !open)}
+  >
+    ⚙ Advanced
+  </button>
+
+  {#if open}
+    <div class="panel" role="menu">
+      <section>
+        <h3>Genre matching</h3>
+        <label>
+          Method
+          <select bind:value={$criteria.genre.method}>
+            {#each GENRE_METHODS as method (method)}
+              <option value={method}>{METHOD_LABEL[method]}</option>
+            {/each}
+          </select>
+        </label>
+        {#if $criteria.genre.method !== 'exact'}
+          <label>
+            Similarity ≥ <strong>{$criteria.genre.threshold.toFixed(2)}</strong>
+            <input
+              type="range"
+              min="0.05"
+              max="1"
+              step="0.05"
+              bind:value={$criteria.genre.threshold}
+            />
+          </label>
+          <p class="hint">
+            Lower = looser matching. With the graph method, 0.6 accepts direct relatives, 0.36 two
+            steps apart.
+          </p>
+        {/if}
+      </section>
+
+      <section>
+        <h3>Key</h3>
+        <label class="row">
+          <input type="checkbox" bind:checked={$criteria.key.advancedMoves} />
+          allow +2 / +7-semitone moves
+        </label>
+      </section>
+
+      <section>
+        <h3>Display</h3>
+        <label>
+          Colour scheme
+          <select bind:value={$settings.colorScheme}>
+            <option value="blue">Blue</option>
+            <option value="aqua">Aqua</option>
+            <option value="violet">Violet</option>
+          </select>
+        </label>
+        <label>
+          Same-key spread <strong>{$settings.slotSpreadDeg}°</strong>
+          <input type="range" min="0" max="20" step="1" bind:value={$settings.slotSpreadDeg} />
+        </label>
+        <label>
+          Edge opacity <strong>{$settings.edgeOpacity.toFixed(2)}</strong>
+          <input type="range" min="0.05" max="0.9" step="0.05" bind:value={$settings.edgeOpacity} />
+        </label>
+      </section>
+
+      <section>
+        <h3>Suggestions</h3>
+        <label>
+          Suggested set length
+          <input type="number" min="2" max="99" bind:value={$settings.suggestLength} />
+        </label>
+      </section>
+    </div>
+  {/if}
+</div>
+
+<style>
+  .advanced {
+    position: relative;
+  }
+
+  .panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 20;
+    width: 280px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+  }
+
+  section {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--grid);
+  }
+
+  section:last-child {
+    border-bottom: none;
+  }
+
+  h3 {
+    margin: 0 0 6px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-muted);
+  }
+
+  label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 3px 0;
+    font-size: 13px;
+    flex-wrap: wrap;
+  }
+
+  label.row {
+    justify-content: flex-start;
+  }
+
+  input[type='range'] {
+    width: 100%;
+    padding: 0;
+  }
+
+  input[type='number'] {
+    width: 64px;
+    padding: 2px 6px;
+  }
+
+  .hint {
+    color: var(--ink-muted);
+    font-size: 11px;
+    margin: 2px 0 0;
+  }
+</style>
