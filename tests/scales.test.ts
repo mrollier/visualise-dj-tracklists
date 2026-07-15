@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { COLOR_SCHEMES, makeNodeColor, MISSING_COLORS } from '../src/core/scales'
+import { COLOR_SCHEMES, makeNodeColor, MISSING_COLORS, radialDomain } from '../src/core/scales'
 
 describe('makeNodeColor', () => {
   test('rating uses the ordinal ramp: 0 first step, 5 last step, null missing', () => {
@@ -44,5 +44,24 @@ describe('makeNodeColor', () => {
         for (const hex of ramp) expect(hex).toMatch(/^#[0-9a-f]{6}$/)
       }
     }
+  })
+})
+
+describe('radialDomain', () => {
+  test('an active filter range wins over the library extent', () => {
+    expect(radialDomain([122, 128], [90, 180])).toEqual([122, 128])
+  })
+
+  test('falls back to the extent when the filter is inactive', () => {
+    expect(radialDomain(null, [90, 180])).toEqual([90, 180])
+  })
+
+  test('no filter and no extent yields a safe default', () => {
+    expect(radialDomain(null, null)).toEqual([0, 1])
+  })
+
+  test('degenerate domains are widened so ticks behave', () => {
+    expect(radialDomain([128, 128], null)).toEqual([127, 129])
+    expect(radialDomain(null, [2020, 2020])).toEqual([2019, 2021])
   })
 })

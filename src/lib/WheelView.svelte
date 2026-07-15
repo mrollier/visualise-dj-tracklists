@@ -1,6 +1,8 @@
 <script lang="ts">
   import { scaleLinear } from 'd3-scale'
   import { select as d3select } from 'd3-selection'
+  import { cubicOut } from 'svelte/easing'
+  import { Tween } from 'svelte/motion'
   import {
     symbol,
     symbolCircle,
@@ -16,16 +18,18 @@
   import { ALL_CAMELOT_KEYS, wheelSlotAngleDeg, type CamelotKey } from '../core/keys'
   import { annularSectorPath, slotAngleOffsets } from '../core/layout'
   import type { Track } from '../core/model'
-  import { COLOR_SCHEMES, makeNodeColor, MISSING_COLORS } from '../core/scales'
+  import { COLOR_SCHEMES, makeNodeColor, MISSING_COLORS, radialDomain } from '../core/scales'
   import { effectiveTheme } from './theme'
   import { suggestNext } from '../core/suggest'
   import {
     criteria,
     edges,
     effectiveColorAxis,
+    filters,
     genreClasses,
     library,
     neighbours,
+    playlistScopedLibrary,
     radialAxis,
     rightPanel,
     selectedId,
@@ -95,27 +99,48 @@
     return { x: CX + r * Math.cos(rad), y: CY + r * Math.sin(rad) }
   }
 
-  // The wheel's frame (radial scale, ticks, colour domain) derives from the
-  // FULL library: filtering adds/removes nodes on a static background and must
-  // never rescale the axes (design-v5 §A).
+  // The radial axis is the one part of the frame that rescales: its domain
+  // follows the active filter for the radial metric, falling back to the
+  // playlist selection's extent (design-v6 §A). Everything else — angles,
+  // symbols, colour domain — stays put. The domain is niced up front and its
+  // endpoints tweened, so rings, ticks and nodes glide instead of jumping.
   const radialValues = $derived(
-    $library.map((t) => t[$radialAxis]).filter((v): v is number => v !== null),
+    $playlistScopedLibrary.map((t) => t[$radialAxis]).filter((v): v is number => v !== null),
   )
 
-  const radialScale = $derived.by(() => {
-    const lo = Math.min(...radialValues)
-    const hi = Math.max(...radialValues)
-    return scaleLinear()
-      .domain(lo === hi ? [lo - 1, hi + 1] : [lo, hi])
-      .range([R_MIN, R_MAX])
-      .nice()
+  const targetDomain = $derived.by((): [number, number] => {
+    const extent: [number, number] | null =
+      radialValues.length === 0 ? null : [Math.min(...radialValues), Math.max(...radialValues)]
+    const domain = radialDomain($filters[$radialAxis], extent)
+    // Nice once here (not per animation frame — nicing interpolated
+    // endpoints would make the tween judder in rounded steps).
+    return scaleLinear().domain(domain).nice().domain() as [number, number]
   })
+
+  // Deliberately seeds the tween with the initial domain (no mount
+  // animation); the $effect below keeps it tracking changes.
+  // svelte-ignore state_referenced_locally
+  const domainTween = new Tween<[number, number]>(targetDomain, {
+    duration: 350,
+    easing: cubicOut,
+  })
+  $effect(() => {
+    domainTween.target = targetDomain
+  })
+
+  // Clamped: mid-tween (and for filtered-out tracks that are placed but
+  // never rendered) values outside the domain must not overshoot the band.
+  const radialScale = $derived(
+    scaleLinear().domain(domainTween.current).range([R_MIN, R_MAX]).clamp(true),
+  )
 
   // Ratings and years are inherently whole — a ring at "4.6 stars" means
   // nothing, so fractional ticks are dropped for those axes (remark 14).
+  // Tick values come from the settled target domain (labels don't churn
+  // mid-animation); their positions ride the animated scale.
   const gridTicks = $derived.by(() => {
-    if (radialValues.length === 0) return []
-    const ticks = radialScale.ticks(4)
+    if (radialValues.length === 0 && $filters[$radialAxis] === null) return []
+    const ticks = scaleLinear().domain(targetDomain).ticks(4)
     return $radialAxis === 'bpm' ? ticks : ticks.filter(Number.isInteger)
   })
 
@@ -126,12 +151,15 @@
   const gutterTop = $derived(CY - (R_MAX - R_MIN) / 2)
   const gutterBottom = $derived(CY + (R_MAX - R_MIN) / 2)
 
+  // Placement runs over the FULL library so every track's angle (and gutter
+  // slot) is independent of the filters: filtering only makes nodes appear
+  // or disappear, leaving gaps in the fans — nothing moves (design-v6 §A).
   const nodes = $derived.by(() => {
     const placed: PlacedNode[] = []
 
     // Tracks without a key live in the gutter, still positioned by the radial
     // value (remark 3: a missing key must not hide a known BPM/year/rating).
-    const unkeyed = $visibleLibrary
+    const unkeyed = $library
       .filter((t) => t.key === null)
       .sort((a, b) => (b[$radialAxis] ?? -1) - (a[$radialAxis] ?? -1) || a.id.localeCompare(b.id))
     // Plain Maps on purpose throughout this computation: derived-local
@@ -155,10 +183,11 @@
     }
 
     // Keyed tracks: group per slot and fan out so same-key tracks with a
-    // similar radius stay individually hoverable.
+    // similar radius stay individually hoverable. Sorted by raw value (not
+    // scaled radius), so the ordering is independent of the radial domain.
     // eslint-disable-next-line svelte/prefer-svelte-reactivity
     const bySlot = new Map<string, Track[]>()
-    for (const track of $visibleLibrary) {
+    for (const track of $library) {
       if (track.key === null) continue
       if (!bySlot.has(track.key)) bySlot.set(track.key, [])
       bySlot.get(track.key)!.push(track)
@@ -178,7 +207,11 @@
     return placed
   })
 
-  const nodeById = $derived(new Map(nodes.map((n) => [n.track.id, n])))
+  const visibleIds = $derived(new Set($visibleLibrary.map((t) => t.id)))
+  /** Only the visible placements are ever rendered or hit-tested. */
+  const visibleNodes = $derived(nodes.filter((n) => visibleIds.has(n.track.id)))
+
+  const nodeById = $derived(new Map(visibleNodes.map((n) => [n.track.id, n])))
 
   const colorDomain = $derived.by((): [number, number] => {
     const values = $library
@@ -188,7 +221,7 @@
     return [Math.min(...values), Math.max(...values)]
   })
 
-  /** Tracks per genre class among the *visible* nodes — greys out legend chips. */
+  /** Tracks per genre class among the *visible* nodes. */
   const visibleClassCounts = $derived.by(() => {
     // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived-local
     const counts = new Map<number, number>()
@@ -198,6 +231,18 @@
     }
     return counts
   })
+
+  /**
+   * Genre classes actually present among the visible nodes: the legend shows
+   * only these, and disappears entirely when the symbols carry no distinction
+   * (design-v6 §B). Symbol assignment still indexes the full-library classes,
+   * so a genre keeps its shape while classes come and go.
+   */
+  const visibleClasses = $derived(
+    ($genreClasses?.classes ?? [])
+      .map((cls, index) => ({ cls, index, visible: visibleClassCounts.get(index) ?? 0 }))
+      .filter((entry) => entry.visible > 0),
+  )
 
   const nodeColor = $derived(
     makeNodeColor($effectiveColorAxis, colorDomain, $settings.colorScheme, $effectiveTheme),
@@ -245,8 +290,8 @@
     return [t.key ?? '—', t.bpm !== null ? `${t.bpm} BPM` : '—', t.genre ?? '—'].join(' · ')
   }
 
-  const hasUnkeyed = $derived(nodes.some((n) => n.unkeyed))
-  const hasMissingRadial = $derived(nodes.some((n) => !n.unkeyed && n.missingRadial))
+  const hasUnkeyed = $derived(visibleNodes.some((n) => n.unkeyed))
+  const hasMissingRadial = $derived(visibleNodes.some((n) => !n.unkeyed && n.missingRadial))
 
   // --- zoom & pan (remark 10) ---
   let svgEl: SVGSVGElement
@@ -468,7 +513,7 @@
       {/each}
 
       <!-- Nodes -->
-      {#each nodes as node (node.track.id)}
+      {#each visibleNodes as node (node.track.id)}
         <g
           class="node"
           opacity={nodeOpacity(node)}
@@ -497,14 +542,19 @@
         </g>
       {/each}
     </g>
-  </svg>
 
-  {#if $visibleLibrary.length === 0}
-    <div class="no-visible">
-      <strong>Nothing to show yet.</strong>
-      <span>Select a playlist or loosen the filters on the left to populate the wheel.</span>
-    </div>
-  {/if}
+    <!-- Empty hint: anchored to the wheel's true centre (CX, CY) inside the
+         viewBox, so it tracks the rendered scale and ignores the gutter.
+         Outside the zoom layer: an empty-state shouldn't pan away. -->
+    {#if $visibleLibrary.length === 0}
+      <foreignObject x={CX - 190} y={CY - 70} width="380" height="140">
+        <div class="no-visible">
+          <strong>Nothing to show yet.</strong>
+          <span>Select a playlist or loosen the filters on the left to populate the wheel.</span>
+        </div>
+      </foreignObject>
+    {/if}
+  </svg>
 
   <!-- Zoom controls -->
   <div class="zoom-controls">
@@ -527,15 +577,12 @@
       <span class="chip">{colorDomain[1]}</span>
     {/if}
     <span class="chip"><i style="background: {MISSING_COLORS[$effectiveTheme]}"></i>missing</span>
-    {#if $genreClasses !== null}
-      {#each $genreClasses.classes as cls, i (cls.label)}
-        {@const visible = visibleClassCounts.get(i) ?? 0}
-        <span
-          class="chip shape-chip"
-          class:dimmed={visible === 0}
-          title="{visible} of {cls.size} tracks visible"
-        >
-          <svg width="12" height="12" viewBox="-6 -6 12 12"><path d={shapePath(i, 4)} /></svg>
+    <!-- Only the classes with visible tracks, and only when the symbols
+         actually distinguish something (design-v6 §B). -->
+    {#if visibleClasses.length > 1}
+      {#each visibleClasses as { cls, index, visible } (cls.label)}
+        <span class="chip shape-chip" title="{visible} of {cls.size} tracks visible">
+          <svg width="12" height="12" viewBox="-6 -6 12 12"><path d={shapePath(index, 4)} /></svg>
           {cls.label}
         </span>
       {/each}
@@ -584,23 +631,23 @@
     height: 100%;
   }
 
+  /* Lives inside a foreignObject: styles are explicit (no HTML-body
+     inheritance) and the box fills the anchored rect around (CX, CY). */
   .no-visible {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
+    height: 100%;
     display: flex;
     flex-direction: column;
     gap: 4px;
     align-items: center;
+    justify-content: center;
     text-align: center;
     color: var(--ink-secondary);
+    font-family: inherit;
     background: var(--surface-raised);
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 14px 20px;
     font-size: 13px;
-    max-width: 320px;
   }
 
   .gridline {
@@ -781,11 +828,6 @@
 
   .shape-chip {
     white-space: nowrap;
-  }
-
-  /* Class fully filtered out: the chip stays (stable legend), just greyed. */
-  .shape-chip.dimmed {
-    opacity: 0.35;
   }
 
   .shape-chip svg {

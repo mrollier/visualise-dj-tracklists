@@ -31,6 +31,20 @@ export const MISSING_COLORS: Record<ThemeName, string> = {
   light: '#a3a199',
 }
 
+/**
+ * Domain of the wheel's radial scale: the active filter range for the radial
+ * metric when the user set one, else the current selection's extent (the
+ * radial axis rescales with the filter — design-v6 §A; everything else on
+ * the wheel stays put). Degenerate domains widen by ±1 so ticks behave.
+ */
+export function radialDomain(
+  filterRange: [number, number] | null,
+  extent: [number, number] | null,
+): [number, number] {
+  const [lo, hi] = filterRange ?? extent ?? [0, 1]
+  return lo === hi ? [lo - 1, hi + 1] : [lo, hi]
+}
+
 export function makeNodeColor(
   axis: 'rating' | 'bpm' | 'year',
   domain: [number, number],
