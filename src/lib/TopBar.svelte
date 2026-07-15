@@ -4,6 +4,7 @@
   import { trackFromTags } from '../core/importers/id3'
   import { importM3u, rematchAfterImport } from '../core/importers/m3u'
   import { importRekordboxXml } from '../core/importers/rekordbox'
+  import { importRekordboxTxt, isRekordboxTxt } from '../core/importers/rekordboxTxt'
   import { buildReport, type ImportResult } from '../core/model'
   import { parseProject, serializeProject } from '../core/persist'
   import { ALL_SAMPLE_PACKS } from '../data/samples'
@@ -65,6 +66,22 @@
         applyProject(parseProject(await first.text()))
         lastImportReport.set(null)
         return
+      }
+      if (first.name.toLowerCase().endsWith('.txt')) {
+        const buffer = await first.arrayBuffer()
+        if (isRekordboxTxt(buffer)) {
+          // A Rekordbox playlist TXT carries full metadata in playlist order:
+          // it becomes the library AND the set (design-v5 §D).
+          const result = importRekordboxTxt(buffer)
+          library.set(result.tracks)
+          libraryName.set(first.name)
+          tracklist.set(result.tracks.map((t) => t.id))
+          selectedId.set(null)
+          lastImportReport.set(result.report)
+          resetSuggestions()
+          return
+        }
+        // A plain .txt falls through to the CSV importer below.
       }
       if (/\.m3u8?$/i.test(first.name)) {
         // Playlist import: becomes the set, matched against the loaded library.
