@@ -24,6 +24,7 @@
     edges,
     effectiveColorAxis,
     genreClasses,
+    library,
     neighbours,
     radialAxis,
     selectedId,
@@ -93,8 +94,11 @@
     return { x: CX + r * Math.cos(rad), y: CY + r * Math.sin(rad) }
   }
 
+  // The wheel's frame (radial scale, ticks, colour domain) derives from the
+  // FULL library: filtering adds/removes nodes on a static background and must
+  // never rescale the axes (design-v5 §A).
   const radialValues = $derived(
-    $visibleLibrary.map((t) => t[$radialAxis]).filter((v): v is number => v !== null),
+    $library.map((t) => t[$radialAxis]).filter((v): v is number => v !== null),
   )
 
   const radialScale = $derived.by(() => {
@@ -166,11 +170,21 @@
   const nodeById = $derived(new Map(nodes.map((n) => [n.track.id, n])))
 
   const colorDomain = $derived.by((): [number, number] => {
-    const values = $visibleLibrary
+    const values = $library
       .map((t) => t[$effectiveColorAxis])
       .filter((v): v is number => v !== null)
     if (values.length === 0) return [0, 1]
     return [Math.min(...values), Math.max(...values)]
+  })
+
+  /** Tracks per genre class among the *visible* nodes — greys out legend chips. */
+  const visibleClassCounts = $derived.by(() => {
+    const counts = new SvelteMap<number, number>()
+    for (const track of $visibleLibrary) {
+      const index = classIndexOf(track)
+      if (index !== null) counts.set(index, (counts.get(index) ?? 0) + 1)
+    }
+    return counts
   })
 
   const nodeColor = $derived(makeNodeColor($effectiveColorAxis, colorDomain, $settings.colorScheme))
@@ -489,7 +503,12 @@
     <span class="chip"><i style="background: {MISSING_COLOR}"></i>missing</span>
     {#if $genreClasses !== null}
       {#each $genreClasses.classes as cls, i (cls.label)}
-        <span class="chip shape-chip" title="{cls.size} tracks">
+        {@const visible = visibleClassCounts.get(i) ?? 0}
+        <span
+          class="chip shape-chip"
+          class:dimmed={visible === 0}
+          title="{visible} of {cls.size} tracks visible"
+        >
           <svg width="12" height="12" viewBox="-6 -6 12 12"><path d={shapePath(i, 4)} /></svg>
           {cls.label}
         </span>
@@ -711,6 +730,11 @@
 
   .shape-chip {
     white-space: nowrap;
+  }
+
+  /* Class fully filtered out: the chip stays (stable legend), just greyed. */
+  .shape-chip.dimmed {
+    opacity: 0.35;
   }
 
   .shape-chip svg {

@@ -75,12 +75,16 @@ export const genreMatcher = derived([visibleLibrary, criteria], ([$visibleLibrar
   ),
 )
 
-/** Genre classes (node shapes), clustered in the selected similarity space. */
+/**
+ * Genre classes (node shapes), clustered in the selected similarity space.
+ * Derived from the FULL library, not the filtered view: filtering must never
+ * re-cluster — a genre keeps its symbol while nodes come and go (design-v5 §A).
+ */
 export const genreClasses = derived(
-  [visibleLibrary, criteria, settings],
-  ([$visibleLibrary, $criteria, $settings]) =>
+  [library, criteria, settings],
+  ([$library, $criteria, $settings]) =>
     computeGenreClasses(
-      $visibleLibrary.map((t) => t.genre),
+      $library.map((t) => t.genre),
       $criteria.genre.method,
       $settings.maxGenreClasses,
     ),
