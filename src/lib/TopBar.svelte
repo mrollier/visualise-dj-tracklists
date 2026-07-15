@@ -13,6 +13,7 @@
     library,
     libraryName,
     radialAxis,
+    resetSuggestions,
     selectedId,
     tracklist,
   } from '../stores'
@@ -92,6 +93,7 @@
       lastImportReport.set(report)
       tracklist.set(rematch.tracklist)
       selectedId.set(null)
+      resetSuggestions()
     } catch (e) {
       importError = e instanceof Error ? e.message : String(e)
     } finally {
@@ -122,6 +124,7 @@
     lastImportReport.set(null)
     tracklist.set([])
     selectedId.set(null)
+    resetSuggestions()
   }
 
   const missingSummary = $derived.by(() => {

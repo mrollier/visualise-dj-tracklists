@@ -1,9 +1,25 @@
 <script lang="ts">
   import { GENRE_METHODS } from '../core/genre'
-  import { criteria, settings } from '../stores'
+  import { SAMPLE_PACKS } from '../data/samples'
+  import { criteria, library, libraryName, settings } from '../stores'
+  import { loadSamplePack } from './persistence'
 
   let open = $state(false)
   let menuEl: HTMLDivElement | undefined = $state()
+  let packId = $state(SAMPLE_PACKS[0].id)
+
+  const selectedPack = $derived(SAMPLE_PACKS.find((p) => p.id === packId) ?? SAMPLE_PACKS[0])
+
+  function loadPack() {
+    const overwritingOwnWork = $library.length > 0 && !$libraryName.toLowerCase().includes('sample')
+    if (
+      overwritingOwnWork &&
+      !confirm(`Replace the current library and set with "${selectedPack.name}"?`)
+    ) {
+      return
+    }
+    loadSamplePack(selectedPack)
+  }
 
   const METHOD_LABEL = {
     exact: 'Exact match',
@@ -130,6 +146,20 @@
           always counts in the ranking.
         </p>
       </section>
+
+      <section>
+        <h3>Sample libraries</h3>
+        <label>
+          Pack
+          <select bind:value={packId}>
+            {#each SAMPLE_PACKS as p (p.id)}
+              <option value={p.id}>{p.name}</option>
+            {/each}
+          </select>
+        </label>
+        <p class="hint">{selectedPack.description}</p>
+        <button class="load-pack" onclick={loadPack}>Load pack + demo set</button>
+      </section>
     </div>
   {/if}
 </div>
@@ -197,5 +227,11 @@
     color: var(--ink-muted);
     font-size: 11px;
     margin: 2px 0 0;
+  }
+
+  .load-pack {
+    margin-top: 6px;
+    width: 100%;
+    font-size: 12px;
   }
 </style>

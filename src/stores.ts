@@ -26,6 +26,12 @@ export const tracklist = writable<string[]>([])
 export const suggestionHistory = writable<string[][]>([])
 export const suggestionIndex = writable(-1)
 
+/** Clear the suggestion history — call whenever the library is replaced. */
+export function resetSuggestions(): void {
+  suggestionHistory.set([])
+  suggestionIndex.set(-1)
+}
+
 /** The filtered library: what the wheel, edges and suggestions operate on. */
 export const visibleLibrary = derived([library, filters], ([$library, $filters]) =>
   applyFilters($library, $filters),

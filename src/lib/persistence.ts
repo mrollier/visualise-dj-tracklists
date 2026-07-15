@@ -3,13 +3,16 @@ import { DEFAULT_CRITERIA } from '../core/combos'
 import { EMPTY_FILTERS } from '../core/filter'
 import { parseProject, serializeProject, type Project } from '../core/persist'
 import { DEFAULT_SETTINGS } from '../core/settings'
+import type { SamplePack } from '../data/samples'
 import {
   colorAxis,
   criteria,
   filters,
+  lastImportReport,
   library,
   libraryName,
   radialAxis,
+  resetSuggestions,
   selectedId,
   settings,
   suggestionHistory,
@@ -43,6 +46,17 @@ export function applyProject(project: Project): void {
   radialAxis.set(project.radialAxis)
   colorAxis.set(project.colorAxis)
   selectedId.set(null)
+}
+
+/** Load a themed sample pack: library plus its demo set. */
+export function loadSamplePack(pack: SamplePack): void {
+  library.set(pack.tracks)
+  libraryName.set(`${pack.name} (sample)`)
+  tracklist.set(pack.set)
+  filters.set(structuredClone(EMPTY_FILTERS))
+  lastImportReport.set(null)
+  selectedId.set(null)
+  resetSuggestions()
 }
 
 /** Restore the autosaved project, if any. Returns whether something loaded. */
