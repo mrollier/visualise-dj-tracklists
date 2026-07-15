@@ -84,7 +84,7 @@
         </label>
         <label>
           Same-key spread <strong>{$settings.slotSpreadDeg}°</strong>
-          <input type="range" min="0" max="20" step="1" bind:value={$settings.slotSpreadDeg} />
+          <input type="range" min="0" max="15" step="1" bind:value={$settings.slotSpreadDeg} />
         </label>
         <label>
           Edge opacity <strong>{$settings.edgeOpacity.toFixed(2)}</strong>

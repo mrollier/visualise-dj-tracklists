@@ -3,7 +3,7 @@
   import { select as d3select } from 'd3-selection'
   import { zoom as d3zoom, zoomIdentity, type D3ZoomEvent } from 'd3-zoom'
   import { ALL_CAMELOT_KEYS, wheelSlotAngleDeg, type CamelotKey } from '../core/keys'
-  import { slotAngleOffsets } from '../core/layout'
+  import { annularSectorPath, slotAngleOffsets } from '../core/layout'
   import type { Track } from '../core/model'
   import { COLOR_SCHEMES, makeNodeColor, MISSING_COLOR } from '../core/scales'
   import { SvelteMap, SvelteSet } from 'svelte/reactivity'
@@ -175,10 +175,14 @@
   // --- zoom & pan (remark 10) ---
   let svgEl: SVGSVGElement
   let zoomTransform = $state('translate(0,0) scale(1)')
+  // Node disks keep a constant screen size while zooming (their radii are
+  // divided by k): zooming exists to resolve detail, not to inflate markers.
+  let zoomK = $state(1)
   const zoomBehavior = d3zoom<SVGSVGElement, unknown>()
     .scaleExtent([0.5, 8])
     .on('zoom', (e: D3ZoomEvent<SVGSVGElement, unknown>) => {
       zoomTransform = e.transform.toString()
+      zoomK = e.transform.k
     })
 
   $effect(() => {
@@ -220,25 +224,55 @@
     <g class="zoom-layer" transform={zoomTransform}>
       <!-- Radial grid + tick labels -->
       {#each gridTicks as tick (tick)}
-        <circle cx={CX} cy={CY} r={radialScale(tick)} class="gridline" />
+        <circle
+          cx={CX}
+          cy={CY}
+          r={radialScale(tick)}
+          class="gridline"
+          vector-effect="non-scaling-stroke"
+        />
         <text x={CX + 6} y={CY - radialScale(tick) - 4} class="tick-label">{tick}</text>
       {/each}
       {#if hasMissingRadial}
-        <circle cx={CX} cy={CY} r={R_FALLBACK} class="gridline dashed" />
+        <circle
+          cx={CX}
+          cy={CY}
+          r={R_FALLBACK}
+          class="gridline dashed"
+          vector-effect="non-scaling-stroke"
+        />
         <text x={CX} y={CY - R_FALLBACK - 8} class="zone-label" text-anchor="middle">
           no {AXIS_LABEL[$radialAxis]} value
         </text>
       {/if}
 
-      <!-- Sector boundaries between Camelot numbers -->
-      {#each Array.from({ length: 12 }, (_, i) => i * 30) as boundary (boundary)}
+      <!-- Key sector backgrounds: subtle minor (A) vs major (B) tint per slot -->
+      {#each ALL_CAMELOT_KEYS as key (key)}
+        {@const centre = wheelSlotAngleDeg(key)}
+        <path
+          d={annularSectorPath(CX, CY, centre - 7.5, centre + 7.5, R_MIN - 30, R_MAX + 12)}
+          class="sector"
+          class:major={key.endsWith('B')}
+        />
+      {/each}
+
+      <!-- One radial line per key slot; number boundaries slightly stronger -->
+      {#each Array.from({ length: 24 }, (_, i) => i * 15) as boundary (boundary)}
         {@const inner = polar(boundary, R_MIN - 30)}
         {@const outer = polar(boundary, R_MAX + 12)}
-        <line x1={inner.x} y1={inner.y} x2={outer.x} y2={outer.y} class="spoke" />
+        <line
+          x1={inner.x}
+          y1={inner.y}
+          x2={outer.x}
+          y2={outer.y}
+          class="spoke"
+          class:sub={boundary % 30 !== 0}
+          vector-effect="non-scaling-stroke"
+        />
       {/each}
 
       <!-- Key slot labels -->
-      <circle cx={CX} cy={CY} r={R_MAX + 12} class="ring" />
+      <circle cx={CX} cy={CY} r={R_MAX + 12} class="ring" vector-effect="non-scaling-stroke" />
       {#each ALL_CAMELOT_KEYS as key (key)}
         {@const pos = keyLabelPos(key)}
         <text
@@ -286,6 +320,7 @@
             y2={b.y}
             class="combo-edge"
             opacity={edgeOpacity(edge.sourceId, edge.targetId)}
+            vector-effect="non-scaling-stroke"
           />
         {/if}
       {/each}
@@ -315,6 +350,7 @@
             y2={b.y}
             class="walk-edge"
             marker-end="url(#walk-arrow)"
+            vector-effect="non-scaling-stroke"
           />
         {/if}
       {/each}
@@ -336,15 +372,16 @@
             if (e.key === '+') appendToTracklist(node)
           }}
         >
-          <circle cx={node.x} cy={node.y} r="11" fill="transparent" />
+          <circle cx={node.x} cy={node.y} r={11 / zoomK} fill="transparent" />
           <circle
             cx={node.x}
             cy={node.y}
-            r={node.track.id === $selectedId ? 7 : 5}
+            r={(node.track.id === $selectedId ? 7 : 5) / zoomK}
             fill={nodeColor(node.track[$effectiveColorAxis])}
             class="dot"
             class:selected={node.track.id === $selectedId}
             class:in-walk={$tracklist.includes(node.track.id)}
+            vector-effect="non-scaling-stroke"
           />
         </g>
       {/each}
@@ -429,6 +466,19 @@
   .spoke {
     stroke: var(--grid);
     stroke-width: 1;
+  }
+
+  .spoke.sub {
+    stroke-opacity: 0.45;
+  }
+
+  .sector {
+    fill: var(--sector-minor);
+    stroke: none;
+  }
+
+  .sector.major {
+    fill: var(--sector-major);
   }
 
   .ring {

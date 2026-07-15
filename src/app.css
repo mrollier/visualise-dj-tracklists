@@ -15,6 +15,10 @@
 
   --missing: #565550;
   --edge: #52514e;
+  /* Per-key sector tints: cool for minor (A), warm for major (B). Kept at
+     very low alpha so the validated node colour ramps stay legible. */
+  --sector-minor: rgba(124, 152, 255, 0.05);
+  --sector-major: rgba(255, 196, 110, 0.045);
   --walk: #c98500;
   --walk-bright: #eda100;
   --accent: #27a6c4;

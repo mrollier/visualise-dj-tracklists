@@ -158,9 +158,7 @@ export function rematchAfterImport(
   }
 
   const knownIds = new Set([...importedTracks.map((t) => t.id), ...survivors.map((t) => t.id)])
-  const nextTracklist = tracklist
-    .map((id) => idMap.get(id) ?? id)
-    .filter((id) => knownIds.has(id))
+  const nextTracklist = tracklist.map((id) => idMap.get(id) ?? id).filter((id) => knownIds.has(id))
 
   return { library: [...importedTracks, ...survivors], tracklist: nextTracklist, matched }
 }

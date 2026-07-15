@@ -60,13 +60,19 @@ export function parseProject(json: string): Project {
     throw new Error('Not a valid project file: missing tracks, tracklist or criteria')
   }
   const knownIds = new Set((p.tracks as Track[]).map((t) => t.id))
+  const settings: AppSettings = {
+    ...structuredClone(DEFAULT_SETTINGS),
+    ...(p.settings as object | undefined),
+  }
+  // The spread must stay within one 15° key slot (older saves allowed 20).
+  settings.slotSpreadDeg = Math.min(15, settings.slotSpreadDeg)
   return {
     version: 2,
     libraryName: typeof p.libraryName === 'string' ? p.libraryName : '',
     tracks: p.tracks as Track[],
     criteria: migrateCriteria(p.criteria as unknown as Record<string, unknown>),
     filters: (p.filters as LibraryFilters | undefined) ?? structuredClone(EMPTY_FILTERS),
-    settings: { ...structuredClone(DEFAULT_SETTINGS), ...(p.settings as object | undefined) },
+    settings,
     tracklist: (p.tracklist as string[]).filter((id) => knownIds.has(id)),
     radialAxis: p.radialAxis === 'rating' || p.radialAxis === 'year' ? p.radialAxis : 'bpm',
     colorAxis:
