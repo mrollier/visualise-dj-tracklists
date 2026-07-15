@@ -27,7 +27,7 @@ export interface CriteriaConfig {
 export const DEFAULT_CRITERIA: CriteriaConfig = {
   key: { enabled: true, advancedMoves: false },
   bpm: { enabled: true, maxPercent: 10 },
-  genre: { enabled: true, method: 'exact', threshold: 0.5 },
+  genre: { enabled: true, method: 'lexical', threshold: 0.5 },
   year: { enabled: true, maxYears: 5 },
   threshold: 3,
 }

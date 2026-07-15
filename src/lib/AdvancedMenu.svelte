@@ -12,6 +12,14 @@
     embedding: 'Embedding (co-occurrence pack)',
   } as const
 
+  const METHOD_EXPLAINER = {
+    exact: 'Only identical genres match (after normalization: DnB = Drum & Bass).',
+    lexical: 'Genres sharing words match: Melodic House ~ House, but not Techno ~ Tech House.',
+    graph: 'Follows a curated genre family tree (editable JSON in the repo): Techno ~ Tech House.',
+    embedding:
+      'Statistical relatedness learned from how real-world listeners tag music (AcousticBrainz).',
+  } as const
+
   function onWindowClick(e: MouseEvent) {
     if (open && menuEl && !menuEl.contains(e.target as Node)) open = false
   }
@@ -46,6 +54,7 @@
             {/each}
           </select>
         </label>
+        <p class="hint">{METHOD_EXPLAINER[$criteria.genre.method]}</p>
         {#if $criteria.genre.method !== 'exact'}
           <label>
             Similarity ≥ <strong>{$criteria.genre.threshold.toFixed(2)}</strong>

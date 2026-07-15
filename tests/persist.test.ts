@@ -67,7 +67,7 @@ describe('project persistence (v2)', () => {
     expect(migrated.filters).toEqual(EMPTY_FILTERS)
     expect(migrated.settings).toEqual(DEFAULT_SETTINGS)
     expect(migrated.colorAxis).toBe('auto')
-    expect(migrated.criteria.genre).toEqual({ enabled: true, method: 'exact', threshold: 0.5 })
+    expect(migrated.criteria.genre).toEqual({ enabled: true, method: 'lexical', threshold: 0.5 })
     expect('rating' in migrated.criteria).toBe(false)
     expect(migrated.criteria.threshold).toBe(4) // clamped to the 4 criteria left
     expect(migrated.criteria.bpm.maxPercent).toBe(8)

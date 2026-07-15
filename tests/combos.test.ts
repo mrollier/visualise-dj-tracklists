@@ -36,12 +36,18 @@ describe('individual criteria', () => {
     expect(evaluateCombo(base, track({ id: 'e', bpm: 148 }), cfg).matched).not.toContain('bpm')
   })
 
-  test('genre matches case-insensitively and exactly by default', () => {
+  test('genre defaults to lexical word overlap, case-insensitively', () => {
     const cfg = config()
+    expect(DEFAULT_CRITERIA.genre.method).toBe('lexical')
     expect(evaluateCombo(base, track({ id: 'b', genre: 'techno' }), cfg).matched).toContain('genre')
+    // no shared words → no match, even lexically
     expect(evaluateCombo(base, track({ id: 'c', genre: 'Tech House' }), cfg).matched).not.toContain(
       'genre',
     )
+    // shared head word at the default 0.5 threshold → match
+    const melodic = track({ id: 'd', genre: 'Melodic House' })
+    const house = track({ id: 'e', genre: 'House' })
+    expect(evaluateCombo(melodic, house, cfg).matched).toContain('genre')
   })
 
   test('genre criterion can use a similarity method with a threshold', () => {
