@@ -1,7 +1,18 @@
 <script lang="ts">
   import { scaleLinear } from 'd3-scale'
   import { select as d3select } from 'd3-selection'
+  import {
+    symbol,
+    symbolCircle,
+    symbolDiamond,
+    symbolSquare,
+    symbolStar,
+    symbolTriangle,
+    symbolWye,
+    type SymbolType,
+  } from 'd3-shape'
   import { zoom as d3zoom, zoomIdentity, type D3ZoomEvent } from 'd3-zoom'
+  import { genreComponents } from '../core/genre'
   import { ALL_CAMELOT_KEYS, wheelSlotAngleDeg, type CamelotKey } from '../core/keys'
   import { annularSectorPath, slotAngleOffsets } from '../core/layout'
   import type { Track } from '../core/model'
@@ -12,6 +23,7 @@
     criteria,
     edges,
     effectiveColorAxis,
+    genreClasses,
     neighbours,
     radialAxis,
     selectedId,
@@ -31,6 +43,36 @@
   const GUTTER_MISSING_Y_GAP = 42
 
   const AXIS_LABEL = { bpm: 'BPM', rating: 'rating', year: 'year' } as const
+
+  // Genre-class node shapes (docs/design-v4.md §E): class 0 (largest) keeps
+  // the circle; further classes get increasingly angular symbols.
+  const CLASS_SYMBOLS: SymbolType[] = [
+    symbolCircle,
+    symbolSquare,
+    symbolTriangle,
+    symbolDiamond,
+    symbolStar,
+    symbolWye,
+  ]
+  const shapeCache = new Map<string, string>()
+  function shapePath(classIndex: number | null, r: number): string {
+    const type =
+      classIndex === null ? symbolCircle : CLASS_SYMBOLS[classIndex % CLASS_SYMBOLS.length]
+    const key = `${classIndex === null ? -1 : classIndex % CLASS_SYMBOLS.length}:${r}`
+    let path = shapeCache.get(key)
+    if (path === undefined) {
+      path =
+        symbol()
+          .type(type)
+          .size(Math.PI * r * r)() ?? ''
+      shapeCache.set(key, path)
+    }
+    return path
+  }
+  function classIndexOf(track: Track): number | null {
+    if ($genreClasses === null || track.genre === null) return null
+    return $genreClasses.classOf.get(genreComponents(track.genre)[0]) ?? null
+  }
 
   interface PlacedNode {
     track: Track
@@ -407,10 +449,9 @@
           }}
         >
           <circle cx={node.x} cy={node.y} r={11 / zoomK} fill="transparent" />
-          <circle
-            cx={node.x}
-            cy={node.y}
-            r={(node.track.id === $selectedId ? 7 : 5) / zoomK}
+          <path
+            d={shapePath(classIndexOf(node.track), node.track.id === $selectedId ? 7 : 5)}
+            transform="translate({node.x},{node.y}) scale({1 / zoomK})"
             fill={nodeColor(node.track[$effectiveColorAxis])}
             class="dot"
             class:selected={node.track.id === $selectedId}
@@ -443,6 +484,14 @@
       <span class="chip">{colorDomain[1]}</span>
     {/if}
     <span class="chip"><i style="background: {MISSING_COLOR}"></i>missing</span>
+    {#if $genreClasses !== null}
+      {#each $genreClasses.classes as cls, i (cls.label)}
+        <span class="chip shape-chip" title="{cls.size} tracks">
+          <svg width="12" height="12" viewBox="-6 -6 12 12"><path d={shapePath(i, 4)} /></svg>
+          {cls.label}
+        </span>
+      {/each}
+    {/if}
     <span class="chip walk-chip"><i class="walk-line"></i>your set</span>
     <span class="legend-hint">click: focus · double-click: add to set</span>
   </div>
@@ -482,7 +531,7 @@
     background: var(--surface);
   }
 
-  svg {
+  .wheel-wrap > svg {
     width: 100%;
     height: 100%;
   }
@@ -655,6 +704,20 @@
     height: 8px;
     border-radius: 4px;
     display: inline-block;
+  }
+
+  .shape-chip {
+    white-space: nowrap;
+  }
+
+  .shape-chip svg {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+  }
+
+  .shape-chip svg path {
+    fill: var(--ink-secondary);
   }
 
   .walk-line {

@@ -6,6 +6,7 @@ import {
   type CriteriaConfig,
 } from './core/combos'
 import { applyFilters, EMPTY_FILTERS, type LibraryFilters } from './core/filter'
+import { computeGenreClasses } from './core/genreClasses'
 import type { ImportReport, Track } from './core/model'
 import { DEFAULT_SETTINGS, type AppSettings } from './core/settings'
 
@@ -69,6 +70,17 @@ export const genreMatcher = derived([visibleLibrary, criteria], ([$visibleLibrar
     $visibleLibrary.map((t) => t.genre),
     $criteria,
   ),
+)
+
+/** Genre classes (node shapes), clustered in the selected similarity space. */
+export const genreClasses = derived(
+  [visibleLibrary, criteria, settings],
+  ([$visibleLibrary, $criteria, $settings]) =>
+    computeGenreClasses(
+      $visibleLibrary.map((t) => t.genre),
+      $criteria.genre.method,
+      $settings.maxGenreClasses,
+    ),
 )
 
 export const trackById = derived(library, ($library) => new Map($library.map((t) => [t.id, t])))

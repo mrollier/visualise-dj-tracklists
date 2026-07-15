@@ -15,6 +15,12 @@ export interface AppSettings {
   suggestLength: number
   /** 0 = safest transitions, 1 = adventurous/dissonant sampling. */
   suggestRandomness: number
+  /**
+   * Up to this many clearly-different genre classes get distinct node shapes
+   * (circle/square/triangle/…). Shapes only appear when the library's genres
+   * actually separate in the selected similarity space.
+   */
+  maxGenreClasses: number
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -23,4 +29,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   edgeOpacity: 0.35,
   suggestLength: 15,
   suggestRandomness: 0.25,
+  maxGenreClasses: 4,
 }

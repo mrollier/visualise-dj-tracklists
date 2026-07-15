@@ -210,6 +210,15 @@
           Edge opacity <strong>{$settings.edgeOpacity.toFixed(2)}</strong>
           <input type="range" min="0.05" max="0.9" step="0.05" bind:value={$settings.edgeOpacity} />
         </label>
+        <label>
+          Max genre classes <strong>{$settings.maxGenreClasses}</strong>
+          <input type="range" min="2" max="6" step="1" bind:value={$settings.maxGenreClasses} />
+        </label>
+        <p class="hint">
+          Clearly different genre families get distinct node shapes (circle, square, triangle, …) up
+          to this many classes — clustered with the selected genre method. Everything stays a circle
+          when the library doesn't separate.
+        </p>
       </section>
 
       <section>
