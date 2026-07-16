@@ -18,6 +18,7 @@
   import { ALL_CAMELOT_KEYS, wheelSlotAngleDeg, type CamelotKey } from '../core/keys'
   import { annularSectorPath, slotAngleOffsets } from '../core/layout'
   import type { Track } from '../core/model'
+  import { hashUnit } from '../core/random'
   import {
     COLOR_SCHEMES,
     focusEdgeOpacity,
@@ -193,8 +194,10 @@
     }
 
     // Keyed tracks: group per slot and fan out so same-key tracks with a
-    // similar radius stay individually hoverable. Sorted by raw value (not
-    // scaled radius), so the ordering is independent of the radial domain.
+    // similar radius stay individually hoverable. Ordered by a stable
+    // per-track hash of the persisted jitter seed (issue 16) — sorting by
+    // the radial value made every fan a tidy diagonal sweep. Even spacing
+    // keeps dense slots overlap-free; only the ↻ re-jitter button reorders.
     // eslint-disable-next-line svelte/prefer-svelte-reactivity
     const bySlot = new Map<string, Track[]>()
     for (const track of $library) {
@@ -202,11 +205,10 @@
       if (!bySlot.has(track.key)) bySlot.set(track.key, [])
       bySlot.get(track.key)!.push(track)
     }
+    const seed = $settings.jitterSeed
     for (const [key, group] of bySlot) {
-      group.sort(
-        (a, b) => (a[$radialAxis] ?? 0) - (b[$radialAxis] ?? 0) || a.id.localeCompare(b.id),
-      )
-      const offsets = slotAngleOffsets(group.length, $settings.slotSpreadDeg)
+      group.sort((a, b) => hashUnit(a.id, seed) - hashUnit(b.id, seed) || a.id.localeCompare(b.id))
+      const offsets = slotAngleOffsets(group.length, 7.5 * $settings.slotSpreadFactor)
       group.forEach((track, i) => {
         const value = track[$radialAxis]
         const angle = wheelSlotAngleDeg(key as CamelotKey) + offsets[i]

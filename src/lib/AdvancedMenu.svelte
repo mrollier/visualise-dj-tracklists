@@ -303,13 +303,23 @@
     <!-- Spread and edge opacity only affect the wheel (issue 4); the colour
          scheme and genre classes stay live everywhere. -->
     <label class:off-view={$viewMode !== 'wheel'} title="Only affects the Wheel view">
-      Same-key spread <strong>{$settings.slotSpreadDeg}°</strong>
+      Same-key spread <strong>×{$settings.slotSpreadFactor.toFixed(2)}</strong>
+      <button
+        class="re-jitter"
+        title="Re-shuffle the same-key fan order"
+        aria-label="Re-jitter same-key fans"
+        disabled={$viewMode !== 'wheel'}
+        onclick={(e) => {
+          e.preventDefault()
+          settings.update((s) => ({ ...s, jitterSeed: Math.floor(Math.random() * 2 ** 31) }))
+        }}>↻</button
+      >
       <input
         type="range"
         min="0"
-        max="7.5"
-        step="0.5"
-        bind:value={$settings.slotSpreadDeg}
+        max="1"
+        step="0.05"
+        bind:value={$settings.slotSpreadFactor}
         disabled={$viewMode !== 'wheel'}
       />
     </label>
@@ -480,6 +490,17 @@
   label.off-view {
     color: var(--ink-muted);
     opacity: 0.6;
+  }
+
+  .re-jitter {
+    padding: 1px 7px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--ink-muted);
+  }
+
+  .re-jitter:hover:not(:disabled) {
+    color: var(--ink);
   }
 
   /* Two radio choices side by side; each label keeps its circle and text

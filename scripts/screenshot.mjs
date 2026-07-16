@@ -411,6 +411,28 @@ if (edgesVinyl === edgesBefore) {
   errors.push(`vinyl mode changed no edges (${edgesBefore} before and after)`)
 }
 await page.screenshot({ path: `${scratch}/09-advanced.png` })
+// re-jitter reshuffles same-key fans exactly once (ISSUES.md v7 #16): the
+// ↻ button moves nodes; filtering afterwards still moves none
+await page.locator('.panel details.section > summary', { hasText: 'Display' }).click()
+const fanProbe = () =>
+  page.$$eval('g.node', (gs) =>
+    gs.map((g) => ({
+      label: g.getAttribute('aria-label'),
+      d: g.querySelector('path')?.getAttribute('transform'),
+    })),
+  )
+const beforeJitter = await fanProbe()
+await page.getByRole('button', { name: 'Re-jitter same-key fans' }).click()
+await page.waitForTimeout(300)
+const afterJitter = await fanProbe()
+const jittered = afterJitter.filter((a) => {
+  const b = beforeJitter.find((p) => p.label === a.label)
+  return b && b.d !== a.d
+})
+if (jittered.length === 0) {
+  errors.push('the re-jitter button moved no same-key fan nodes')
+}
+await page.locator('.panel details.section > summary', { hasText: 'Display' }).click()
 await page.keyboard.press('Escape')
 if ((await page.locator('aside.panel').count()) !== 0) {
   errors.push('Escape did not close the advanced aside')

@@ -102,12 +102,21 @@ export function parseProject(json: string): Project {
   }
   const tracks = (p.tracks as unknown[]).map(sanitizeTrack).filter((t): t is Track => t !== null)
   const knownIds = new Set(tracks.map((t) => t.id))
+  const rawSettings = (p.settings ?? {}) as Partial<AppSettings> & { slotSpreadDeg?: number }
   const settings: AppSettings = {
     ...structuredClone(DEFAULT_SETTINGS),
-    ...(p.settings as object | undefined),
+    ...rawSettings,
   }
-  // The spread caps at half a 15° key slot (older saves allowed 15 or 20).
-  settings.slotSpreadDeg = Math.min(7.5, settings.slotSpreadDeg)
+  // v7: the same-key spread became a 0–1 factor of the ±7.5° half-slot
+  // window. Older saves stored degrees (capped at 7.5; pre-v5 allowed 15/20).
+  if (typeof rawSettings.slotSpreadDeg === 'number' && rawSettings.slotSpreadFactor === undefined) {
+    settings.slotSpreadFactor = rawSettings.slotSpreadDeg / 7.5
+  }
+  settings.slotSpreadFactor = Math.max(0, Math.min(1, settings.slotSpreadFactor))
+  if (typeof settings.jitterSeed !== 'number' || !Number.isFinite(settings.jitterSeed)) {
+    settings.jitterSeed = DEFAULT_SETTINGS.jitterSeed
+  }
+  Reflect.deleteProperty(settings, 'slotSpreadDeg')
   return {
     version: 2,
     libraryName: typeof p.libraryName === 'string' ? p.libraryName : '',

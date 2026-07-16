@@ -65,17 +65,25 @@ describe('project persistence (v2)', () => {
     expect(parseProject(JSON.stringify(saved)).settings.bpmProgression).toBe('any')
   })
 
-  test('clamps slotSpreadDeg to 7.5° (older saves allowed up to 15 or 20)', () => {
-    const wide = serializeProject({
-      ...project,
-      settings: { ...structuredClone(DEFAULT_SETTINGS), slotSpreadDeg: 11 },
-    })
-    expect(parseProject(wide).settings.slotSpreadDeg).toBe(7.5)
-    const narrow = serializeProject({
-      ...project,
-      settings: { ...structuredClone(DEFAULT_SETTINGS), slotSpreadDeg: 5 },
-    })
-    expect(parseProject(narrow).settings.slotSpreadDeg).toBe(5)
+  test('migrates the old slotSpreadDeg (degrees) into slotSpreadFactor', () => {
+    const old = JSON.parse(serializeProject(project)) as { settings: Record<string, unknown> }
+    delete old.settings.slotSpreadFactor
+    delete old.settings.jitterSeed
+    old.settings.slotSpreadDeg = 3.75 // half of the 7.5° window
+    const parsed = parseProject(JSON.stringify(old))
+    expect(parsed.settings.slotSpreadFactor).toBe(0.5)
+    expect(parsed.settings.jitterSeed).toBe(0)
+    expect('slotSpreadDeg' in parsed.settings).toBe(false)
+  })
+
+  test('clamps slotSpreadFactor to [0, 1] (old degree saves allowed up to 20)', () => {
+    const wide = JSON.parse(serializeProject(project)) as { settings: Record<string, unknown> }
+    delete wide.settings.slotSpreadFactor
+    wide.settings.slotSpreadDeg = 20
+    expect(parseProject(JSON.stringify(wide)).settings.slotSpreadFactor).toBe(1)
+    const direct = JSON.parse(serializeProject(project)) as { settings: Record<string, unknown> }
+    direct.settings.slotSpreadFactor = 3
+    expect(parseProject(JSON.stringify(direct)).settings.slotSpreadFactor).toBe(1)
   })
 
   test('migrates v1 projects: defaults for filters/settings, criteria upgraded', () => {

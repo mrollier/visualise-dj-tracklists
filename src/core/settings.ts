@@ -15,8 +15,15 @@ export interface AppSettings {
   theme: 'light' | 'dark' | null
   /** Node colour scheme (per-theme ramps in scales.ts). */
   colorScheme: 'blue' | 'aqua' | 'violet'
-  /** Angular fan-out of same-key tracks across their slot, in degrees. */
-  slotSpreadDeg: number
+  /**
+   * Angular fan-out of same-key tracks as a 0–1 factor of the half-slot
+   * window (±7.5°). Tracks are ordered within their slot by a stable
+   * per-track hash of jitterSeed (issue 16), so angles never move under
+   * filtering and survive reloads.
+   */
+  slotSpreadFactor: number
+  /** Seed for the per-track fan order; the ↻ re-jitter button redraws it. */
+  jitterSeed: number
   /** Base opacity of suggestion edges. */
   edgeOpacity: number
   /** Target number of tracks for the suggested-set generator. */
@@ -36,7 +43,8 @@ export interface AppSettings {
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: null,
   colorScheme: 'blue',
-  slotSpreadDeg: 7.5,
+  slotSpreadFactor: 1,
+  jitterSeed: 0,
   edgeOpacity: 0.35,
   suggestLength: 15,
   suggestRandomness: 0.25,

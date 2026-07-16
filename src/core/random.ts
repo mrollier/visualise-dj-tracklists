@@ -12,3 +12,18 @@ export function mulberry32(seed: number): () => number {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296
   }
 }
+
+/**
+ * A stable pseudo-random value in [0, 1) for an id under a given seed:
+ * FNV-1a over the id, xor'd with the seed, whitened through one mulberry32
+ * step. The wheel uses it to order same-key fans — per-track stable (angles
+ * never move under filtering) yet re-drawable with a new seed (re-jitter).
+ */
+export function hashUnit(id: string, seed: number): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return mulberry32(h ^ seed)()
+}
