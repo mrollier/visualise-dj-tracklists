@@ -478,13 +478,17 @@
         </text>
       {/if}
 
-      <!-- Key sector backgrounds: subtle minor (A) vs major (B) tint per slot -->
+      <!-- Key sector backgrounds: subtle minor (A) vs major (B) tint per slot.
+           The minor/major filter (v8 issue 10) fades the excluded ring's tint
+           so the wheel visibly answers the toggle beyond nodes vanishing. -->
       {#each ALL_CAMELOT_KEYS as key (key)}
         {@const centre = wheelSlotAngleDeg(key)}
         <path
           d={annularSectorPath(CX, CY, centre - 7.5, centre + 7.5, R_MIN - 30, R_MAX + 12)}
           class="sector"
           class:major={key.endsWith('B')}
+          class:excluded={($filters.keyRing === 'minor' && key.endsWith('B')) ||
+            ($filters.keyRing === 'major' && key.endsWith('A'))}
         />
       {/each}
 
@@ -512,6 +516,8 @@
           y={pos.y}
           class="key-label"
           class:major={key.endsWith('B')}
+          class:excluded={($filters.keyRing === 'minor' && key.endsWith('B')) ||
+            ($filters.keyRing === 'major' && key.endsWith('A'))}
           dominant-baseline="middle"
           text-anchor="middle">{key}</text
         >
@@ -842,10 +848,23 @@
   .sector {
     fill: var(--sector-minor);
     stroke: none;
+    transition: opacity 0.5s ease;
   }
 
   .sector.major {
     fill: var(--sector-major);
+  }
+
+  .sector.excluded {
+    opacity: 0.15;
+  }
+
+  .key-label {
+    transition: opacity 0.5s ease;
+  }
+
+  .key-label.excluded {
+    opacity: 0.25;
   }
 
   .ring {

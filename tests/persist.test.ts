@@ -127,6 +127,13 @@ describe('project persistence (v3)', () => {
     expect(parsed.sets[0].trackIds).toEqual([SAMPLE_TRACKS[0].id, 'ok-1'])
   })
 
+  test('saves from before the key-ring filter default to both rings (v8 issue 10)', () => {
+    const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    const filters = raw.filters as Record<string, unknown>
+    Reflect.deleteProperty(filters, 'keyRing')
+    expect(parseProject(JSON.stringify(raw)).filters.keyRing).toBe('both')
+  })
+
   test('saves from before the BPM ratio toggles default unit time on (v8 issue 6)', () => {
     const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
     const criteria = raw.criteria as { bpm: Record<string, unknown> }

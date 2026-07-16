@@ -65,6 +65,24 @@ describe('applyFilters', () => {
     const out = applyFilters(tracks, filters({ bpm: [500, 600] }))
     expect(out.map((t) => t.id)).toEqual(['d'])
   })
+
+  test('the key-ring filter keeps one Camelot ring; keyless tracks always pass (v8 issue 10)', () => {
+    expect(EMPTY_FILTERS.keyRing).toBe('both')
+    const mixed = [
+      track({ id: 'minor', key: '8A' }),
+      track({ id: 'major', key: '8B' }),
+      track({ id: 'keyless', key: null }),
+    ]
+    expect(applyFilters(mixed, filters({ keyRing: 'minor' })).map((t) => t.id)).toEqual([
+      'minor',
+      'keyless',
+    ])
+    expect(applyFilters(mixed, filters({ keyRing: 'major' })).map((t) => t.id)).toEqual([
+      'major',
+      'keyless',
+    ])
+    expect(applyFilters(mixed, filters({ keyRing: 'both' }))).toHaveLength(3)
+  })
 })
 
 describe('libraryExtents', () => {

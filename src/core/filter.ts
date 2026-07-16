@@ -1,3 +1,4 @@
+import { camelotRing } from './keys'
 import type { Playlist, Track } from './model'
 
 /**
@@ -19,6 +20,12 @@ export interface LibraryFilters {
    * starts at [] — nothing selected, empty wheel (design-v5 §D).
    */
   playlists: string[] | null
+  /**
+   * Show only one Camelot ring (minor = A/inner, major = B/outer). Lives
+   * with the key criterion in the UI but is a visibility filter; keyless
+   * tracks always pass (v8 issue 10).
+   */
+  keyRing: 'both' | 'minor' | 'major'
 }
 
 /** Pseudo-playlist name: tracks that appear in no playlist at all. */
@@ -30,6 +37,7 @@ export const EMPTY_FILTERS: LibraryFilters = {
   rating: null,
   genres: null,
   playlists: null,
+  keyRing: 'both',
 }
 
 export interface LibraryExtents {
@@ -119,12 +127,14 @@ export function applyFilters(
   const allowed =
     filters.genres === null ? null : new Set(filters.genres.map((g) => g.toLowerCase()))
   const allowedIds = playlistMemberIds(tracks, filters.playlists, playlists)
+  const ring = filters.keyRing === 'minor' ? 'A' : filters.keyRing === 'major' ? 'B' : null
   return tracks.filter(
     (t) =>
       inRange(t.bpm, filters.bpm) &&
       inRange(t.year, filters.year) &&
       inRange(t.rating, filters.rating) &&
       (allowed === null || t.genre === null || allowed.has(t.genre.toLowerCase())) &&
-      (allowedIds === null || allowedIds.has(t.id)),
+      (allowedIds === null || allowedIds.has(t.id)) &&
+      (ring === null || t.key === null || camelotRing(t.key) === ring),
   )
 }

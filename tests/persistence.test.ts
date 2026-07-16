@@ -48,7 +48,14 @@ beforeEach(() => {
   libraryName.set('old.xml')
   tracklist.set(['rb-1'])
   playlists.set([{ name: 'Old list', trackIds: ['rb-1'] }])
-  filters.set({ bpm: [100, 120], year: null, rating: [3, 5], genres: ['techno'], playlists: [] })
+  filters.set({
+    bpm: [100, 120],
+    year: null,
+    rating: [3, 5],
+    genres: ['techno'],
+    playlists: [],
+    keyRing: 'both',
+  })
   selectedId.set('rb-1')
   suggestionHistory.set([['rb-1', 'rb-2']])
   suggestionIndex.set(0)

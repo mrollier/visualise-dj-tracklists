@@ -618,6 +618,25 @@ if ((await page.locator('aside.panel').count()) !== 0) {
   errors.push('Escape did not close the advanced aside')
 }
 
+// minor/major key filter (v8 issue 10): minor-only hides the B ring's nodes
+// and fades its sector tint; "both" restores everything
+const nodesBothRings = await page.locator('g.node').count()
+await page.locator('.ring-switch button', { hasText: 'minor' }).click()
+await page.waitForTimeout(600)
+const nodesMinor = await page.locator('g.node').count()
+if (!(nodesMinor < nodesBothRings)) {
+  errors.push(`minor-only should hide B-ring nodes (${nodesBothRings} → ${nodesMinor})`)
+}
+if ((await page.locator('path.sector.excluded').count()) !== 12) {
+  errors.push('minor-only should fade exactly the 12 major sectors')
+}
+await page.screenshot({ path: `${scratch}/09c-minor-only.png` })
+await page.locator('.ring-switch button', { hasText: 'both' }).click()
+await page.waitForTimeout(600)
+if ((await page.locator('g.node').count()) !== nodesBothRings) {
+  errors.push('switching back to both rings did not restore the nodes')
+}
+
 // colour axis auto-swap when radius = rating
 await page.locator('header select').first().selectOption('rating')
 await page.waitForTimeout(300)
