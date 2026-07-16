@@ -519,6 +519,23 @@ await page.waitForTimeout(400)
 if ((await dragTarget.getAttribute('transform')) === dragBefore) {
   errors.push('dragging a genre node did not move it')
 }
+// v8 issue 14: the pair inspector — click two genres, read every method's
+// score in a locked card; ✕ clears
+await page.waitForTimeout(300)
+await page.locator('.genre-node').nth(0).dispatchEvent('click')
+if ((await page.locator('.inspector.slim').count()) !== 1) {
+  errors.push('selecting one genre should show the "pick a second" hint card')
+}
+await page.locator('.genre-node').nth(1).dispatchEvent('click')
+const inspectorRows = await page.locator('.inspector dt').count()
+if (inspectorRows !== 5) {
+  errors.push(`the pair inspector should list 5 method scores, got ${inspectorRows}`)
+}
+await page.screenshot({ path: `${scratch}/07b2-pair-inspector.png` })
+await page.locator('.inspector .close').click()
+if ((await page.locator('.inspector').count()) !== 0) {
+  errors.push('✕ did not close the pair inspector')
+}
 await page.getByRole('button', { name: 'hybrid' }).click()
 await page.getByRole('button', { name: 'taxonomy' }).click()
 await page.getByRole('checkbox', { name: 'show nearby genres' }).check()

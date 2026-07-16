@@ -322,9 +322,18 @@
     }
   }
 
+  let dragDistance = 0
+  let dragStart = { x: 0, y: 0 }
+  // A drag's trailing click must not count as a select, but whether that
+  // click even fires is browser-dependent — so suppress by time window
+  // instead of a consumable flag that could swallow the NEXT real click.
+  let suppressClicksUntil = 0
+
   function nodePointerDown(node: GenreNode, e: PointerEvent) {
     if (e.currentTarget instanceof Element) e.currentTarget.setPointerCapture(e.pointerId)
     dragging = node
+    dragDistance = 0
+    dragStart = { x: e.clientX, y: e.clientY }
     node.fx = node.x
     node.fy = node.y
     simulation?.alphaTarget(0.3).restart()
@@ -335,6 +344,7 @@
     const p = layerPoint(e)
     dragging.fx = p.x
     dragging.fy = p.y
+    dragDistance = Math.hypot(e.clientX - dragStart.x, e.clientY - dragStart.y)
   }
 
   function nodePointerUp() {
@@ -343,6 +353,64 @@
     dragging.fy = null
     dragging = null
     simulation?.alphaTarget(0)
+    if (dragDistance > 4) suppressClicksUntil = performance.now() + 150
+    dragDistance = 0
+  }
+
+  // --- pair inspector (v8 issue 14): click A, click B, read the scores ---------
+  // Hovering edges is hopeless in a dense map; selecting two NODES locks a
+  // docked card with every method's score for the pair.
+  let inspectA = $state<string | null>(null)
+  let inspectPair = $state<[string, string] | null>(null)
+
+  function nodeClick(node: GenreNode) {
+    if (performance.now() < suppressClicksUntil) return // a drag, not a select
+    if (inspectPair !== null) {
+      inspectPair = null
+      inspectA = node.id
+    } else if (inspectA === null) {
+      inspectA = node.id
+    } else if (inspectA === node.id) {
+      inspectA = null
+    } else {
+      inspectPair = [inspectA, node.id]
+      inspectA = null
+    }
+  }
+
+  function clearInspection() {
+    inspectA = null
+    inspectPair = null
+  }
+
+  function pairKey(a: string, b: string): string {
+    return a < b ? `${a}\u001f${b}` : `${b}\u001f${a}`
+  }
+
+  /** Every map method's score for a pair, plus whether it currently links it. */
+  function scoresFor(
+    a: string,
+    b: string,
+  ): { method: GenreMethod; score: number; linked: boolean }[] {
+    const bothInLibrary = !ghostLabels.has(a) && !ghostLabels.has(b)
+    return MAP_METHODS.map((method) => {
+      const score = labelSimilarity(a, b, method)
+      const linked =
+        method === $criteria.genre.method && bothInLibrary
+          ? criterionPairs.has(pairKey(a, b))
+          : score >= SCORE_FLOOR
+      return { method, score, linked: linked && enabledMethods.has(method) }
+    })
+  }
+
+  const inspectedScores = $derived(
+    inspectPair === null ? [] : scoresFor(inspectPair[0], inspectPair[1]),
+  )
+
+  function edgeInspected(edge: GenreEdge): boolean {
+    return (
+      inspectPair !== null && pairKey(edge.a, edge.b) === pairKey(inspectPair[0], inspectPair[1])
+    )
   }
 
   // --- hover: a pair's scores under every method -------------------------------
@@ -381,6 +449,10 @@
   class="map-wrap"
   role="presentation"
   onmousemove={(e) => (mouse = { x: e.clientX, y: e.clientY })}
+  onclick={(e) => {
+    // background click (the svg itself, not a node) clears the inspection
+    if (e.target instanceof Element && e.target.tagName === 'svg') clearInspection()
+  }}
 >
   <svg
     bind:this={svgEl}
@@ -400,9 +472,9 @@
               x2={b.x}
               y2={b.y}
               stroke={METHOD_COLOR[edge.method]}
-              stroke-width={0.75 + 2 * edge.score}
+              stroke-width={(0.75 + 2 * edge.score) * (edgeInspected(edge) ? 2 : 1)}
               stroke-dasharray={METHOD_DASH[edge.method] ?? 'none'}
-              opacity={0.25 + 0.55 * edge.score}
+              opacity={edgeInspected(edge) ? 1 : 0.25 + 0.55 * edge.score}
               class="edge"
             />
             <line
@@ -430,6 +502,7 @@
           aria-label="{node.id}{node.ghost
             ? ' (nearby, not in library)'
             : ` — ${node.count} tracks`}"
+          class:inspected={inspectA === node.id || inspectPair?.includes(node.id) === true}
           onmouseenter={() => (hoveredGenre = node.id)}
           onmouseleave={() => (hoveredGenre = null)}
           onmousedown={(e) => e.stopPropagation()}
@@ -437,6 +510,13 @@
           onpointermove={nodePointerMove}
           onpointerup={nodePointerUp}
           onpointercancel={nodePointerUp}
+          onclick={(e) => {
+            e.stopPropagation()
+            nodeClick(node)
+          }}
+          onkeydown={(e) => {
+            if (e.key === 'Enter') nodeClick(node)
+          }}
         >
           <path
             d={shapePath(node.ghost ? null : classIndexOf(node.id), nodeRadius(node))}
@@ -483,10 +563,34 @@
 
   <div class="legend">
     <span class="legend-hint">
-      node size: tracks with that genre · distance ≈ similarity under the enabled methods · hover a
-      line for every method's score
+      node size: tracks with that genre · distance ≈ similarity under the enabled methods · click
+      two genres to compare them
     </span>
   </div>
+
+  <!-- Pair inspector (v8 issue 14): click two nodes, read every score -->
+  {#if inspectPair !== null}
+    <div class="inspector" role="status">
+      <div class="inspector-head">
+        <strong>{inspectPair[0]} ↔ {inspectPair[1]}</strong>
+        <button class="close" aria-label="Close comparison" onclick={clearInspection}>✕</button>
+      </div>
+      <dl>
+        {#each inspectedScores as { method, score, linked } (method)}
+          <dt><i style="background: {METHOD_COLOR[method]}"></i>{method}</dt>
+          <dd>
+            {score.toFixed(2)}
+            {#if linked}<span class="linked" title="currently drawn on the map">●</span>{/if}
+          </dd>
+        {/each}
+      </dl>
+      <p class="inspector-hint">● = drawn on the map at the current settings</p>
+    </div>
+  {:else if inspectA !== null}
+    <div class="inspector slim" role="status">
+      <strong>{inspectA}</strong> — click a second genre to compare
+    </div>
+  {/if}
 
   {#if hoveredPair}
     <div class="tooltip" style="left: {mouse.x + 14}px; top: {mouse.y + 12}px">
@@ -542,6 +646,11 @@
     fill: none;
     stroke: var(--ink-muted);
     stroke-dasharray: 3 3;
+  }
+
+  .genre-node.inspected .mark {
+    stroke: var(--accent);
+    stroke-width: 2.5;
   }
 
   .genre-node.ghost .genre-label {
@@ -648,6 +757,79 @@
 
   .legend-hint {
     color: var(--ink-muted);
+  }
+
+  .inspector {
+    position: absolute;
+    top: 44px;
+    right: 12px;
+    max-width: 280px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .inspector.slim {
+    color: var(--ink-secondary);
+  }
+
+  .inspector-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .inspector .close {
+    background: none;
+    border: none;
+    padding: 0 2px;
+    color: var(--ink-muted);
+    font-size: 12px;
+  }
+
+  .inspector .close:hover {
+    color: var(--ink);
+  }
+
+  .inspector dl {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 1px 10px;
+    margin: 6px 0 0;
+  }
+
+  .inspector dt {
+    color: var(--ink-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .inspector dt i {
+    width: 10px;
+    height: 2px;
+    display: inline-block;
+  }
+
+  .inspector dd {
+    margin: 0;
+    color: var(--ink-secondary);
+  }
+
+  .inspector .linked {
+    color: var(--accent);
+    margin-left: 4px;
+    font-size: 9px;
+    vertical-align: 1px;
+  }
+
+  .inspector-hint {
+    margin: 6px 0 0;
+    color: var(--ink-muted);
+    font-size: 11px;
   }
 
   .tooltip {
