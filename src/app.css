@@ -26,6 +26,10 @@
      very low alpha so the validated node colour ramps stay legible. */
   --sector-minor: rgba(124, 152, 255, 0.05);
   --sector-major: rgba(255, 196, 110, 0.045);
+  /* Accent family (--walk/--walk-bright/--accent/--on-accent): these are the
+     BLUE colour scheme's values. The active scheme's set is stamped inline on
+     <html> by src/lib/theme.ts from ACCENT_TOKENS in src/core/scales.ts —
+     keep the blue column there in sync (a unit test enforces it). */
   --walk: #c98500;
   --walk-bright: #eda100;
   --accent: #27a6c4;
@@ -61,6 +65,7 @@
   --node-ring: rgba(0, 0, 0, 0.22);
   --sector-minor: rgba(70, 100, 220, 0.06);
   --sector-major: rgba(200, 130, 20, 0.055);
+  /* Blue-scheme accent family — see the sync note on :root above. */
   --walk: #a86f00;
   --walk-bright: #8a5a00;
   --accent: #0d7d99;

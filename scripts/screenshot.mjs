@@ -451,6 +451,34 @@ const jittered = afterJitter.filter((a) => {
 if (jittered.length === 0) {
   errors.push('the re-jitter button moved no same-key fan nodes')
 }
+// the colour scheme tints the whole app: --accent follows the scheme in
+// both themes (ISSUES.md v7 #13)
+const readAccent = () =>
+  page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(),
+  )
+const accentBlue = await readAccent()
+await page
+  .locator('.panel label', { hasText: 'Colour scheme' })
+  .locator('select')
+  .selectOption('violet')
+const accentViolet = await readAccent()
+if (accentViolet === accentBlue) {
+  errors.push('selecting the violet scheme did not change --accent')
+}
+await page.locator('button.theme-toggle').click()
+await page.waitForTimeout(200)
+const accentVioletLight = await readAccent()
+if (accentVioletLight === accentViolet || accentVioletLight === accentBlue) {
+  errors.push('the light theme did not keep its own violet accent')
+}
+await page.screenshot({ path: `${scratch}/09b-violet-scheme.png` })
+await page.locator('button.theme-toggle').click()
+await page.waitForTimeout(200)
+await page
+  .locator('.panel label', { hasText: 'Colour scheme' })
+  .locator('select')
+  .selectOption('blue')
 await page.locator('.panel details.section > summary', { hasText: 'Display' }).click()
 await page.keyboard.press('Escape')
 if ((await page.locator('aside.panel').count()) !== 0) {

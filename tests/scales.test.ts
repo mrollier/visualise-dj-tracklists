@@ -1,11 +1,65 @@
 import { describe, expect, test } from 'vitest'
 import {
+  ACCENT_TOKENS,
   COLOR_SCHEMES,
   focusEdgeOpacity,
   makeNodeColor,
   MISSING_COLORS,
   radialDomain,
 } from '../src/core/scales'
+
+/** WCAG relative-luminance contrast between two #rrggbb colours. */
+function contrast(a: string, b: string): number {
+  const lum = (hex: string) => {
+    const [r, g, bl] = [1, 3, 5].map((i) => {
+      const c = parseInt(hex.slice(i, i + 2), 16) / 255
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+    })
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl
+  }
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x)
+  return (hi + 0.05) / (lo + 0.05)
+}
+
+describe('ACCENT_TOKENS (app-wide colour scheme, issue 13)', () => {
+  const themes = ['dark', 'light'] as const
+  const schemes = ['blue', 'aqua', 'violet'] as const
+  const tokens = ['--accent', '--on-accent', '--walk', '--walk-bright'] as const
+
+  test('every theme × scheme carries the full accent family as hex colours', () => {
+    for (const theme of themes) {
+      for (const scheme of schemes) {
+        for (const token of tokens) {
+          expect(ACCENT_TOKENS[theme][scheme][token]).toMatch(/^#[0-9a-f]{6}$/)
+        }
+      }
+    }
+  })
+
+  test('accent on on-accent stays readable (WCAG AA, 4.5:1)', () => {
+    for (const theme of themes) {
+      for (const scheme of schemes) {
+        const t = ACCENT_TOKENS[theme][scheme]
+        expect(contrast(t['--accent'], t['--on-accent'])).toBeGreaterThanOrEqual(4.5)
+      }
+    }
+  })
+
+  test('the blue scheme IS the app.css default — the sync contract', () => {
+    expect(ACCENT_TOKENS.dark.blue).toEqual({
+      '--accent': '#27a6c4',
+      '--on-accent': '#08222a',
+      '--walk': '#c98500',
+      '--walk-bright': '#eda100',
+    })
+    expect(ACCENT_TOKENS.light.blue).toEqual({
+      '--accent': '#0d7d99',
+      '--on-accent': '#ffffff',
+      '--walk': '#a86f00',
+      '--walk-bright': '#8a5a00',
+    })
+  })
+})
 
 describe('focusEdgeOpacity', () => {
   test('scales both focus states from the base edge opacity (issue 15)', () => {

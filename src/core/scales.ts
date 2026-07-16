@@ -32,6 +32,57 @@ export const MISSING_COLORS: Record<ThemeName, string> = {
 }
 
 /**
+ * App-wide accent family per colour scheme (issue 13): the scheme no longer
+ * recolours only the nodes — theme.ts stamps these tokens on <html> so the
+ * whole chrome (active buttons, focus rings, set path, genre-map nodes)
+ * follows. The BLUE column must equal the defaults in src/app.css (the unit
+ * test enforces this sync contract); surfaces stay neutral in every scheme.
+ * All accent/on-accent pairs are WCAG-AA checked in tests/scales.test.ts.
+ */
+export const ACCENT_TOKENS: Record<ThemeName, Record<ColorScheme, Record<string, string>>> = {
+  dark: {
+    blue: {
+      '--accent': '#27a6c4',
+      '--on-accent': '#08222a',
+      '--walk': '#c98500',
+      '--walk-bright': '#eda100',
+    },
+    aqua: {
+      '--accent': '#14ad8d',
+      '--on-accent': '#052620',
+      '--walk': '#c99500',
+      '--walk-bright': '#edb400',
+    },
+    violet: {
+      '--accent': '#9a82e6',
+      '--on-accent': '#1b1033',
+      '--walk': '#d0784a',
+      '--walk-bright': '#ef9251',
+    },
+  },
+  light: {
+    blue: {
+      '--accent': '#0d7d99',
+      '--on-accent': '#ffffff',
+      '--walk': '#a86f00',
+      '--walk-bright': '#8a5a00',
+    },
+    aqua: {
+      '--accent': '#0b8168',
+      '--on-accent': '#ffffff',
+      '--walk': '#a87c00',
+      '--walk-bright': '#8a6600',
+    },
+    violet: {
+      '--accent': '#5b3cb4',
+      '--on-accent': '#ffffff',
+      '--walk': '#b05a28',
+      '--walk-bright': '#91481f',
+    },
+  },
+}
+
+/**
  * Domain of the wheel's radial scale: the active filter range for the radial
  * metric when the user set one, else the current selection's extent (the
  * radial axis rescales with the filter — design-v6 §A; everything else on
