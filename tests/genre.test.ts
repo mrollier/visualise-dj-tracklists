@@ -5,6 +5,7 @@ import {
   genreSimilarity,
   METHOD_LABEL,
   METHOD_LABEL_LONG,
+  METHOD_PICK_ORDER,
   normalizeGenre,
   packNeighbours,
   UMBRELLA_GENRES,
@@ -22,6 +23,11 @@ describe('method labels', () => {
     for (const method of GENRE_METHODS) {
       expect(METHOD_LABEL_LONG[method]).toContain(METHOD_LABEL[method])
     }
+  })
+
+  test('the pick order puts the recommended hybrid method first (issue 7)', () => {
+    expect(METHOD_PICK_ORDER[0]).toBe('hybrid')
+    expect([...METHOD_PICK_ORDER].sort()).toEqual([...GENRE_METHODS].sort())
   })
 })
 

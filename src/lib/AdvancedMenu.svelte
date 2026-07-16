@@ -1,6 +1,6 @@
 <script lang="ts">
   import { matchedGenrePairs } from '../core/combos'
-  import { GENRE_METHODS, METHOD_LABEL_LONG, type GenreMethod } from '../core/genre'
+  import { METHOD_LABEL_LONG, METHOD_PICK_ORDER, type GenreMethod } from '../core/genre'
   import type { Track } from '../core/model'
   import { type BpmProgression } from '../core/settings'
   import {
@@ -147,7 +147,7 @@
     <label>
       Method
       <select bind:value={$criteria.genre.method}>
-        {#each GENRE_METHODS as method (method)}
+        {#each METHOD_PICK_ORDER as method (method)}
           <option value={method}>{METHOD_LABEL_LONG[method]}</option>
         {/each}
       </select>

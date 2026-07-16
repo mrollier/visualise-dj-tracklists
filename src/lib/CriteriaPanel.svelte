@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { GENRE_METHODS, METHOD_LABEL } from '../core/genre'
+  import { METHOD_LABEL, METHOD_PICK_ORDER } from '../core/genre'
   import FiltersSection from './FiltersSection.svelte'
   import PlaylistsSection from './PlaylistsSection.svelte'
   import { criteria, edges, library, visibleLibrary } from '../stores'
@@ -52,7 +52,7 @@
         BPM within
         <input
           type="number"
-          min="1"
+          min="0"
           max="50"
           bind:value={$criteria.bpm.maxPercent}
           disabled={!$criteria.bpm.enabled}
@@ -87,7 +87,7 @@
            advanced menu — here only a subtle "recommended" marker. -->
       <label class="sub-option method">
         <select bind:value={$criteria.genre.method} disabled={!$criteria.genre.enabled}>
-          {#each GENRE_METHODS as method (method)}
+          {#each METHOD_PICK_ORDER as method (method)}
             <option value={method}>
               {METHOD_LABEL[method]}{method === 'hybrid' ? ' — recommended' : ''}
             </option>

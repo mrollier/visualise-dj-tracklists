@@ -53,6 +53,12 @@ describe('individual criteria', () => {
     expect(evaluateCombo(base, track({ id: 'e', bpm: 148 }), cfg).matched).not.toContain('bpm')
   })
 
+  test('a 0% tolerance means an exact BPM match (issue 8)', () => {
+    const cfg = config({ threshold: 5, bpm: { ...DEFAULT_CRITERIA.bpm, maxPercent: 0 } })
+    expect(evaluateCombo(base, track({ id: 'b', bpm: 128 }), cfg).matched).toContain('bpm')
+    expect(evaluateCombo(base, track({ id: 'c', bpm: 128.5 }), cfg).matched).not.toContain('bpm')
+  })
+
   test('genre defaults to the hybrid method (design-v6 §F), case-insensitively', () => {
     const cfg = config()
     expect(DEFAULT_CRITERIA.genre.method).toBe('hybrid')

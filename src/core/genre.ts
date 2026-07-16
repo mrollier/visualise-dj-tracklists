@@ -25,6 +25,20 @@ export const GENRE_METHODS: readonly GenreMethod[] = [
   'hybrid',
 ]
 
+/**
+ * Dropdown order for method pickers: the recommended hybrid first, then by
+ * decreasing sophistication. GENRE_METHODS keeps the simple→rich order the
+ * genre map's chips and colours are keyed on.
+ */
+export const METHOD_PICK_ORDER: readonly GenreMethod[] = [
+  'hybrid',
+  'embedding',
+  'taxonomy',
+  'graph',
+  'lexical',
+  'exact',
+]
+
 /** Short UI labels for the criteria panel (the advanced menu holds the detail). */
 export const METHOD_LABEL: Record<GenreMethod, string> = {
   exact: 'Exact match',
