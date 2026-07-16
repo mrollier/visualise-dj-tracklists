@@ -498,6 +498,18 @@ await page.waitForTimeout(300)
 if ((await page.locator('g.node').count()) !== 2) {
   errors.push('toggling a playlist did not reveal exactly its tracks')
 }
+// the genre checklist follows the playlist selection (ISSUES.md v7 #14):
+// Warm-up & After holds only a Melodic House track (plus one without genre),
+// so the collection's other genres must not clutter the list
+await page.locator('summary', { hasText: 'Filters' }).click()
+await page.locator('.genres > summary').click()
+const scopedGenreList = await page.locator('.genres li').allTextContents()
+const scopedTrimmed = scopedGenreList.map((s) => s.trim())
+if (scopedTrimmed.join() !== 'Melodic House') {
+  errors.push(`genre checklist not scoped to the selected playlist: [${scopedTrimmed}]`)
+}
+await page.locator('.genres > summary').click()
+await page.locator('summary', { hasText: 'Filters' }).click()
 await page.getByRole('checkbox', { name: 'Not in a playlist' }).check()
 await page.waitForTimeout(300)
 await page.screenshot({ path: `${scratch}/14c-playlists.png` })

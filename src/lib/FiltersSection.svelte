@@ -1,7 +1,7 @@
 <script lang="ts">
   import { get } from 'svelte/store'
   import { clampRange, libraryExtents, wholeExtent, type LibraryFilters } from '../core/filter'
-  import { filters, library, libraryGenres, playlistScopedLibrary, visibleLibrary } from '../stores'
+  import { filters, library, scopedGenres, playlistScopedLibrary, visibleLibrary } from '../stores'
 
   type RangeField = 'bpm' | 'year' | 'rating'
   type RangeSide = 'min' | 'max'
@@ -96,14 +96,14 @@
 
   function toggleGenre(genre: string, on: boolean) {
     filters.update((f) => {
-      const current = f.genres ?? $libraryGenres
+      const current = f.genres ?? $scopedGenres
       const next = on
         ? current.includes(genre)
           ? current
           : [...current, genre]
         : current.filter((g) => g !== genre)
       // All genres selected = no filter.
-      return { ...f, genres: next.length >= $libraryGenres.length ? null : next }
+      return { ...f, genres: next.length >= $scopedGenres.length ? null : next }
     })
   }
 
@@ -111,9 +111,9 @@
     filters.update((f) => ({ ...f, genres: on ? null : [] }))
   }
 
-  const activeGenres = $derived(new Set($filters.genres ?? $libraryGenres))
+  const activeGenres = $derived(new Set($filters.genres ?? $scopedGenres))
   const genreSummary = $derived(
-    $filters.genres === null ? 'all' : `${$filters.genres.length}/${$libraryGenres.length}`,
+    $filters.genres === null ? 'all' : `${$filters.genres.length}/${$scopedGenres.length}`,
   )
 </script>
 
@@ -165,7 +165,7 @@
       <button onclick={() => setAllGenres(false)}>None</button>
     </div>
     <ul>
-      {#each $libraryGenres as genre (genre)}
+      {#each $scopedGenres as genre (genre)}
         <li>
           <label>
             <input

@@ -91,10 +91,13 @@ export const effectiveColorAxis = derived(
     $colorAxis !== 'auto' ? $colorAxis : $radialAxis === 'rating' ? 'bpm' : 'rating',
 )
 
-/** Distinct genres present in the (unfiltered) library, alphabetical. */
-export const libraryGenres = derived(library, ($library) => {
+/**
+ * Distinct genres present in the SELECTED PLAYLISTS, alphabetical (issue 14:
+ * a whole-collection checklist drowns the playlists you actually work in).
+ */
+export const scopedGenres = derived(playlistScopedLibrary, ($scoped) => {
   const seen = new Map<string, string>()
-  for (const t of $library) {
+  for (const t of $scoped) {
     if (t.genre !== null && !seen.has(t.genre.toLowerCase()))
       seen.set(t.genre.toLowerCase(), t.genre)
   }
@@ -115,14 +118,16 @@ export const genreMatcher = derived([visibleLibrary, criteria], ([$visibleLibrar
 
 /**
  * Genre classes (node shapes), clustered in the selected similarity space.
- * Derived from the FULL library, not the filtered view: filtering must never
- * re-cluster — a genre keeps its symbol while nodes come and go (design-v5 §A).
+ * Derived from the playlist-scoped library (issue 14, superseding the
+ * design-v5 §A whole-library rule): range/genre filtering still never
+ * re-clusters — a genre keeps its symbol while nodes come and go — but
+ * toggling playlists deliberately re-clusters to the new selection.
  */
 export const genreClasses = derived(
-  [library, criteria, settings],
-  ([$library, $criteria, $settings]) =>
+  [playlistScopedLibrary, criteria, settings],
+  ([$scoped, $criteria, $settings]) =>
     computeGenreClasses(
-      $library.map((t) => t.genre),
+      $scoped.map((t) => t.genre),
       $criteria.genre.method,
       $settings.maxGenreClasses,
     ),
