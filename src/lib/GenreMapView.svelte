@@ -188,15 +188,20 @@
   const lastPosition = new Map<string, { x: number; y: number }>()
 
   $effect(() => {
-    const nodes: GenreNode[] = labels.map((id) => {
+    const nodes: GenreNode[] = labels.map((id, i) => {
       const previous = lastPosition.get(id)
       return {
         id,
         count: genreCounts.get(id) ?? 0,
         ghost: ghostLabels.has(id),
-        // keep previous positions so toggles reheat instead of restart
-        x: previous?.x,
-        y: previous?.y,
+        // keep previous positions so toggles reheat instead of restart;
+        // brand-new nodes spawn at the centre and organise outward under
+        // the physics (issue 3 — undefined coords would get d3's spiral
+        // near the origin, drifting in from the top left). The tiny
+        // deterministic offset keeps coincident nodes separable without
+        // relying on d3's random jiggle.
+        x: previous?.x ?? WIDTH / 2 + ((i % 7) - 3) * 2,
+        y: previous?.y ?? HEIGHT / 2 + ((i % 5) - 2) * 2,
       }
     })
     const links: GenreLink[] = [...pairStrength.entries()].map(([key, score]) => {
