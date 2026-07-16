@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { get } from 'svelte/store'
   import { matchedGenrePairs } from '../core/combos'
   import { METHOD_LABEL_LONG, METHOD_PICK_ORDER, type GenreMethod } from '../core/genre'
   import type { Track } from '../core/model'
@@ -151,6 +152,36 @@
   function close() {
     rightPanel.set('set')
   }
+
+  // --- section memory (v8 issue 17): all folded on first use, then the
+  // menu remembers which sections the user keeps open, across sessions.
+  // MUST be bind:open: Svelte 5 treats a plain open={} as controlled and
+  // re-asserts the declared value after every user toggle, so a one-way
+  // attribute (reactive or static) permanently slams the sections shut.
+  const SECTION_IDS = ['genre', 'keybpm', 'display', 'tracks', 'set'] as const
+  type SectionId = (typeof SECTION_IDS)[number]
+  // One-time init from the store: settings is a svelte store, not runes state.
+  const initiallyOpen = get(settings).advancedOpen
+  const sectionState = $state(
+    Object.fromEntries(SECTION_IDS.map((id) => [id, initiallyOpen.includes(id)])) as Record<
+      SectionId,
+      boolean
+    >,
+  )
+  // Persist SYNCHRONOUSLY on the toggle event, not via a deferred $effect:
+  // a pending effect is discarded when the panel unmounts right after a
+  // toggle (open section → Escape), silently forgetting the change.
+  function persistToggle(id: SectionId, event: Event) {
+    const open = event.currentTarget instanceof HTMLDetailsElement && event.currentTarget.open
+    settings.update((s) =>
+      s.advancedOpen.includes(id) === open
+        ? s
+        : {
+            ...s,
+            advancedOpen: open ? [...s.advancedOpen, id] : s.advancedOpen.filter((x) => x !== id),
+          },
+    )
+  }
 </script>
 
 <svelte:window
@@ -174,10 +205,14 @@
     </button>
   </div>
 
-  <!-- Grouped into collapsible sections (ISSUES.md #16): the workflow
-       section (Set & suggestions, last) opens by default, tuning sections
-       stay folded (v7 issue 10). -->
-  <details class="section">
+  <!-- Grouped into collapsible sections (ISSUES.md #16). All sections
+       start folded on first use; which ones stay open is remembered in
+       settings (v8 issue 17). -->
+  <details
+    class="section"
+    bind:open={sectionState.genre}
+    ontoggle={(e) => persistToggle('genre', e)}
+  >
     <summary>Genre matching</summary>
     <label>
       Method
@@ -237,7 +272,11 @@
     {/if}
   </details>
 
-  <details class="section">
+  <details
+    class="section"
+    bind:open={sectionState.keybpm}
+    ontoggle={(e) => persistToggle('keybpm', e)}
+  >
     <summary>Key & BPM</summary>
     <label class="row">
       <input type="checkbox" bind:checked={$criteria.key.plusTwo} />
@@ -276,7 +315,11 @@
     </p>
   </details>
 
-  <details class="section">
+  <details
+    class="section"
+    bind:open={sectionState.display}
+    ontoggle={(e) => persistToggle('display', e)}
+  >
     <summary>Display</summary>
     <label>
       Colour scheme
@@ -339,7 +382,11 @@
     </p>
   </details>
 
-  <details class="section">
+  <details
+    class="section"
+    bind:open={sectionState.tracks}
+    ontoggle={(e) => persistToggle('tracks', e)}
+  >
     <summary>Tracks table</summary>
     <p class="hint">Columns shown in the Tracks view — drag the table headers to reorder them.</p>
     {#each ALL_COLUMNS as field (field)}
@@ -354,7 +401,7 @@
     {/each}
   </details>
 
-  <details class="section" open>
+  <details class="section" bind:open={sectionState.set} ontoggle={(e) => persistToggle('set', e)}>
     <summary>Set & suggestions</summary>
     <label>
       Suggested set length

@@ -173,21 +173,20 @@ if ((await page.locator('.must-toggle[aria-pressed="true"]').count()) !== 1) {
 await page.screenshot({ path: `${scratch}/04-selected.png` })
 
 // shorter walks (8) keep unused neighbours around for the hub step below;
-// Set & suggestions sits LAST, open by default; tuning sections start
-// folded (ISSUES.md #16; v7 #10)
+// Set & suggestions sits LAST; on FIRST open every section starts folded
+// (v8 issue 17 — the menu then remembers what the user opens)
 await page.getByRole('button', { name: /Advanced/ }).click()
 const lastSectionName = await page.locator('.panel details.section > summary').last().textContent()
 if (lastSectionName?.trim() !== 'Set & suggestions') {
   errors.push(`the last advanced section should be Set & suggestions, got "${lastSectionName}"`)
 }
-const mergedOpen = await page
-  .locator('.panel details.section', { hasText: 'Set & suggestions' })
-  .evaluate((d) => d.open)
-const genreOpen = await page
-  .locator('.panel details.section', { hasText: 'Genre matching' })
-  .evaluate((d) => d.open)
-if (!mergedOpen) errors.push('the Set & suggestions section should start open')
-if (genreOpen) errors.push('the Genre matching section should start folded')
+const openAtFirst = await page
+  .locator('.panel details.section')
+  .evaluateAll((ds) => ds.filter((d) => d.open).length)
+if (openAtFirst !== 0) {
+  errors.push(`all advanced sections should start folded on first open (${openAtFirst} open)`)
+}
+await page.locator('.panel details.section > summary', { hasText: 'Set & suggestions' }).click()
 // the must-include mark shows up as a removable row in Set & suggestions
 if ((await page.locator('.must-list li').count()) !== 1) {
   errors.push('the must-include mark did not appear in the Set & suggestions section')
@@ -894,6 +893,19 @@ const restoredSetName = await page
 if (restoredSetName !== 'Sunrise closing') {
   errors.push(`the set name did not survive the reload: "${restoredSetName}"`)
 }
+// v8 issue 17: the advanced menu remembers its open sections across reloads
+// (Set & suggestions was opened early in this flow; the others never were)
+await page.getByRole('button', { name: /Advanced/ }).click()
+const rememberedOpen = await page
+  .locator('.panel details.section')
+  .evaluateAll((ds) => ds.filter((d) => d.open).map((d) => d.querySelector('summary')?.textContent))
+if (rememberedOpen.length === 0) {
+  errors.push('the advanced menu forgot its open sections across the reload')
+}
+if (!rememberedOpen.includes('Set & suggestions')) {
+  errors.push(`Set & suggestions should be remembered open, got [${rememberedOpen}]`)
+}
+await page.keyboard.press('Escape')
 await page.screenshot({ path: `${scratch}/13-restored.png` })
 
 // import a real Rekordbox XML export through the UI; the report lives

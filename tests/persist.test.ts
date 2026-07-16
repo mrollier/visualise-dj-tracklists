@@ -127,6 +127,12 @@ describe('project persistence (v3)', () => {
     expect(parsed.sets[0].trackIds).toEqual([SAMPLE_TRACKS[0].id, 'ok-1'])
   })
 
+  test('saves from before the section memory start with everything folded (v8 issue 17)', () => {
+    const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    Reflect.deleteProperty(raw.settings as Record<string, unknown>, 'advancedOpen')
+    expect(parseProject(JSON.stringify(raw)).settings.advancedOpen).toEqual([])
+  })
+
   test('saves from before trackColumns default to the classic seven (v8 issue 15)', () => {
     const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
     Reflect.deleteProperty(raw.settings as Record<string, unknown>, 'trackColumns')

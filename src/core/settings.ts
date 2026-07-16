@@ -51,6 +51,11 @@ export interface AppSettings {
    * not listed are hidden; header drag reorders this list.
    */
   trackColumns: TrackSortField[]
+  /**
+   * Which advanced-menu sections the user has opened (v8 issue 17). Empty on
+   * first use — every section starts folded; the menu then remembers.
+   */
+  advancedOpen: string[]
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -65,4 +70,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   maxGenreClasses: 4,
   bpmProgression: 'any',
   trackColumns: ['artist', 'title', 'key', 'bpm', 'genre', 'year', 'rating'],
+  advancedOpen: [],
 }
