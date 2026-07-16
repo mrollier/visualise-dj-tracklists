@@ -227,6 +227,11 @@
       // pull must stay gentle or connected layouts visibly compress.
       .force('x', forceX(WIDTH / 2).strength(CONTAIN_STRENGTH))
       .force('y', forceY(HEIGHT / 2).strength(CONTAIN_STRENGTH))
+      // Slower cooling and stronger damping: nodes drift into place
+      // organically instead of springing (issue 5, pairs with the
+      // centre spawn of issue 3).
+      .alphaDecay(0.02)
+      .velocityDecay(0.5)
       .on('tick', () => {
         const current = simulation!.nodes() as GenreNode[]
         for (const n of current) {

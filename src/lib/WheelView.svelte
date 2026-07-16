@@ -127,9 +127,11 @@
 
   // Deliberately seeds the tween with the initial domain (no mount
   // animation); the $effect below keeps it tracking changes.
+  // 600ms reads noticeably calmer than the original 350 (issue 5).
+  const RADIAL_TWEEN_MS = 600
   // svelte-ignore state_referenced_locally
   const domainTween = new Tween<[number, number]>(targetDomain, {
-    duration: 350,
+    duration: RADIAL_TWEEN_MS,
     easing: cubicOut,
   })
   $effect(() => {
