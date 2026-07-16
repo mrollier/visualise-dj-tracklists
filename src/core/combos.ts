@@ -44,7 +44,8 @@ export interface CriteriaConfig {
 // rather than requiring neighbours to be similarly rated.
 export const DEFAULT_CRITERIA: CriteriaConfig = {
   key: { enabled: true, plusTwo: false, plusSeven: false, vinylMode: false },
-  bpm: { enabled: true, maxPercent: 10, halfDouble: false },
+  // ±8% mirrors the pitch-bend range of a classic Technics 1210 fader
+  bpm: { enabled: true, maxPercent: 8, halfDouble: false },
   genre: { enabled: true, method: 'hybrid', mode: 'topk', k: 5, threshold: 0.2 },
   year: { enabled: true, maxYears: 5 },
   threshold: 3,

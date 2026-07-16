@@ -27,10 +27,21 @@ describe('individual criteria', () => {
 
   test('bpm matches within the configured percentage of the slower track', () => {
     const cfg = config({ threshold: 5 })
+    // ±8% by default: the pitch-bend range of a classic Technics 1210 fader
+    expect(DEFAULT_CRITERIA.bpm.maxPercent).toBe(8)
     expect(evaluateCombo(base, track({ id: 'b', bpm: 130 }), cfg).matched).toContain('bpm')
-    // 120 vs 130 → 8.3% of 120: inside 10%
+    // 120 vs 129 → 7.5% of 120: inside 8%
+    expect(
+      evaluateCombo(track({ id: 'c', bpm: 120 }), track({ id: 'd', bpm: 129 }), cfg).matched,
+    ).toContain('bpm')
+    // 120 vs 130 → 8.3% of 120: just outside the default
     expect(
       evaluateCombo(track({ id: 'c', bpm: 120 }), track({ id: 'd', bpm: 130 }), cfg).matched,
+    ).not.toContain('bpm')
+    // …but inside a widened tolerance
+    const wide = config({ threshold: 5, bpm: { ...DEFAULT_CRITERIA.bpm, maxPercent: 10 } })
+    expect(
+      evaluateCombo(track({ id: 'c', bpm: 120 }), track({ id: 'd', bpm: 130 }), wide).matched,
     ).toContain('bpm')
     // 128 vs 148 → 15.6%: outside
     expect(evaluateCombo(base, track({ id: 'e', bpm: 148 }), cfg).matched).not.toContain('bpm')
