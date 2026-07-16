@@ -1,6 +1,7 @@
 import {
   computeEdges,
   evaluateCombo,
+  keysNearlyMatch,
   makeGenreMatcher,
   type CriteriaConfig,
   type GenreMatcher,
@@ -47,6 +48,11 @@ const SAWTOOTH_PERIOD = 4
 const PROGRESSION_WEIGHT = 0.8
 /** Strictly above the maximum matched-criteria score (4 criteria). */
 const MUST_INCLUDE_BONUS = 5
+/**
+ * Forced picks only: a nudge towards ±2/±7-semitone key relations, below
+ * the 0.5 genre weight so it re-ranks harmonic near-ties, not styles.
+ */
+const KEY_AFFINITY_BONUS = 0.3
 
 /**
  * How well a BPM step fits the preferred trajectory, in [0, 1]. Missing BPMs
@@ -331,37 +337,44 @@ export function nextExhausted(
 }
 
 /**
- * Whether the retry ring has anything to offer after a hub pick (issue 17):
- * true when re-drawing `lastPick` could yield a DIFFERENT track from the
- * same pool the pick came from. Takes the stores' adjacency-map shape so the
- * view derives it without re-running edge computation.
- * - Stale picks (the set changed since) never retry.
- * - An empty-set opener retries while any other visible track remains.
- * - A normal pick retries while its anchor has another unused neighbour.
- * - A forced pick (not a neighbour of its anchor) retries over any other
- *   unused visible track — it was already rule-breaking.
+ * The retry ring's state after a hub pick (v8 issues 2+3) — the ring never
+ * silently vanishes mid-cycle, it degrades:
+ * - 'retry': the anchor still has an unused, untried matching neighbour
+ *   (for the edge-less opener slot: any unused, untried visible track).
+ * - 'force-retry': matching options are exhausted, but an unused, untried
+ *   visible track remains for a rule-breaking swap.
+ * - 'reset-only': every alternative has been tried — only the ⟲ restore of
+ *   the original pick is left (no auto-reset; the user decides).
+ * - 'none': no valid pick to swap (stale/absent), or a pick with no
+ *   alternatives that was never retried (nothing to reset either).
+ * Takes the stores' adjacency-map shape so the view derives it without
+ * re-running edge computation.
  */
-export function retryAlternativeExists(
+export type RetryState = 'retry' | 'force-retry' | 'reset-only' | 'none'
+
+export function retryState(
   neighbours: ReadonlyMap<string, ReadonlySet<string>>,
   tracklist: string[],
   lastPick: NextSuggestion | null,
+  triedIds: readonly string[],
   visibleIds: readonly string[],
-): boolean {
-  if (lastPick === null) return false
+): RetryState {
+  if (lastPick === null) return 'none'
   const { trackId, insertIndex } = lastPick
-  if (tracklist[insertIndex] !== trackId) return false
+  if (tracklist[insertIndex] !== trackId) return 'none'
   const used = new Set(tracklist)
+  const tried = new Set(triedIds)
+  const fresh = (id: string): boolean => !used.has(id) && !tried.has(id)
   if (insertIndex === 0) {
-    return visibleIds.some((id) => !used.has(id))
+    // Opener slot: openers are drawn from the whole pool, not edge-gated.
+    if (visibleIds.some(fresh)) return 'retry'
+  } else {
+    for (const id of neighbours.get(tracklist[insertIndex - 1]) ?? []) {
+      if (fresh(id)) return 'retry'
+    }
+    if (visibleIds.some(fresh)) return 'force-retry'
   }
-  const anchorNeighbours = neighbours.get(tracklist[insertIndex - 1])
-  if (anchorNeighbours?.has(trackId) !== true) {
-    return visibleIds.some((id) => !used.has(id))
-  }
-  for (const id of anchorNeighbours) {
-    if (!used.has(id)) return true
-  }
-  return false
+  return tried.size > 0 ? 'reset-only' : 'none'
 }
 
 /**
@@ -435,12 +448,17 @@ export function suggestNext(
   )
 
   if (candidates.length === 0 && force) {
-    // Forced: rank every unused track by the same score, edge gate ignored.
+    // Forced: rank every unused track by the same score, edge gate ignored,
+    // with a gentle preference for keys a ±2/±7-semitone move away — the
+    // least dissonant of the rule-breaking options (v8 issue 16).
     candidates = tracks
       .filter((t) => !used.has(t.id))
       .map((t) => ({
         item: t.id,
-        score: scoreCandidate(anchor, t, criteria, genreMatch) + scoreExtra(t),
+        score:
+          scoreCandidate(anchor, t, criteria, genreMatch) +
+          (keysNearlyMatch(anchor, t, criteria) ? KEY_AFFINITY_BONUS : 0) +
+          scoreExtra(t),
       }))
       .sort((a, b) => b.score - a.score || a.item.localeCompare(b.item))
   }

@@ -197,6 +197,18 @@ const PREDICATES: Record<CriterionField, Predicate> = {
 const FIELDS = Object.keys(PREDICATES) as CriterionField[]
 
 /**
+ * The key criterion under relaxed opts — +2 and +7-semitone moves allowed
+ * regardless of the user's toggles (vinyl mode still respected). The forced
+ * picker uses this as a gentle preference when no harmonious transition is
+ * left (v8 issue 16).
+ */
+export function keysNearlyMatch(a: Track, b: Track, cfg: CriteriaConfig): boolean {
+  if (a.key === null || b.key === null) return false
+  const relaxed: CriteriaConfig = { ...cfg, key: { ...cfg.key, plusTwo: true, plusSeven: true } }
+  return PREDICATES.key(a, b, relaxed)
+}
+
+/**
  * Evaluate one pair. `genreMatch` should be the matcher built over the whole
  * pairing universe (computeEdges and the suggesters do this); without it, a
  * pair-local matcher is built — identical semantics for 'threshold' mode,

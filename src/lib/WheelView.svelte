@@ -27,12 +27,7 @@
     radialDomain,
   } from '../core/scales'
   import { effectiveTheme } from './theme'
-  import {
-    nextExhausted,
-    retryAlternativeExists,
-    suggestNext,
-    type NextSuggestion,
-  } from '../core/suggest'
+  import { nextExhausted, retryState, suggestNext, type NextSuggestion } from '../core/suggest'
   import {
     appendToSet,
     criteria,
@@ -357,16 +352,22 @@
   )
 
   let lastHubPick = $state<NextSuggestion | null>(null)
+  // The FIRST pick made for the slot — what the ⟲ button restores. Survives
+  // retries, dies with the retry window (v8 issue 3).
+  let originalPickId = $state<string | null>(null)
   let triedIds = $state<string[]>([])
   // Any external edit to the set closes the retry window.
   $effect(() => {
     if (lastHubPick !== null && $tracklist[lastHubPick.insertIndex] !== lastHubPick.trackId) {
       lastHubPick = null
+      originalPickId = null
       triedIds = []
     }
   })
-  const retryAvailable = $derived(
-    retryAlternativeExists($neighbours, $tracklist, lastHubPick, [...visibleIds]),
+  // The ring degrades instead of vanishing: retry → force retry (+ ⟲ reset)
+  // → reset-only, per the pure state machine (v8 issues 2+3).
+  const hubRetryState = $derived(
+    retryState($neighbours, $tracklist, lastHubPick, triedIds, [...visibleIds]),
   )
 
   function hubSuggest() {
@@ -382,29 +383,32 @@
     tracklist.update((ids) => ids.toSpliced(suggestion.insertIndex, 0, suggestion.trackId))
     selectedId.set(suggestion.trackId)
     lastHubPick = suggestion
+    originalPickId = suggestion.trackId
     triedIds = []
   }
 
   /** Swap the last hub pick for a different one, keeping its slot. */
   function hubRetry() {
     const pick = lastHubPick
+    const state = hubRetryState
     if (pick === null || $tracklist[pick.insertIndex] !== pick.trackId) return
+    if (state !== 'retry' && state !== 'force-retry') return
     const withoutPick = $tracklist.toSpliced(pick.insertIndex, 1)
     // Re-anchor exactly where the original pick came from: the previous
     // track for a mid/end pick, nothing for an empty-set opener.
     const anchorId = pick.insertIndex > 0 ? withoutPick[pick.insertIndex - 1] : null
-    const wasForced = anchorId !== null && $neighbours.get(anchorId)?.has(pick.trackId) !== true
     const exclude = [...triedIds, pick.trackId]
     const suggestion = suggestNext($visibleLibrary, $criteria, withoutPick, {
       selectedId: anchorId,
       randomness: $settings.suggestRandomness,
       seed: hubSeed++,
       progression: $settings.bpmProgression,
-      force: wasForced,
+      force: state === 'force-retry',
       excludeIds: exclude,
     })
     if (suggestion === null || suggestion.insertIndex !== pick.insertIndex) {
       lastHubPick = null
+      originalPickId = null
       triedIds = []
       return
     }
@@ -412,6 +416,20 @@
     selectedId.set(suggestion.trackId)
     lastHubPick = suggestion
     triedIds = exclude
+  }
+
+  /** ⟲: put the slot's original pick back and reopen the cycle (issue 3). */
+  function hubReset(event?: Event) {
+    event?.stopPropagation()
+    const pick = lastHubPick
+    const original = originalPickId
+    if (pick === null || original === null || $tracklist[pick.insertIndex] !== pick.trackId) return
+    if (original !== pick.trackId) {
+      tracklist.update((ids) => ids.toSpliced(pick.insertIndex, 1, original))
+      selectedId.set(original)
+      lastHubPick = { trackId: original, insertIndex: pick.insertIndex }
+    }
+    triedIds = []
   }
 
   // Tracks tagged in the Tracks view (essential / opener / closer) wear a
@@ -642,22 +660,59 @@
       <!-- Hub button, painted LAST so edges and nodes never steal its
            clicks (issue 17), with an oversized transparent hit circle. -->
       {#if $visibleLibrary.length > 0}
-        {#if retryAvailable}
+        {#if hubRetryState !== 'none'}
           <g
             class="hub-retry"
+            class:force={hubRetryState === 'force-retry'}
+            class:spent={hubRetryState === 'reset-only'}
             role="button"
-            tabindex="0"
-            aria-label="Retry: replace the last suggested track with another pick"
+            tabindex={hubRetryState === 'reset-only' ? -1 : 0}
+            aria-disabled={hubRetryState === 'reset-only'}
+            aria-label={hubRetryState === 'force-retry'
+              ? 'Force retry: swap the last pick for the closest rule-breaking one'
+              : hubRetryState === 'reset-only'
+                ? 'Every alternative has been tried'
+                : 'Retry: replace the last suggested track with another pick'}
             onclick={hubRetry}
             onkeydown={(e) => {
               if (e.key === 'Enter') hubRetry()
             }}
           >
-            <title>Not feeling it? Swap the last suggestion for a different pick</title>
+            <title
+              >{hubRetryState === 'force-retry'
+                ? 'No matching alternative left — retrying knowingly breaks the rules'
+                : hubRetryState === 'reset-only'
+                  ? 'Every alternative has been tried — ⟲ restores the original pick'
+                  : 'Not feeling it? Swap the last suggestion for a different pick'}</title
+            >
             <circle cx={CX} cy={CY} r="52" class="retry-hit" />
             <circle cx={CX} cy={CY} r="52" class="retry-ring" vector-effect="non-scaling-stroke" />
-            <text x={CX} y={CY + 70} class="retry-label" text-anchor="middle">retry</text>
+            <text x={CX} y={CY + 70} class="retry-label" text-anchor="middle"
+              >{hubRetryState === 'force-retry'
+                ? 'force retry'
+                : hubRetryState === 'reset-only'
+                  ? 'all tried'
+                  : 'retry'}</text
+            >
           </g>
+          {#if hubRetryState !== 'retry' && triedIds.length > 0 && originalPickId !== lastHubPick?.trackId}
+            <!-- ⟲ reset-to-original: part of the force-retry morph (issue 3),
+                 shown only while the slot actually diverges from the original -->
+            <g
+              class="hub-reset"
+              role="button"
+              tabindex="0"
+              aria-label="Restore the original pick"
+              onclick={hubReset}
+              onkeydown={(e) => {
+                if (e.key === 'Enter') hubReset(e)
+              }}
+            >
+              <title>Restore the original pick and start the cycle over</title>
+              <circle cx={CX} cy={CY - 52} r="11" class="reset-disc" />
+              <text x={CX} y={CY - 48} class="reset-glyph" text-anchor="middle">⟲</text>
+            </g>
+          {/if}
         {/if}
         <g
           class="hub"
@@ -957,6 +1012,9 @@
     stroke-width: 1;
     stroke-dasharray: 2 5;
     pointer-events: none;
+    transition:
+      stroke 0.4s ease,
+      opacity 0.4s ease;
   }
 
   .hub-retry:hover .retry-ring,
@@ -965,15 +1023,83 @@
     stroke-dasharray: 2 3;
   }
 
+  /* The morph to "force retry" (v8 issue 3): the ring adopts the force
+     palette with a short dash-spin announcing the state change. */
+  .hub-retry.force .retry-ring {
+    stroke: var(--walk-bright);
+    animation: retry-morph 0.9s ease-out 1;
+  }
+
+  .hub-retry.force:hover .retry-ring,
+  .hub-retry.force:focus-visible .retry-ring {
+    stroke: var(--walk-bright);
+    stroke-dasharray: 2 3;
+  }
+
+  /* Everything tried: the ring stays as a dimmed trace; only ⟲ acts. */
+  .hub-retry.spent {
+    pointer-events: none;
+    cursor: default;
+  }
+
+  .hub-retry.spent .retry-ring {
+    opacity: 0.35;
+    animation: retry-morph 0.9s ease-out 1;
+  }
+
+  @keyframes retry-morph {
+    from {
+      stroke-dashoffset: 21;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
   .retry-label {
     fill: var(--ink-muted);
     font-size: 9px;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     pointer-events: none;
+    transition: fill 0.4s ease;
   }
 
   .hub-retry:hover .retry-label {
+    fill: var(--accent);
+  }
+
+  .hub-retry.force .retry-label,
+  .hub-retry.force:hover .retry-label {
+    fill: var(--walk-bright);
+  }
+
+  .hub-retry.spent .retry-label {
+    opacity: 0.5;
+  }
+
+  .hub-reset .reset-disc {
+    fill: var(--surface-raised);
+    stroke: var(--baseline);
+    stroke-width: 1;
+  }
+
+  .hub-reset {
+    cursor: pointer;
+  }
+
+  .hub-reset .reset-glyph {
+    fill: var(--ink-secondary);
+    font-size: 12px;
+    pointer-events: none;
+  }
+
+  .hub-reset:hover .reset-disc,
+  .hub-reset:focus-visible .reset-disc {
+    stroke: var(--accent);
+  }
+
+  .hub-reset:hover .reset-glyph {
     fill: var(--accent);
   }
 

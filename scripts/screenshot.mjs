@@ -446,6 +446,38 @@ if ((await page.locator('g.hub.warning').count()) !== 1) {
   if (forcedAfter !== forcedBefore + 1) {
     errors.push(`the forced hub click did not append: ${forcedBefore} -> ${forcedAfter}`)
   }
+  // v8 issues 2+3: the ring is present in force state, morphs to "force
+  // retry", degrades to reset-only instead of vanishing, and ⟲ restores
+  // the original pick
+  if ((await page.locator('g.hub-retry.force').count()) !== 1) {
+    errors.push('a forced pick should show the force-retry ring (v8 issue 2)')
+  }
+  const originalPickRow = await page.locator('aside ol li.track').last().textContent()
+  let spentReached = false
+  for (let i = 0; i < 40; i++) {
+    if ((await page.locator('g.hub-retry.spent').count()) === 1) {
+      spentReached = true
+      break
+    }
+    await page.locator('g.hub-retry').dispatchEvent('click')
+    await page.waitForTimeout(250)
+  }
+  if (!spentReached) {
+    errors.push('cycling force-retry never reached the reset-only state')
+  } else if ((await page.locator('g.hub-reset').count()) !== 1) {
+    errors.push('reset-only state is missing its ⟲ button')
+  } else {
+    await page.screenshot({ path: `${scratch}/07d-retry-spent.png` })
+    await page.locator('g.hub-reset').dispatchEvent('click')
+    await page.waitForTimeout(250)
+    const afterReset = await page.locator('aside ol li.track').last().textContent()
+    if (afterReset !== originalPickRow) {
+      errors.push(`⟲ should restore the original pick ("${originalPickRow}" vs "${afterReset}")`)
+    }
+    if ((await page.locator('aside ol li.track').count()) !== forcedAfter) {
+      errors.push('⟲ changed the set length instead of swapping the pick back')
+    }
+  }
 }
 await page.locator('aside').first().getByRole('button', { name: 'All' }).first().click()
 await page.waitForTimeout(400)

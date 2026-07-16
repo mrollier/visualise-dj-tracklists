@@ -5,7 +5,7 @@ import {
   nextAnchorId,
   nextExhausted,
   progressionFit,
-  retryAlternativeExists,
+  retryState,
   suggestNext,
   suggestWalk,
 } from '../src/core/suggest'
@@ -273,7 +273,7 @@ describe('suggestNext', () => {
   })
 })
 
-describe('retryAlternativeExists', () => {
+describe('retryState (v8 issues 2+3)', () => {
   // a is the hub of a small star; z exists only as a visible non-neighbour.
   const neighbourMap = new Map<string, Set<string>>([
     ['a', new Set(['b', 'c'])],
@@ -282,53 +282,85 @@ describe('retryAlternativeExists', () => {
   ])
   const visible = ['a', 'b', 'c', 'z']
 
-  test('no pick, or a pick the set has since diverged from, offers no retry', () => {
-    expect(retryAlternativeExists(neighbourMap, ['a', 'b'], null, visible)).toBe(false)
+  test('no pick, or a pick the set has since diverged from, is none', () => {
+    expect(retryState(neighbourMap, ['a', 'b'], null, [], visible)).toBe('none')
     expect(
-      retryAlternativeExists(neighbourMap, ['a', 'c'], { trackId: 'b', insertIndex: 1 }, visible),
-    ).toBe(false)
+      retryState(neighbourMap, ['a', 'c'], { trackId: 'b', insertIndex: 1 }, [], visible),
+    ).toBe('none')
   })
 
-  test('a normal pick retries only while the anchor has another unused neighbour', () => {
+  test('retry while the anchor has an unused, untried matching neighbour', () => {
     expect(
-      retryAlternativeExists(neighbourMap, ['a', 'b'], { trackId: 'b', insertIndex: 1 }, visible),
-    ).toBe(true) // c is still free
+      retryState(neighbourMap, ['a', 'b'], { trackId: 'b', insertIndex: 1 }, [], visible),
+    ).toBe('retry')
+    // …but c already tried: only the rule-breaking pool is left
     expect(
-      retryAlternativeExists(
-        neighbourMap,
-        ['c', 'a', 'b'],
-        { trackId: 'b', insertIndex: 2 },
-        visible,
-      ),
-    ).toBe(false) // a's other neighbour c is already in the set
+      retryState(neighbourMap, ['a', 'b'], { trackId: 'b', insertIndex: 1 }, ['c'], visible),
+    ).toBe('force-retry')
   })
 
-  test('an empty-set opener retries while any other visible track remains', () => {
+  test('force-retry when matching options are gone but untried visible tracks remain', () => {
+    // a's other neighbour c is in the set; z is the only alternative left
     expect(
-      retryAlternativeExists(neighbourMap, ['a'], { trackId: 'a', insertIndex: 0 }, visible),
-    ).toBe(true)
+      retryState(neighbourMap, ['c', 'a', 'b'], { trackId: 'b', insertIndex: 2 }, [], visible),
+    ).toBe('force-retry')
+    // a forced pick in the slot with matching long gone stays force-retry
     expect(
-      retryAlternativeExists(neighbourMap, ['a'], { trackId: 'a', insertIndex: 0 }, ['a']),
-    ).toBe(false)
+      retryState(neighbourMap, ['a', 'b', 'z'], { trackId: 'z', insertIndex: 2 }, [], visible),
+    ).toBe('force-retry')
   })
 
-  test('a forced pick retries over any other unused visible track', () => {
+  test('reset-only when every alternative has been tried; none without a history', () => {
+    // z sits in the slot, c was already tried: nothing left but the ⟲ reset
     expect(
-      retryAlternativeExists(
-        neighbourMap,
-        ['a', 'b', 'z'],
-        { trackId: 'z', insertIndex: 2 },
-        visible,
-      ),
-    ).toBe(true) // c unused
+      retryState(neighbourMap, ['a', 'b', 'z'], { trackId: 'z', insertIndex: 2 }, ['c'], visible),
+    ).toBe('reset-only')
+    // same exhaustion but nothing was ever tried: no ring at all
     expect(
-      retryAlternativeExists(
-        neighbourMap,
-        ['a', 'c', 'b', 'z'],
-        { trackId: 'z', insertIndex: 3 },
-        visible,
-      ),
-    ).toBe(false) // every visible track is in the set
+      retryState(neighbourMap, ['a', 'c', 'b', 'z'], { trackId: 'z', insertIndex: 3 }, [], visible),
+    ).toBe('none')
+  })
+
+  test('an empty-set opener cycles all visible tracks, then reset-only', () => {
+    expect(retryState(neighbourMap, ['a'], { trackId: 'a', insertIndex: 0 }, [], visible)).toBe(
+      'retry',
+    )
+    expect(
+      retryState(neighbourMap, ['a'], { trackId: 'a', insertIndex: 0 }, ['b', 'c', 'z'], visible),
+    ).toBe('reset-only')
+    expect(retryState(neighbourMap, ['a'], { trackId: 'a', insertIndex: 0 }, [], ['a'])).toBe(
+      'none',
+    )
+  })
+})
+
+describe('forced key preference (v8 issue 16)', () => {
+  // The anchor is harmonically and stylistically stranded: every candidate
+  // fails the edge gate, so force ranks the whole pool. The two candidates
+  // are identical except for their key: 'z-plus2' sits a +2 move away
+  // (10A vs 8A), 'a-far' three slots away (11A). Without the affinity term
+  // the id tiebreak would pick 'a-far'.
+  const stranded = [
+    track({ id: 'anchor', key: '8A', bpm: 128, genre: 'Techno', year: 2020 }),
+    track({ id: 'a-far', key: '11A', bpm: 200, genre: 'Jazz', year: 1990 }),
+    track({ id: 'z-plus2', key: '10A', bpm: 200, genre: 'Jazz', year: 1990 }),
+  ]
+
+  test('a forced pick slightly prefers a ±2/±7-semitone key relation', () => {
+    const next = suggestNext(stranded, config(), ['anchor'], { force: true })
+    expect(next).toEqual({ trackId: 'z-plus2', insertIndex: 1 })
+  })
+
+  test('normal (edge-gated) ranking is unchanged by the affinity term', () => {
+    // Both candidates match bpm+genre+year (3 of 4); key differs only in
+    // distance. Equal scores must still fall to the id tiebreak.
+    const matched = [
+      track({ id: 'anchor', key: '8A', bpm: 128, genre: 'Techno', year: 2020 }),
+      track({ id: 'a-far', key: '11A', bpm: 128, genre: 'Techno', year: 2020 }),
+      track({ id: 'b-plus2', key: '10A', bpm: 128, genre: 'Techno', year: 2020 }),
+    ]
+    const next = suggestNext(matched, config(), ['anchor'], {})
+    expect(next).toEqual({ trackId: 'a-far', insertIndex: 1 })
   })
 })
 
