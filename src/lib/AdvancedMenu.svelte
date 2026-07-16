@@ -502,12 +502,14 @@
     color: var(--ink-secondary);
   }
 
-  /* Two radio choices side by side; each label keeps its circle and text
-     on one line (issue 11: the old single-label layout wrapped mid-choice). */
+  /* Two radio choices; each label keeps its circle and text on one line
+     (issue 11: the old single-label layout wrapped mid-choice). The row
+     itself may wrap BETWEEN the choices when the panel is narrow. */
   .mode-row {
     display: flex;
     align-items: center;
-    gap: 16px;
+    flex-wrap: wrap;
+    gap: 2px 16px;
   }
 
   .mode-row label {

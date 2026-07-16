@@ -33,27 +33,41 @@ Your library never leaves your machine — there is no backend, no account, no u
 - **Nodes that hold still**: every track's angle is a property of your _library_,
   not of the current filters — filtering and playlist toggling only make nodes
   appear or disappear, leaving gaps in the same-key fans, so nothing ever shuffles
-  around while you narrow down. The one deliberate exception is the **radial axis**:
+  around while you narrow down. Same-key fans spread evenly in a **stable random
+  order** (no artificial BPM sweep); a ↻ button re-shuffles them, and the spread
+  itself scales from 0 to 1. The one deliberate exception is the **radial axis**:
   tighten the min/max of the value shown as radius and the rings, ticks and radii
   glide to the new range (and back, via each filter's ↺ reset). The legend lists
   only the genre classes you can currently see, and disappears when the symbols
   make no distinction. Rating and year rings only sit on whole values.
-- **Map the genres**: a second central view (Wheel | Genres switch) lays your library's
-  genres out with a force simulation — screen distance approximates the distance
-  measure. Toggleable per-method edge overlays show where the six similarity methods
-  agree and disagree; hovering a link lists every method's score for that pair, and a
-  "show nearby genres" toggle ghosts in related genres you don't own yet.
-- **Filter**: BPM / year / rating ranges plus an alphabetical genre checklist decide
-  what participates in the graph at all. Ranges pre-fill with the whole numbers just
-  outside the **selected playlists'** actual extremes, reset to them with a ↺ per
-  range (and whenever you toggle playlists), and a min can never cross its max.
+- **Map the genres**: a second central view (Wheel | Genres | Tracks switch) lays your
+  library's genres out with a force simulation — screen distance approximates the
+  distance measure. Toggleable per-method edge overlays show where the six similarity
+  methods agree and disagree — the overlay for your **active criterion method draws
+  exactly the pairs the criterion links**, k/threshold included; hovering a link lists
+  every method's score for that pair, and a "show nearby genres" toggle ghosts in
+  related genres you don't own yet.
+- **Browse the tracks**: the third central view is a classic sortable table of the
+  selected playlists — every column sortable (keys in Camelot order, missing values
+  last), clicking a row selects it everywhere and highlights its combo neighbours,
+  double-click appends it to the set. Per-row toggles mark a track **essential** (★)
+  or pin it as the **opener/closer** of generated sets; tagged tracks wear a subtle
+  ring on the wheel.
+- **Filter**: BPM / year / rating ranges plus a genre checklist **scoped to the
+  selected playlists** decide what participates in the graph at all. Ranges pre-fill
+  with the whole numbers just outside the selected playlists' actual extremes, reset
+  to them with a ↺ per range (and whenever you toggle playlists), and a min can never
+  cross its max. The filter header counts visible tracks against the playlist
+  selection; the playlists header carries the selection's track total.
 - **Tune the criteria**: key / BPM / genre / year each toggleable and ranged; an edge
   appears when at least _N_ of the enabled criteria match. Missing metadata never blocks
-  a combo. **Half/double-time** BPM matching links 85 ↔ 170 worlds; the **+2** and
-  **+7-semitone** key moves toggle independently; **vinyl mode** models the physics of
-  beatmatching on turntables — pitch shifts the key with the tempo, so keys are always
-  compared _after_ that shift: same-key tracks at different tempos detune apart, and
-  clean-semitone gaps transpose into new matches. Toggling it visibly rewires the graph.
+  a combo. The BPM tolerance defaults to **±8%** — the pitch range of a classic
+  Technics fader. **Half/double-time** BPM matching links 85 ↔ 170 worlds; the **+2**
+  and **+7-semitone** key moves toggle independently; **vinyl mode** models the physics
+  of beatmatching on turntables — pitch shifts the key with the tempo, so keys are
+  always compared _after_ that shift: same-key tracks at different tempos detune apart,
+  and clean-semitone gaps transpose into new matches. Toggling it visibly rewires the
+  graph.
 - **Match genres that aren't spelled the same**: six selectable similarity methods
   (see below) — the dropdown sits right in the combo panel, sourced explainers and
   parameters in the advanced menu. The criterion defaults to the **hybrid** method
@@ -65,28 +79,40 @@ Your library never leaves your machine — there is no backend, no account, no u
 - **Weave a set**: click to focus (a card shows the selection's details), double-click
   to append (the same track can appear twice — just not back-to-back), or press the
   wheel's centre **＋ next** button to slot in the best next track (it inserts
-  _between_ tracks when your selection sits mid-set). When no track matches your
-  criteria from there, the button pulses into a warning-coloured **force** state —
-  clicking it knowingly breaks the rules with the closest non-matching pick.
+  _between_ tracks when your selection sits mid-set; the selection then follows the
+  pick, so pressing again continues from the head). A dashed **retry** ring appears
+  around the hub while an alternative exists — clicking it swaps the last pick for a
+  different one. When no track matches your criteria from there, the button pulses
+  into a warning-coloured **force** state — clicking it knowingly breaks the rules
+  with the closest non-matching pick — and it greys out once every visible track is
+  in the set. **Cmd+Z / Cmd+Shift+Z** undo and redo set edits and selection changes.
   **Suggest a set** generates a full walk from a **random opener** each time; the
   ◀ / ▶ arrows step back to earlier suggestions or generate fresh ones.
-- **Shape the generated order**: the advanced menu's **Set order** section picks the
-  opening and closing track (the same pins as 📌 on the set's first/last rows — with
-  both set, the walk grows from both ends inward), keeps a **must-include** list
-  (mark any selected track; the generator strongly favours working it in), and sets
-  a **BPM progression** — steady, rising, falling, or a sawtooth that builds and
-  drops in cycles. An **adventurousness** setting controls how much dissonance the
-  generator embraces.
+- **Keep several sets**: the set panel's header is a switcher over **named sets** —
+  ＋ starts a "Second Set" (then Third, …), ✎ renames inline, and a subtle ✨ badge
+  marks a set that is untouched generator output (it disappears on the first manual
+  edit). All sets persist with the project.
+- **Shape the generated order**: pick the opening/closing track and the essential
+  (must-include) tracks in the **Tracks view** — the same pins as 📌 on the set's
+  first/last rows; with both ends set, the walk grows from both ends inward. The
+  advanced menu's **Set & suggestions** section lists those choices (with ✕ to
+  remove), and sets the **BPM progression** — steady, rising, falling, or a sawtooth
+  that builds and drops in cycles — plus an **adventurousness** setting for how much
+  dissonance the generator embraces.
 - **Make it yours**: the advanced settings live in the right panel (swapping with
-  "Your set") as collapsible sections, so the wheel reacts live while you tune
-  without a wall of controls. A ☀/☾ switch flips between the dark and light theme;
-  fresh visitors follow the system preference. The top bar stays lean: the imported
-  collection's name plus an ⓘ whose tooltip holds the import details.
+  the set) as collapsible sections, so the wheel reacts live while you tune
+  without a wall of controls. The **colour scheme** (blue / aqua / violet) tints the
+  whole app — accents, the set path, the genre map — not just the nodes; a ☀/☾
+  switch flips between the dark and light theme (fresh visitors follow the system
+  preference). The top bar stays lean: the imported collection's name plus an ⓘ
+  whose tooltip holds the import details.
 - **Take it with you**: export the set as M3U8 (Rekordbox re-imports it) or CSV; save
   the whole project as JSON — every export asks for a filename first. Everything
   autosaves to the browser; a Reset button (with confirmation) wipes the slate.
 
 ![A Rekordbox collection with the playlists panel](docs/screenshots/playlists.png)
+
+![The Tracks table view with set tags](docs/screenshots/tracks-view.png)
 
 ![The advanced settings beside the wheel](docs/screenshots/advanced-filters.png)
 
@@ -142,7 +168,7 @@ hybrid methods.
 ```sh
 npm install
 npm run dev      # start the app
-npm test         # unit tests (keys, combos, genre, filters, importers, exporters, suggest, persistence, samples)
+npm test         # unit tests (keys, combos, genre, filters, importers, exporters, suggest, sets, history, persistence, samples)
 npm run lint     # eslint + prettier check
 npm run check    # svelte-check + tsc
 npm run build    # production build
@@ -163,7 +189,6 @@ decisions live in [docs/designs/](docs/designs/).
 Planned next (in rough order): force-layout "free" view for _tracks_ (the genre map
 already ships the d3-force groundwork), weighted edges with per-criterion weight
 sliders, walk-quality metrics (the first step toward DJ fingerprints),
-insert-between-via-edge-drag, a sortable library table view, undo/redo,
-multiple named sets per project, Rekordbox-XML playlist export, a 3D "set journey"
+insert-between-via-edge-drag, Rekordbox-XML playlist export, a 3D "set journey"
 tunnel view, opt-in local audio analysis (Essentia.js), and fingerprint analytics over
 imported tracklists.

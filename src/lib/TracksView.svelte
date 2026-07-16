@@ -34,7 +34,13 @@
         : { field, dir: 'asc' }
   }
 
-  const rows = $derived(sortTracks($playlistScopedLibrary, sort))
+  // Sorting always runs over the whole selection, but only the top window is
+  // mounted: thousands of rows with per-row controls take seconds to build,
+  // and the top of the sorted order is what gets scanned anyway. Narrowing
+  // the playlist selection (or flipping the sort) reaches the rest.
+  const MAX_ROWS = 500
+  const sorted = $derived(sortTracks($playlistScopedLibrary, sort))
+  const rows = $derived(sorted.slice(0, MAX_ROWS))
   const connectedIds = $derived($selectedId === null ? null : $neighbours.get($selectedId))
   const mustSet = $derived(new Set($mustInclude))
 
@@ -133,6 +139,12 @@
         {/each}
       </tbody>
     </table>
+    {#if sorted.length > MAX_ROWS}
+      <p class="capped">
+        Showing the first {MAX_ROWS} of {sorted.length} tracks — flip the sort or narrow the playlist
+        selection to reach the rest.
+      </p>
+    {/if}
   {/if}
 </section>
 
@@ -202,8 +214,6 @@
 
   tbody tr {
     cursor: pointer;
-    content-visibility: auto;
-    contain-intrinsic-height: 30px;
   }
 
   tbody tr:hover {
@@ -261,6 +271,12 @@
   .tag.on {
     color: var(--accent);
     opacity: 1;
+  }
+
+  .capped {
+    margin: 8px 12px 12px;
+    color: var(--ink-muted);
+    font-size: 12px;
   }
 
   .visually-hidden {
