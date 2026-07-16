@@ -10,6 +10,7 @@
     rightPanel,
     settings,
     trackById,
+    viewMode,
     visibleLibrary,
   } from '../stores'
 
@@ -284,13 +285,29 @@
         <option value="violet">Violet</option>
       </select>
     </label>
-    <label>
+    <!-- Spread and edge opacity only affect the wheel (issue 4); the colour
+         scheme and genre classes stay live everywhere. -->
+    <label class:off-view={$viewMode !== 'wheel'} title="Only affects the Wheel view">
       Same-key spread <strong>{$settings.slotSpreadDeg}°</strong>
-      <input type="range" min="0" max="7.5" step="0.5" bind:value={$settings.slotSpreadDeg} />
+      <input
+        type="range"
+        min="0"
+        max="7.5"
+        step="0.5"
+        bind:value={$settings.slotSpreadDeg}
+        disabled={$viewMode !== 'wheel'}
+      />
     </label>
-    <label>
+    <label class:off-view={$viewMode !== 'wheel'} title="Only affects the Wheel view">
       Edge opacity <strong>{$settings.edgeOpacity.toFixed(2)}</strong>
-      <input type="range" min="0" max="0.9" step="0.05" bind:value={$settings.edgeOpacity} />
+      <input
+        type="range"
+        min="0"
+        max="0.9"
+        step="0.05"
+        bind:value={$settings.edgeOpacity}
+        disabled={$viewMode !== 'wheel'}
+      />
     </label>
     <label>
       Max genre classes <strong>{$settings.maxGenreClasses}</strong>
@@ -443,6 +460,11 @@
 
   label.row {
     justify-content: flex-start;
+  }
+
+  label.off-view {
+    color: var(--ink-muted);
+    opacity: 0.6;
   }
 
   /* Two radio choices side by side; each label keeps its circle and text

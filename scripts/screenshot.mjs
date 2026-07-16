@@ -309,6 +309,10 @@ await page.waitForTimeout(400)
 // and containment — no node may drift out of the frame (ISSUES.md #12)
 await page.getByRole('button', { name: 'Genres', exact: true }).click()
 await page.waitForTimeout(1200)
+// wheel-only controls grey out off-wheel (ISSUES.md v7 #4)
+if ((await page.locator('header select:disabled').count()) !== 2) {
+  errors.push('Radius/Colour selects should be disabled in the Genres view')
+}
 await page.getByRole('button', { name: 'hybrid' }).click()
 await page.getByRole('button', { name: 'taxonomy' }).click()
 await page.getByRole('checkbox', { name: 'show nearby genres' }).check()

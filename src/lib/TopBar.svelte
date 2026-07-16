@@ -198,18 +198,19 @@
       >
     </div>
 
-    <label>
+    <!-- Radius/Colour only mean something on the wheel (issue 4). -->
+    <label class:off-view={$viewMode !== 'wheel'} title="Only affects the Wheel view">
       Radius
-      <select bind:value={$radialAxis}>
+      <select bind:value={$radialAxis} disabled={$viewMode !== 'wheel'}>
         <option value="bpm">BPM</option>
         <option value="rating">Rating</option>
         <option value="year">Year</option>
       </select>
     </label>
 
-    <label>
+    <label class:off-view={$viewMode !== 'wheel'} title="Only affects the Wheel view">
       Colour
-      <select bind:value={$colorAxis}>
+      <select bind:value={$colorAxis} disabled={$viewMode !== 'wheel'}>
         <option value="auto">Auto</option>
         <option value="rating">Rating</option>
         <option value="bpm">BPM</option>
@@ -347,6 +348,11 @@
     display: flex;
     align-items: center;
     gap: 6px;
+  }
+
+  .controls label.off-view {
+    color: var(--ink-muted);
+    opacity: 0.6;
   }
 
   .status {
