@@ -127,6 +127,44 @@ describe('project persistence (v3)', () => {
     expect(parsed.sets[0].trackIds).toEqual([SAMPLE_TRACKS[0].id, 'ok-1'])
   })
 
+  test('saves from before trackColumns default to the classic seven (v8 issue 15)', () => {
+    const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    Reflect.deleteProperty(raw.settings as Record<string, unknown>, 'trackColumns')
+    expect(parseProject(JSON.stringify(raw)).settings.trackColumns).toEqual([
+      'artist',
+      'title',
+      'key',
+      'bpm',
+      'genre',
+      'year',
+      'rating',
+    ])
+  })
+
+  test('saves from before album/dateAdded parse those fields to null (v8 issue 15)', () => {
+    const raw = JSON.parse(serializeProject(project)) as { tracks: Record<string, unknown>[] }
+    for (const track of raw.tracks) {
+      Reflect.deleteProperty(track, 'album')
+      Reflect.deleteProperty(track, 'dateAdded')
+    }
+    const parsed = parseProject(JSON.stringify(raw))
+    expect(parsed.tracks[0].album).toBeNull()
+    expect(parsed.tracks[0].dateAdded).toBeNull()
+  })
+
+  test('hand-edited album/dateAdded round-trip and sanitize (v8 issue 15)', () => {
+    const withFields = {
+      ...project,
+      tracks: [
+        { ...project.tracks[0], album: 'Night Shift EP', dateAdded: '2020-03-14' },
+        ...project.tracks.slice(1),
+      ],
+    }
+    const parsed = parseProject(serializeProject(withFields))
+    expect(parsed.tracks[0].album).toBe('Night Shift EP')
+    expect(parsed.tracks[0].dateAdded).toBe('2020-03-14')
+  })
+
   test('saves from before icon modes default to genre families (v8 issues 4+5)', () => {
     const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
     Reflect.deleteProperty(raw.settings as Record<string, unknown>, 'iconMode')

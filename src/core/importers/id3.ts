@@ -9,6 +9,7 @@ export interface FlatTags {
   bpm?: number
   genre?: string[]
   year?: number
+  album?: string
   durationSec?: number
 }
 
@@ -29,6 +30,8 @@ export function trackFromTags(id: string, fileName: string, tags: FlatTags): Tra
     year: tags.year !== undefined && tags.year > 0 ? tags.year : null,
     rating: null, // star ratings are proprietary per player; not read in v1
     durationSec: tags.durationSec !== undefined ? Math.round(tags.durationSec) : null,
+    album: tags.album?.trim() || null,
+    dateAdded: null, // no library timestamp inside a bare audio file
     location: fileName,
   }
 }

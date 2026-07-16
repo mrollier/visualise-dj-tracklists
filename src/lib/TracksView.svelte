@@ -5,7 +5,8 @@
   // graph highlight; double-click appends to the set; per-row toggles mark
   // a track as essential (must-include) or as the opener/closer of
   // generated sets — the same pins as everywhere else.
-  import { sortTracks, type TrackSort, type TrackSortField } from '../core/trackSort'
+  import type { Track } from '../core/model'
+  import { sortTracks, type TrackSortField } from '../core/trackSort'
   import {
     appendToSet,
     mustInclude,
@@ -14,24 +15,43 @@
     pinnedLast,
     playlistScopedLibrary,
     selectedId,
+    settings,
+    trackSort,
   } from '../stores'
 
-  const COLUMNS: { field: TrackSortField; label: string }[] = [
-    { field: 'artist', label: 'Artist' },
-    { field: 'title', label: 'Title' },
-    { field: 'key', label: 'Key' },
-    { field: 'bpm', label: 'BPM' },
-    { field: 'genre', label: 'Genre' },
-    { field: 'year', label: 'Year' },
-    { field: 'rating', label: 'Rating' },
-  ]
+  const COLUMN_LABEL: Record<TrackSortField, string> = {
+    artist: 'Artist',
+    title: 'Title',
+    key: 'Key',
+    bpm: 'BPM',
+    genre: 'Genre',
+    year: 'Year',
+    rating: 'Rating',
+    album: 'Album',
+    dateAdded: 'Date added',
+    durationSec: 'Length',
+  }
 
-  let sort = $state<TrackSort>({ field: 'artist', dir: 'asc' })
+  // Columns = the settings list: membership AND order (v8 issue 15).
+  const columns = $derived($settings.trackColumns)
+  const STRING_FIELDS = new Set<TrackSortField>(['artist', 'title', 'genre', 'album'])
+
   function toggleSort(field: TrackSortField) {
-    sort =
+    trackSort.update((sort) =>
       sort.field === field
         ? { field, dir: sort.dir === 'asc' ? 'desc' : 'asc' }
-        : { field, dir: 'asc' }
+        : { field, dir: 'asc' },
+    )
+  }
+
+  function cellText(track: Track, field: TrackSortField): string {
+    const value = track[field]
+    if (value === null) return '—'
+    if (field === 'durationSec') {
+      const secs = Math.round(value as number)
+      return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`
+    }
+    return String(value)
   }
 
   // Sorting always runs over the whole selection, but only the top window is
@@ -39,7 +59,7 @@
   // and the top of the sorted order is what gets scanned anyway. Narrowing
   // the playlist selection (or flipping the sort) reaches the rest.
   const MAX_ROWS = 500
-  const sorted = $derived(sortTracks($playlistScopedLibrary, sort))
+  const sorted = $derived(sortTracks($playlistScopedLibrary, $trackSort))
   const rows = $derived(sorted.slice(0, MAX_ROWS))
   const connectedIds = $derived($selectedId === null ? null : $neighbours.get($selectedId))
   const mustSet = $derived(new Set($mustInclude))
@@ -67,17 +87,18 @@
     <table>
       <thead>
         <tr>
-          {#each COLUMNS as { field, label } (field)}
+          {#each columns as field (field)}
             <th
-              aria-sort={sort.field === field
-                ? sort.dir === 'asc'
+              aria-sort={$trackSort.field === field
+                ? $trackSort.dir === 'asc'
                   ? 'ascending'
                   : 'descending'
                 : undefined}
             >
               <button class="sort" onclick={() => toggleSort(field)}>
-                {label}
-                {#if sort.field === field}<span class="dir">{sort.dir === 'asc' ? '▲' : '▼'}</span
+                {COLUMN_LABEL[field]}
+                {#if $trackSort.field === field}<span class="dir"
+                    >{$trackSort.dir === 'asc' ? '▲' : '▼'}</span
                   >{/if}
               </button>
             </th>
@@ -93,13 +114,24 @@
             onclick={() => selectRow(track.id)}
             ondblclick={() => appendToSet(track.id)}
           >
-            <td class="ellipsis">{track.artist ?? '—'}</td>
-            <td class="ellipsis title">{track.title}</td>
-            <td class="tabular">{track.key ?? '—'}</td>
-            <td class="tabular">{track.bpm ?? '—'}</td>
-            <td class="ellipsis">{track.genre ?? '—'}</td>
-            <td class="tabular">{track.year ?? '—'}</td>
-            <td class="tabular">{track.rating ?? '—'}</td>
+            {#each columns as field (field)}
+              {#if field === 'rating'}
+                <td
+                  class="tabular rating"
+                  aria-label={track.rating === null ? undefined : `${track.rating} of 5`}
+                >
+                  {#if track.rating === null}—{:else}<span class="stars"
+                      >{'★'.repeat(track.rating)}</span
+                    ><span class="stars off">{'☆'.repeat(5 - track.rating)}</span>{/if}
+                </td>
+              {:else}
+                <td
+                  class:ellipsis={STRING_FIELDS.has(field)}
+                  class:tabular={!STRING_FIELDS.has(field)}
+                  class:title={field === 'title'}>{cellText(track, field)}</td
+                >
+              {/if}
+            {/each}
             <td class="tags">
               <button
                 class="tag"
@@ -271,6 +303,16 @@
   .tag.on {
     color: var(--accent);
     opacity: 1;
+  }
+
+  .stars {
+    color: var(--accent);
+    letter-spacing: 1px;
+  }
+
+  .stars.off {
+    color: var(--ink-muted);
+    opacity: 0.45;
   }
 
   .capped {

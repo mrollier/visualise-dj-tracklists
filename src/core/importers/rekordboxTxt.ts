@@ -103,6 +103,8 @@ export function importRekordboxTxt(buffer: ArrayBuffer): ImportResult {
       year: null,
       rating: parseRating(row.get('rating') ?? ''),
       durationSec: parseTime(row.get('durationSec') ?? ''),
+      album: null, // the TXT export carries no album column
+      dateAdded: null,
       location: row.get('location') ?? null,
     })
   }

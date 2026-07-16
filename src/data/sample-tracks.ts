@@ -61,6 +61,8 @@ export const SAMPLE_TRACKS: Track[] = ROWS.map(
     year,
     rating,
     durationSec: null,
+    album: null,
+    dateAdded: null,
     location: null,
   }),
 )

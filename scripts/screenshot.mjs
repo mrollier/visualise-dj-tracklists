@@ -321,6 +321,19 @@ if (asc[0] > asc[asc.length - 1]) errors.push('BPM ascending sort is not ascendi
 await bpmHeader.click()
 const desc = await bpmColumn()
 if (desc[0] < desc[desc.length - 1]) errors.push('BPM descending sort is not descending')
+// v8 issue 15: ratings render as stars, and the Album/Length columns can be
+// enabled from the advanced menu (order = the settings list)
+if ((await page.locator('.tracks-view td.rating .stars').count()) === 0) {
+  errors.push('ratings should render as stars in the Tracks view')
+}
+await page.getByRole('button', { name: /Advanced/ }).click()
+await page.locator('.panel details.section > summary', { hasText: 'Tracks table' }).click()
+await page.getByRole('checkbox', { name: 'Length', exact: true }).check()
+await page.locator('.panel details.section > summary', { hasText: 'Tracks table' }).click()
+await page.keyboard.press('Escape')
+if ((await page.locator('.tracks-view th button', { hasText: 'Length' }).count()) !== 1) {
+  errors.push('enabling the Length column did not add its header')
+}
 // selection is shared: clicking a row highlights its combo neighbours
 await page.locator('.tracks-view tbody tr').first().click()
 if ((await page.locator('.tracks-view tbody tr.connected').count()) === 0) {
@@ -506,19 +519,33 @@ if (new Set(chipTops.map((t) => Math.round(t))).size !== 1) {
 // v8 issue 11: nodes are draggable — grab one and pull it 60px
 const dragTarget = page.locator('.genre-node').first()
 const dragBefore = await dragTarget.getAttribute('transform')
-{
-  const box = await dragTarget.boundingBox()
-  if (box) {
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
-    await page.mouse.down()
-    await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2 + 40, { steps: 6 })
-    await page.mouse.up()
-  }
+const dragBox = await dragTarget.boundingBox()
+if (dragBox) {
+  await page.mouse.move(dragBox.x + dragBox.width / 2, dragBox.y + dragBox.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(dragBox.x + dragBox.width / 2 + 60, dragBox.y + dragBox.height / 2 + 40, {
+    steps: 6,
+  })
+  await page.mouse.up()
 }
 await page.waitForTimeout(400)
 if ((await dragTarget.getAttribute('transform')) === dragBefore) {
   errors.push('dragging a genre node did not move it')
 }
+// put it roughly back so the containment check below tests the PHYSICS, not
+// the user's deliberate shove
+{
+  const box = await dragTarget.boundingBox()
+  if (box && dragBox) {
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(dragBox.x + dragBox.width / 2, dragBox.y + dragBox.height / 2, {
+      steps: 6,
+    })
+    await page.mouse.up()
+  }
+}
+await page.waitForTimeout(600)
 // v8 issue 14: the pair inspector — click two genres, read every method's
 // score in a locked card; ✕ clears
 await page.waitForTimeout(300)

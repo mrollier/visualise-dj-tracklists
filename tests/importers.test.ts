@@ -62,6 +62,13 @@ describe('importRekordboxXml', () => {
     expect(ids[0]).toBe('rb-101')
   })
 
+  test('reads Album and DateAdded; absent means null (v8 issue 15)', () => {
+    expect(tracks[0].album).toBe('Night Shift EP')
+    expect(tracks[0].dateAdded).toBe('2020-03-14')
+    expect(tracks[1].album).toBeNull() // no Album attribute on Glasswork
+    expect(tracks[3].dateAdded).toBe('2023-11-20')
+  })
+
   test('rejects XML that is not a Rekordbox collection', () => {
     const { tracks: none, report: bad } = importRekordboxXml('<foo><bar/></foo>')
     expect(none).toEqual([])
@@ -162,6 +169,13 @@ describe('importCsv', () => {
     expect(tracks[0].artist).toBe('Kasteel')
     expect(tracks[0].key).toBe('11A')
     expect(tracks[0].bpm).toBe(174)
+  })
+
+  test('album maps from its header synonyms (v8 issue 15)', () => {
+    const csv = ['title,album', 'Midnight Drive,Night Shift EP'].join('\n')
+    expect(importCsv(csv).tracks[0].album).toBe('Night Shift EP')
+    const release = ['title,release', 'Glasswork,Prisma LP'].join('\n')
+    expect(importCsv(release).tracks[0].album).toBe('Prisma LP')
   })
 
   test('missing columns and empty cells become null and are reported', () => {

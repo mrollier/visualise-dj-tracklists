@@ -94,6 +94,8 @@ export function importM3u(m3u: string, library: Track[]): M3uImportResult {
         year: null,
         rating: null,
         durationSec: pendingDuration,
+        album: null,
+        dateAdded: null,
         location: path,
       }
       newTracks.push(track)

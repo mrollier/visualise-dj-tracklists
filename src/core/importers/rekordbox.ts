@@ -101,6 +101,8 @@ export function importRekordboxXml(xml: string): ImportResult {
       year: year > 0 ? year : null,
       rating: Number.isFinite(rating) ? Math.round(rating / 51) : null,
       durationSec: duration > 0 ? duration : null,
+      album: str('Album'),
+      dateAdded: str('DateAdded'),
       location: str('Location'),
     })
   }

@@ -16,6 +16,8 @@ const tracks: Track[] = [
     year: 2019,
     rating: 4,
     durationSec: 372,
+    album: 'Night Shift EP',
+    dateAdded: '2020-03-14',
     location: 'file://localhost/Users/dj/Music/midnight%20drive.mp3',
   },
   {
@@ -28,6 +30,8 @@ const tracks: Track[] = [
     year: null,
     rating: null,
     durationSec: null,
+    album: null,
+    dateAdded: null,
     location: null,
   },
 ]

@@ -7,7 +7,17 @@ import type { Track } from './model'
  * "10A"; the A wheel before B). Missing values sink to the bottom in both
  * directions — a null BPM is never "the slowest track".
  */
-export type TrackSortField = 'artist' | 'title' | 'key' | 'bpm' | 'genre' | 'year' | 'rating'
+export type TrackSortField =
+  | 'artist'
+  | 'title'
+  | 'key'
+  | 'bpm'
+  | 'genre'
+  | 'year'
+  | 'rating'
+  | 'album'
+  | 'dateAdded'
+  | 'durationSec'
 
 export interface TrackSort {
   field: TrackSortField

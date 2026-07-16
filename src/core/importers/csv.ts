@@ -22,6 +22,9 @@ const HEADER_MAP: Record<string, keyof Track> = {
   'release year': 'year',
   rating: 'rating',
   stars: 'rating',
+  album: 'album',
+  release: 'album',
+  'date added': 'dateAdded',
   duration: 'durationSec',
   'duration (s)': 'durationSec',
   length: 'durationSec',
@@ -76,6 +79,8 @@ export function importCsv(csv: string): ImportResult {
       year: num('year'),
       rating: num('rating'),
       durationSec: num('durationSec'),
+      album: str('album'),
+      dateAdded: str('dateAdded'),
       location: str('location'),
     })
   }

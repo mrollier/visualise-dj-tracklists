@@ -3,6 +3,7 @@
   import { METHOD_LABEL_LONG, METHOD_PICK_ORDER, type GenreMethod } from '../core/genre'
   import type { Track } from '../core/model'
   import { type BpmProgression } from '../core/settings'
+  import type { TrackSortField } from '../core/trackSort'
   import {
     criteria,
     mustInclude,
@@ -42,6 +43,40 @@
   )
   function goToTracksView() {
     viewMode.set('tracks')
+  }
+
+  // --- Tracks-table columns (v8 issue 15) ---
+  const ALL_COLUMNS: readonly TrackSortField[] = [
+    'artist',
+    'title',
+    'key',
+    'bpm',
+    'genre',
+    'year',
+    'rating',
+    'album',
+    'dateAdded',
+    'durationSec',
+  ]
+  const COLUMN_LABEL: Record<TrackSortField, string> = {
+    artist: 'Artist',
+    title: 'Title',
+    key: 'Key',
+    bpm: 'BPM',
+    genre: 'Genre',
+    year: 'Year',
+    rating: 'Rating',
+    album: 'Album',
+    dateAdded: 'Date added',
+    durationSec: 'Length',
+  }
+  function toggleColumn(field: TrackSortField) {
+    settings.update((s) => ({
+      ...s,
+      trackColumns: s.trackColumns.includes(field)
+        ? s.trackColumns.filter((f) => f !== field)
+        : [...s.trackColumns, field],
+    }))
   }
   // Live feedback for the k/threshold sliders (issue 12): on the wheel the
   // genre criterion is often masked by the other criteria, so show directly
@@ -302,6 +337,21 @@
       families, the selected playlists, or similarity clusters. The largest classes keep a symbol;
       everything stays a circle when nothing separates. Playlist icons don't apply on the genre map.
     </p>
+  </details>
+
+  <details class="section">
+    <summary>Tracks table</summary>
+    <p class="hint">Columns shown in the Tracks view — drag the table headers to reorder them.</p>
+    {#each ALL_COLUMNS as field (field)}
+      <label class="row">
+        <input
+          type="checkbox"
+          checked={$settings.trackColumns.includes(field)}
+          onchange={() => toggleColumn(field)}
+        />
+        {COLUMN_LABEL[field]}
+      </label>
+    {/each}
   </details>
 
   <details class="section" open>

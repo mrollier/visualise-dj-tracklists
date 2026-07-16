@@ -52,6 +52,7 @@
             bpm: meta.common.bpm,
             genre: meta.common.genre,
             year: meta.common.year,
+            album: meta.common.album,
             durationSec: meta.format.duration,
           }),
         )

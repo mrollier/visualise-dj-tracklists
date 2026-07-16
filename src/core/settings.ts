@@ -1,3 +1,5 @@
+import type { TrackSortField } from './trackSort'
+
 /**
  * Preferred BPM trajectory for generated sets (design-v6 §C): 'any' adds no
  * preference, 'sawtooth' builds up and drops back in cycles.
@@ -44,6 +46,11 @@ export interface AppSettings {
   maxGenreClasses: number
   /** Preferred BPM trajectory for generated sets. */
   bpmProgression: BpmProgression
+  /**
+   * The Tracks table's columns: membership AND order (v8 issue 15). Fields
+   * not listed are hidden; header drag reorders this list.
+   */
+  trackColumns: TrackSortField[]
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -57,4 +64,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   iconMode: 'families',
   maxGenreClasses: 4,
   bpmProgression: 'any',
+  trackColumns: ['artist', 'title', 'key', 'bpm', 'genre', 'year', 'rating'],
 }

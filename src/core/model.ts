@@ -12,6 +12,9 @@ export interface Track {
   /** 0–5 stars; 0 means "unrated" but present. */
   rating: number | null
   durationSec: number | null
+  album: string | null
+  /** Rekordbox's DateAdded (when the file entered the library, 'YYYY-MM-DD') — not a release date. */
+  dateAdded: string | null
   /** File path or URL from the source library; needed for M3U8 export. */
   location: string | null
 }

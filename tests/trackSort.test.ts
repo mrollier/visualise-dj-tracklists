@@ -12,6 +12,8 @@ function track(overrides: Partial<Track> & { id: string }): Track {
     year: 2020,
     rating: 4,
     durationSec: null,
+    album: null,
+    dateAdded: null,
     location: null,
     ...overrides,
   }
@@ -69,5 +71,33 @@ describe('sortTracks (the Tracks table view)', () => {
     const sorted = sortTracks(rows, { field: 'bpm', dir: 'asc' })
     expect(sorted.map((t) => t.id)).toEqual(['a', 'z'])
     expect(rows.map((t) => t.id)).toEqual(['z', 'a'])
+  })
+
+  test('the new columns sort too: album (locale), dateAdded (ISO), duration (v8 issue 15)', () => {
+    const albums = [
+      track({ id: 'a', album: 'Zenith' }),
+      track({ id: 'b', album: 'Émission' }),
+      track({ id: 'c', album: null }),
+    ]
+    expect(sortTracks(albums, { field: 'album', dir: 'asc' }).map((t) => t.id)).toEqual([
+      'b',
+      'a',
+      'c',
+    ])
+    const dates = [
+      track({ id: 'a', dateAdded: '2023-11-20' }),
+      track({ id: 'b', dateAdded: '2020-03-14' }),
+      track({ id: 'c', dateAdded: null }),
+    ]
+    expect(sortTracks(dates, { field: 'dateAdded', dir: 'desc' }).map((t) => t.id)).toEqual([
+      'a',
+      'b',
+      'c',
+    ])
+    const durations = [track({ id: 'a', durationSec: 401 }), track({ id: 'b', durationSec: 298 })]
+    expect(sortTracks(durations, { field: 'durationSec', dir: 'asc' }).map((t) => t.id)).toEqual([
+      'b',
+      'a',
+    ])
   })
 })

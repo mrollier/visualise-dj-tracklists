@@ -86,6 +86,8 @@ function sanitizeTrack(raw: unknown): Track | null {
     year: num(entry.year),
     rating: num(entry.rating),
     durationSec: num(entry.durationSec),
+    album: str(entry.album),
+    dateAdded: str(entry.dateAdded),
     location: str(entry.location),
   }
 }

@@ -16,6 +16,7 @@ import { genreFamilyClasses, playlistClasses } from './core/iconClasses'
 import type { ImportReport, Playlist, Track } from './core/model'
 import { freshFirstSet, nextSetName, type TrackSet } from './core/sets'
 import { DEFAULT_SETTINGS, type AppSettings } from './core/settings'
+import type { TrackSort } from './core/trackSort'
 
 export type RadialAxis = 'bpm' | 'rating' | 'year'
 export type ColorAxis = 'auto' | RadialAxis
@@ -28,6 +29,8 @@ export const playlists = writable<Playlist[]>([])
 export const viewMode = writable<ViewMode>('wheel')
 /** Right aside: the set, or the advanced settings in its place. Session-only. */
 export const rightPanel = writable<'set' | 'advanced'>('set')
+/** The Tracks table's sort — session-only, but it survives view switches (v8 issue 15). */
+export const trackSort = writable<TrackSort>({ field: 'artist', dir: 'asc' })
 export const libraryName = writable<string>('')
 export const lastImportReport = writable<ImportReport | null>(null)
 export const criteria = writable<CriteriaConfig>(structuredClone(DEFAULT_CRITERIA))

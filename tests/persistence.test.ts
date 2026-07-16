@@ -33,6 +33,8 @@ function track(id: string): Track {
     genre: null,
     year: null,
     rating: null,
+    album: null,
+    dateAdded: null,
     durationSec: null,
     location: null,
   }

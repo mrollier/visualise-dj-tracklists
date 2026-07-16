@@ -13,6 +13,8 @@ function track(overrides: Partial<Track> & { id: string }): Track {
     year: 2020,
     rating: 4,
     durationSec: null,
+    album: null,
+    dateAdded: null,
     location: null,
     ...overrides,
   }
@@ -95,6 +97,8 @@ describe('rematchAfterImport', () => {
     year: null,
     rating: null,
     durationSec: null,
+    album: null,
+    dateAdded: null,
     location: null,
     ...overrides,
   })

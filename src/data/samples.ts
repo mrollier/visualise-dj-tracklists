@@ -39,6 +39,8 @@ function pack(id: string, name: string, description: string, rows: Row[]): Sampl
     year,
     rating,
     durationSec: null,
+    album: null,
+    dateAdded: null,
     location: null,
   }))
   return { id, name, description, tracks }
