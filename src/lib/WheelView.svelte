@@ -18,7 +18,13 @@
   import { ALL_CAMELOT_KEYS, wheelSlotAngleDeg, type CamelotKey } from '../core/keys'
   import { annularSectorPath, slotAngleOffsets } from '../core/layout'
   import type { Track } from '../core/model'
-  import { COLOR_SCHEMES, makeNodeColor, MISSING_COLORS, radialDomain } from '../core/scales'
+  import {
+    COLOR_SCHEMES,
+    focusEdgeOpacity,
+    makeNodeColor,
+    MISSING_COLORS,
+    radialDomain,
+  } from '../core/scales'
   import { effectiveTheme } from './theme'
   import { nextExhausted, suggestNext } from '../core/suggest'
   import {
@@ -271,7 +277,7 @@
 
   function edgeOpacity(sourceId: string, targetId: string): number {
     if (focusSet === null) return $settings.edgeOpacity
-    return focusSet.has(sourceId) && focusSet.has(targetId) ? 0.6 : 0.05
+    return focusEdgeOpacity($settings.edgeOpacity, focusSet.has(sourceId) && focusSet.has(targetId))
   }
 
   function select(node: PlacedNode) {

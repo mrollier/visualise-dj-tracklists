@@ -45,6 +45,16 @@ export function radialDomain(
   return lo === hi ? [lo - 1, hi + 1] : [lo, hi]
 }
 
+/**
+ * Edge opacity while a track is focused, derived from the user's base edge
+ * opacity so the setting keeps working in focus mode (issue 15). The factors
+ * are calibrated so the default base (0.35) reproduces the pre-v7 contrast
+ * (0.6 in focus, 0.05 dimmed).
+ */
+export function focusEdgeOpacity(base: number, inFocus: boolean): number {
+  return inFocus ? Math.min(0.95, base * 1.7) : base * 0.15
+}
+
 export function makeNodeColor(
   axis: 'rating' | 'bpm' | 'year',
   domain: [number, number],

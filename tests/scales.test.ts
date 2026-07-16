@@ -1,5 +1,29 @@
 import { describe, expect, test } from 'vitest'
-import { COLOR_SCHEMES, makeNodeColor, MISSING_COLORS, radialDomain } from '../src/core/scales'
+import {
+  COLOR_SCHEMES,
+  focusEdgeOpacity,
+  makeNodeColor,
+  MISSING_COLORS,
+  radialDomain,
+} from '../src/core/scales'
+
+describe('focusEdgeOpacity', () => {
+  test('scales both focus states from the base edge opacity (issue 15)', () => {
+    // the default 0.35 reproduces the pre-v7 hardcoded contrast (0.6 / 0.05)
+    expect(focusEdgeOpacity(0.35, true)).toBeCloseTo(0.6, 1)
+    expect(focusEdgeOpacity(0.35, false)).toBeCloseTo(0.05, 1)
+    // in-focus is always brighter than dimmed for any positive base
+    for (const base of [0.1, 0.35, 0.6, 0.9]) {
+      expect(focusEdgeOpacity(base, true)).toBeGreaterThan(focusEdgeOpacity(base, false))
+    }
+  })
+
+  test('zero base hides edges entirely; high bases stay clamped', () => {
+    expect(focusEdgeOpacity(0, true)).toBe(0)
+    expect(focusEdgeOpacity(0, false)).toBe(0)
+    expect(focusEdgeOpacity(0.9, true)).toBeLessThanOrEqual(0.95)
+  })
+})
 
 describe('makeNodeColor', () => {
   test('rating uses the ordinal ramp: 0 first step, 5 last step, null missing', () => {
