@@ -6,6 +6,7 @@
   import { startTheme } from './lib/theme'
   import TopBar from './lib/TopBar.svelte'
   import TracklistPanel from './lib/TracklistPanel.svelte'
+  import TracksView from './lib/TracksView.svelte'
   import { redoOnce, startUndo, undoOnce } from './lib/undoStore'
   import WheelView from './lib/WheelView.svelte'
   import { library, rightPanel, viewMode } from './stores'
@@ -47,6 +48,8 @@
     </div>
   {:else if $viewMode === 'genres'}
     <GenreMapView />
+  {:else if $viewMode === 'tracks'}
+    <TracksView />
   {:else}
     <WheelView />
   {/if}

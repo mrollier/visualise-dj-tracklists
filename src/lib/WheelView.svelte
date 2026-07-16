@@ -34,6 +34,7 @@
     type NextSuggestion,
   } from '../core/suggest'
   import {
+    appendToSet,
     criteria,
     edges,
     effectiveColorAxis,
@@ -42,6 +43,8 @@
     library,
     mustInclude,
     neighbours,
+    pinnedFirst,
+    pinnedLast,
     playlistScopedLibrary,
     radialAxis,
     rightPanel,
@@ -294,9 +297,7 @@
   }
 
   function appendToTracklist(node: PlacedNode) {
-    tracklist.update((ids) =>
-      ids[ids.length - 1] === node.track.id ? ids : [...ids, node.track.id],
-    )
+    appendToSet(node.track.id)
   }
 
   function keyLabelPos(key: CamelotKey) {
@@ -412,6 +413,12 @@
     lastHubPick = suggestion
     triedIds = exclude
   }
+
+  // Tracks tagged in the Tracks view (essential / opener / closer) wear a
+  // subtle ring on the wheel (issue 7).
+  const taggedIds = $derived(
+    new Set([...$mustInclude, $pinnedFirst, $pinnedLast].filter((id) => id !== null)),
+  )
 
   // --- selected-track card: details + the "must include" mark (design-v6 §C) ---
   const selectedTrack = $derived(
@@ -602,6 +609,18 @@
           }}
         >
           <circle cx={node.x} cy={node.y} r={11 / zoomK} fill="transparent" />
+          {#if taggedIds.has(node.track.id)}
+            <!-- Subtle marker for essential/opener/closer tags set in the
+                 Tracks view (issue 7) — its own ring, so it coexists with
+                 the selected and in-walk strokes on the dot itself. -->
+            <circle
+              cx={node.x}
+              cy={node.y}
+              r={9 / zoomK}
+              class="tag-ring"
+              vector-effect="non-scaling-stroke"
+            />
+          {/if}
           <path
             d={shapePath(classIndexOf(node.track), node.track.id === $selectedId ? 7 : 5)}
             transform="translate({node.x},{node.y}) scale({1 / zoomK})"
@@ -978,6 +997,13 @@
     font-size: 9px;
     text-transform: uppercase;
     letter-spacing: 0.08em;
+  }
+
+  .tag-ring {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 1;
+    opacity: 0.55;
   }
 
   .dot {

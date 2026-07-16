@@ -163,21 +163,25 @@ if ((await page.locator('.must-toggle[aria-pressed="true"]').count()) !== 1) {
 await page.screenshot({ path: `${scratch}/04-selected.png` })
 
 // shorter walks (8) keep unused neighbours around for the hub step below;
-// the Suggestions section starts folded (ISSUES.md #16)
+// Set & suggestions sits LAST, open by default; tuning sections start
+// folded (ISSUES.md #16; v7 #10)
 await page.getByRole('button', { name: /Advanced/ }).click()
-const setOrderOpen = await page
-  .locator('.panel details.section', { hasText: 'Set order' })
-  .evaluate((d) => d.open)
-const suggestionsOpen = await page
-  .locator('.panel details.section', { hasText: 'Suggestions' })
-  .evaluate((d) => d.open)
-if (!setOrderOpen) errors.push('the Set order section should start open')
-if (suggestionsOpen) errors.push('the Suggestions section should start folded')
-// the must-include mark shows up as a removable row in Set order
-if ((await page.locator('.must-list li').count()) !== 1) {
-  errors.push('the must-include mark did not appear in the Set order section')
+const lastSectionName = await page.locator('.panel details.section > summary').last().textContent()
+if (lastSectionName?.trim() !== 'Set & suggestions') {
+  errors.push(`the last advanced section should be Set & suggestions, got "${lastSectionName}"`)
 }
-await page.locator('.panel details.section > summary', { hasText: 'Suggestions' }).click()
+const mergedOpen = await page
+  .locator('.panel details.section', { hasText: 'Set & suggestions' })
+  .evaluate((d) => d.open)
+const genreOpen = await page
+  .locator('.panel details.section', { hasText: 'Genre matching' })
+  .evaluate((d) => d.open)
+if (!mergedOpen) errors.push('the Set & suggestions section should start open')
+if (genreOpen) errors.push('the Genre matching section should start folded')
+// the must-include mark shows up as a removable row in Set & suggestions
+if ((await page.locator('.must-list li').count()) !== 1) {
+  errors.push('the must-include mark did not appear in the Set & suggestions section')
+}
 await page.locator('.panel input[type=number]').fill('8')
 await page.keyboard.press('Escape')
 await page.getByRole('button', { name: /Suggest a set/ }).click()
@@ -281,46 +285,90 @@ const lastAfter = await page.locator('aside ol li.track .names strong').last().t
 if (lastAfter !== lastTitle) {
   errors.push(`pinned closer not honoured: "${lastTitle}" -> "${lastAfter}"`)
 }
-// Set order pickers mirror the pins (design-v6 §C): the closer select must
-// show the pinned track, and picking an opener there must stick
-await page.getByRole('button', { name: /Advanced/ }).click()
-const closerLabel = await page
-  .locator('.panel details.section', { hasText: 'Set order' })
-  .locator('select')
+// the Tracks view (v7 #7/#10): a sortable table over the selected
+// playlists; the 📌 closer pin from the set row shows as an active ⏭
+// toggle; row toggles pick the opener and mark essentials; the wheel wears
+// subtle rings for tagged tracks; Set & suggestions lists it all read-only
+await page.getByRole('button', { name: 'Tracks', exact: true }).click()
+await page.locator('.tracks-view table').waitFor()
+if (
+  (await page
+    .locator('.tracks-view .tag[aria-label="Pin as closing track"][aria-pressed="true"]')
+    .count()) !== 1
+) {
+  errors.push('the 📌 closer pin is not reflected in the Tracks view')
+}
+// sorting: BPM ascending then descending, missing values at the bottom
+const bpmHeader = page.locator('.tracks-view th button', { hasText: 'BPM' })
+await bpmHeader.click()
+const bpmColumn = () =>
+  page
+    .locator('.tracks-view tbody td:nth-child(4)')
+    .allTextContents()
+    .then((cells) => cells.filter((c) => c !== '—').map(Number))
+const asc = await bpmColumn()
+if (asc[0] > asc[asc.length - 1]) errors.push('BPM ascending sort is not ascending')
+await bpmHeader.click()
+const desc = await bpmColumn()
+if (desc[0] < desc[desc.length - 1]) errors.push('BPM descending sort is not descending')
+// selection is shared: clicking a row highlights its combo neighbours
+await page.locator('.tracks-view tbody tr').first().click()
+if ((await page.locator('.tracks-view tbody tr.connected').count()) === 0) {
+  errors.push('selecting a table row highlighted no connected tracks')
+}
+await page.locator('.tracks-view tbody tr').first().click() // deselect again
+// tag a row as opener (avoiding the already-pinned closer), one as essential
+let openerRow = page.locator('.tracks-view tbody tr').first()
+let openerTitle = await openerRow.locator('td:nth-child(2)').textContent()
+if (openerTitle === lastTitle) {
+  openerRow = page.locator('.tracks-view tbody tr').nth(2)
+  openerTitle = await openerRow.locator('td:nth-child(2)').textContent()
+}
+await openerRow.locator('.tag[aria-label="Pin as opening track"]').click()
+await page
+  .locator('.tracks-view tbody tr')
   .nth(1)
-  .evaluate((s) => s.selectedOptions[0]?.textContent)
-if (!closerLabel?.includes(lastTitle ?? '@@')) {
-  errors.push(`the closer picker does not show the pinned track: "${closerLabel}"`)
+  .locator('.tag[aria-label="Mark essential"]')
+  .click()
+await page.screenshot({ path: `${scratch}/07a-tracks-view.png` })
+// the wheel shows a subtle ring on every tagged track (opener + closer + ★)
+await page.getByRole('button', { name: 'Wheel', exact: true }).click()
+await page.waitForTimeout(300)
+if ((await page.locator('circle.tag-ring').count()) < 3) {
+  errors.push(
+    `expected at least 3 tag rings on the wheel, got ${await page.locator('circle.tag-ring').count()}`,
+  )
 }
-// pick an opener while nothing pins the first row: it must persist
-const openerSelect = page
-  .locator('.panel details.section', { hasText: 'Set order' })
-  .locator('select')
-  .first()
-const openerValue = await openerSelect.locator('option').nth(3).getAttribute('value')
-await openerSelect.selectOption(openerValue)
-await page.waitForTimeout(200)
-if ((await openerSelect.inputValue()) !== openerValue) {
-  errors.push('an opener picked in Set order did not stick')
+// Set & suggestions lists the choices read-only, with remove buttons
+await page.getByRole('button', { name: /Advanced/ }).click()
+const orderRows = await page.locator('.must-list li .must-name').allTextContents()
+if (!orderRows.some((r) => r.startsWith('Opens:') && r.includes(openerTitle ?? '@@'))) {
+  errors.push(`the opener row is missing from Set & suggestions: [${orderRows}]`)
 }
-const openerTitle = await openerSelect.evaluate((s) => s.selectedOptions[0]?.textContent)
-await page.screenshot({ path: `${scratch}/07a-set-order.png` })
+if (!orderRows.some((r) => r.startsWith('Closes:') && r.includes(lastTitle ?? '@@'))) {
+  errors.push(`the closer row is missing from Set & suggestions: [${orderRows}]`)
+}
+if (!orderRows.some((r) => r.startsWith('★'))) {
+  errors.push(`the essential row is missing from Set & suggestions: [${orderRows}]`)
+}
 await page.keyboard.press('Escape') // back to the set panel
 // regenerate: both pinned ends must be honoured
 await page.locator('.suggest-row .primary').click()
 await page.waitForTimeout(300)
 const firstNow = await page.locator('aside ol li.track .names strong').first().textContent()
-if (!openerTitle?.includes(firstNow ?? '@@')) {
-  errors.push(`the picked opener was not honoured: "${firstNow}" vs "${openerTitle}"`)
+if (firstNow !== openerTitle) {
+  errors.push(`the tagged opener was not honoured: "${firstNow}" vs "${openerTitle}"`)
 }
-// clear both pins and the must-include mark for the flows below
+const lastNow = await page.locator('aside ol li.track .names strong').last().textContent()
+if (lastNow !== lastTitle) {
+  errors.push(`the pinned closer was lost on regenerate: "${lastNow}" vs "${lastTitle}"`)
+}
+// clear the pins and the essential mark for the flows below, via the ✕s
 await page.getByRole('button', { name: /Advanced/ }).click()
-const setOrderSelects = page
-  .locator('.panel details.section', { hasText: 'Set order' })
-  .locator('select')
-await setOrderSelects.first().selectOption('')
-await setOrderSelects.nth(1).selectOption('')
-await page.locator('.must-list li .unmark').click()
+while ((await page.locator('.must-list li .unmark').count()) > 0) {
+  await page.locator('.must-list li .unmark').first().click()
+  await page.waitForTimeout(100)
+}
 await page.keyboard.press('Escape')
 
 // hub button: suggest the next track (appends to the set) and jump the
@@ -370,8 +418,7 @@ await page.locator('aside').first().getByRole('button', { name: 'None' }).first(
 await page.getByRole('checkbox', { name: 'Classic demo' }).check()
 await page.waitForTimeout(400)
 await page.getByRole('button', { name: /Advanced/ }).click()
-await page.locator('.panel details.section > summary', { hasText: 'Suggestions' }).click()
-await page.locator('.panel input[type=number]').fill('99')
+await page.locator('.panel input[type=number]').fill('99') // Set & suggestions is open
 await page.keyboard.press('Escape')
 await page
   .getByRole('button', { name: /Suggest a set|new/ })

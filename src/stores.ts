@@ -18,7 +18,7 @@ import { DEFAULT_SETTINGS, type AppSettings } from './core/settings'
 
 export type RadialAxis = 'bpm' | 'rating' | 'year'
 export type ColorAxis = 'auto' | RadialAxis
-export type ViewMode = 'wheel' | 'genres'
+export type ViewMode = 'wheel' | 'genres' | 'tracks'
 
 export const library = writable<Track[]>([])
 /** Playlists imported with the library (Rekordbox XML); [] otherwise. */
@@ -78,6 +78,15 @@ export const tracklist: Writable<string[]> = {
 /** Generator output: replaces the active set's tracks and flags it ✨. */
 export function setGeneratedTracklist(ids: string[]): void {
   writeActiveTrackIds(() => ids, true)
+}
+
+/**
+ * Append a track to the active set — shared by the wheel's double-click and
+ * the Tracks table (issue 7). The same track may appear twice in a set, just
+ * not back-to-back.
+ */
+export function appendToSet(id: string): void {
+  tracklist.update((ids) => (ids[ids.length - 1] === id ? ids : [...ids, id]))
 }
 
 /** Create and activate an empty set with the next free ordinal name. */

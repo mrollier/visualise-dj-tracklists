@@ -196,6 +196,11 @@
         onclick={() => viewMode.set('genres')}
         disabled={$library.length === 0}>Genres</button
       >
+      <button
+        class:active={$viewMode === 'tracks'}
+        onclick={() => viewMode.set('tracks')}
+        disabled={$library.length === 0}>Tracks</button
+      >
     </div>
 
     <!-- Radius/Colour only mean something on the wheel (issue 4). -->

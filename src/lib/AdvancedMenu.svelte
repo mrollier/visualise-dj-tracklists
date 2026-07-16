@@ -15,10 +15,10 @@
     visibleLibrary,
   } from '../stores'
 
-  // --- Set order (design-v6 §C) ---
-  // The pickers are the second home of the 📌 pins: picking here pins, and a
-  // pinned set row prefills the picker. Options come from the visible
-  // library; a pin that fell out of visibility is kept selectable on top.
+  // --- Set & suggestions (v7, issue 10) ---
+  // Opener/closer/must-include are CHOSEN in the Tracks view (or via the 📌
+  // pins on the set rows); this menu only lists the current choices with a
+  // remove button — the picker selects were too messy here.
   const PROGRESSION_LABEL: Record<BpmProgression, string> = {
     any: 'any (no preference)',
     steady: 'steady — hold the tempo',
@@ -28,24 +28,20 @@
   }
   const PROGRESSIONS = Object.keys(PROGRESSION_LABEL) as BpmProgression[]
 
-  const sortedTracks = $derived(
-    [...$visibleLibrary].sort(
-      (a, b) => (a.artist ?? '~').localeCompare(b.artist ?? '~') || a.title.localeCompare(b.title),
-    ),
-  )
-  function pickerOptions(pinnedId: string | null): Track[] {
-    if (pinnedId === null || sortedTracks.some((t) => t.id === pinnedId)) return sortedTracks
-    const pinned = $trackById.get(pinnedId)
-    return pinned === undefined ? sortedTracks : [pinned, ...sortedTracks]
-  }
   function trackLabel(track: Track): string {
     return `${track.artist ?? '?'} — ${track.title}`
   }
-  function setPin(store: typeof pinnedFirst, value: string) {
-    store.set(value === '' ? null : value)
-  }
   function unmark(id: string) {
     mustInclude.update((ids) => ids.filter((x) => x !== id))
+  }
+  const pinnedFirstTrack = $derived(
+    $pinnedFirst === null ? null : ($trackById.get($pinnedFirst) ?? null),
+  )
+  const pinnedLastTrack = $derived(
+    $pinnedLast === null ? null : ($trackById.get($pinnedLast) ?? null),
+  )
+  function goToTracksView() {
+    viewMode.set('tracks')
   }
   // Live feedback for the k/threshold sliders (issue 12): on the wheel the
   // genre criterion is often masked by the other criteria, so show directly
@@ -144,70 +140,8 @@
   </div>
 
   <!-- Grouped into collapsible sections (ISSUES.md #16): the workflow
-       section opens by default, tuning sections stay folded. -->
-  <details class="section" open>
-    <summary>Set order</summary>
-    <label>
-      Opening track
-      <select
-        value={$pinnedFirst ?? ''}
-        onchange={(e) => setPin(pinnedFirst, e.currentTarget.value)}
-      >
-        <option value="">— any —</option>
-        {#each pickerOptions($pinnedFirst) as t (t.id)}
-          <option value={t.id}>{trackLabel(t)}</option>
-        {/each}
-      </select>
-    </label>
-    <label>
-      Closing track
-      <select value={$pinnedLast ?? ''} onchange={(e) => setPin(pinnedLast, e.currentTarget.value)}>
-        <option value="">— any —</option>
-        {#each pickerOptions($pinnedLast) as t (t.id)}
-          <option value={t.id}>{trackLabel(t)}</option>
-        {/each}
-      </select>
-    </label>
-    <p class="hint">
-      Same as the 📌 pins on your set's first and last rows: suggested sets open and close on these
-      tracks (with both set, the walk grows from both ends inward).
-    </p>
-    <label>
-      BPM progression
-      <select bind:value={$settings.bpmProgression}>
-        {#each PROGRESSIONS as p (p)}
-          <option value={p}>{PROGRESSION_LABEL[p]}</option>
-        {/each}
-      </select>
-    </label>
-    <p class="hint">
-      Nudges each next pick toward the preferred tempo trajectory — combo criteria still come first.
-    </p>
-    <div class="must-block">
-      <span class="must-title">Must include</span>
-      {#if mustIncludeTracks.length === 0}
-        <p class="hint">
-          Select a track on the wheel and mark it "must include" — suggested sets will strongly
-          favour working it in.
-        </p>
-      {:else}
-        <ul class="must-list">
-          {#each mustIncludeTracks as t (t.id)}
-            <li>
-              <span class="must-name">{trackLabel(t)}</span>
-              <button
-                class="unmark"
-                title="Remove from must-include"
-                aria-label="Remove {t.title} from must-include"
-                onclick={() => unmark(t.id)}>✕</button
-              >
-            </li>
-          {/each}
-        </ul>
-      {/if}
-    </div>
-  </details>
-
+       section (Set & suggestions, last) opens by default, tuning sections
+       stay folded (v7 issue 10). -->
   <details class="section">
     <summary>Genre matching</summary>
     <label>
@@ -345,8 +279,8 @@
     </p>
   </details>
 
-  <details class="section">
-    <summary>Suggestions</summary>
+  <details class="section" open>
+    <summary>Set & suggestions</summary>
     <label>
       Suggested set length
       <input type="number" min="2" max="99" bind:value={$settings.suggestLength} />
@@ -359,6 +293,65 @@
       0 always picks the safest transition; higher values embrace dissonance. Genre closeness always
       counts in the ranking.
     </p>
+    <label>
+      BPM progression
+      <select bind:value={$settings.bpmProgression}>
+        {#each PROGRESSIONS as p (p)}
+          <option value={p}>{PROGRESSION_LABEL[p]}</option>
+        {/each}
+      </select>
+    </label>
+    <p class="hint">
+      Nudges each next pick toward the preferred tempo trajectory — combo criteria still come first.
+    </p>
+    <!-- Read-only listing (issue 10): the choices themselves are made in the
+         Tracks view (or via the 📌 pins on the set's first/last rows). -->
+    <div class="must-block">
+      <span class="must-title">Set order</span>
+      {#if pinnedFirstTrack === null && pinnedLastTrack === null && mustIncludeTracks.length === 0}
+        <p class="hint">
+          Pick the opening and closing track, and mark essential tracks, in the Tracks view —
+          suggested sets will honour them.
+        </p>
+      {:else}
+        <ul class="must-list">
+          {#if pinnedFirstTrack !== null}
+            <li>
+              <span class="must-name">Opens: {trackLabel(pinnedFirstTrack)}</span>
+              <button
+                class="unmark"
+                title="Remove the opening pin"
+                aria-label="Remove the opening pin"
+                onclick={() => pinnedFirst.set(null)}>✕</button
+              >
+            </li>
+          {/if}
+          {#if pinnedLastTrack !== null}
+            <li>
+              <span class="must-name">Closes: {trackLabel(pinnedLastTrack)}</span>
+              <button
+                class="unmark"
+                title="Remove the closing pin"
+                aria-label="Remove the closing pin"
+                onclick={() => pinnedLast.set(null)}>✕</button
+              >
+            </li>
+          {/if}
+          {#each mustIncludeTracks as t (t.id)}
+            <li>
+              <span class="must-name">★ {trackLabel(t)}</span>
+              <button
+                class="unmark"
+                title="Remove from must-include"
+                aria-label="Remove {t.title} from must-include"
+                onclick={() => unmark(t.id)}>✕</button
+              >
+            </li>
+          {/each}
+        </ul>
+      {/if}
+      <button class="to-tracks" onclick={goToTracksView}>Choose in the Tracks view →</button>
+    </div>
   </details>
 </aside>
 
@@ -501,6 +494,12 @@
 
   .re-jitter:hover:not(:disabled) {
     color: var(--ink);
+  }
+
+  .to-tracks {
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--ink-secondary);
   }
 
   /* Two radio choices side by side; each label keeps its circle and text
