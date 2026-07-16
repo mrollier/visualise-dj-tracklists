@@ -6,13 +6,20 @@
   import { suggestWalk } from '../core/suggest'
   import { promptExportName } from './exportName'
   import {
+    activeSet,
+    activeSetId,
+    addSet,
     criteria,
+    deleteSet,
     genreMatcher,
     libraryName,
     mustInclude,
     pinnedFirst,
     pinnedLast,
+    renameSet,
     selectedId,
+    setGeneratedTracklist,
+    sets,
     settings,
     suggestionHistory,
     suggestionIndex,
@@ -66,10 +73,12 @@
 
   // Suggestion history: ◀ steps back, ▶ steps forward through earlier
   // suggestions and generates a fresh one at the head. No confirmations —
-  // the previous suggestion is always one ◀ away.
+  // the previous suggestion is always one ◀ away. Generator writes go
+  // through setGeneratedTracklist so the ✨ badge appears (issue 18) and
+  // disappears again on the first manual edit.
   function showSuggestion(index: number) {
     suggestionIndex.set(index)
-    tracklist.set($suggestionHistory[index])
+    setGeneratedTracklist($suggestionHistory[index])
   }
 
   function suggestNew() {
@@ -107,11 +116,64 @@
   function togglePin(store: typeof pinnedFirst, id: string, pinned: boolean) {
     store.set(pinned ? null : id)
   }
+
+  // Set naming (issue 18): the header shows a switcher over the project's
+  // named sets; ✎ renames inline (no native prompt), ＋ adds "Second Set" …
+  let renaming = $state(false)
+  let renameValue = $state('')
+  function startRename() {
+    renameValue = $activeSet.name
+    renaming = true
+  }
+  function commitRename() {
+    renameSet($activeSetId, renameValue)
+    renaming = false
+  }
+  function focusAndSelect(el: HTMLInputElement) {
+    el.focus()
+    el.select()
+  }
 </script>
 
 <aside>
   <div class="head">
-    <h2 class="micro-label">Your set</h2>
+    {#if renaming}
+      <input
+        class="rename"
+        aria-label="Set name"
+        use:focusAndSelect
+        bind:value={renameValue}
+        onblur={commitRename}
+        onkeydown={(e) => {
+          if (e.key === 'Enter') commitRename()
+          if (e.key === 'Escape') renaming = false
+        }}
+      />
+    {:else}
+      <select
+        class="set-switch micro-label"
+        aria-label="Active set"
+        value={$activeSetId}
+        onchange={(e) => activeSetId.set(e.currentTarget.value)}
+      >
+        {#each $sets as s (s.id)}
+          <option value={s.id}>{s.name}</option>
+        {/each}
+      </select>
+      {#if $activeSet.generated}
+        <span class="badge" title="Untouched generated set">✨</span>
+      {/if}
+      <span class="set-actions">
+        <button title="Rename this set" aria-label="Rename set" onclick={startRename}>✎</button>
+        <button title="Start a new set" aria-label="New set" onclick={addSet}>＋</button>
+        <button
+          title="Delete this set"
+          aria-label="Delete set"
+          onclick={() => deleteSet($activeSetId)}
+          disabled={$sets.length <= 1}>🗑</button
+        >
+      </span>
+    {/if}
     <span class="count">{walkTracks.length} tracks</span>
   </div>
 
@@ -218,19 +280,54 @@
 
   .head {
     display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    padding: 12px 14px 6px;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 14px 6px;
   }
 
-  h2 {
-    font-size: 14px;
-    margin: 0;
+  .set-switch {
+    border: none;
+    background: none;
+    padding: 2px 0;
+    max-width: 130px;
+    text-overflow: ellipsis;
+    cursor: pointer;
+  }
+
+  .rename {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    padding: 2px 6px;
+  }
+
+  .badge {
+    font-size: 10px;
+    cursor: default;
+  }
+
+  .set-actions {
+    display: flex;
+    gap: 2px;
+  }
+
+  .set-actions button {
+    padding: 1px 5px;
+    font-size: 11px;
+    color: var(--ink-muted);
+    background: none;
+    border: none;
+  }
+
+  .set-actions button:hover:not(:disabled) {
+    color: var(--ink);
   }
 
   .count {
     color: var(--ink-muted);
     font-size: 12px;
+    margin-left: auto;
+    white-space: nowrap;
   }
 
   .suggest-row {

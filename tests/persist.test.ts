@@ -6,20 +6,29 @@ import { DEFAULT_SETTINGS } from '../src/core/settings'
 import { SAMPLE_TRACKS } from '../src/data/sample-tracks'
 
 const project: Project = {
-  version: 2,
+  version: 3,
   libraryName: 'My crate',
   tracks: SAMPLE_TRACKS,
   criteria: { ...structuredClone(DEFAULT_CRITERIA), threshold: 4 },
   filters: { ...structuredClone(EMPTY_FILTERS), bpm: [120, 140], playlists: ['Openers'] },
   settings: { ...structuredClone(DEFAULT_SETTINGS), colorScheme: 'aqua' },
-  tracklist: [SAMPLE_TRACKS[0].id, SAMPLE_TRACKS[2].id],
+  sets: [
+    {
+      id: 'set-1',
+      name: 'First Set',
+      trackIds: [SAMPLE_TRACKS[0].id, SAMPLE_TRACKS[2].id],
+      generated: false,
+    },
+    { id: 'set-2', name: 'Peak time', trackIds: [SAMPLE_TRACKS[1].id], generated: true },
+  ],
+  activeSetId: 'set-2',
   playlists: [{ name: 'Openers', trackIds: [SAMPLE_TRACKS[0].id] }],
   radialAxis: 'year',
   colorAxis: 'bpm',
 }
 
-describe('project persistence (v2)', () => {
-  test('serialize → parse round-trips the whole project', () => {
+describe('project persistence (v3)', () => {
+  test('serialize → parse round-trips the whole project, generated flag included', () => {
     const parsed = parseProject(serializeProject(project))
     expect(parsed).toEqual(project)
   })
@@ -34,9 +43,65 @@ describe('project persistence (v2)', () => {
     expect(() => parseProject(future)).toThrow(/version/i)
   })
 
-  test('drops tracklist entries that reference unknown tracks', () => {
-    const withGhost = serializeProject({ ...project, tracklist: ['nope', SAMPLE_TRACKS[0].id] })
-    expect(parseProject(withGhost).tracklist).toEqual([SAMPLE_TRACKS[0].id])
+  test('drops set entries that reference unknown tracks, per set', () => {
+    const withGhost = serializeProject({
+      ...project,
+      sets: [
+        { id: 's', name: 'First Set', trackIds: ['nope', SAMPLE_TRACKS[0].id], generated: false },
+      ],
+      activeSetId: 's',
+    })
+    expect(parseProject(withGhost).sets[0].trackIds).toEqual([SAMPLE_TRACKS[0].id])
+  })
+
+  test('a v2 save migrates its tracklist into one un-generated First Set', () => {
+    const v2 = JSON.stringify({
+      version: 2,
+      libraryName: 'Old save',
+      tracks: SAMPLE_TRACKS,
+      criteria: structuredClone(DEFAULT_CRITERIA),
+      filters: structuredClone(EMPTY_FILTERS),
+      settings: structuredClone(DEFAULT_SETTINGS),
+      tracklist: ['nope', SAMPLE_TRACKS[0].id],
+      playlists: [],
+      radialAxis: 'bpm',
+      colorAxis: 'auto',
+    })
+    const parsed = parseProject(v2)
+    expect(parsed.version).toBe(3)
+    expect(parsed.sets).toHaveLength(1)
+    expect(parsed.sets[0]).toMatchObject({
+      name: 'First Set',
+      trackIds: [SAMPLE_TRACKS[0].id], // unknown ids pruned
+      generated: false,
+    })
+    expect(parsed.activeSetId).toBe(parsed.sets[0].id)
+    expect('tracklist' in parsed).toBe(false)
+  })
+
+  test('a missing or unknown activeSetId falls back to the first set', () => {
+    const bad = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    bad.activeSetId = 'no-such-set'
+    expect(parseProject(JSON.stringify(bad)).activeSetId).toBe('set-1')
+    delete bad.activeSetId
+    expect(parseProject(JSON.stringify(bad)).activeSetId).toBe('set-1')
+  })
+
+  test('zero or garbage sets collapse to one empty First Set', () => {
+    const none = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    none.sets = []
+    const parsedNone = parseProject(JSON.stringify(none))
+    expect(parsedNone.sets).toHaveLength(1)
+    expect(parsedNone.sets[0]).toMatchObject({ name: 'First Set', trackIds: [], generated: false })
+    expect(parsedNone.activeSetId).toBe(parsedNone.sets[0].id)
+
+    const junk = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    junk.sets = ['garbage', { name: 42, trackIds: 'nope', generated: 'yes' }]
+    const parsedJunk = parseProject(JSON.stringify(junk))
+    expect(parsedJunk.sets).toHaveLength(1)
+    expect(parsedJunk.sets[0].trackIds).toEqual([])
+    expect(parsedJunk.sets[0].generated).toBe(false)
+    expect(typeof parsedJunk.sets[0].name).toBe('string')
   })
 
   test('sanitizes hand-edited track entries instead of trusting them', () => {
@@ -48,7 +113,10 @@ describe('project persistence (v2)', () => {
         { title: 'No id' }, // missing required field
         { id: 'ok-1', title: 'Wrong types', bpm: '128', year: NaN, rating: 3, key: 'nonsense' },
       ],
-      tracklist: [SAMPLE_TRACKS[0].id, 'ok-1'],
+      sets: [
+        { id: 's', name: 'First Set', trackIds: [SAMPLE_TRACKS[0].id, 'ok-1'], generated: false },
+      ],
+      activeSetId: 's',
     })
     const parsed = parseProject(junk)
     expect(parsed.tracks).toHaveLength(2)
@@ -56,7 +124,7 @@ describe('project persistence (v2)', () => {
     // Wrong-typed fields become missing; valid ones survive.
     expect(parsed.tracks[1]).toMatchObject({ id: 'ok-1', bpm: null, year: null, rating: 3 })
     expect(parsed.tracks[1].key).toBeNull()
-    expect(parsed.tracklist).toEqual([SAMPLE_TRACKS[0].id, 'ok-1'])
+    expect(parsed.sets[0].trackIds).toEqual([SAMPLE_TRACKS[0].id, 'ok-1'])
   })
 
   test('older saves without bpmProgression are backfilled with the default', () => {
@@ -103,7 +171,7 @@ describe('project persistence (v2)', () => {
       radialAxis: 'bpm',
     })
     const migrated = parseProject(v1)
-    expect(migrated.version).toBe(2)
+    expect(migrated.version).toBe(3)
     expect(migrated.filters).toEqual(EMPTY_FILTERS)
     expect(migrated.settings).toEqual(DEFAULT_SETTINGS)
     expect(migrated.colorAxis).toBe('auto')
@@ -126,7 +194,8 @@ describe('project persistence (v2)', () => {
     expect('rating' in migrated.criteria).toBe(false)
     expect(migrated.criteria.threshold).toBe(4) // clamped to the 4 criteria left
     expect(migrated.criteria.bpm.maxPercent).toBe(8)
-    expect(migrated.tracklist).toEqual([SAMPLE_TRACKS[1].id])
+    expect(migrated.sets).toHaveLength(1)
+    expect(migrated.sets[0].trackIds).toEqual([SAMPLE_TRACKS[1].id])
   })
 
   test('saves from before playlists existed default to none and an inactive filter', () => {

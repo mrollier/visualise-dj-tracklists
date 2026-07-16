@@ -2,22 +2,27 @@ import { DEFAULT_CRITERIA, type CriteriaConfig } from './combos'
 import { EMPTY_FILTERS, type LibraryFilters } from './filter'
 import { normalizeKey } from './keys'
 import type { Playlist, Track } from './model'
+import { freshFirstSet, newSetId, ordinalSetName, type TrackSet } from './sets'
 import { DEFAULT_SETTINGS, type AppSettings } from './settings'
 
 /**
  * A saved project: the whole app state as one JSON document. Used both for
  * explicit save/load (a .json file the user keeps) and localStorage autosave.
  * Version history: v1 (no filters/settings, criteria had a rating criterion),
- * v2 (filters + settings + colour axis; rating became a filter).
+ * v2 (filters + settings + colour axis; rating became a filter),
+ * v3 (multiple named sets replace the single tracklist — issue 18).
  */
 export interface Project {
-  version: 2
+  version: 3
   libraryName: string
   tracks: Track[]
   criteria: CriteriaConfig
   filters: LibraryFilters
   settings: AppSettings
-  tracklist: string[]
+  /** Named sets; always at least one. */
+  sets: TrackSet[]
+  /** Which set is being edited; always one of `sets`. */
+  activeSetId: string
   /** Playlists from the source library (Rekordbox XML); [] elsewhere. */
   playlists: Playlist[]
   radialAxis: 'bpm' | 'rating' | 'year'
@@ -85,6 +90,26 @@ function sanitizeTrack(raw: unknown): Track | null {
   }
 }
 
+/**
+ * Guard one stored set the same way tracks are guarded: wrong-typed entries
+ * are dropped or defaulted, unknown track ids pruned per set.
+ */
+function sanitizeSet(raw: unknown, knownIds: Set<string>, index: number): TrackSet | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const entry = raw as Record<string, unknown>
+  const trackIds = Array.isArray(entry.trackIds)
+    ? (entry.trackIds as unknown[]).filter(
+        (id): id is string => typeof id === 'string' && knownIds.has(id),
+      )
+    : []
+  return {
+    id: typeof entry.id === 'string' && entry.id !== '' ? entry.id : newSetId(),
+    name: typeof entry.name === 'string' && entry.name !== '' ? entry.name : ordinalSetName(index),
+    trackIds,
+    generated: entry.generated === true,
+  }
+}
+
 export function parseProject(json: string): Project {
   let raw: unknown
   try {
@@ -93,15 +118,34 @@ export function parseProject(json: string): Project {
     throw new Error('Not a valid project file: could not parse JSON')
   }
   const p = raw as Record<string, unknown> &
-    Omit<Partial<Project>, 'version'> & { version?: number }
-  if (p.version !== 1 && p.version !== 2) {
+    Omit<Partial<Project>, 'version'> & { version?: number; tracklist?: unknown }
+  if (p.version !== 1 && p.version !== 2 && p.version !== 3) {
     throw new Error(`Unsupported project version: ${String(p.version)}`)
   }
-  if (!Array.isArray(p.tracks) || !Array.isArray(p.tracklist) || typeof p.criteria !== 'object') {
-    throw new Error('Not a valid project file: missing tracks, tracklist or criteria')
+  const hasSetShape = Array.isArray(p.sets) || Array.isArray(p.tracklist)
+  if (!Array.isArray(p.tracks) || !hasSetShape || typeof p.criteria !== 'object') {
+    throw new Error('Not a valid project file: missing tracks, sets or criteria')
   }
   const tracks = (p.tracks as unknown[]).map(sanitizeTrack).filter((t): t is Track => t !== null)
   const knownIds = new Set(tracks.map((t) => t.id))
+  // v1/v2 carried one flat tracklist — it becomes the (un-generated) First
+  // Set. v3 sets are sanitized per entry; nothing valid left = one empty set.
+  let sets: TrackSet[]
+  if (Array.isArray(p.sets)) {
+    sets = (p.sets as unknown[])
+      .map((entry, i) => sanitizeSet(entry, knownIds, i))
+      .filter((s): s is TrackSet => s !== null)
+  } else {
+    const oldList = (p.tracklist as unknown[]).filter(
+      (id): id is string => typeof id === 'string' && knownIds.has(id),
+    )
+    sets = [freshFirstSet(oldList)]
+  }
+  if (sets.length === 0) sets = [freshFirstSet()]
+  const activeSetId =
+    typeof p.activeSetId === 'string' && sets.some((s) => s.id === p.activeSetId)
+      ? p.activeSetId
+      : sets[0].id
   const rawSettings = (p.settings ?? {}) as Partial<AppSettings> & { slotSpreadDeg?: number }
   const settings: AppSettings = {
     ...structuredClone(DEFAULT_SETTINGS),
@@ -118,7 +162,7 @@ export function parseProject(json: string): Project {
   }
   Reflect.deleteProperty(settings, 'slotSpreadDeg')
   return {
-    version: 2,
+    version: 3,
     libraryName: typeof p.libraryName === 'string' ? p.libraryName : '',
     tracks,
     criteria: migrateCriteria(p.criteria as unknown as Record<string, unknown>),
@@ -126,7 +170,8 @@ export function parseProject(json: string): Project {
     // playlists: null (inactive) rather than failing to parse.
     filters: { ...structuredClone(EMPTY_FILTERS), ...(p.filters as object | undefined) },
     settings,
-    tracklist: (p.tracklist as string[]).filter((id) => knownIds.has(id)),
+    sets,
+    activeSetId,
     playlists: Array.isArray(p.playlists) ? (p.playlists as Playlist[]) : [],
     radialAxis: p.radialAxis === 'rating' || p.radialAxis === 'year' ? p.radialAxis : 'bpm',
     colorAxis:

@@ -3,9 +3,11 @@ import { DEFAULT_CRITERIA } from '../core/combos'
 import { EMPTY_FILTERS } from '../core/filter'
 import type { ImportReport, Playlist, Track } from '../core/model'
 import { parseProject, serializeProject, type Project } from '../core/persist'
+import { freshFirstSet } from '../core/sets'
 import { DEFAULT_SETTINGS } from '../core/settings'
 import { ALL_SAMPLE_PACKS, SAMPLE_COLLECTION } from '../data/samples'
 import {
+  activeSetId,
   colorAxis,
   criteria,
   filters,
@@ -16,8 +18,8 @@ import {
   radialAxis,
   resetSuggestions,
   selectedId,
+  sets,
   settings,
-  tracklist,
 } from '../stores'
 
 // ":v1" names the storage slot, not the project schema (parseProject
@@ -26,13 +28,14 @@ const STORAGE_KEY = 'visualise-dj-tracklists:project:v1'
 
 export function currentProject(): Project {
   return {
-    version: 2,
+    version: 3,
     libraryName: get(libraryName),
     tracks: get(library),
     criteria: get(criteria),
     filters: get(filters),
     settings: get(settings),
-    tracklist: get(tracklist),
+    sets: get(sets),
+    activeSetId: get(activeSetId),
     playlists: get(playlists),
     radialAxis: get(radialAxis),
     colorAxis: get(colorAxis),
@@ -45,7 +48,8 @@ export function applyProject(project: Project): void {
   criteria.set(project.criteria)
   filters.set(project.filters)
   settings.set(project.settings)
-  tracklist.set(project.tracklist)
+  sets.set(project.sets)
+  activeSetId.set(project.activeSetId)
   playlists.set(project.playlists)
   radialAxis.set(project.radialAxis)
   colorAxis.set(project.colorAxis)
@@ -82,7 +86,10 @@ export function replaceLibrary(replacement: {
   } = replacement
   library.set(tracks)
   libraryName.set(name)
-  tracklist.set(set)
+  // A fresh library starts over with a single First Set (issue 18).
+  const first = freshFirstSet(set)
+  sets.set([first])
+  activeSetId.set(first.id)
   playlists.set(imported)
   // A collection carrying playlists starts with only `selectedPlaylists`
   // toggled on — by default none, i.e. an empty wheel until the user picks
@@ -159,7 +166,8 @@ export function startAutosave(): void {
     criteria,
     filters,
     settings,
-    tracklist,
+    sets, // every tracklist edit flows through here
+    activeSetId,
     playlists,
     radialAxis,
     colorAxis,
@@ -177,7 +185,9 @@ export function resetEverything(): void {
   criteria.set(structuredClone(DEFAULT_CRITERIA))
   filters.set(structuredClone(EMPTY_FILTERS))
   settings.set(structuredClone(DEFAULT_SETTINGS))
-  tracklist.set([])
+  const first = freshFirstSet()
+  sets.set([first])
+  activeSetId.set(first.id)
   radialAxis.set('bpm')
   colorAxis.set('auto')
   selectedId.set(null)

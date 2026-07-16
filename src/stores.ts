@@ -1,4 +1,4 @@
-import { derived, writable } from 'svelte/store'
+import { derived, get, writable, type Writable } from 'svelte/store'
 import {
   computeEdges,
   DEFAULT_CRITERIA,
@@ -13,6 +13,7 @@ import {
 } from './core/filter'
 import { computeGenreClasses } from './core/genreClasses'
 import type { ImportReport, Playlist, Track } from './core/model'
+import { freshFirstSet, nextSetName, type TrackSet } from './core/sets'
 import { DEFAULT_SETTINGS, type AppSettings } from './core/settings'
 
 export type RadialAxis = 'bpm' | 'rating' | 'year'
@@ -34,7 +35,85 @@ export const settings = writable<AppSettings>(structuredClone(DEFAULT_SETTINGS))
 export const radialAxis = writable<RadialAxis>('bpm')
 export const colorAxis = writable<ColorAxis>('auto')
 export const selectedId = writable<string | null>(null)
-export const tracklist = writable<string[]>([])
+
+/**
+ * Multiple named sets (issue 18, persisted): always at least one; the active
+ * one is what the wheel/panel edit. `tracklist` below keeps its historical
+ * Writable<string[]> API but is backed by the active set, so the many
+ * existing readers and writers stay unchanged.
+ */
+const initialSet = freshFirstSet()
+export const sets = writable<TrackSet[]>([initialSet])
+export const activeSetId = writable<string>(initialSet.id)
+
+function activeSetOf($sets: TrackSet[], $activeId: string): TrackSet {
+  return $sets.find((s) => s.id === $activeId) ?? $sets[0]
+}
+
+/** The full active set (name, generated flag, tracks). */
+export const activeSet = derived([sets, activeSetId], ([$sets, $activeId]) =>
+  activeSetOf($sets, $activeId),
+)
+
+function writeActiveTrackIds(fn: (ids: string[]) => string[], generated: boolean): void {
+  sets.update(($sets) => {
+    const current = activeSetOf($sets, get(activeSetId))
+    return $sets.map((s) =>
+      s.id === current.id ? { ...s, trackIds: fn(s.trackIds), generated } : s,
+    )
+  })
+}
+
+/**
+ * The active set's track ids, as a plain Writable so every existing consumer
+ * keeps working. Manual set/update marks the active set as hand-edited
+ * (generated: false); the generator writes through setGeneratedTracklist.
+ */
+export const tracklist: Writable<string[]> = {
+  subscribe: derived(activeSet, ($active) => $active.trackIds).subscribe,
+  set: (ids) => writeActiveTrackIds(() => ids, false),
+  update: (fn) => writeActiveTrackIds(fn, false),
+}
+
+/** Generator output: replaces the active set's tracks and flags it ✨. */
+export function setGeneratedTracklist(ids: string[]): void {
+  writeActiveTrackIds(() => ids, true)
+}
+
+/** Create and activate an empty set with the next free ordinal name. */
+export function addSet(): void {
+  const set: TrackSet = {
+    ...freshFirstSet(),
+    name: nextSetName(get(sets).map((s) => s.name)),
+  }
+  sets.update(($sets) => [...$sets, set])
+  activeSetId.set(set.id)
+}
+
+export function renameSet(id: string, name: string): void {
+  const trimmed = name.trim()
+  if (trimmed === '') return
+  sets.update(($sets) => $sets.map((s) => (s.id === id ? { ...s, name: trimmed } : s)))
+}
+
+/**
+ * Delete a set; the last remaining set is cleared instead (there is always
+ * one). Deleting the active set activates its predecessor (or successor).
+ */
+export function deleteSet(id: string): void {
+  const $sets = get(sets)
+  if ($sets.length <= 1) {
+    tracklist.set([])
+    return
+  }
+  const index = $sets.findIndex((s) => s.id === id)
+  if (index === -1) return
+  const remaining = $sets.toSpliced(index, 1)
+  sets.set(remaining)
+  if (get(activeSetId) === id) {
+    activeSetId.set(remaining[Math.max(0, index - 1)].id)
+  }
+}
 
 /**
  * Session-only history of generated set suggestions (not persisted): the

@@ -199,6 +199,45 @@ await page.getByRole('button', { name: /previous/ }).click()
 await page.waitForTimeout(200)
 await page.screenshot({ path: `${scratch}/06-suggestion-arrows.png` })
 
+// named sets (ISSUES.md v7 #18): a shown suggestion wears the ✨ generated
+// badge until the first manual edit; ＋ starts an empty "Second Set" and
+// switching back restores the walk
+if ((await page.locator('aside .head .badge').count()) !== 1) {
+  errors.push('a freshly shown suggestion did not wear the generated badge')
+}
+const firstSetCount = await page.locator('aside ol li.track').count()
+await page.locator('aside ol li.track').first().hover()
+await page.locator('aside ol li.track').first().getByRole('button', { name: 'Move down' }).click()
+await page.waitForTimeout(150)
+if ((await page.locator('aside .head .badge').count()) !== 0) {
+  errors.push('a manual edit did not clear the generated badge')
+}
+await page.getByRole('button', { name: 'New set' }).click()
+await page.waitForTimeout(150)
+const activeSetName = await page
+  .locator('aside .head select')
+  .evaluate((s) => s.selectedOptions[0]?.textContent)
+if (activeSetName !== 'Second Set') {
+  errors.push(`the new set should be called "Second Set", got "${activeSetName}"`)
+}
+if ((await page.locator('aside ol li.track').count()) !== 0) {
+  errors.push('a new set did not start empty')
+}
+if ((await page.locator('g.node .dot.in-walk').count()) !== 0) {
+  errors.push('the wheel still shows the previous set as the walk')
+}
+await page.locator('aside .head select').selectOption({ label: 'First Set' })
+await page.waitForTimeout(150)
+if ((await page.locator('aside ol li.track').count()) !== firstSetCount) {
+  errors.push('switching back did not restore the first set')
+}
+await page.locator('aside .head select').selectOption({ label: 'Second Set' })
+await page.getByRole('button', { name: 'Delete set' }).click()
+await page.waitForTimeout(150)
+if ((await page.locator('aside .head select option').count()) !== 1) {
+  errors.push('deleting the second set did not remove it')
+}
+
 // pinned closer: at the history head, pin the last track, regenerate — the
 // closer must survive; the pin also prefills the Set order picker
 await page.locator('.suggest-row .primary').click() // forward to head ("next ▶")
@@ -524,11 +563,21 @@ await page.getByRole('button', { name: 'Export CSV' }).click()
 await page.waitForTimeout(600)
 if (cancelledDownload) errors.push('a cancelled export prompt still downloaded a file')
 
-// reload → autosave restores everything (give the debounced save time to flush)
+// reload → autosave restores everything, the set's custom name included
+// (give the debounced save time to flush)
+await page.getByRole('button', { name: 'Rename set' }).click()
+await page.locator('aside .head input.rename').fill('Sunrise closing')
+await page.keyboard.press('Enter')
 await page.waitForTimeout(700)
 await page.reload()
 await page.getByText('combo suggestions').waitFor()
 await page.getByText('4 tracks', { exact: true }).waitFor()
+const restoredSetName = await page
+  .locator('aside .head select')
+  .evaluate((s) => s.selectedOptions[0]?.textContent)
+if (restoredSetName !== 'Sunrise closing') {
+  errors.push(`the set name did not survive the reload: "${restoredSetName}"`)
+}
 await page.screenshot({ path: `${scratch}/13-restored.png` })
 
 // import a real Rekordbox XML export through the UI; the report lives
