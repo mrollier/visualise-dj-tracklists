@@ -130,15 +130,6 @@ function buildNeighbours(tracks: Track[], criteria: CriteriaConfig): Map<string,
   return neighbours
 }
 
-/** Best-connected track, ties broken by id — the empty-set hub suggestion. */
-function bestConnected(tracks: Track[], neighbours: Map<string, string[]>): string {
-  return [...tracks].sort(
-    (a, b) =>
-      (neighbours.get(b.id)?.length ?? 0) - (neighbours.get(a.id)?.length ?? 0) ||
-      a.id.localeCompare(b.id),
-  )[0].id
-}
-
 /**
  * Uniformly random walk opener (remark: generated sets must not always open
  * with the same track): a connected track when any exists, excluding the
@@ -335,11 +326,45 @@ export function nextExhausted(
 }
 
 /**
+ * Whether the retry ring has anything to offer after a hub pick (issue 17):
+ * true when re-drawing `lastPick` could yield a DIFFERENT track from the
+ * same pool the pick came from. Takes the stores' adjacency-map shape so the
+ * view derives it without re-running edge computation.
+ * - Stale picks (the set changed since) never retry.
+ * - An empty-set opener retries while any other visible track remains.
+ * - A normal pick retries while its anchor has another unused neighbour.
+ * - A forced pick (not a neighbour of its anchor) retries over any other
+ *   unused visible track — it was already rule-breaking.
+ */
+export function retryAlternativeExists(
+  neighbours: ReadonlyMap<string, ReadonlySet<string>>,
+  tracklist: string[],
+  lastPick: NextSuggestion | null,
+  visibleIds: readonly string[],
+): boolean {
+  if (lastPick === null) return false
+  const { trackId, insertIndex } = lastPick
+  if (tracklist[insertIndex] !== trackId) return false
+  const used = new Set(tracklist)
+  if (insertIndex === 0) {
+    return visibleIds.some((id) => !used.has(id))
+  }
+  const anchorNeighbours = neighbours.get(tracklist[insertIndex - 1])
+  if (anchorNeighbours?.has(trackId) !== true) {
+    return visibleIds.some((id) => !used.has(id))
+  }
+  for (const id of anchorNeighbours) {
+    if (!used.has(id)) return true
+  }
+  return false
+}
+
+/**
  * Suggest a single next track for the current set (the wheel's hub button).
  * Anchored at the selected track when it is in the set (inserting between it
  * and its successor, scored against *both* neighbours), otherwise appended
- * after the last track. An empty set starts with the selection, or the
- * best-connected track. With `force`, an exhausted anchor falls back to the
+ * after the last track. An empty set starts with the selection, or a seeded
+ * random connected track. With `force`, an exhausted anchor falls back to the
  * best-scoring track that is NOT a combo neighbour — the "break the rules
  * knowingly" path; null then only means every track is already in the set.
  */
@@ -350,6 +375,8 @@ export function suggestNext(
   options: Omit<SuggestOptions, 'seedId' | 'length' | 'mustIncludeIds'> & {
     selectedId?: string | null
     force?: boolean
+    /** Never suggest these ids (the retry ring excludes earlier picks). */
+    excludeIds?: readonly string[]
   } = {},
 ): NextSuggestion | null {
   const {
@@ -358,6 +385,7 @@ export function suggestNext(
     seed = 0,
     progression = 'any',
     force = false,
+    excludeIds = [],
   } = options
   if (tracks.length === 0) return null
 
@@ -367,11 +395,17 @@ export function suggestNext(
     tracks.map((t) => t.genre),
     criteria,
   )
+  const excluded = new Set(excludeIds)
 
   if (tracklist.length === 0) {
-    const trackId =
-      selectedId !== null && byId.has(selectedId) ? selectedId : bestConnected(tracks, neighbours)
-    return { trackId, insertIndex: 0 }
+    // Opener: the selection when one is set, else a seeded RANDOM connected
+    // track — pressing the hub again explores instead of repeating (issue 17).
+    if (selectedId !== null && byId.has(selectedId) && !excluded.has(selectedId)) {
+      return { trackId: selectedId, insertIndex: 0 }
+    }
+    const pool = tracks.filter((t) => !excluded.has(t.id))
+    if (pool.length === 0) return null
+    return { trackId: randomStart(pool, neighbours, null, mulberry32(seed)), insertIndex: 0 }
   }
 
   const anchorIndex = nextAnchorIndex(tracklist, selectedId)
@@ -379,7 +413,7 @@ export function suggestNext(
   if (anchor === undefined) return null
   const successor = byId.get(tracklist[anchorIndex + 1] ?? '')
 
-  const used = new Set(tracklist)
+  const used = new Set([...tracklist, ...excludeIds])
   const scoreExtra = (candidate: Track) =>
     (successor !== undefined ? scoreCandidate(candidate, successor, criteria, genreMatch) : 0) +
     (progression === 'any'

@@ -254,13 +254,32 @@ await setOrderSelects.nth(1).selectOption('')
 await page.locator('.must-list li .unmark').click()
 await page.keyboard.press('Escape')
 
-// hub button: suggest the next track (appends to the set)
+// hub button: suggest the next track (appends to the set) and jump the
+// selection to it, so the next press continues from the head (v7 #17)
 const setCountBefore = await page.locator('aside ol li.track').count()
 await page.locator('g.hub').dispatchEvent('click')
 await page.waitForTimeout(200)
 const setCountAfter = await page.locator('aside ol li.track').count()
 if (setCountAfter !== setCountBefore + 1) {
   errors.push(`hub button did not append: ${setCountBefore} -> ${setCountAfter}`)
+}
+if ((await page.locator('.selected-card').count()) !== 1) {
+  errors.push('the hub pick did not become the selected track')
+}
+// the retry ring swaps the pick for a different one, keeping the count
+if ((await page.locator('g.hub-retry').count()) !== 1) {
+  errors.push('no retry ring after a hub pick with alternatives around')
+} else {
+  const lastRowBefore = await page.locator('aside ol li.track').last().textContent()
+  await page.locator('g.hub-retry').dispatchEvent('click')
+  await page.waitForTimeout(200)
+  const lastRowAfter = await page.locator('aside ol li.track').last().textContent()
+  if ((await page.locator('aside ol li.track').count()) !== setCountAfter) {
+    errors.push('retry changed the set length instead of swapping the pick')
+  }
+  if (lastRowBefore === lastRowAfter) {
+    errors.push('retry did not swap the last pick for a different track')
+  }
 }
 await page.screenshot({ path: `${scratch}/07-hub-next.png` })
 
@@ -520,6 +539,16 @@ await page.waitForTimeout(300)
 if ((await page.locator('g.node').count()) !== 2) {
   errors.push('toggling a playlist did not reveal exactly its tracks')
 }
+// with every visible track in the set, the hub greys out (v7 #17)
+for (const g of await page.locator('g.node').all()) {
+  await g.dblclick({ force: true })
+  await page.waitForTimeout(150)
+}
+if ((await page.locator('g.hub.disabled').count()) !== 1) {
+  errors.push('the hub did not disable once every visible track was in the set')
+}
+await page.locator('aside').last().getByRole('button', { name: 'Clear' }).click()
+await page.waitForTimeout(150)
 // the genre checklist follows the playlist selection (ISSUES.md v7 #14):
 // Warm-up & After holds only a Melodic House track (plus one without genre),
 // so the collection's other genres must not clutter the list

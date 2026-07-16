@@ -27,7 +27,12 @@
     radialDomain,
   } from '../core/scales'
   import { effectiveTheme } from './theme'
-  import { nextExhausted, suggestNext } from '../core/suggest'
+  import {
+    nextExhausted,
+    retryAlternativeExists,
+    suggestNext,
+    type NextSuggestion,
+  } from '../core/suggest'
   import {
     criteria,
     edges,
@@ -338,10 +343,33 @@
   // neighbours), otherwise appends after the last track. When the anchor's
   // neighbourhood is exhausted the hub turns into a warning-coloured
   // "force" button: clicking it knowingly breaks the criteria and picks the
-  // closest non-matching track (ISSUES.md #11, design-v6 §C).
-  let hubSeed = 0
+  // closest non-matching track (design-v6 §C). v7 (issue 17): the empty-set
+  // opener is random per press (random session seed base), the selection
+  // jumps to every pick so repeated presses continue from the head, the hub
+  // greys out once every visible track is used, and a retry ring swaps the
+  // last pick for a different one while alternatives exist.
+  let hubSeed = Math.floor(Math.random() * 2 ** 31)
   const hubExhausted = $derived(nextExhausted($neighbours, $tracklist, $selectedId))
+  const usedIds = $derived(new Set($tracklist))
+  const hubAllUsed = $derived(
+    $visibleLibrary.length > 0 && $visibleLibrary.every((t) => usedIds.has(t.id)),
+  )
+
+  let lastHubPick = $state<NextSuggestion | null>(null)
+  let triedIds = $state<string[]>([])
+  // Any external edit to the set closes the retry window.
+  $effect(() => {
+    if (lastHubPick !== null && $tracklist[lastHubPick.insertIndex] !== lastHubPick.trackId) {
+      lastHubPick = null
+      triedIds = []
+    }
+  })
+  const retryAvailable = $derived(
+    retryAlternativeExists($neighbours, $tracklist, lastHubPick, [...visibleIds]),
+  )
+
   function hubSuggest() {
+    if (hubAllUsed) return
     const suggestion = suggestNext($visibleLibrary, $criteria, $tracklist, {
       selectedId: $selectedId,
       randomness: $settings.suggestRandomness,
@@ -351,6 +379,38 @@
     })
     if (suggestion === null) return
     tracklist.update((ids) => ids.toSpliced(suggestion.insertIndex, 0, suggestion.trackId))
+    selectedId.set(suggestion.trackId)
+    lastHubPick = suggestion
+    triedIds = []
+  }
+
+  /** Swap the last hub pick for a different one, keeping its slot. */
+  function hubRetry() {
+    const pick = lastHubPick
+    if (pick === null || $tracklist[pick.insertIndex] !== pick.trackId) return
+    const withoutPick = $tracklist.toSpliced(pick.insertIndex, 1)
+    // Re-anchor exactly where the original pick came from: the previous
+    // track for a mid/end pick, nothing for an empty-set opener.
+    const anchorId = pick.insertIndex > 0 ? withoutPick[pick.insertIndex - 1] : null
+    const wasForced = anchorId !== null && $neighbours.get(anchorId)?.has(pick.trackId) !== true
+    const exclude = [...triedIds, pick.trackId]
+    const suggestion = suggestNext($visibleLibrary, $criteria, withoutPick, {
+      selectedId: anchorId,
+      randomness: $settings.suggestRandomness,
+      seed: hubSeed++,
+      progression: $settings.bpmProgression,
+      force: wasForced,
+      excludeIds: exclude,
+    })
+    if (suggestion === null || suggestion.insertIndex !== pick.insertIndex) {
+      lastHubPick = null
+      triedIds = []
+      return
+    }
+    tracklist.update((ids) => ids.toSpliced(pick.insertIndex, 1, suggestion.trackId))
+    selectedId.set(suggestion.trackId)
+    lastHubPick = suggestion
+    triedIds = exclude
   }
 
   // --- selected-track card: details + the "must include" mark (design-v6 §C) ---
@@ -475,33 +535,6 @@
       {/if}
 
       <!-- Hub button: suggest the next track for the set -->
-      {#if $visibleLibrary.length > 0}
-        <g
-          class="hub"
-          class:warning={hubExhausted}
-          role="button"
-          tabindex="0"
-          aria-label={hubExhausted
-            ? 'No exact match left — force the closest track'
-            : 'Suggest next track'}
-          onclick={hubSuggest}
-          onkeydown={(e) => {
-            if (e.key === 'Enter') hubSuggest()
-          }}
-        >
-          <title
-            >{hubExhausted
-              ? 'No track matches your criteria from here — clicking forces the closest one anyway'
-              : 'Suggest the next track'}</title
-          >
-          <circle cx={CX} cy={CY} r="34" class="hub-circle" vector-effect="non-scaling-stroke" />
-          <text x={CX} y={CY - 2} class="hub-plus" text-anchor="middle">+</text>
-          <text x={CX} y={CY + 16} class="hub-label" text-anchor="middle"
-            >{hubExhausted ? 'force' : 'next'}</text
-          >
-        </g>
-      {/if}
-
       <!-- Suggestion edges -->
       {#each $edges as edge (`${edge.sourceId}→${edge.targetId}`)}
         {@const a = nodeById.get(edge.sourceId)}
@@ -580,6 +613,59 @@
           />
         </g>
       {/each}
+
+      <!-- Hub button, painted LAST so edges and nodes never steal its
+           clicks (issue 17), with an oversized transparent hit circle. -->
+      {#if $visibleLibrary.length > 0}
+        {#if retryAvailable}
+          <g
+            class="hub-retry"
+            role="button"
+            tabindex="0"
+            aria-label="Retry: replace the last suggested track with another pick"
+            onclick={hubRetry}
+            onkeydown={(e) => {
+              if (e.key === 'Enter') hubRetry()
+            }}
+          >
+            <title>Not feeling it? Swap the last suggestion for a different pick</title>
+            <circle cx={CX} cy={CY} r="52" class="retry-hit" />
+            <circle cx={CX} cy={CY} r="52" class="retry-ring" vector-effect="non-scaling-stroke" />
+            <text x={CX} y={CY + 70} class="retry-label" text-anchor="middle">retry</text>
+          </g>
+        {/if}
+        <g
+          class="hub"
+          class:warning={hubExhausted && !hubAllUsed}
+          class:disabled={hubAllUsed}
+          role="button"
+          tabindex={hubAllUsed ? -1 : 0}
+          aria-disabled={hubAllUsed}
+          aria-label={hubAllUsed
+            ? 'Every track is already in the set'
+            : hubExhausted
+              ? 'No exact match left — force the closest track'
+              : 'Suggest next track'}
+          onclick={hubSuggest}
+          onkeydown={(e) => {
+            if (e.key === 'Enter') hubSuggest()
+          }}
+        >
+          <title
+            >{hubAllUsed
+              ? 'Every visible track is already in the set'
+              : hubExhausted
+                ? 'No track matches your criteria from here — clicking forces the closest one anyway'
+                : 'Suggest the next track'}</title
+          >
+          <circle cx={CX} cy={CY} r="46" class="hub-hit" />
+          <circle cx={CX} cy={CY} r="34" class="hub-circle" vector-effect="non-scaling-stroke" />
+          <text x={CX} y={CY - 2} class="hub-plus" text-anchor="middle">+</text>
+          <text x={CX} y={CY + 16} class="hub-label" text-anchor="middle"
+            >{hubExhausted && !hubAllUsed ? 'force' : 'next'}</text
+          >
+        </g>
+      {/if}
     </g>
 
     <!-- Empty hint: anchored to the wheel's true centre (CX, CY) inside the
@@ -793,11 +879,62 @@
     outline: none;
   }
 
+  .hub.disabled {
+    cursor: default;
+    pointer-events: none;
+    opacity: 0.35;
+  }
+
+  /* Oversized invisible disk: edges and dense fans must not steal clicks. */
+  .hub-hit {
+    fill: transparent;
+    stroke: none;
+  }
+
   .hub-circle {
     fill: var(--surface-raised);
     stroke: var(--baseline);
     stroke-width: 1;
     stroke-dasharray: 4 4;
+  }
+
+  /* Retry ring: a second, outer target that redraws the last hub pick. */
+  .hub-retry {
+    cursor: pointer;
+    outline: none;
+  }
+
+  .retry-hit {
+    fill: none;
+    stroke: transparent;
+    stroke-width: 18;
+    pointer-events: stroke;
+  }
+
+  .retry-ring {
+    fill: none;
+    stroke: var(--baseline);
+    stroke-width: 1;
+    stroke-dasharray: 2 5;
+    pointer-events: none;
+  }
+
+  .hub-retry:hover .retry-ring,
+  .hub-retry:focus-visible .retry-ring {
+    stroke: var(--accent);
+    stroke-dasharray: 2 3;
+  }
+
+  .retry-label {
+    fill: var(--ink-muted);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    pointer-events: none;
+  }
+
+  .hub-retry:hover .retry-label {
+    fill: var(--accent);
   }
 
   .hub:hover .hub-circle,

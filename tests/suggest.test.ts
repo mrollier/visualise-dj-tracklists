@@ -5,6 +5,7 @@ import {
   nextAnchorId,
   nextExhausted,
   progressionFit,
+  retryAlternativeExists,
   suggestNext,
   suggestWalk,
 } from '../src/core/suggest'
@@ -230,16 +231,104 @@ describe('suggestNext', () => {
     expect(next).toBeNull()
   })
 
-  test('an empty set starts with the selection, or the best-connected track', () => {
+  test('an empty set starts with the selection when one is set', () => {
     expect(suggestNext(chain, chainCfg(), [], { selectedId: 'c' })).toEqual({
       trackId: 'c',
       insertIndex: 0,
     })
-    expect(suggestNext(chain, chainCfg(), [], {})).toEqual({ trackId: 'b', insertIndex: 0 })
+  })
+
+  test('an empty set with no selection opens randomly, reproducibly per seed (issue 17)', () => {
+    const openers = new Set(
+      Array.from({ length: 20 }, (_, seed) => suggestNext(tracks, config(), [], { seed })?.trackId),
+    )
+    expect(openers.size).toBeGreaterThan(1) // pressing again explores
+    expect(openers.has('e')).toBe(false) // connected tracks preferred
+    expect(suggestNext(tracks, config(), [], { seed: 7 })).toEqual(
+      suggestNext(tracks, config(), [], { seed: 7 }),
+    )
+  })
+
+  test('excludeIds are never suggested, on any path', () => {
+    // normal path: a's only neighbour is excluded
+    expect(suggestNext(chain, chainCfg(), ['a'], { excludeIds: ['b'] })).toBeNull()
+    // forced pool respects exclusions
+    expect(suggestNext(chain, chainCfg(), ['b', 'a'], { force: true, excludeIds: ['c'] })).toEqual({
+      trackId: 'd',
+      insertIndex: 2,
+    })
+    // empty-set opener draws from what is left
+    expect(suggestNext(chain, chainCfg(), [], { excludeIds: ['a', 'b', 'c'] })).toEqual({
+      trackId: 'd',
+      insertIndex: 0,
+    })
+    // an excluded selection is not returned either
+    expect(
+      suggestNext(chain, chainCfg(), [], { selectedId: 'a', excludeIds: ['a', 'b', 'c', 'd'] }),
+    ).toBeNull()
   })
 
   test('returns null for an empty library', () => {
     expect(suggestNext([], chainCfg(), [], {})).toBeNull()
+  })
+})
+
+describe('retryAlternativeExists', () => {
+  // a is the hub of a small star; z exists only as a visible non-neighbour.
+  const neighbourMap = new Map<string, Set<string>>([
+    ['a', new Set(['b', 'c'])],
+    ['b', new Set(['a'])],
+    ['c', new Set(['a'])],
+  ])
+  const visible = ['a', 'b', 'c', 'z']
+
+  test('no pick, or a pick the set has since diverged from, offers no retry', () => {
+    expect(retryAlternativeExists(neighbourMap, ['a', 'b'], null, visible)).toBe(false)
+    expect(
+      retryAlternativeExists(neighbourMap, ['a', 'c'], { trackId: 'b', insertIndex: 1 }, visible),
+    ).toBe(false)
+  })
+
+  test('a normal pick retries only while the anchor has another unused neighbour', () => {
+    expect(
+      retryAlternativeExists(neighbourMap, ['a', 'b'], { trackId: 'b', insertIndex: 1 }, visible),
+    ).toBe(true) // c is still free
+    expect(
+      retryAlternativeExists(
+        neighbourMap,
+        ['c', 'a', 'b'],
+        { trackId: 'b', insertIndex: 2 },
+        visible,
+      ),
+    ).toBe(false) // a's other neighbour c is already in the set
+  })
+
+  test('an empty-set opener retries while any other visible track remains', () => {
+    expect(
+      retryAlternativeExists(neighbourMap, ['a'], { trackId: 'a', insertIndex: 0 }, visible),
+    ).toBe(true)
+    expect(
+      retryAlternativeExists(neighbourMap, ['a'], { trackId: 'a', insertIndex: 0 }, ['a']),
+    ).toBe(false)
+  })
+
+  test('a forced pick retries over any other unused visible track', () => {
+    expect(
+      retryAlternativeExists(
+        neighbourMap,
+        ['a', 'b', 'z'],
+        { trackId: 'z', insertIndex: 2 },
+        visible,
+      ),
+    ).toBe(true) // c unused
+    expect(
+      retryAlternativeExists(
+        neighbourMap,
+        ['a', 'c', 'b', 'z'],
+        { trackId: 'z', insertIndex: 3 },
+        visible,
+      ),
+    ).toBe(false) // every visible track is in the set
   })
 })
 
