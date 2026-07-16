@@ -120,7 +120,11 @@
 <details>
   <summary class="micro-label">
     Filters
-    <span class="summary-count">{$visibleLibrary.length} of {$library.length} tracks</span>
+    <!-- Visible over the SELECTED PLAYLISTS' total (issue 8): the filter's
+         effect is judged against what the playlists put on the table. -->
+    <span class="summary-count"
+      >{$visibleLibrary.length} of {$playlistScopedLibrary.length} tracks</span
+    >
   </summary>
 
   {#each RANGE_ROWS as { field, label } (field)}

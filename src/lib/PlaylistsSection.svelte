@@ -1,6 +1,6 @@
 <script lang="ts">
   import { NOT_IN_PLAYLIST } from '../core/filter'
-  import { filters, library, playlists } from '../stores'
+  import { filters, library, playlists, playlistScopedLibrary } from '../stores'
 
   // Only tracks that actually exist in the collection count.
   const libraryIds = $derived(new Set($library.map((t) => t.id)))
@@ -31,10 +31,15 @@
     filters.update((f) => ({ ...f, playlists: on ? [...allNames] : [] }))
   }
 
+  // One combined string ("2/9 · 214 tracks") so the selection's total track
+  // count is always in view (issue 8) without extra header elements.
   const summary = $derived.by(() => {
     const chosen = $filters.playlists
-    if (chosen === null || chosen.length >= allNames.length) return 'all'
-    return `${chosen.length}/${allNames.length}`
+    const scope =
+      chosen === null || chosen.length >= allNames.length
+        ? 'all'
+        : `${chosen.length}/${allNames.length}`
+    return `${scope} · ${$playlistScopedLibrary.length} tracks`
   })
 </script>
 
