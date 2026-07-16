@@ -24,6 +24,7 @@
   import { zoom as d3zoom, zoomIdentity, type D3ZoomEvent } from 'd3-zoom'
   import { get } from 'svelte/store'
   import { SvelteSet } from 'svelte/reactivity'
+  import { matchedGenrePairs } from '../core/combos'
   import {
     genreComponents,
     GENRE_METHODS,
@@ -66,10 +67,14 @@
   ]
 
   let showNeighbours = $state(false)
-  // Default overlay = the criterion's active method, seeded once at mount —
-  // the user's chip toggles must stick afterwards. SvelteSet mutations are
-  // reactive on their own.
+  // Default overlay = the criterion's active method. The user's chip toggles
+  // stick, but switching the criterion method re-enables its overlay so the
+  // map always shows what the criterion does (issue 12). SvelteSet mutations
+  // are reactive on their own.
   const enabledMethods = new SvelteSet<GenreMethod>([get(criteria).genre.method])
+  $effect(() => {
+    enabledMethods.add($criteria.genre.method)
+  })
 
   function toggleMethod(method: GenreMethod) {
     if (enabledMethods.has(method)) enabledMethods.delete(method)
@@ -122,16 +127,38 @@
 
   const labels = $derived([...genreCounts.keys(), ...ghostLabels].sort())
 
+  // The criterion's own method draws exactly the pairs the combo criterion
+  // links — mode, k and threshold included, live (issue 12). Ghost labels
+  // sit outside the library vocabulary, so their edges (and every other
+  // overlay method) keep the plain similarity view with the score floor.
+  const criterionPairs = $derived.by(() => {
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived-local
+    const keys = new Set<string>()
+    for (const [a, b] of matchedGenrePairs(
+      $visibleLibrary.map((t) => t.genre),
+      $criteria,
+    )) {
+      keys.add(`${a}\u001f${b}`)
+    }
+    return keys
+  })
+
   const edges = $derived.by(() => {
     const list: GenreEdge[] = []
     for (const method of GENRE_METHODS) {
       if (!enabledMethods.has(method)) continue
+      const isCriterion = method === $criteria.genre.method
       for (let i = 0; i < labels.length; i++) {
         for (let j = i + 1; j < labels.length; j++) {
-          const score = labelSimilarity(labels[i], labels[j], method)
-          if (score >= SCORE_FLOOR) {
-            list.push({ a: labels[i], b: labels[j], method, score })
-          }
+          const a = labels[i]
+          const b = labels[j]
+          const score = labelSimilarity(a, b, method)
+          const bothInLibrary = !ghostLabels.has(a) && !ghostLabels.has(b)
+          const linked =
+            isCriterion && bothInLibrary
+              ? criterionPairs.has(`${a}\u001f${b}`)
+              : score >= SCORE_FLOOR
+          if (linked) list.push({ a, b, method, score })
         }
       }
     }

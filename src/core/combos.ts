@@ -116,6 +116,32 @@ export function makeGenreMatcher(
 }
 
 /**
+ * Every distinct pair of genre components (sorted, deduplicated) that the
+ * configured matcher links. Shared by the genre map's criterion overlay and
+ * the advanced menu's live pair count (issue 12), so the two can never
+ * disagree about what "matches" means.
+ */
+export function matchedGenrePairs(
+  genres: Iterable<string | null>,
+  cfg: CriteriaConfig,
+): [string, string][] {
+  const vocabulary = new Set<string>()
+  for (const raw of genres) {
+    if (raw === null) continue
+    for (const component of genreComponents(raw)) vocabulary.add(component)
+  }
+  const labels = [...vocabulary].sort()
+  const matches = makeGenreMatcher(labels, cfg)
+  const pairs: [string, string][] = []
+  for (let i = 0; i < labels.length; i++) {
+    for (let j = i + 1; j < labels.length; j++) {
+      if (matches(labels[i], labels[j])) pairs.push([labels[i], labels[j]])
+    }
+  }
+  return pairs
+}
+
+/**
  * The tempo ratio (1, or 2 / 0.5 with half/double-time enabled) at which the
  * two tracks are beatmatchable within the BPM tolerance, or null if none is.
  */

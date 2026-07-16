@@ -385,6 +385,17 @@ if ((await page.locator('.panel .hint a').count()) === 0) {
   errors.push('method explainer carries no source links')
 }
 await page.getByText('Link each genre to its').waitFor() // top-k mode controls
+// the live pair count reacts to k (ISSUES.md v7 #12)
+const pairCountText = () => page.locator('.pair-count strong').textContent().then(Number)
+const kSlider = page.getByText('Link each genre to its').locator('input[type=range]')
+await kSlider.fill('15')
+const pairsWide = await pairCountText()
+await kSlider.fill('1')
+const pairsNarrow = await pairCountText()
+if (!(pairsNarrow < pairsWide)) {
+  errors.push(`k=1 should match fewer genre pairs than k=15 (${pairsNarrow} vs ${pairsWide})`)
+}
+await kSlider.fill('5')
 await page.getByRole('radio').nth(1).check() // switch to threshold mode…
 await page.getByText('Similarity ≥').waitFor()
 await page.getByRole('radio').first().check() // …and back to mutual top-k

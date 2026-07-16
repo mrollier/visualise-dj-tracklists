@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'vitest'
-import { computeEdges, DEFAULT_CRITERIA, evaluateCombo, makeGenreMatcher } from '../src/core/combos'
+import {
+  computeEdges,
+  DEFAULT_CRITERIA,
+  evaluateCombo,
+  makeGenreMatcher,
+  matchedGenrePairs,
+} from '../src/core/combos'
 import type { CriteriaConfig } from '../src/core/combos'
 import type { Track } from '../src/core/model'
 
@@ -139,6 +145,37 @@ describe('individual criteria', () => {
       const matcher = makeGenreMatcher(['House / Techno', 'Minimal Techno', 'Jazz'], cfg)
       expect(matcher('House / Techno', 'Minimal Techno')).toBe(true)
       expect(matcher('Jazz', 'Minimal Techno')).toBe(false)
+    })
+
+    test('matchedGenrePairs counts distinct matching label pairs, k-sensitive', () => {
+      // Graph decay: house–deep house 0.6, house–techno 0.6, deep
+      // house–techno 0.36. k=1 leaves only the mutual nearest pair; k=2
+      // opens all three — the live count must reflect the sliders (issue 12).
+      const genres = ['House', 'Deep House', 'Techno']
+      expect(matchedGenrePairs(genres, topkConfig({ method: 'graph', k: 1 }))).toEqual([
+        ['deep house', 'house'],
+      ])
+      expect(matchedGenrePairs(genres, topkConfig({ method: 'graph', k: 2 }))).toEqual([
+        ['deep house', 'house'],
+        ['deep house', 'techno'],
+        ['house', 'techno'],
+      ])
+    })
+
+    test('matchedGenrePairs respects threshold mode and never pairs a label with itself', () => {
+      const cfg = config()
+      cfg.genre = { ...cfg.genre, method: 'lexical', mode: 'threshold', threshold: 0.3 }
+      expect(matchedGenrePairs(['Deep House', 'Tech House', 'Jazz', 'Jazz'], cfg)).toEqual([
+        ['deep house', 'tech house'],
+      ])
+      cfg.genre = { ...cfg.genre, threshold: 0.9 }
+      expect(matchedGenrePairs(['Deep House', 'Tech House', 'Jazz'], cfg)).toEqual([])
+    })
+
+    test('matchedGenrePairs keeps umbrella labels out of top-k pairs', () => {
+      const cfg = topkConfig({ method: 'embedding', k: 3 })
+      const pairs = matchedGenrePairs(['Electronic', 'Techno', 'Tech House'], cfg)
+      expect(pairs).toEqual([['tech house', 'techno']])
     })
 
     test('computeEdges links mutual top-k genres and nothing else', () => {

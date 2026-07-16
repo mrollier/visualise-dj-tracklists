@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { matchedGenrePairs } from '../core/combos'
   import { GENRE_METHODS, METHOD_LABEL_LONG, type GenreMethod } from '../core/genre'
   import type { Track } from '../core/model'
   import { type BpmProgression } from '../core/settings'
@@ -46,6 +47,16 @@
   function unmark(id: string) {
     mustInclude.update((ids) => ids.filter((x) => x !== id))
   }
+  // Live feedback for the k/threshold sliders (issue 12): on the wheel the
+  // genre criterion is often masked by the other criteria, so show directly
+  // how many genre pairs the current settings link.
+  const genrePairCount = $derived(
+    matchedGenrePairs(
+      $visibleLibrary.map((t) => t.genre),
+      $criteria,
+    ).length,
+  )
+
   const mustIncludeTracks = $derived(
     $mustInclude.map((id) => $trackById.get(id)).filter((t): t is Track => t !== undefined),
   )
@@ -250,6 +261,10 @@
           steps apart.
         </p>
       {/if}
+      <p class="hint pair-count">
+        <strong>{genrePairCount}</strong>
+        genre {genrePairCount === 1 ? 'pair' : 'pairs'} in your library match at these settings.
+      </p>
     {/if}
   </details>
 
