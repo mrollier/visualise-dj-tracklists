@@ -2,9 +2,10 @@
   // The Tracks central view (issue 7): the selected playlists as a classic
   // sortable table, like the browser in DJ software. Rows share the global
   // selection with the wheel; tracks connected to the selection in the combo
-  // graph highlight; double-click appends to the set; per-row toggles mark
-  // a track as essential (must-include) or as the opener/closer of
-  // generated sets — the same pins as everywhere else.
+  // graph highlight; the leading ＋ cell appends to the set and turns into
+  // the track's position number(s) once included (v8 issue 15); per-row
+  // toggles mark a track as essential (must-include) or as the opener/closer
+  // of generated sets — the same pins as everywhere else.
   import type { Track } from '../core/model'
   import { sortTracks, type TrackSortField } from '../core/trackSort'
   import {
@@ -16,6 +17,7 @@
     playlistScopedLibrary,
     selectedId,
     settings,
+    tracklist,
     trackSort,
   } from '../stores'
 
@@ -75,6 +77,34 @@
   function togglePin(store: typeof pinnedFirst, id: string) {
     store.update((current) => (current === id ? null : id))
   }
+
+  // --- ＋/position column (v8 issue 15): 1-based slots in the ACTIVE set ---
+  const positionsById = $derived.by(() => {
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived-local
+    const map = new Map<string, number[]>()
+    $tracklist.forEach((id, index) => {
+      const list = map.get(id)
+      if (list === undefined) map.set(id, [index + 1])
+      else list.push(index + 1)
+    })
+    return map
+  })
+
+  // --- header drag: reorder the columns list in settings (v8 issue 15) ---
+  let dragField = $state<TrackSortField | null>(null)
+  let dropField = $state<TrackSortField | null>(null)
+
+  function headerDrop(target: TrackSortField) {
+    const from = dragField
+    dragField = null
+    dropField = null
+    if (from === null || from === target) return
+    settings.update((s) => {
+      const cols = s.trackColumns.filter((f) => f !== from)
+      cols.splice(cols.indexOf(target), 0, from)
+      return { ...s, trackColumns: cols }
+    })
+  }
 </script>
 
 <section class="tracks-view">
@@ -87,8 +117,30 @@
     <table>
       <thead>
         <tr>
+          <th class="pos-col"><span class="visually-hidden">Set position / add</span></th>
           {#each columns as field (field)}
             <th
+              class:drop-target={dropField === field}
+              draggable="true"
+              ondragstart={(e) => {
+                dragField = field
+                e.dataTransfer?.setData('text/plain', field)
+              }}
+              ondragover={(e) => {
+                e.preventDefault()
+                dropField = field
+              }}
+              ondragleave={() => {
+                if (dropField === field) dropField = null
+              }}
+              ondrop={(e) => {
+                e.preventDefault()
+                headerDrop(field)
+              }}
+              ondragend={() => {
+                dragField = null
+                dropField = null
+              }}
               aria-sort={$trackSort.field === field
                 ? $trackSort.dir === 'asc'
                   ? 'ascending'
@@ -108,12 +160,28 @@
       </thead>
       <tbody>
         {#each rows as track (track.id)}
+          {@const positions = positionsById.get(track.id)}
+          {@const pinned = $pinnedFirst === track.id || $pinnedLast === track.id}
           <tr
             class:selected={track.id === $selectedId}
             class:connected={connectedIds?.has(track.id) === true}
             onclick={() => selectRow(track.id)}
-            ondblclick={() => appendToSet(track.id)}
           >
+            <td class="pos">
+              <!-- ＋ appends; once in the set it reads as the track's slot
+                   number(s). Clicking again appends again (duplicates are
+                   legal, just not back-to-back). -->
+              <button
+                class="pos-btn"
+                class:in-set={positions !== undefined}
+                title={positions === undefined ? 'Add to set' : 'In the set — click to add again'}
+                aria-label="Add {track.title} to the set"
+                onclick={(e) => {
+                  e.stopPropagation()
+                  appendToSet(track.id)
+                }}>{positions?.join(',') ?? '＋'}</button
+              >
+            </td>
             {#each columns as field (field)}
               {#if field === 'rating'}
                 <td
@@ -133,12 +201,17 @@
               {/if}
             {/each}
             <td class="tags">
+              <!-- A pinned opener/closer is included by construction, so the
+                   ★ reads as on (disabled) without touching the store. -->
               <button
                 class="tag"
-                class:on={mustSet.has(track.id)}
-                title="Essential: must appear in generated sets"
+                class:on={mustSet.has(track.id) || pinned}
+                disabled={pinned}
+                title={pinned
+                  ? 'Included via the opener/closer pin'
+                  : 'Essential: must appear in generated sets'}
                 aria-label="Mark essential"
-                aria-pressed={mustSet.has(track.id)}
+                aria-pressed={mustSet.has(track.id) || pinned}
                 onclick={(e) => {
                   e.stopPropagation()
                   toggleMust(track.id)
@@ -246,6 +319,43 @@
 
   tbody tr {
     cursor: pointer;
+    /* click selects, ＋ appends — text selection would fight both */
+    user-select: none;
+  }
+
+  th.drop-target {
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+
+  .pos-col {
+    width: 44px;
+  }
+
+  .pos {
+    text-align: center;
+  }
+
+  .pos-btn {
+    min-width: 26px;
+    padding: 1px 5px;
+    font-size: 11px;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    color: var(--ink-muted);
+    opacity: 0;
+  }
+
+  tbody tr:hover .pos-btn,
+  tbody tr:focus-within .pos-btn {
+    opacity: 1;
+    border-color: var(--border);
+  }
+
+  .pos-btn.in-set {
+    opacity: 1;
+    color: var(--accent);
+    font-weight: 600;
   }
 
   tbody tr:hover {

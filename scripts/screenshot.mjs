@@ -313,7 +313,7 @@ const bpmHeader = page.locator('.tracks-view th button', { hasText: 'BPM' })
 await bpmHeader.click()
 const bpmColumn = () =>
   page
-    .locator('.tracks-view tbody td:nth-child(4)')
+    .locator('.tracks-view tbody td:nth-child(5)') // ＋ column shifts everything by one
     .allTextContents()
     .then((cells) => cells.filter((c) => c !== '—').map(Number))
 const asc = await bpmColumn()
@@ -342,17 +342,69 @@ if ((await page.locator('.tracks-view tbody tr.connected').count()) === 0) {
 await page.locator('.tracks-view tbody tr').first().click() // deselect again
 // tag a row as opener (avoiding the already-pinned closer), one as essential
 let openerRow = page.locator('.tracks-view tbody tr').first()
-let openerTitle = await openerRow.locator('td:nth-child(2)').textContent()
+let openerTitle = await openerRow.locator('td:nth-child(3)').textContent()
 if (openerTitle === lastTitle) {
   openerRow = page.locator('.tracks-view tbody tr').nth(2)
-  openerTitle = await openerRow.locator('td:nth-child(2)').textContent()
+  openerTitle = await openerRow.locator('td:nth-child(3)').textContent()
 }
 await openerRow.locator('.tag[aria-label="Pin as opening track"]').click()
+// v8 issue 15: the pinned opener's ★ reads as on and disabled ("included")
+if (
+  (await openerRow.locator('.tag[aria-label="Mark essential"][aria-pressed="true"]').count()) !== 1
+) {
+  errors.push("pinning a row as opener did not light its ★ (it's included by construction)")
+}
 await page
   .locator('.tracks-view tbody tr')
   .nth(1)
   .locator('.tag[aria-label="Mark essential"]')
   .click()
+// v8 issue 15: the ＋ cell appends and turns into the set position number
+{
+  const setLenBefore = await page.locator('aside ol li.track').count()
+  const freshRow = page.locator('.tracks-view tbody tr .pos-btn:not(.in-set)').first()
+  await freshRow.dispatchEvent('click')
+  await page.waitForTimeout(200)
+  if ((await page.locator('aside ol li.track').count()) !== setLenBefore + 1) {
+    errors.push('the ＋ cell did not append the track to the set')
+  }
+  const posText = await page.locator('.tracks-view tbody tr .pos-btn.in-set').last().textContent()
+  if (!/^\d+(,\d+)*$/.test(posText?.trim() ?? '')) {
+    errors.push(`an in-set ＋ cell should read as position number(s), got "${posText}"`)
+  }
+  await page.keyboard.press('Meta+z') // leave the set as it was
+  await page.waitForTimeout(200)
+}
+// v8 issue 15: header drag reorders columns persistently
+const headerOrder = () => page.locator('.tracks-view th button').allTextContents()
+{
+  const before = await headerOrder()
+  const keyHeader = page.locator('.tracks-view th', { has: page.getByText('Key', { exact: true }) })
+  const artistHeader = page
+    .locator('.tracks-view th', { has: page.getByText('Artist', { exact: true }) })
+    .first()
+  await keyHeader.dragTo(artistHeader)
+  await page.waitForTimeout(300)
+  const after = await headerOrder()
+  if (after.join() === before.join()) {
+    errors.push('dragging the Key header did not reorder the columns')
+  }
+  if (!after[0].startsWith('Key')) {
+    errors.push(`Key should now lead the columns, got ${after[0]}`)
+  }
+}
+// v8 issue 15: the sort survives a view switch
+await page.locator('.tracks-view th button', { hasText: 'Title' }).click()
+await page.getByRole('button', { name: 'Wheel', exact: true }).click()
+await page.waitForTimeout(200)
+await page.getByRole('button', { name: 'Tracks', exact: true }).click()
+if (
+  (await page.locator('.tracks-view th[aria-sort="ascending"] button').textContent())
+    ?.trim()
+    .startsWith('Title') !== true
+) {
+  errors.push('the Title sort did not survive a view round-trip')
+}
 await page.screenshot({ path: `${scratch}/07a-tracks-view.png` })
 // the wheel shows a subtle ring on every tagged track (opener + closer + ★)
 await page.getByRole('button', { name: 'Wheel', exact: true }).click()
