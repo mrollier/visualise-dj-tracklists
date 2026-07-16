@@ -20,7 +20,19 @@ import type { Track } from './model'
  */
 export interface CriteriaConfig {
   key: { enabled: boolean; plusTwo: boolean; plusSeven: boolean; vinylMode: boolean }
-  bpm: { enabled: boolean; maxPercent: number; halfDouble: boolean }
+  /**
+   * BPM matching happens at every enabled metric ratio: unit time (1:1, the
+   * normal case — disable it to isolate the exotic combos), half/double time
+   * (2:1), and 2/3 time (3:2 — triplet ↔ four-on-the-floor). The percent
+   * tolerance applies around each ratio.
+   */
+  bpm: {
+    enabled: boolean
+    maxPercent: number
+    unitTime: boolean
+    halfDouble: boolean
+    twoThirds: boolean
+  }
   genre: {
     enabled: boolean
     method: GenreMethod
@@ -45,7 +57,7 @@ export interface CriteriaConfig {
 export const DEFAULT_CRITERIA: CriteriaConfig = {
   key: { enabled: true, plusTwo: false, plusSeven: false, vinylMode: false },
   // ±8% mirrors the pitch-bend range of a classic Technics 1210 fader
-  bpm: { enabled: true, maxPercent: 8, halfDouble: false },
+  bpm: { enabled: true, maxPercent: 8, unitTime: true, halfDouble: false, twoThirds: false },
   genre: { enabled: true, method: 'hybrid', mode: 'topk', k: 5, threshold: 0.2 },
   year: { enabled: true, maxYears: 5 },
   threshold: 3,
@@ -142,12 +154,16 @@ export function matchedGenrePairs(
 }
 
 /**
- * The tempo ratio (1, or 2 / 0.5 with half/double-time enabled) at which the
- * two tracks are beatmatchable within the BPM tolerance, or null if none is.
+ * The metric ratio at which the two tracks are beatmatchable within the BPM
+ * tolerance, or null if none of the enabled ratios (unit, half/double, 2/3
+ * time) fits. Ratios are tried unit-first so the plain match always wins.
  */
 export function bpmCompatibleRatio(a: Track, b: Track, cfg: CriteriaConfig): number | null {
   if (a.bpm === null || b.bpm === null) return null
-  const ratios = cfg.bpm.halfDouble ? [1, 2, 0.5] : [1]
+  const ratios: number[] = []
+  if (cfg.bpm.unitTime) ratios.push(1)
+  if (cfg.bpm.halfDouble) ratios.push(2, 0.5)
+  if (cfg.bpm.twoThirds) ratios.push(1.5, 2 / 3)
   for (const ratio of ratios) {
     const effective = b.bpm * ratio
     const low = Math.min(a.bpm, effective)

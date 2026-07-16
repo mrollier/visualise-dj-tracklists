@@ -127,6 +127,16 @@ describe('project persistence (v3)', () => {
     expect(parsed.sets[0].trackIds).toEqual([SAMPLE_TRACKS[0].id, 'ok-1'])
   })
 
+  test('saves from before the BPM ratio toggles default unit time on (v8 issue 6)', () => {
+    const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    const criteria = raw.criteria as { bpm: Record<string, unknown> }
+    criteria.bpm = { enabled: true, maxPercent: 8, halfDouble: true }
+    const parsed = parseProject(JSON.stringify(raw))
+    expect(parsed.criteria.bpm.unitTime).toBe(true)
+    expect(parsed.criteria.bpm.twoThirds).toBe(false)
+    expect(parsed.criteria.bpm.halfDouble).toBe(true)
+  })
+
   test('older saves without bpmProgression are backfilled with the default', () => {
     const saved = JSON.parse(serializeProject(project)) as { settings: Record<string, unknown> }
     delete saved.settings.bpmProgression

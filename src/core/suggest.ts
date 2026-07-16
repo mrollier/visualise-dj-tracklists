@@ -95,10 +95,15 @@ function scoreCandidate(
       : 0
   let bpm = 0
   if (current.bpm !== null && candidate.bpm !== null) {
-    // With half/double-time on, an exact 2× tempo is as close as an exact 1×.
-    const ratios = criteria.bpm.halfDouble ? [1, 2, 0.5] : [1]
-    const delta = Math.min(...ratios.map((r) => Math.abs(current.bpm! - candidate.bpm! * r)))
-    bpm = 1 / (1 + delta / 4)
+    // An exact hit on any enabled metric ratio is as close as an exact 1×.
+    const ratios: number[] = []
+    if (criteria.bpm.unitTime) ratios.push(1)
+    if (criteria.bpm.halfDouble) ratios.push(2, 0.5)
+    if (criteria.bpm.twoThirds) ratios.push(1.5, 2 / 3)
+    if (ratios.length > 0) {
+      const delta = Math.min(...ratios.map((r) => Math.abs(current.bpm! - candidate.bpm! * r)))
+      bpm = 1 / (1 + delta / 4)
+    }
   }
   // Matched criteria dominate; genre closeness breaks ties; BPM nudges last.
   return matched + 0.5 * genre + 0.1 * bpm

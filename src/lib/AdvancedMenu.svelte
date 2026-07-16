@@ -203,7 +203,7 @@
   </details>
 
   <details class="section">
-    <summary>Key</summary>
+    <summary>Key & BPM</summary>
     <label class="row">
       <input type="checkbox" bind:checked={$criteria.key.plusTwo} />
       allow +2 moves (energy jump)
@@ -221,6 +221,23 @@
       beatmatch. Tempo gaps landing on a whole semitone transpose the key (+7 Camelot); gaps in
       between detune it — even same-key tracks lose their match. Gaps beyond the BPM tolerance (the
       pitch fader's range) can't beatmatch at all.
+    </p>
+    <label class="row">
+      <input type="checkbox" bind:checked={$criteria.bpm.unitTime} />
+      ± unit time (normal 1:1 matching)
+    </label>
+    <label class="row">
+      <input type="checkbox" bind:checked={$criteria.bpm.halfDouble} />
+      ± half/double time (85 ↔ 170)
+    </label>
+    <label class="row">
+      <input type="checkbox" bind:checked={$criteria.bpm.twoThirds} />
+      ± 2/3 time (triplet ↔ four-on-the-floor)
+    </label>
+    <p class="hint">
+      The BPM criterion matches at every enabled metric ratio, each within the same % tolerance.
+      Switching unit time off hides the ordinary matches so only the exotic combos remain — expect
+      most edges to vanish.
     </p>
   </details>
 

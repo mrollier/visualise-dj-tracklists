@@ -545,6 +545,23 @@ const edgesVinyl = await page.locator('.combo-edge').count()
 if (edgesVinyl === edgesBefore) {
   errors.push(`vinyl mode changed no edges (${edgesBefore} before and after)`)
 }
+await page.getByRole('checkbox', { name: 'vinyl mode' }).uncheck()
+await page.waitForTimeout(300)
+// BPM metric ratios (v8 issue 6): unit time off shows a warning hint in the
+// combo panel and strips the ordinary 1:1 edges
+await page.getByRole('checkbox', { name: '± unit time', exact: false }).uncheck()
+await page.waitForTimeout(300)
+await page.locator('.ratio-note.warn', { hasText: 'unit time off' }).waitFor()
+const edgesNoUnit = await page.locator('.combo-edge').count()
+if (edgesNoUnit >= edgesBefore) {
+  errors.push(`unit time off should strip edges (${edgesBefore} → ${edgesNoUnit})`)
+}
+await page.getByRole('checkbox', { name: '± unit time', exact: false }).check()
+await page.waitForTimeout(300)
+// half/double moved here from the combo panel (v8 issue 6); leave it on for
+// the rest of the flow, as before
+await page.getByRole('checkbox', { name: /half\/double/ }).check()
+await page.waitForTimeout(300)
 await page.screenshot({ path: `${scratch}/09-advanced.png` })
 // re-jitter reshuffles same-key fans exactly once (ISSUES.md v7 #16): the
 // ↻ button moves nodes; filtering afterwards still moves none
@@ -600,8 +617,6 @@ await page.keyboard.press('Escape')
 if ((await page.locator('aside.panel').count()) !== 0) {
   errors.push('Escape did not close the advanced aside')
 }
-await page.getByRole('checkbox', { name: /half\/double/ }).check()
-await page.waitForTimeout(300)
 
 // colour axis auto-swap when radius = rating
 await page.locator('header select').first().selectOption('rating')

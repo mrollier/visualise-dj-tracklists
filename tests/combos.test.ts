@@ -59,6 +59,52 @@ describe('individual criteria', () => {
     expect(evaluateCombo(base, track({ id: 'c', bpm: 128.5 }), cfg).matched).not.toContain('bpm')
   })
 
+  test('BPM ratios: unit time on, the others off by default (v8 issue 6)', () => {
+    expect(DEFAULT_CRITERIA.bpm.unitTime).toBe(true)
+    expect(DEFAULT_CRITERIA.bpm.halfDouble).toBe(false)
+    expect(DEFAULT_CRITERIA.bpm.twoThirds).toBe(false)
+  })
+
+  test('2/3 time links triplet and four-on-the-floor tempos, both directions', () => {
+    const cfg = config({ threshold: 5 })
+    cfg.bpm = { ...cfg.bpm, twoThirds: true }
+    // 128 × 3/2 = 192: matched with the ratio enabled…
+    expect(evaluateCombo(base, track({ id: 'b', bpm: 192 }), cfg).matched).toContain('bpm')
+    expect(
+      evaluateCombo(track({ id: 'c', bpm: 192 }), track({ id: 'd', bpm: 128 }), cfg).matched,
+    ).toContain('bpm')
+    // …not without it…
+    expect(evaluateCombo(base, track({ id: 'e', bpm: 192 }), config()).matched).not.toContain('bpm')
+    // …and the percent tolerance still applies around the ratio:
+    // 190 × 2/3 = 126.67, 1.05% off 128 — inside 2%, outside at 185 (3.8%)
+    cfg.bpm.maxPercent = 2
+    expect(evaluateCombo(base, track({ id: 'f', bpm: 190 }), cfg).matched).toContain('bpm')
+    expect(evaluateCombo(base, track({ id: 'g', bpm: 185 }), cfg).matched).not.toContain('bpm')
+  })
+
+  test('unit time can be disabled to isolate the ratio matches', () => {
+    const cfg = config({ threshold: 5 })
+    cfg.bpm = { ...cfg.bpm, unitTime: false, halfDouble: true }
+    expect(evaluateCombo(base, track({ id: 'b', bpm: 128 }), cfg).matched).not.toContain('bpm')
+    expect(evaluateCombo(base, track({ id: 'c', bpm: 64 }), cfg).matched).toContain('bpm')
+    // all ratios off: bpm stays evaluable but can never match
+    const none = config({ threshold: 5 })
+    none.bpm = { ...none.bpm, unitTime: false }
+    const result = evaluateCombo(base, track({ id: 'd', bpm: 128 }), none)
+    expect(result.evaluable).toContain('bpm')
+    expect(result.matched).not.toContain('bpm')
+  })
+
+  test('vinyl mode needs no pitch shift on an exact 3/2 ratio (same platter speed)', () => {
+    const cfg = config({ threshold: 5 })
+    cfg.key = { ...cfg.key, vinylMode: true }
+    cfg.bpm = { ...cfg.bpm, twoThirds: true }
+    // 192 = 128 × 3/2 exactly: the platter speed is unchanged, so same-key
+    // tracks still key-match (the residual-semitone formula covers ratios)
+    const a = track({ id: 'a', bpm: 128, key: '8A' })
+    expect(evaluateCombo(a, track({ id: 'b', bpm: 192, key: '8A' }), cfg).matched).toContain('key')
+  })
+
   test('genre defaults to the hybrid method (design-v6 §F), case-insensitively', () => {
     const cfg = config()
     expect(DEFAULT_CRITERIA.genre.method).toBe('hybrid')

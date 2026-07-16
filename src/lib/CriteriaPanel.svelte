@@ -58,14 +58,21 @@
           disabled={!$criteria.bpm.enabled}
         /> %
       </label>
-      <label class="sub-option">
-        <input
-          type="checkbox"
-          bind:checked={$criteria.bpm.halfDouble}
-          disabled={!$criteria.bpm.enabled}
-        />
-        <span class="hint">± half/double time (85 ↔ 170)</span>
-      </label>
+      <!-- The metric-ratio toggles live in advanced → Key & BPM; surface
+           their effect here so a bare "8%" is never silently misleading. -->
+      {#if !$criteria.bpm.unitTime || $criteria.bpm.halfDouble || $criteria.bpm.twoThirds}
+        <p class="sub-option ratio-note" class:warn={!$criteria.bpm.unitTime}>
+          ratios:
+          {[
+            $criteria.bpm.unitTime ? '×1' : null,
+            $criteria.bpm.halfDouble ? '×2' : null,
+            $criteria.bpm.twoThirds ? '×3∕2' : null,
+          ]
+            .filter((r) => r !== null)
+            .join(' ') || 'none'}
+          {#if !$criteria.bpm.unitTime}— unit time off{/if}
+        </p>
+      {/if}
     </div>
 
     <div class="criterion">
@@ -184,6 +191,15 @@
 
   .criterion .sub-option {
     margin: 4px 0 0 22px;
+  }
+
+  .ratio-note {
+    color: var(--ink-muted);
+    font-size: 11.5px;
+  }
+
+  .ratio-note.warn {
+    color: var(--walk-bright);
   }
 
   .criterion .method select {
