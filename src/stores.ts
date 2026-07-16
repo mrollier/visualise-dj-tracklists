@@ -12,6 +12,7 @@ import {
   type LibraryFilters,
 } from './core/filter'
 import { computeGenreClasses } from './core/genreClasses'
+import { genreFamilyClasses, playlistClasses } from './core/iconClasses'
 import type { ImportReport, Playlist, Track } from './core/model'
 import { freshFirstSet, nextSetName, type TrackSet } from './core/sets'
 import { DEFAULT_SETTINGS, type AppSettings } from './core/settings'
@@ -205,20 +206,31 @@ export const genreMatcher = derived([visibleLibrary, criteria], ([$visibleLibrar
 )
 
 /**
- * Genre classes (node shapes), clustered in the selected similarity space.
- * Derived from the playlist-scoped library (issue 14, superseding the
- * design-v5 §A whole-library rule): range/genre filtering still never
- * re-clusters — a genre keeps its symbol while nodes come and go — but
- * toggling playlists deliberately re-clusters to the new selection.
+ * Node-shape classes per the icon mode (v8 issues 4+5): genre families from
+ * the curated tree (default), the selected playlists (first wins, panel
+ * order), or similarity clusters — clusters are pinned to the HYBRID space,
+ * so changing the combo criterion's method never reshuffles icons (issue 4).
+ * Still scoped to the selected playlists (v7 issue 14): range/genre
+ * filtering never re-classes; playlist toggles deliberately do.
  */
-export const genreClasses = derived(
-  [playlistScopedLibrary, criteria, settings],
-  ([$scoped, $criteria, $settings]) =>
-    computeGenreClasses(
-      $scoped.map((t) => t.genre),
-      $criteria.genre.method,
-      $settings.maxGenreClasses,
-    ),
+export const iconClasses = derived(
+  [playlistScopedLibrary, playlists, filters, settings],
+  ([$scoped, $playlists, $filters, $settings]) => {
+    const max = $settings.maxGenreClasses
+    if ($settings.iconMode === 'playlists') {
+      const selected =
+        $filters.playlists === null
+          ? $playlists
+          : $playlists.filter((p) => $filters.playlists!.includes(p.name))
+      return playlistClasses($scoped, selected, max)
+    }
+    const genres = $scoped.map((t) => t.genre)
+    if ($settings.iconMode === 'clusters') {
+      const clustered = computeGenreClasses(genres, 'hybrid', max)
+      return clustered === null ? null : { ...clustered, keyedBy: 'genre' as const }
+    }
+    return genreFamilyClasses(genres, max)
+  },
 )
 
 export const trackById = derived(library, ($library) => new Map($library.map((t) => [t.id, t])))

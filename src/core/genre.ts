@@ -221,6 +221,41 @@ function linSimilarity(a: string, b: string): number {
   return (2 * lcaIC) / (icA + icB)
 }
 
+// --- genre families (v8 issues 4+5) --------------------------------------------
+// The icon-friendly level of the taxonomy: the root's children are too coarse
+// for a club library ("electronic" would swallow everything), so 'electronic'
+// is replaced by ITS children — house, techno, trance, breakbeat, … — while
+// jazz, r&b, reggae and the other root children stand for themselves.
+const FAMILY_LEVEL = new Set<string>()
+{
+  const childrenOf = (node: string): string[] =>
+    Object.entries(treeParents)
+      .filter(([, parents]) => parents.includes(node))
+      .map(([label]) => label)
+  for (const child of childrenOf(genreTree.root)) {
+    if (child === 'electronic') for (const sub of childrenOf(child)) FAMILY_LEVEL.add(sub)
+    else FAMILY_LEVEL.add(child)
+  }
+}
+
+/**
+ * The genre family a label belongs to: the first family-level node on its
+ * primary lineage (each node's FIRST parent — the curated main ancestry).
+ * Null for labels the tree does not know, and for umbrellas at or above the
+ * family level ("electronic", "music").
+ */
+export function genreFamilyOf(rawLabel: string): string | null {
+  let current: string | undefined = normalizeGenre(rawLabel)
+  if (!(current in treeParents) && !FAMILY_LEVEL.has(current)) return null
+  const seen = new Set<string>()
+  while (current !== undefined && current !== genreTree.root && !seen.has(current)) {
+    if (FAMILY_LEVEL.has(current)) return current
+    seen.add(current)
+    current = treeParents[current]?.[0]
+  }
+  return null
+}
+
 // --- embedding & hybrid methods -----------------------------------------------
 // Pack v2 (see scripts/build-genre-embedding.mjs): per-label top-k neighbour
 // lists with mutual-proximity scores in [0,1]. Pairs absent from both lists

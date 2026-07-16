@@ -660,6 +660,44 @@ if ((await page.locator('aside.panel').count()) !== 0) {
   errors.push('Escape did not close the advanced aside')
 }
 
+// icon modes (v8 issues 4+5): changing the combo criterion's method no
+// longer reshuffles the node shapes, and the playlists mode swaps the
+// legend over to playlist names
+const shapeFingerprint = () =>
+  page.$$eval('g.node path', (ps) =>
+    ps
+      .slice(0, 80)
+      .map((p) => p.getAttribute('d'))
+      .join('|'),
+  )
+const shapesHybrid = await shapeFingerprint()
+await page.locator('.criterion .method select').selectOption('graph')
+await page.waitForTimeout(500)
+if ((await shapeFingerprint()) !== shapesHybrid) {
+  errors.push('changing the genre method still reshuffles node shapes (v8 issue 4)')
+}
+await page.locator('.criterion .method select').selectOption('hybrid')
+await page.waitForTimeout(300)
+await page.getByRole('button', { name: /Advanced/ }).click()
+await page.locator('.panel details.section > summary', { hasText: 'Display' }).click()
+await page
+  .locator('.panel label', { hasText: 'Node icons' })
+  .locator('select')
+  .selectOption('playlists')
+await page.waitForTimeout(500)
+const chipLabels = await page.$$eval('.shape-chip', (chips) => chips.map((c) => c.textContent))
+if (!chipLabels.some((label) => label?.includes('Classic demo'))) {
+  errors.push(`playlists icon mode should list playlist names in the legend (${chipLabels})`)
+}
+await page.screenshot({ path: `${scratch}/08b-playlist-icons.png` })
+await page
+  .locator('.panel label', { hasText: 'Node icons' })
+  .locator('select')
+  .selectOption('families')
+await page.waitForTimeout(300)
+await page.locator('.panel details.section > summary', { hasText: 'Display' }).click()
+await page.keyboard.press('Escape')
+
 // minor/major key filter (v8 issue 10): minor-only hides the B ring's nodes
 // and fades its sector tint; "both" restores everything
 const nodesBothRings = await page.locator('g.node').count()

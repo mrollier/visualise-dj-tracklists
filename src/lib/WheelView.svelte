@@ -14,7 +14,7 @@
     type SymbolType,
   } from 'd3-shape'
   import { zoom as d3zoom, zoomIdentity, type D3ZoomEvent } from 'd3-zoom'
-  import { genreComponents } from '../core/genre'
+  import { classIndexOfTrack } from '../core/iconClasses'
   import { ALL_CAMELOT_KEYS, wheelSlotAngleDeg, type CamelotKey } from '../core/keys'
   import { annularSectorPath, slotAngleOffsets } from '../core/layout'
   import type { Track } from '../core/model'
@@ -34,7 +34,7 @@
     edges,
     effectiveColorAxis,
     filters,
-    genreClasses,
+    iconClasses,
     library,
     mustInclude,
     neighbours,
@@ -91,8 +91,7 @@
     return path
   }
   function classIndexOf(track: Track): number | null {
-    if ($genreClasses === null || track.genre === null) return null
-    return $genreClasses.classOf.get(genreComponents(track.genre)[0]) ?? null
+    return classIndexOfTrack($iconClasses, track)
   }
 
   interface PlacedNode {
@@ -254,7 +253,7 @@
    * so a genre keeps its shape while classes come and go.
    */
   const visibleClasses = $derived(
-    ($genreClasses?.classes ?? [])
+    ($iconClasses?.classes ?? [])
       .map((cls, index) => ({ cls, index, visible: visibleClassCounts.get(index) ?? 0 }))
       .filter((entry) => entry.visible > 0),
   )

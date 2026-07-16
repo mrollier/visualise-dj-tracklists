@@ -286,13 +286,21 @@
       />
     </label>
     <label>
-      Max genre classes <strong>{$settings.maxGenreClasses}</strong>
+      Node icons
+      <select bind:value={$settings.iconMode}>
+        <option value="families">Genre families (curated tree)</option>
+        <option value="playlists">Playlists (first one wins)</option>
+        <option value="clusters">Genre clusters (hybrid space)</option>
+      </select>
+    </label>
+    <label>
+      Max symbol classes <strong>{$settings.maxGenreClasses}</strong>
       <input type="range" min="2" max="6" step="1" bind:value={$settings.maxGenreClasses} />
     </label>
     <p class="hint">
-      Clearly different genre families get distinct node shapes (circle, square, triangle, …) up to
-      this many classes — clustered with the selected genre method. Everything stays a circle when
-      the library doesn't separate.
+      Distinct node shapes (circle, square, triangle, …) mark up to this many classes: curated genre
+      families, the selected playlists, or similarity clusters. The largest classes keep a symbol;
+      everything stays a circle when nothing separates. Playlist icons don't apply on the genre map.
     </p>
   </details>
 

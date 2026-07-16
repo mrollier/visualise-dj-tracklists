@@ -32,7 +32,7 @@
     packNeighbours,
     type GenreMethod,
   } from '../core/genre'
-  import { criteria, genreClasses, visibleLibrary } from '../stores'
+  import { criteria, iconClasses, visibleLibrary } from '../stores'
 
   const WIDTH = 900
   const HEIGHT = 820
@@ -176,9 +176,12 @@
     return best
   })
 
-  // --- genre classes: same clustering as the wheel ----------------------------
+  // --- genre classes: the wheel's icon classes, where they are genre-keyed.
+  // In playlists mode (track-keyed) a genre node has no single class — the
+  // map deliberately falls back to circles (v8 issue 5).
   function classIndexOf(label: string): number | null {
-    return $genreClasses?.classOf.get(label) ?? null
+    if ($iconClasses === null || $iconClasses.keyedBy !== 'genre') return null
+    return $iconClasses.classOf.get(label) ?? null
   }
 
   // Plain Map on purpose: a render-time memo of static path strings, never

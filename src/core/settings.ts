@@ -31,9 +31,15 @@ export interface AppSettings {
   /** 0 = safest transitions, 1 = adventurous/dissonant sampling. */
   suggestRandomness: number
   /**
-   * Up to this many clearly-different genre classes get distinct node shapes
-   * (circle/square/triangle/…). Shapes only appear when the library's genres
-   * actually separate in the selected similarity space.
+   * What the node shapes encode (v8 issues 4+5): curated genre FAMILIES
+   * (deterministic, the default), the selected PLAYLISTS (first one wins),
+   * or similarity CLUSTERS — always computed in the hybrid space, never
+   * following the combo criterion's method.
+   */
+  iconMode: 'families' | 'playlists' | 'clusters'
+  /**
+   * Up to this many symbol classes get distinct node shapes
+   * (circle/square/triangle/…), whichever icon mode provides them.
    */
   maxGenreClasses: number
   /** Preferred BPM trajectory for generated sets. */
@@ -48,6 +54,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   edgeOpacity: 0.35,
   suggestLength: 15,
   suggestRandomness: 0.25,
+  iconMode: 'families',
   maxGenreClasses: 4,
   bpmProgression: 'any',
 }
