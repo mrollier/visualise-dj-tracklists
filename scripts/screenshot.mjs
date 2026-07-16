@@ -490,6 +490,35 @@ await page.waitForTimeout(1200)
 if ((await page.locator('header select:disabled').count()) !== 2) {
   errors.push('Radius/Colour selects should be disabled in the Genres view')
 }
+// v8 issues 12+13: no 'exact' chip (it can never draw an edge), and the five
+// remaining chips sit on ONE line
+const chipCount = await page.locator('.method-chip').count()
+if (chipCount !== 5) errors.push(`expected 5 method chips (no exact), got ${chipCount}`)
+if ((await page.locator('.method-chip', { hasText: 'exact' }).count()) !== 0) {
+  errors.push("the 'exact' overlay chip should be gone")
+}
+const chipTops = await page.$$eval('.method-chip', (chips) =>
+  chips.map((c) => c.getBoundingClientRect().top),
+)
+if (new Set(chipTops.map((t) => Math.round(t))).size !== 1) {
+  errors.push(`method chips wrap onto multiple lines (tops: ${chipTops})`)
+}
+// v8 issue 11: nodes are draggable — grab one and pull it 60px
+const dragTarget = page.locator('.genre-node').first()
+const dragBefore = await dragTarget.getAttribute('transform')
+{
+  const box = await dragTarget.boundingBox()
+  if (box) {
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2 + 40, { steps: 6 })
+    await page.mouse.up()
+  }
+}
+await page.waitForTimeout(400)
+if ((await dragTarget.getAttribute('transform')) === dragBefore) {
+  errors.push('dragging a genre node did not move it')
+}
 await page.getByRole('button', { name: 'hybrid' }).click()
 await page.getByRole('button', { name: 'taxonomy' }).click()
 await page.getByRole('checkbox', { name: 'show nearby genres' }).check()

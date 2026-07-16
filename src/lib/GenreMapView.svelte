@@ -67,13 +67,19 @@
   ]
 
   let showNeighbours = $state(false)
+  // The map's methods: everything but 'exact' — one node per normalized
+  // label means identical labels are literally the same node, so the exact
+  // overlay can never draw an edge (v8 issue 12).
+  const MAP_METHODS: readonly GenreMethod[] = GENRE_METHODS.filter((m) => m !== 'exact')
   // Default overlay = the criterion's active method. The user's chip toggles
   // stick, but switching the criterion method re-enables its overlay so the
   // map always shows what the criterion does (issue 12). SvelteSet mutations
   // are reactive on their own.
-  const enabledMethods = new SvelteSet<GenreMethod>([get(criteria).genre.method])
+  const enabledMethods = new SvelteSet<GenreMethod>(
+    [get(criteria).genre.method].filter((m) => m !== 'exact'),
+  )
   $effect(() => {
-    enabledMethods.add($criteria.genre.method)
+    if ($criteria.genre.method !== 'exact') enabledMethods.add($criteria.genre.method)
   })
 
   function toggleMethod(method: GenreMethod) {
@@ -145,7 +151,7 @@
 
   const edges = $derived.by(() => {
     const list: GenreEdge[] = []
-    for (const method of GENRE_METHODS) {
+    for (const method of MAP_METHODS) {
       if (!enabledMethods.has(method)) continue
       const isCriterion = method === $criteria.genre.method
       for (let i = 0; i < labels.length; i++) {
@@ -299,6 +305,46 @@
     zoomBehavior.transform(d3select(svgEl), zoomIdentity)
   }
 
+  // --- node dragging (v8 issue 11): jiggle the clusters ------------------------
+  // Purely for play: dragging pins the node under the pointer and reheats
+  // the simulation so its neighbourhood swings along; releasing lets the
+  // physics re-settle. Nothing is remembered.
+  let layerEl: SVGGElement
+  let dragging = $state<GenreNode | null>(null)
+
+  function layerPoint(e: PointerEvent): { x: number; y: number } {
+    const ctm = layerEl.getScreenCTM()
+    if (ctm === null) return { x: e.clientX, y: e.clientY }
+    const inv = ctm.inverse()
+    return {
+      x: inv.a * e.clientX + inv.c * e.clientY + inv.e,
+      y: inv.b * e.clientX + inv.d * e.clientY + inv.f,
+    }
+  }
+
+  function nodePointerDown(node: GenreNode, e: PointerEvent) {
+    if (e.currentTarget instanceof Element) e.currentTarget.setPointerCapture(e.pointerId)
+    dragging = node
+    node.fx = node.x
+    node.fy = node.y
+    simulation?.alphaTarget(0.3).restart()
+  }
+
+  function nodePointerMove(e: PointerEvent) {
+    if (dragging === null) return
+    const p = layerPoint(e)
+    dragging.fx = p.x
+    dragging.fy = p.y
+  }
+
+  function nodePointerUp() {
+    if (dragging === null) return
+    dragging.fx = null
+    dragging.fy = null
+    dragging = null
+    simulation?.alphaTarget(0)
+  }
+
   // --- hover: a pair's scores under every method -------------------------------
   let hoveredPair = $state<{ a: string; b: string } | null>(null)
   let hoveredGenre = $state<string | null>(null)
@@ -307,7 +353,7 @@
   const hoveredScores = $derived.by(() => {
     const pair = hoveredPair
     if (pair === null) return []
-    return GENRE_METHODS.map((method) => ({
+    return MAP_METHODS.map((method) => ({
       method,
       score: labelSimilarity(pair.a, pair.b, method),
     }))
@@ -315,7 +361,7 @@
 
   /** Per-method perpendicular offset so parallel overlays stay visible. */
   function edgeOffset(method: GenreMethod, a: GenreNode, b: GenreNode): string {
-    const active = GENRE_METHODS.filter((m) => enabledMethods.has(m))
+    const active = MAP_METHODS.filter((m) => enabledMethods.has(m))
     if (active.length < 2) return ''
     const idx = active.indexOf(method)
     const dx = (b.x ?? 0) - (a.x ?? 0)
@@ -342,7 +388,7 @@
     role="application"
     aria-label="Genre map of the library"
   >
-    <g class="zoom-layer" transform={zoomTransform}>
+    <g class="zoom-layer" transform={zoomTransform} bind:this={layerEl}>
       {#each edges as edge (`${edge.method}→${edge.a}→${edge.b}`)}
         {@const a = nodeById.get(edge.a)}
         {@const b = nodeById.get(edge.b)}
@@ -377,13 +423,20 @@
         <g
           class="genre-node"
           class:ghost={node.ghost}
+          class:dragging={dragging === node}
           transform="translate({node.x ?? WIDTH / 2},{node.y ?? HEIGHT / 2})"
-          role="img"
+          role="button"
+          tabindex="-1"
           aria-label="{node.id}{node.ghost
             ? ' (nearby, not in library)'
             : ` — ${node.count} tracks`}"
           onmouseenter={() => (hoveredGenre = node.id)}
           onmouseleave={() => (hoveredGenre = null)}
+          onmousedown={(e) => e.stopPropagation()}
+          onpointerdown={(e) => nodePointerDown(node, e)}
+          onpointermove={nodePointerMove}
+          onpointerup={nodePointerUp}
+          onpointercancel={nodePointerUp}
         >
           <path
             d={shapePath(node.ghost ? null : classIndexOf(node.id), nodeRadius(node))}
@@ -397,10 +450,11 @@
     </g>
   </svg>
 
-  <!-- Method overlay chips -->
+  <!-- Method overlay chips: one line, no 'exact' (identical labels are one
+       node — it has nothing to draw; v8 issues 12+13) -->
   <div class="overlays">
     <span class="overlays-title">Link methods</span>
-    {#each GENRE_METHODS as method (method)}
+    {#each MAP_METHODS as method (method)}
       <button
         class="method-chip"
         class:on={enabledMethods.has(method)}
@@ -415,6 +469,9 @@
       <input type="checkbox" bind:checked={showNeighbours} />
       show nearby genres
     </label>
+    {#if $criteria.genre.method === 'exact'}
+      <span class="exact-note">exact matches are single nodes — no lines to draw</span>
+    {/if}
   </div>
 
   <!-- Zoom controls -->
@@ -467,7 +524,11 @@
   }
 
   .genre-node {
-    cursor: default;
+    cursor: grab;
+  }
+
+  .genre-node.dragging {
+    cursor: grabbing;
   }
 
   .genre-node .mark {
@@ -501,8 +562,9 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    flex-wrap: wrap;
-    max-width: 70%;
+    /* One line, always (v8 issue 13): five chips after dropping 'exact'. */
+    flex-wrap: nowrap;
+    white-space: nowrap;
   }
 
   .overlays-title {
@@ -551,6 +613,12 @@
     gap: 5px;
     font-size: 12px;
     color: var(--ink-secondary);
+    margin-left: 8px;
+  }
+
+  .exact-note {
+    color: var(--ink-muted);
+    font-size: 11px;
     margin-left: 8px;
   }
 
