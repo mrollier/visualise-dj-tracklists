@@ -25,8 +25,18 @@ export const GENRE_METHODS: readonly GenreMethod[] = [
   'hybrid',
 ]
 
-/** Short UI labels, shared by the criteria panel and the advanced menu. */
+/** Short UI labels for the criteria panel (the advanced menu holds the detail). */
 export const METHOD_LABEL: Record<GenreMethod, string> = {
+  exact: 'Exact match',
+  lexical: 'Lexical',
+  graph: 'Genre graph',
+  taxonomy: 'Taxonomy',
+  embedding: 'Embedding',
+  hybrid: 'Hybrid',
+}
+
+/** Long labels with the parenthetical explainer, for the advanced menu. */
+export const METHOD_LABEL_LONG: Record<GenreMethod, string> = {
   exact: 'Exact match',
   lexical: 'Lexical (word overlap)',
   graph: 'Genre graph (curated relations)',

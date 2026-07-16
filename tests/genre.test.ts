@@ -1,11 +1,29 @@
 import { describe, expect, test } from 'vitest'
 import {
+  GENRE_METHODS,
   genreComponents,
   genreSimilarity,
+  METHOD_LABEL,
+  METHOD_LABEL_LONG,
   normalizeGenre,
   packNeighbours,
   UMBRELLA_GENRES,
 } from '../src/core/genre'
+
+describe('method labels', () => {
+  test('short labels carry no parenthetical explainer (issue 9)', () => {
+    for (const method of GENRE_METHODS) {
+      expect(METHOD_LABEL[method]).not.toContain('(')
+      expect(METHOD_LABEL[method].length).toBeGreaterThan(0)
+    }
+  })
+
+  test('long labels exist for the advanced menu and extend the short ones', () => {
+    for (const method of GENRE_METHODS) {
+      expect(METHOD_LABEL_LONG[method]).toContain(METHOD_LABEL[method])
+    }
+  })
+})
 
 describe('normalizeGenre', () => {
   test('lowercases, trims, and unifies separators', () => {

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { GENRE_METHODS, METHOD_LABEL, type GenreMethod } from '../core/genre'
+  import { GENRE_METHODS, METHOD_LABEL_LONG, type GenreMethod } from '../core/genre'
   import type { Track } from '../core/model'
   import { type BpmProgression } from '../core/settings'
   import {
@@ -202,7 +202,7 @@
       Method
       <select bind:value={$criteria.genre.method}>
         {#each GENRE_METHODS as method (method)}
-          <option value={method}>{METHOD_LABEL[method]}</option>
+          <option value={method}>{METHOD_LABEL_LONG[method]}</option>
         {/each}
       </select>
     </label>
@@ -213,12 +213,16 @@
       {/each}
     </p>
     {#if $criteria.genre.method !== 'exact'}
-      <label class="row">
-        <input type="radio" value="topk" bind:group={$criteria.genre.mode} />
-        k nearest (mutual)
-        <input type="radio" value="threshold" bind:group={$criteria.genre.mode} />
-        score threshold
-      </label>
+      <div class="mode-row">
+        <label class="row">
+          <input type="radio" value="topk" bind:group={$criteria.genre.mode} />
+          k nearest (mutual)
+        </label>
+        <label class="row">
+          <input type="radio" value="threshold" bind:group={$criteria.genre.mode} />
+          score threshold
+        </label>
+      </div>
       {#if $criteria.genre.mode === 'topk'}
         <label>
           Link each genre to its <strong>{$criteria.genre.k}</strong> nearest
@@ -439,6 +443,19 @@
 
   label.row {
     justify-content: flex-start;
+  }
+
+  /* Two radio choices side by side; each label keeps its circle and text
+     on one line (issue 11: the old single-label layout wrapped mid-choice). */
+  .mode-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .mode-row label {
+    flex-wrap: nowrap;
+    white-space: nowrap;
   }
 
   input[type='range'] {

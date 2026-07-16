@@ -82,12 +82,15 @@
           {/if}
         </span>
       </label>
-      <!-- The method itself is a first-class choice (ISSUES.md #10); its
-           parameters (mode/k/threshold) stay in the advanced menu. -->
+      <!-- The method itself is a first-class choice; its parameters
+           (mode/k/threshold) and the sourced explainers stay in the
+           advanced menu — here only a subtle "recommended" marker. -->
       <label class="sub-option method">
         <select bind:value={$criteria.genre.method} disabled={!$criteria.genre.enabled}>
           {#each GENRE_METHODS as method (method)}
-            <option value={method}>{METHOD_LABEL[method]}</option>
+            <option value={method}>
+              {METHOD_LABEL[method]}{method === 'hybrid' ? ' — recommended' : ''}
+            </option>
           {/each}
         </select>
       </label>
