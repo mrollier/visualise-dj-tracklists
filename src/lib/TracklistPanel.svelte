@@ -5,7 +5,9 @@
   import type { Track } from '../core/model'
   import { suggestWalk } from '../core/suggest'
   import { promptExportName } from './exportName'
+  import { canAddSet, MAX_SETS } from '../core/sets'
   import {
+    activateAdjacentSet,
     activeSet,
     activeSetId,
     addSet,
@@ -21,8 +23,6 @@
     setGeneratedTracklist,
     sets,
     settings,
-    suggestionHistory,
-    suggestionIndex,
     trackById,
     tracklist,
     visibleLibrary,
@@ -71,36 +71,32 @@
 
   const exportBase = $derived(($libraryName || 'tracklist').replace(/\.[a-z0-9]+$/i, ''))
 
-  // Suggestion history: ◀ steps back, ▶ steps forward through earlier
-  // suggestions and generates a fresh one at the head. No confirmations —
-  // the previous suggestion is always one ◀ away. Generator writes go
-  // through setGeneratedTracklist so the ✨ badge appears (issue 18) and
-  // disappears again on the first manual edit.
-  function showSuggestion(index: number) {
-    suggestionIndex.set(index)
-    setGeneratedTracklist($suggestionHistory[index])
-  }
+  // The sets ARE the suggestion browser (v8 issue 18): ◀/▶ and the dropdown
+  // navigate the (≤ 8) named sets. ✨ regenerates IN PLACE while the active
+  // set is untouched generator output or empty — successive presses are one
+  // Cmd+Z apart, which replaces the old ◀-history — and otherwise starts a
+  // NEW set so a hand-edited one is never overwritten. Generator writes go
+  // through setGeneratedTracklist so the ✨ badge appears and disappears
+  // again on the first manual edit.
+  let suggestSeed = 0
+  const canRegenerateInPlace = $derived($activeSet.generated || $activeSet.trackIds.length === 0)
+  const suggestDisabled = $derived(
+    $visibleLibrary.length === 0 || (!canRegenerateInPlace && !canAddSet($sets)),
+  )
 
-  function suggestNew() {
-    if ($suggestionIndex < $suggestionHistory.length - 1) {
-      showSuggestion($suggestionIndex + 1)
-      return
-    }
+  function suggest() {
+    if (suggestDisabled) return
+    if (!canRegenerateInPlace) addSet() // a fresh set, activated
     const walk = suggestWalk($visibleLibrary, $criteria, {
       seedId: $pinnedFirst ?? $selectedId,
       endId: $pinnedLast,
       length: $settings.suggestLength,
       randomness: $settings.suggestRandomness,
-      seed: $suggestionHistory.length,
+      seed: suggestSeed++,
       progression: $settings.bpmProgression,
       mustIncludeIds: $mustInclude,
     })
-    suggestionHistory.update((h) => [...h, walk])
-    showSuggestion($suggestionHistory.length - 1)
-  }
-
-  function suggestPrevious() {
-    if ($suggestionIndex > 0) showSuggestion($suggestionIndex - 1)
+    setGeneratedTracklist(walk)
   }
 
   // Pins and must-include marks are library-scoped (design-v6 §C): they
@@ -150,6 +146,14 @@
         }}
       />
     {:else}
+      {@const activeIndex = $sets.findIndex((s) => s.id === $activeSetId)}
+      <button
+        class="nav"
+        title="Previous set"
+        aria-label="Previous set"
+        onclick={() => activateAdjacentSet(-1)}
+        disabled={activeIndex <= 0}>◀</button
+      >
       <select
         class="set-switch micro-label"
         aria-label="Active set"
@@ -160,12 +164,24 @@
           <option value={s.id}>{s.name}</option>
         {/each}
       </select>
+      <button
+        class="nav"
+        title="Next set"
+        aria-label="Next set"
+        onclick={() => activateAdjacentSet(1)}
+        disabled={activeIndex >= $sets.length - 1}>▶</button
+      >
       {#if $activeSet.generated}
         <span class="badge" title="Untouched generated set">✨</span>
       {/if}
       <span class="set-actions">
         <button title="Rename this set" aria-label="Rename set" onclick={startRename}>✎</button>
-        <button title="Start a new set" aria-label="New set" onclick={addSet}>＋</button>
+        <button
+          title={canAddSet($sets) ? 'Start a new set' : `${MAX_SETS} sets at most`}
+          aria-label="New set"
+          onclick={addSet}
+          disabled={!canAddSet($sets)}>＋</button
+        >
         <button
           title="Delete this set"
           aria-label="Delete set"
@@ -178,28 +194,18 @@
   </div>
 
   <div class="suggest-row">
-    {#if $suggestionHistory.length === 0}
-      <button onclick={suggestNew} disabled={$visibleLibrary.length === 0}>
-        ✨ Suggest a set{$selectedId !== null ? ' from selection' : ''}
-      </button>
-    {:else}
-      <button
-        class="arrow"
-        onclick={suggestPrevious}
-        disabled={$suggestionIndex <= 0}
-        title="Back to the previous suggestion"
-      >
-        ◀ previous
-      </button>
-      <button
-        class="arrow primary"
-        onclick={suggestNew}
-        disabled={$visibleLibrary.length === 0}
-        title="Suggest a new set"
-      >
-        {$suggestionIndex < $suggestionHistory.length - 1 ? 'next' : '✨ new'} ▶
-      </button>
-    {/if}
+    <button
+      class="primary"
+      onclick={suggest}
+      disabled={suggestDisabled}
+      title={suggestDisabled && $visibleLibrary.length > 0
+        ? `All ${MAX_SETS} sets are hand-edited — clear or delete one first`
+        : canRegenerateInPlace
+          ? 'Generate a set (replaces this untouched one — Cmd+Z steps back)'
+          : 'Generate a new set alongside this hand-edited one'}
+    >
+      ✨ Suggest a set{$selectedId !== null && canRegenerateInPlace ? ' from selection' : ''}
+    </button>
   </div>
 
   {#if walkTracks.length === 0}
@@ -341,14 +347,24 @@
     font-size: 12px;
   }
 
-  .suggest-row .arrow {
-    width: auto;
+  .suggest-row .primary {
     flex: 1;
-    white-space: nowrap;
   }
 
-  .suggest-row .primary {
-    flex: 1.4;
+  .head .nav {
+    padding: 1px 5px;
+    font-size: 10px;
+    background: none;
+    border: none;
+    color: var(--ink-muted);
+  }
+
+  .head .nav:not(:disabled):hover {
+    color: var(--ink);
+  }
+
+  .head .nav:disabled {
+    opacity: 0.3;
   }
 
   .hint {

@@ -43,6 +43,20 @@ describe('project persistence (v3)', () => {
     expect(() => parseProject(future)).toThrow(/version/i)
   })
 
+  test('loading a project with more than eight sets keeps the first eight (v8 issue 18)', () => {
+    const many = Array.from({ length: 11 }, (_, i) => ({
+      id: `s${i}`,
+      name: `Set ${i + 1}`,
+      trackIds: [],
+      generated: false,
+    }))
+    const parsed = parseProject(serializeProject({ ...project, sets: many, activeSetId: 's10' }))
+    expect(parsed.sets).toHaveLength(8)
+    expect(parsed.sets.map((s) => s.id)).toEqual(many.slice(0, 8).map((s) => s.id))
+    // the clamped-away active set falls back to the first
+    expect(parsed.activeSetId).toBe('s0')
+  })
+
   test('drops set entries that reference unknown tracks, per set', () => {
     const withGhost = serializeProject({
       ...project,

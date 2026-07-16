@@ -2,7 +2,7 @@ import { DEFAULT_CRITERIA, type CriteriaConfig } from './combos'
 import { EMPTY_FILTERS, type LibraryFilters } from './filter'
 import { normalizeKey } from './keys'
 import type { Playlist, Track } from './model'
-import { freshFirstSet, newSetId, ordinalSetName, type TrackSet } from './sets'
+import { freshFirstSet, MAX_SETS, newSetId, ordinalSetName, type TrackSet } from './sets'
 import { DEFAULT_SETTINGS, type AppSettings } from './settings'
 
 /**
@@ -144,6 +144,9 @@ export function parseProject(json: string): Project {
     sets = [freshFirstSet(oldList)]
   }
   if (sets.length === 0) sets = [freshFirstSet()]
+  // The sets are the suggestion browser (v8 issue 18): a hand-edited save
+  // with more than the cap keeps its first MAX_SETS entries.
+  sets = sets.slice(0, MAX_SETS)
   const activeSetId =
     typeof p.activeSetId === 'string' && sets.some((s) => s.id === p.activeSetId)
       ? p.activeSetId

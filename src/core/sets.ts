@@ -39,6 +39,16 @@ export function nextSetName(existing: readonly string[]): string {
   }
 }
 
+/**
+ * At most this many sets: the sets ARE the suggestion browser (v8 issue 18)
+ * — a short, browsable shelf, not an archive.
+ */
+export const MAX_SETS = 8
+
+export function canAddSet(sets: readonly TrackSet[]): boolean {
+  return sets.length < MAX_SETS
+}
+
 export function newSetId(): string {
   return crypto.randomUUID()
 }

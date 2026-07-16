@@ -18,8 +18,6 @@ import {
   pinnedFirst,
   playlists,
   selectedId,
-  suggestionHistory,
-  suggestionIndex,
   tracklist,
 } from '../src/stores'
 
@@ -59,8 +57,6 @@ beforeEach(() => {
     keyRing: 'both',
   })
   selectedId.set('rb-1')
-  suggestionHistory.set([['rb-1', 'rb-2']])
-  suggestionIndex.set(0)
   pinnedFirst.set('rb-1')
   lastImportReport.set(REPORT)
 })
@@ -90,11 +86,9 @@ describe('replaceLibrary', () => {
     expect(get(playlists)).toEqual([{ name: 'Warm-up', trackIds: ['rb-9'] }])
   })
 
-  test('clears selection, suggestion history and pins', () => {
+  test('clears selection and pins', () => {
     replaceLibrary({ tracks: [track('csv-0')], name: 'new.csv' })
     expect(get(selectedId)).toBeNull()
-    expect(get(suggestionHistory)).toEqual([])
-    expect(get(suggestionIndex)).toBe(-1)
     expect(get(pinnedFirst)).toBeNull()
   })
 
@@ -113,7 +107,6 @@ describe('loadSampleCollection', () => {
     // Nothing selected yet: empty wheel until playlists are toggled on.
     expect(get(filters).playlists).toEqual([])
     expect(get(tracklist)).toEqual([])
-    expect(get(suggestionHistory)).toEqual([])
     expect(isSampleLibrary(get(library))).toBe(true)
   })
 })

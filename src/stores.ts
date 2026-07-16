@@ -14,7 +14,7 @@ import {
 import { computeGenreClasses } from './core/genreClasses'
 import { genreFamilyClasses, playlistClasses } from './core/iconClasses'
 import type { ImportReport, Playlist, Track } from './core/model'
-import { freshFirstSet, nextSetName, type TrackSet } from './core/sets'
+import { canAddSet, freshFirstSet, nextSetName, type TrackSet } from './core/sets'
 import { DEFAULT_SETTINGS, type AppSettings } from './core/settings'
 import type { TrackSort } from './core/trackSort'
 
@@ -93,14 +93,26 @@ export function appendToSet(id: string): void {
   tracklist.update((ids) => (ids[ids.length - 1] === id ? ids : [...ids, id]))
 }
 
-/** Create and activate an empty set with the next free ordinal name. */
+/**
+ * Create and activate an empty set with the next free ordinal name. Refuses
+ * silently at the cap — the ＋ and ✨ buttons disable themselves first.
+ */
 export function addSet(): void {
+  if (!canAddSet(get(sets))) return
   const set: TrackSet = {
     ...freshFirstSet(),
     name: nextSetName(get(sets).map((s) => s.name)),
   }
   sets.update(($sets) => [...$sets, set])
   activeSetId.set(set.id)
+}
+
+/** ◀/▶: activate the previous or next set in the list (v8 issue 18). */
+export function activateAdjacentSet(dir: 1 | -1): void {
+  const $sets = get(sets)
+  const index = $sets.findIndex((s) => s.id === get(activeSetId))
+  const next = $sets[index + dir]
+  if (next !== undefined) activeSetId.set(next.id)
 }
 
 export function renameSet(id: string, name: string): void {
@@ -129,14 +141,6 @@ export function deleteSet(id: string): void {
 }
 
 /**
- * Session-only history of generated set suggestions (not persisted): the
- * ◀ previous / new ▶ arrows walk through it. `suggestionIndex` points at the
- * currently shown suggestion, -1 when none has been generated yet.
- */
-export const suggestionHistory = writable<string[][]>([])
-export const suggestionIndex = writable(-1)
-
-/**
  * Pinned opener/closer for generated sets (session-only): DJs often fix the
  * first and last track and regenerate the middle. Cleared when the pinned
  * track leaves the set or the library is replaced.
@@ -150,10 +154,8 @@ export const pinnedLast = writable<string | null>(null)
  */
 export const mustInclude = writable<string[]>([])
 
-/** Clear the suggestion history — call whenever the library is replaced. */
+/** Clear the pins and marks — call whenever the library is replaced. */
 export function resetSuggestions(): void {
-  suggestionHistory.set([])
-  suggestionIndex.set(-1)
   pinnedFirst.set(null)
   pinnedLast.set(null)
   mustInclude.set([])

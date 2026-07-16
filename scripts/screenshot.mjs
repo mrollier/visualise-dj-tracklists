@@ -203,13 +203,30 @@ if (!setTitles.includes('Seven Bridges')) {
 await page.keyboard.press('Escape') // clear the selection
 await page.screenshot({ path: `${scratch}/05-suggested-set.png` })
 
-// suggestion history: two fresh suggestions, then back to the previous one
-await page.getByRole('button', { name: /new/ }).click()
+// the sets ARE the suggestion browser (v8 issue 18): ✨ regenerates an
+// UNTOUCHED set in place (same set, fresh content, no set spam), and Cmd+Z
+// steps back through regenerations — the old ◀ history, for free
+const undoKey = process.platform === 'darwin' ? 'Meta+z' : 'Control+z'
+const walkBeforeRegen = await page.locator('aside ol li.track .names strong').allTextContents()
+await page.getByRole('button', { name: /Suggest a set/ }).click()
+await page.waitForTimeout(250)
+const walkAfterRegen = await page.locator('aside ol li.track .names strong').allTextContents()
+if (walkAfterRegen.join() === walkBeforeRegen.join()) {
+  errors.push('✨ on an untouched generated set did not regenerate its content')
+}
+if ((await page.locator('aside .head select option').count()) !== 1) {
+  errors.push('✨ on an untouched generated set should NOT create a new set')
+}
+await page.keyboard.press(undoKey)
 await page.waitForTimeout(200)
-await page.getByRole('button', { name: /new/ }).click()
-await page.waitForTimeout(200)
-await page.getByRole('button', { name: /previous/ }).click()
-await page.waitForTimeout(200)
+if (
+  (await page.locator('aside ol li.track .names strong').allTextContents()).join() !==
+  walkBeforeRegen.join()
+) {
+  errors.push('Cmd+Z did not step back to the previous regeneration')
+}
+await page.getByRole('button', { name: /Suggest a set/ }).click()
+await page.waitForTimeout(250)
 await page.screenshot({ path: `${scratch}/06-suggestion-arrows.png` })
 
 // named sets (ISSUES.md v7 #18): a shown suggestion wears the ✨ generated
@@ -239,21 +256,50 @@ if ((await page.locator('aside ol li.track').count()) !== 0) {
 if ((await page.locator('g.node .dot.in-walk').count()) !== 0) {
   errors.push('the wheel still shows the previous set as the walk')
 }
-await page.locator('aside .head select').selectOption({ label: 'First Set' })
+// ◀/▶ browse the sets (v8 issue 18)
+await page.getByRole('button', { name: 'Previous set' }).click()
 await page.waitForTimeout(150)
 if ((await page.locator('aside ol li.track').count()) !== firstSetCount) {
-  errors.push('switching back did not restore the first set')
+  errors.push('◀ did not step back to the first set')
 }
-await page.locator('aside .head select').selectOption({ label: 'Second Set' })
+if (!(await page.getByRole('button', { name: 'Previous set' }).isDisabled())) {
+  errors.push('◀ should disable on the first set')
+}
+await page.getByRole('button', { name: 'Next set' }).click()
+await page.waitForTimeout(150)
+if ((await page.locator('aside ol li.track').count()) !== 0) {
+  errors.push('▶ did not step forward to the empty second set')
+}
 await page.getByRole('button', { name: 'Delete set' }).click()
 await page.waitForTimeout(150)
 if ((await page.locator('aside .head select option').count()) !== 1) {
   errors.push('deleting the second set did not remove it')
 }
 
+// the cap (v8 issue 18): ＋ disables at eight sets; an empty eighth still
+// takes a ✨ fill, a hand-edited one blocks it once the shelf is full
+for (let i = 0; i < 7; i++) {
+  await page.getByRole('button', { name: 'New set' }).click()
+}
+await page.waitForTimeout(200)
+if (!(await page.getByRole('button', { name: 'New set' }).isDisabled())) {
+  errors.push('＋ should disable at eight sets')
+}
+if (await page.locator('.suggest-row .primary').isDisabled()) {
+  errors.push('✨ should still fill an EMPTY eighth set in place')
+}
+await page.locator('g.node').first().dblclick({ force: true }) // hand-edit it
+await page.waitForTimeout(200)
+if (!(await page.locator('.suggest-row .primary').isDisabled())) {
+  errors.push('✨ should disable: all eight sets exist and this one is hand-edited')
+}
+while ((await page.locator('aside .head select option').count()) > 1) {
+  await page.getByRole('button', { name: 'Delete set' }).click()
+  await page.waitForTimeout(100)
+}
+
 // undo (ISSUES.md v7 #2): Cmd+Z takes back the last set edit, Cmd+Shift+Z
-// re-applies it; a whole generated overwrite is a single undo step
-const undoKey = process.platform === 'darwin' ? 'Meta+z' : 'Control+z'
+// re-applies it
 const redoKey = process.platform === 'darwin' ? 'Meta+Shift+z' : 'Control+Shift+z'
 const undoCountBefore = await page.locator('aside ol li.track').count()
 await page.locator('aside ol li.track').first().hover()
@@ -271,28 +317,42 @@ if ((await page.locator('aside ol li.track').count()) !== undoCountBefore - 1) {
 }
 await page.keyboard.press(undoKey) // back to the full set
 await page.waitForTimeout(150)
-const undoTitlesBefore = await page.locator('aside ol li.track .names strong').allTextContents()
-await page.locator('.suggest-row .primary').click() // generated overwrite
-await page.waitForTimeout(200)
-await page.keyboard.press(undoKey)
-await page.waitForTimeout(150)
-const undoTitlesAfter = await page.locator('aside ol li.track .names strong').allTextContents()
-if (undoTitlesAfter.join() !== undoTitlesBefore.join()) {
-  errors.push('undoing a generated overwrite did not restore the previous set in one step')
-}
 
-// pinned closer: at the history head, pin the last track, regenerate — the
-// closer must survive; the pin also prefills the Set order picker
-await page.locator('.suggest-row .primary').click() // forward to head ("next ▶")
-await page.waitForTimeout(200)
+// ✨ on a HAND-EDITED set never overwrites it: a new set appears alongside
+// (v8 issue 18), and ◀ still finds the edited one intact
+const editedTitles = await page.locator('aside ol li.track .names strong').allTextContents()
+await page.locator('.suggest-row .primary').click()
+await page.waitForTimeout(250)
+if ((await page.locator('aside .head select option').count()) !== 2) {
+  errors.push('✨ on a hand-edited set should create a new set alongside it')
+}
+if ((await page.locator('aside .head .badge').count()) !== 1) {
+  errors.push('the freshly generated set should wear the ✨ badge')
+}
+await page.getByRole('button', { name: 'Previous set' }).click()
+await page.waitForTimeout(150)
+if (
+  (await page.locator('aside ol li.track .names strong').allTextContents()).join() !==
+  editedTitles.join()
+) {
+  errors.push('the hand-edited set was not left intact by ✨')
+}
+await page.getByRole('button', { name: 'Next set' }).click()
+await page.waitForTimeout(150)
+
+// pinned closer: pin the last track of the generated set (pins are session
+// state, not an edit — the set stays untouched) and regenerate in place
 const lastTitle = await page.locator('aside ol li.track .names strong').last().textContent()
 await page.locator('aside ol li.track').last().hover()
 await page.locator('aside ol li.track .pin').last().click()
-await page.locator('.suggest-row .primary').click() // fresh walk with the pin ("✨ new ▶")
+await page.locator('.suggest-row .primary').click()
 await page.waitForTimeout(300)
 const lastAfter = await page.locator('aside ol li.track .names strong').last().textContent()
 if (lastAfter !== lastTitle) {
   errors.push(`pinned closer not honoured: "${lastTitle}" -> "${lastAfter}"`)
+}
+if ((await page.locator('aside .head select option').count()) !== 2) {
+  errors.push('regenerating the untouched generated set should not add another set')
 }
 // the Tracks view (v7 #7/#10): a sortable table over the selected
 // playlists; the 📌 closer pin from the set row shows as an active ⏭
@@ -494,10 +554,7 @@ await page.waitForTimeout(400)
 await page.getByRole('button', { name: /Advanced/ }).click()
 await page.locator('.panel input[type=number]').fill('99') // Set & suggestions is open
 await page.keyboard.press('Escape')
-await page
-  .getByRole('button', { name: /Suggest a set|new/ })
-  .last()
-  .click()
+await page.locator('.suggest-row .primary').click()
 await page.waitForTimeout(400)
 if ((await page.locator('g.hub.warning').count()) !== 1) {
   errors.push('an exhausted anchor did not switch the hub to its warning state')

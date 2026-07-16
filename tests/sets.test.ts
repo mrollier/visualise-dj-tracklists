@@ -1,5 +1,21 @@
 import { describe, expect, test } from 'vitest'
-import { freshFirstSet, newSetId, nextSetName, ordinalSetName } from '../src/core/sets'
+import {
+  canAddSet,
+  freshFirstSet,
+  MAX_SETS,
+  newSetId,
+  nextSetName,
+  ordinalSetName,
+} from '../src/core/sets'
+
+describe('the set cap (v8 issue 18)', () => {
+  test('eight sets at most; canAddSet gates the switcher and the generator', () => {
+    expect(MAX_SETS).toBe(8)
+    const seven = Array.from({ length: 7 }, () => freshFirstSet())
+    expect(canAddSet(seven)).toBe(true)
+    expect(canAddSet([...seven, freshFirstSet()])).toBe(false)
+  })
+})
 
 describe('ordinalSetName', () => {
   test('names the first twelve sets with ordinal words', () => {
