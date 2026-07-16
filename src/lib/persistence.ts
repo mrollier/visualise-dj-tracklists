@@ -116,11 +116,14 @@ export function isSampleLibrary(tracks: Track[]): boolean {
   return tracks.length > 0 && SAMPLE_ID_PREFIXES.some((p) => tracks[0].id.startsWith(p))
 }
 
-/** Ask before a sample pack replaces user work (samples replace silently). */
-export function confirmReplaceLibrary(packName: string): boolean {
+/**
+ * Whether replacing the library would destroy user work (samples and an
+ * empty library are disposable). The caller shows the in-app ConfirmDialog
+ * when this is true (issue 6: no more native confirm()).
+ */
+export function replaceNeedsConfirmation(): boolean {
   const current = get(library)
-  if (current.length === 0 || isSampleLibrary(current)) return true
-  return confirm(`Replace the current library and set with "${packName}"?`)
+  return current.length > 0 && !isSampleLibrary(current)
 }
 
 /** Restore the autosaved project, if any. Returns whether something loaded. */

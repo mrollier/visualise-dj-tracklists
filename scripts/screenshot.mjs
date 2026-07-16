@@ -516,18 +516,18 @@ if ((await page.locator('g.node').count()) !== 4) {
   errors.push('importing a new library kept stale filters from the previous one')
 }
 
-// replacing own work with the sample collection asks exactly once
-let dialogCount = 0
-const countDialog = (d) => {
-  dialogCount++
-  return d.accept()
-}
-page.on('dialog', countDialog)
+// replacing own work with the sample collection asks once, via the
+// in-app dialog (ISSUES.md v7 #6) — no native confirm() anywhere
 await page.getByRole('button', { name: 'Load sample' }).click()
-await page.waitForTimeout(400)
-page.off('dialog', countDialog)
-if (dialogCount !== 1) {
-  errors.push(`replacing own work with the sample confirmed ${dialogCount} times, not once`)
+await page.getByRole('heading', { name: 'Replace your library?' }).waitFor()
+await page.screenshot({ path: `${scratch}/15a-replace-dialog.png` })
+await page.getByRole('button', { name: 'Replace and load' }).click()
+await page.locator('.status .name', { hasText: 'Sample collection' }).waitFor()
+// …and replacing a disposable sample library asks nothing
+await page.getByRole('button', { name: 'Load sample' }).click()
+await page.waitForTimeout(300)
+if (await page.getByRole('heading', { name: 'Replace your library?' }).isVisible()) {
+  errors.push('replacing a sample library should not ask for confirmation')
 }
 
 // an import that yields no tracks reports, but keeps the current library

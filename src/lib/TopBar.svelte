@@ -18,14 +18,15 @@
     tracklist,
     viewMode,
   } from '../stores'
+  import ConfirmDialog from './ConfirmDialog.svelte'
   import ResetDialog from './ResetDialog.svelte'
   import { promptExportName } from './exportName'
   import {
     applyProject,
-    confirmReplaceLibrary,
     currentProject,
     loadSampleCollection,
     replaceLibrary,
+    replaceNeedsConfirmation,
   } from './persistence'
   import { effectiveTheme, toggleTheme } from './theme'
 
@@ -33,6 +34,7 @@
 
   let fileInput: HTMLInputElement
   let resetDialog: ResetDialog
+  let replaceDialog: ConfirmDialog
   let importError = $state('')
 
   async function importAudioFiles(files: File[]): Promise<ImportResult> {
@@ -162,10 +164,11 @@
   }
 
   // One sample collection (design-v6 §D): all packs as playlists in a single
-  // library, loaded like an XML import. Confirms once over user work.
+  // library, loaded like an XML import. Confirms once over user work, via
+  // the in-app dialog (issue 6).
   function loadSample() {
-    if (!confirmReplaceLibrary('Sample collection')) return
-    loadSampleCollection()
+    if (replaceNeedsConfirmation()) replaceDialog.open(loadSampleCollection)
+    else loadSampleCollection()
   }
 
   const missingSummary = $derived.by(() => {
@@ -246,6 +249,13 @@
     </button>
     <button class="danger" onclick={() => resetDialog.open()}>Reset</button>
     <ResetDialog bind:this={resetDialog} />
+    <ConfirmDialog
+      bind:this={replaceDialog}
+      title="Replace your library?"
+      body="Loading the sample collection replaces the current library and set. Save the project first if you want to keep them."
+      confirmLabel="Replace and load"
+      danger
+    />
   </div>
 
   <!-- Just the collection name; the import details live behind the ⓘ icon

@@ -7,6 +7,7 @@ import {
   isSampleLibrary,
   loadSampleCollection,
   replaceLibrary,
+  replaceNeedsConfirmation,
   resetEverything,
 } from '../src/lib/persistence'
 import {
@@ -105,6 +106,23 @@ describe('loadSampleCollection', () => {
     expect(get(tracklist)).toEqual([])
     expect(get(suggestionHistory)).toEqual([])
     expect(isSampleLibrary(get(library))).toBe(true)
+  })
+})
+
+describe('replaceNeedsConfirmation', () => {
+  test('user work needs a confirmation before being replaced', () => {
+    // the beforeEach loads a user library ('rb-…' ids)
+    expect(replaceNeedsConfirmation()).toBe(true)
+  })
+
+  test('an empty library is replaced silently', () => {
+    library.set([])
+    expect(replaceNeedsConfirmation()).toBe(false)
+  })
+
+  test('a sample library is disposable and replaced silently', () => {
+    loadSampleCollection()
+    expect(replaceNeedsConfirmation()).toBe(false)
   })
 })
 
