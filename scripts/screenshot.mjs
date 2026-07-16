@@ -238,6 +238,36 @@ if ((await page.locator('aside .head select option').count()) !== 1) {
   errors.push('deleting the second set did not remove it')
 }
 
+// undo (ISSUES.md v7 #2): Cmd+Z takes back the last set edit, Cmd+Shift+Z
+// re-applies it; a whole generated overwrite is a single undo step
+const undoKey = process.platform === 'darwin' ? 'Meta+z' : 'Control+z'
+const redoKey = process.platform === 'darwin' ? 'Meta+Shift+z' : 'Control+Shift+z'
+const undoCountBefore = await page.locator('aside ol li.track').count()
+await page.locator('aside ol li.track').first().hover()
+await page.locator('aside ol li.track').first().getByRole('button', { name: 'Remove' }).click()
+await page.waitForTimeout(150)
+await page.keyboard.press(undoKey)
+await page.waitForTimeout(150)
+if ((await page.locator('aside ol li.track').count()) !== undoCountBefore) {
+  errors.push('Cmd+Z did not restore the removed track')
+}
+await page.keyboard.press(redoKey)
+await page.waitForTimeout(150)
+if ((await page.locator('aside ol li.track').count()) !== undoCountBefore - 1) {
+  errors.push('Cmd+Shift+Z did not redo the removal')
+}
+await page.keyboard.press(undoKey) // back to the full set
+await page.waitForTimeout(150)
+const undoTitlesBefore = await page.locator('aside ol li.track .names strong').allTextContents()
+await page.locator('.suggest-row .primary').click() // generated overwrite
+await page.waitForTimeout(200)
+await page.keyboard.press(undoKey)
+await page.waitForTimeout(150)
+const undoTitlesAfter = await page.locator('aside ol li.track .names strong').allTextContents()
+if (undoTitlesAfter.join() !== undoTitlesBefore.join()) {
+  errors.push('undoing a generated overwrite did not restore the previous set in one step')
+}
+
 // pinned closer: at the history head, pin the last track, regenerate — the
 // closer must survive; the pin also prefills the Set order picker
 await page.locator('.suggest-row .primary').click() // forward to head ("next ▶")

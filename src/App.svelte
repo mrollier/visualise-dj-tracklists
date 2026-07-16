@@ -6,13 +6,30 @@
   import { startTheme } from './lib/theme'
   import TopBar from './lib/TopBar.svelte'
   import TracklistPanel from './lib/TracklistPanel.svelte'
+  import { redoOnce, startUndo, undoOnce } from './lib/undoStore'
   import WheelView from './lib/WheelView.svelte'
   import { library, rightPanel, viewMode } from './stores'
 
   restoreAutosave()
   startTheme()
   startAutosave()
+  startUndo()
+
+  // Cmd/Ctrl+Z undoes set edits and selection changes; +Shift redoes
+  // (issue 2 — deliberately the only global shortcut). Text fields and open
+  // dialogs keep their native behaviour.
+  function onKeydown(e: KeyboardEvent) {
+    if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z') return
+    const target = e.target instanceof HTMLElement ? e.target : null
+    if (target?.matches('input, textarea, select, [contenteditable="true"]')) return
+    if (document.querySelector('dialog[open]') !== null) return
+    e.preventDefault()
+    if (e.shiftKey) redoOnce()
+    else undoOnce()
+  }
 </script>
+
+<svelte:window onkeydown={onKeydown} />
 
 <TopBar />
 
