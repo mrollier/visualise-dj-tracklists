@@ -156,6 +156,16 @@ await page.waitForTimeout(200)
 if ((await page.locator('.selected-card').count()) !== 1) {
   errors.push('selecting a node did not show the selected-track card')
 }
+// the card lives bottom-RIGHT, clear of the bottom-left legend (v8 issue 9)
+const cardBox = await page.locator('.selected-card').boundingBox()
+const wheelBox = await page.locator('main').boundingBox()
+if (cardBox && wheelBox && cardBox.x + cardBox.width / 2 < wheelBox.x + wheelBox.width / 2) {
+  errors.push('the selected-track card should sit on the right half of the view')
+}
+const legendBox = await page.locator('.legend').boundingBox()
+if (cardBox && legendBox && cardBox.x < legendBox.x + legendBox.width) {
+  errors.push('the selected-track card overlaps the legend')
+}
 await page.locator('.must-toggle').click()
 if ((await page.locator('.must-toggle[aria-pressed="true"]').count()) !== 1) {
   errors.push('the must-include toggle did not switch on')

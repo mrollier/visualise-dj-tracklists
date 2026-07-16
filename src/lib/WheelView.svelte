@@ -714,7 +714,7 @@
   </div>
 
   <!-- Legend -->
-  <div class="legend">
+  <div class="legend" class:with-card={selectedTrack !== null}>
     <span class="legend-title">Colour: {AXIS_LABEL[$effectiveColorAxis]}</span>
     {#if $effectiveColorAxis === 'rating'}
       {#each [0, 1, 2, 3, 4, 5] as stars (stars)}
@@ -742,7 +742,9 @@
   </div>
 
   <!-- Selected-track card: the persistent home of a selection's details,
-       and where a track is marked "must include" (design-v6 §C). -->
+       and where a track is marked "must include" (design-v6 §C). Anchored
+       bottom-RIGHT beside the set panel (v8 issue 9) so it never sits on
+       the legend; the legend's right bound clears it while it shows. -->
   {#if selectedTrack}
     <div class="selected-card">
       <strong>{selectedTrack.title}</strong>
@@ -1070,6 +1072,7 @@
        narrow windows the legend must never spill over the side panels
        and swallow their clicks (ISSUES.md #13). */
     right: 72px;
+    transition: right 0.3s ease;
     flex-wrap: wrap;
     display: flex;
     align-items: center;
@@ -1142,14 +1145,18 @@
 
   .selected-card {
     position: absolute;
-    left: 12px;
-    bottom: 44px;
+    right: 52px; /* clear of the zoom-controls column */
+    bottom: 10px;
     max-width: 240px;
     background: var(--surface-raised);
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 8px 10px;
     font-size: 12px;
+  }
+
+  .legend.with-card {
+    right: 306px; /* 52px offset + 240px card + breathing room */
   }
 
   .selected-card strong {
