@@ -312,6 +312,9 @@
          scheme and genre classes stay live everywhere. -->
     <label class:off-view={$viewMode !== 'wheel'} title="Only affects the Wheel view">
       Same-key spread <strong>×{$settings.slotSpreadFactor.toFixed(2)}</strong>
+      <!-- v9 issue 1: the ↻ re-jitter button is retired — slot placement is
+           deterministic now (issue 17), so there is no fan order to re-roll.
+           Kept for reference in case a shuffle ever returns:
       <button
         class="re-jitter"
         title="Re-shuffle the same-key fan order"
@@ -322,6 +325,7 @@
           settings.update((s) => ({ ...s, jitterSeed: Math.floor(Math.random() * 2 ** 31) }))
         }}>↻</button
       >
+      -->
       <input
         type="range"
         min="0"
@@ -589,6 +593,7 @@
     opacity: 0.6;
   }
 
+  /* v9 issue 1: retired with the ↻ re-jitter button above.
   .re-jitter {
     padding: 1px 7px;
     font-size: 12px;
@@ -599,6 +604,7 @@
   .re-jitter:hover:not(:disabled) {
     color: var(--ink);
   }
+  */
 
   .to-tracks {
     margin-top: 6px;

@@ -16,9 +16,8 @@
   import { zoom as d3zoom, zoomIdentity, type D3ZoomEvent } from 'd3-zoom'
   import { classIndexOfTrack } from '../core/iconClasses'
   import { ALL_CAMELOT_KEYS, wheelSlotAngleDeg, type CamelotKey } from '../core/keys'
-  import { annularSectorPath, slotAngleOffsets } from '../core/layout'
+  import { annularSectorPath, relaxSlotAngles } from '../core/layout'
   import type { Track } from '../core/model'
-  import { hashUnit } from '../core/random'
   import {
     COLOR_SCHEMES,
     focusEdgeOpacity,
@@ -164,6 +163,39 @@
   const gutterTop = $derived(CY - (R_MAX - R_MIN) / 2)
   const gutterBottom = $derived(CY + (R_MAX - R_MIN) / 2)
 
+  // Same-key tracks repel each other along their slot's arc instead of the
+  // old seeded fan (issue 17): each node keeps its exact radius, offsets stay
+  // inside ±(7.5° × spread). Angles are computed against the SETTLED target
+  // domain, so the relaxation runs once per real change while the radii ride
+  // the tween. The drawn node radius is 5 world units at reference zoom.
+  const NODE_WORLD_RADIUS = 5
+  const slotAngleById = $derived.by(() => {
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived-local
+    const angles = new Map<string, number>()
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived-local
+    const bySlot = new Map<string, Track[]>()
+    for (const track of $library) {
+      if (track.key === null) continue
+      if (!bySlot.has(track.key)) bySlot.set(track.key, [])
+      bySlot.get(track.key)!.push(track)
+    }
+    const targetScale = scaleLinear().domain(targetDomain).range([R_MIN, R_MAX]).clamp(true)
+    const half = 7.5 * $settings.slotSpreadFactor
+    for (const [key, group] of bySlot) {
+      const offsets = relaxSlotAngles(
+        group.map((track) => {
+          const value = track[$radialAxis]
+          return { id: track.id, r: value === null ? R_FALLBACK : targetScale(value) }
+        }),
+        half,
+        NODE_WORLD_RADIUS,
+      )
+      const base = wheelSlotAngleDeg(key as CamelotKey)
+      for (const [id, offset] of offsets) angles.set(id, base + offset)
+    }
+    return angles
+  })
+
   // Placement runs over the FULL library so every track's angle (and gutter
   // slot) is independent of the filters: filtering only makes nodes appear
   // or disappear, leaving gaps in the fans — nothing moves (design-v6 §A).
@@ -195,28 +227,14 @@
       })
     }
 
-    // Keyed tracks: group per slot and fan out so same-key tracks with a
-    // similar radius stay individually hoverable. Ordered by a stable
-    // per-track hash of the persisted jitter seed (issue 16) — sorting by
-    // the radial value made every fan a tidy diagonal sweep. Even spacing
-    // keeps dense slots overlap-free; only the ↻ re-jitter button reorders.
-    // eslint-disable-next-line svelte/prefer-svelte-reactivity
-    const bySlot = new Map<string, Track[]>()
+    // Keyed tracks: the relaxed slot angle (memoised below — issue 17) plus
+    // the tween-animated radius.
     for (const track of $library) {
       if (track.key === null) continue
-      if (!bySlot.has(track.key)) bySlot.set(track.key, [])
-      bySlot.get(track.key)!.push(track)
-    }
-    const seed = $settings.jitterSeed
-    for (const [key, group] of bySlot) {
-      group.sort((a, b) => hashUnit(a.id, seed) - hashUnit(b.id, seed) || a.id.localeCompare(b.id))
-      const offsets = slotAngleOffsets(group.length, 7.5 * $settings.slotSpreadFactor)
-      group.forEach((track, i) => {
-        const value = track[$radialAxis]
-        const angle = wheelSlotAngleDeg(key as CamelotKey) + offsets[i]
-        const r = value === null ? R_FALLBACK : radialScale(value)
-        placed.push({ track, ...polar(angle, r), unkeyed: false, missingRadial: value === null })
-      })
+      const value = track[$radialAxis]
+      const angle = slotAngleById.get(track.id) ?? 0
+      const r = value === null ? R_FALLBACK : radialScale(value)
+      placed.push({ track, ...polar(angle, r), unkeyed: false, missingRadial: value === null })
     }
     return placed
   })

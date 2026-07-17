@@ -1,21 +1,95 @@
 import { describe, expect, test } from 'vitest'
-import { annularSectorPath, slotAngleOffsets } from '../src/core/layout'
+import {
+  annularSectorPath,
+  minAngularGapDeg,
+  relaxSlotAngles,
+  type SlotNode,
+} from '../src/core/layout'
 
-describe('slotAngleOffsets', () => {
-  test('a single node sits on the slot centre', () => {
-    expect(slotAngleOffsets(1, 7.5)).toEqual([0])
+describe('minAngularGapDeg (issue 17)', () => {
+  const P = 5 // world-unit node radius
+
+  test('same radius: the chord condition, 2·asin(p/r)', () => {
+    const expected = (2 * Math.asin(P / 200) * 180) / Math.PI
+    expect(minAngularGapDeg(200, 200, P)).toBeCloseTo(expected, 6)
   })
 
-  test('multiple nodes fan out symmetrically across the slot', () => {
-    expect(slotAngleOffsets(2, 11)).toEqual([-5.5, 5.5])
-    expect(slotAngleOffsets(3, 11)).toEqual([-5.5, 0, 5.5])
+  test('radii further apart than a node diameter never interact', () => {
+    expect(minAngularGapDeg(100, 112, P)).toBe(0)
+    expect(minAngularGapDeg(300, 290, P)).toBe(0) // exactly 2p apart
   })
 
-  test('offsets stay within the given spread regardless of count', () => {
-    const offsets = slotAngleOffsets(9, 11)
-    expect(Math.min(...offsets)).toBeGreaterThanOrEqual(-5.5)
-    expect(Math.max(...offsets)).toBeLessThanOrEqual(5.5)
-    expect(new Set(offsets).size).toBe(9)
+  test('nearby but unequal radii need less gap than equal ones', () => {
+    const equal = minAngularGapDeg(200, 200, P)
+    const offset = minAngularGapDeg(200, 204, P)
+    expect(offset).toBeGreaterThan(0)
+    expect(offset).toBeLessThan(equal)
+  })
+
+  test('degenerate radii near the centre give up gracefully', () => {
+    expect(minAngularGapDeg(0, 0, P)).toBe(0)
+    expect(minAngularGapDeg(3, 4, P)).toBe(0)
+  })
+})
+
+describe('relaxSlotAngles (issue 17)', () => {
+  const P = 5
+  const node = (id: string, r: number): SlotNode => ({ id, r })
+
+  test('empty and single inputs are trivial', () => {
+    expect(relaxSlotAngles([], 7.5, P).size).toBe(0)
+    expect(relaxSlotAngles([node('a', 200)], 7.5, P).get('a')).toBe(0)
+  })
+
+  test('zero spread collapses everything to the slot centre', () => {
+    const out = relaxSlotAngles([node('a', 200), node('b', 200)], 0, P)
+    expect(out.get('a')).toBe(0)
+    expect(out.get('b')).toBe(0)
+  })
+
+  test('deterministic: input order never changes the result', () => {
+    const nodes = [node('a', 200), node('b', 203), node('c', 320), node('d', 200)]
+    const shuffled = [nodes[2], nodes[0], nodes[3], nodes[1]]
+    const first = relaxSlotAngles(nodes, 7.5, P)
+    const second = relaxSlotAngles(shuffled, 7.5, P)
+    expect(Object.fromEntries(second)).toEqual(Object.fromEntries(first))
+  })
+
+  test('interacting pairs end at least their chord gap apart (below saturation)', () => {
+    // A/B share a radius, C/D share another; the two clumps ignore each
+    // other, so the tight window is only tight per clump.
+    const out = relaxSlotAngles(
+      [node('a', 200), node('b', 200), node('c', 320), node('d', 320)],
+      3,
+      P,
+    )
+    const gapAB = Math.abs((out.get('a') ?? 0) - (out.get('b') ?? 0))
+    const gapCD = Math.abs((out.get('c') ?? 0) - (out.get('d') ?? 0))
+    expect(gapAB).toBeGreaterThanOrEqual(minAngularGapDeg(200, 200, P) - 0.05)
+    expect(gapCD).toBeGreaterThanOrEqual(minAngularGapDeg(320, 320, P) - 0.05)
+    for (const offset of out.values()) {
+      expect(Math.abs(offset)).toBeLessThanOrEqual(3 + 1e-9)
+    }
+  })
+
+  test('non-interacting nodes keep the even initial spread', () => {
+    const out = relaxSlotAngles([node('low', 150), node('high', 300)], 6, P)
+    const values = [...out.values()].sort((x, y) => x - y)
+    expect(values).toEqual([-6, 6])
+  })
+
+  test('saturation squeezes evenly: bounded, finite, roughly uniform', () => {
+    const nodes = Array.from({ length: 50 }, (_, i) => node(`n${i}`, 110))
+    const out = relaxSlotAngles(nodes, 7.5, P)
+    const angles = [...out.values()].sort((x, y) => x - y)
+    expect(angles).toHaveLength(50)
+    for (const a of angles) {
+      expect(Number.isFinite(a)).toBe(true)
+      expect(Math.abs(a)).toBeLessThanOrEqual(7.5 + 1e-9)
+    }
+    const gaps = angles.slice(1).map((a, i) => a - angles[i])
+    expect(Math.max(...gaps)).toBeLessThanOrEqual(1)
+    expect(Math.min(...gaps)).toBeGreaterThanOrEqual(0.05)
   })
 })
 

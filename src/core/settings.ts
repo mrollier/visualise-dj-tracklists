@@ -19,13 +19,15 @@ export interface AppSettings {
   /** Node colour scheme (per-theme ramps in scales.ts). */
   colorScheme: 'blue' | 'aqua' | 'violet'
   /**
-   * Angular fan-out of same-key tracks as a 0–1 factor of the half-slot
-   * window (±7.5°). Tracks are ordered within their slot by a stable
-   * per-track hash of jitterSeed (issue 16), so angles never move under
-   * filtering and survive reloads.
+   * Max angular fan-out of same-key tracks as a 0–1 factor of the half-slot
+   * window (±7.5°) — since v9 (issue 17) the hard bound of the deterministic
+   * slot relaxation, which replaced the seeded fan.
    */
   slotSpreadFactor: number
-  /** Seed for the per-track fan order; the ↻ re-jitter button redraws it. */
+  /**
+   * Dead since v9 (issues 1 + 17): placement is deterministic, so there is
+   * nothing to re-jitter. The field stays to spare a save migration.
+   */
   jitterSeed: number
   /** Base opacity of suggestion edges. */
   edgeOpacity: number
