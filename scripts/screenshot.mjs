@@ -70,6 +70,21 @@ await page.getByText('combo suggestions').waitFor()
 await page.waitForTimeout(900) // let the radial tween fully settle before probing
 await page.screenshot({ path: `${scratch}/02-wheel.png` })
 
+// v10 issue 4b: BPM/Year/Rating range filters are opt-in now (only Date-added
+// shows by default). Enable them via the advanced "Filters shown" checklist so
+// the filter-driven checks below have their controls.
+await page.getByRole('button', { name: /Advanced/ }).click()
+await page.locator('.panel details.section > summary', { hasText: 'Filters shown' }).click()
+{
+  const shown = page.locator('.panel details.section', { hasText: 'Filters shown' })
+  for (const name of ['BPM', 'Year', 'Rating']) {
+    await shown.getByRole('checkbox', { name, exact: true }).check()
+  }
+}
+// Re-fold so the fold-memory stays empty for the "first open" check below.
+await page.locator('.panel details.section > summary', { hasText: 'Filters shown' }).click()
+await page.keyboard.press('Escape')
+
 // genre-class shapes: the legend must carry shape chips for the collection
 if ((await page.locator('.shape-chip').count()) === 0) {
   errors.push('no genre-class shape chips in the legend')
@@ -365,12 +380,10 @@ if ((await page.locator('aside .head select option').count()) !== 2) {
 // subtle rings for tagged tracks; Set & suggestions lists it all read-only
 await page.getByRole('button', { name: 'Tracks', exact: true }).click()
 await page.locator('.tracks-view table').waitFor()
-if (
-  (await page
-    .locator('.tracks-view .tag[aria-label="Pin as closing track"][aria-pressed="true"]')
-    .count()) !== 1
-) {
-  errors.push('the 📌 closer pin is not reflected in the Tracks view')
+// v10 issue 13: one click-cycle star per row; the closer pinned from the set
+// row shows here as a single star in its ⏭ (closer) state.
+if ((await page.locator('.tracks-view .tag.star', { hasText: '⏭' }).count()) !== 1) {
+  errors.push('the 📌 closer pin is not reflected as a ⏭ star in the Tracks view')
 }
 // sorting: BPM ascending then descending, missing values at the bottom
 const bpmHeader = page.locator('.tracks-view th button', { hasText: 'BPM' })
@@ -404,7 +417,10 @@ if ((await page.locator('.tracks-view tbody tr.connected').count()) === 0) {
   errors.push('selecting a table row highlighted no connected tracks')
 }
 await page.locator('.tracks-view tbody tr').first().click() // deselect again
-// tag a row as opener (avoiding the already-pinned closer), one as essential
+// v10 issue 13: the single star cycles none → must → first → last → none.
+// Tag a row as opener (⏮) by cycling twice (none→must→first, first is free),
+// and another as essential (★) with one click.
+const starOf = (row) => row.locator('.tag.star')
 let openerRow = page.locator('.tracks-view tbody tr').first()
 // title sits in the 4th cell since the tags/pos cells lead (v9 issue 13)
 let openerTitle = await openerRow.locator('td:nth-child(4)').textContent()
@@ -412,18 +428,28 @@ if (openerTitle === lastTitle) {
   openerRow = page.locator('.tracks-view tbody tr').nth(2)
   openerTitle = await openerRow.locator('td:nth-child(4)').textContent()
 }
-await openerRow.locator('.tag[aria-label="Pin as opening track"]').click()
-// v8 issue 15: the pinned opener's ★ reads as on and disabled ("included")
-if (
-  (await openerRow.locator('.tag[aria-label="Mark essential"][aria-pressed="true"]').count()) !== 1
-) {
-  errors.push("pinning a row as opener did not light its ★ (it's included by construction)")
+await starOf(openerRow).click()
+await starOf(openerRow).click()
+if ((await starOf(openerRow).textContent())?.trim() !== '⏮') {
+  errors.push('cycling the star twice did not make the row the opener (⏮)')
 }
-await page
-  .locator('.tracks-view tbody tr')
-  .nth(1)
-  .locator('.tag[aria-label="Mark essential"]')
-  .click()
+// mark the first still-unmarked row essential (one click → ★)
+{
+  const rows = page.locator('.tracks-view tbody tr')
+  const total = Math.min(await rows.count(), 8)
+  let marked = false
+  for (let i = 0; i < total; i++) {
+    if ((await starOf(rows.nth(i)).textContent())?.trim() === '☆') {
+      await starOf(rows.nth(i)).click()
+      if ((await starOf(rows.nth(i)).textContent())?.trim() !== '★') {
+        errors.push('one click on an unmarked star did not mark it essential (★)')
+      }
+      marked = true
+      break
+    }
+  }
+  if (!marked) errors.push('found no unmarked row to mark essential')
+}
 // v8 issue 15 / v9 issue 14: the ＋ cell appends and turns into the set
 // position number; clicking the number takes the track out again
 {
@@ -735,10 +761,11 @@ if ((await page.locator('.shape-chip').count()) !== chipsAll) {
   errors.push('restoring the genres did not restore the legend classes')
 }
 
-// the genre method is a first-class pick in the combo panel (ISSUES.md #10)
-const methodValue = await page.locator('.criterion .method select').inputValue()
-if (methodValue !== 'hybrid') {
-  errors.push(`the criteria-panel method select should default to hybrid, got "${methodValue}"`)
+// v10 issue 2: the genre method is chosen in the advanced menu now; the combo
+// panel shows only a subtle note of the active method.
+const methodNote = await page.locator('.criterion .ratio-note', { hasText: 'method:' }).textContent()
+if (!methodNote || methodNote.trim() === 'method:') {
+  errors.push(`the criteria-panel method note is missing, got "${methodNote}"`)
 }
 
 // advanced menu (collapsible sections): hybrid explainer with sources,
@@ -758,15 +785,18 @@ if ((await page.locator('.panel .hint a').count()) === 0) {
 await page.getByText('Link each genre to its').waitFor() // top-k mode controls
 // the live pair count reacts to k (ISSUES.md v7 #12)
 const pairCountText = () => page.locator('.pair-count strong').textContent().then(Number)
-const kSlider = page.getByText('Link each genre to its').locator('input[type=range]')
-await kSlider.fill('15')
+// v10 issue 17: k is a 1–8 number stepper now, not a slider
+const kInput = page.getByText('Link each genre to its').locator('input[type=number]')
+await kInput.fill('8')
+await page.waitForTimeout(200)
 const pairsWide = await pairCountText()
-await kSlider.fill('1')
+await kInput.fill('1')
+await page.waitForTimeout(200)
 const pairsNarrow = await pairCountText()
 if (!(pairsNarrow < pairsWide)) {
-  errors.push(`k=1 should match fewer genre pairs than k=15 (${pairsNarrow} vs ${pairsWide})`)
+  errors.push(`k=1 should match fewer genre pairs than k=8 (${pairsNarrow} vs ${pairsWide})`)
 }
-await kSlider.fill('5')
+await kInput.fill('5')
 await page.getByRole('radio').nth(1).check() // switch to threshold mode…
 await page.getByText('Similarity ≥').waitFor()
 await page.getByRole('radio').first().check() // …and back to mutual top-k
@@ -879,16 +909,29 @@ const shapeFingerprint = () =>
       .map((p) => p.getAttribute('d'))
       .join('|'),
   )
+const ensureSectionOpen = async (name) => {
+  const details = page.locator('.panel details.section', { hasText: name }).first()
+  if (!(await details.evaluate((d) => d.open))) {
+    await page.locator('.panel details.section > summary', { hasText: name }).click()
+  }
+}
 const shapesHybrid = await shapeFingerprint()
-await page.locator('.criterion .method select').selectOption('graph')
+// v10 issue 2: the genre method lives in the advanced menu now. Changing it
+// must NOT reshuffle the wheel's node shapes (v8 issue 4).
+await page.getByRole('button', { name: /Advanced/ }).click()
+await ensureSectionOpen('Genre matching')
+const advMethodSelect = page
+  .locator('.panel details.section', { hasText: 'Genre matching' })
+  .locator('select')
+  .first()
+await advMethodSelect.selectOption('graph')
 await page.waitForTimeout(500)
 if ((await shapeFingerprint()) !== shapesHybrid) {
   errors.push('changing the genre method still reshuffles node shapes (v8 issue 4)')
 }
-await page.locator('.criterion .method select').selectOption('hybrid')
+await advMethodSelect.selectOption('hybrid')
 await page.waitForTimeout(300)
-await page.getByRole('button', { name: /Advanced/ }).click()
-await page.locator('.panel details.section > summary', { hasText: 'Display' }).click()
+await ensureSectionOpen('Display')
 await page
   .locator('.panel label', { hasText: 'Node icons' })
   .locator('select')
@@ -1042,6 +1085,8 @@ if ((await page.locator('g.hub.disabled').count()) !== 1) {
   errors.push('the hub did not disable once every visible track was in the set')
 }
 await page.locator('aside').last().getByRole('button', { name: 'Clear' }).click()
+// v10: Clear now asks to confirm
+await page.getByRole('button', { name: 'Clear set' }).click()
 await page.waitForTimeout(150)
 // the genre checklist follows the playlist selection (ISSUES.md v7 #14):
 // Warm-up & After holds only a Melodic House track (plus one without genre),
