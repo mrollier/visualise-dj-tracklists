@@ -1,12 +1,22 @@
 <script lang="ts">
-  import { METHOD_LABEL, METHOD_PICK_ORDER } from '../core/genre'
+  import { METHOD_LABEL } from '../core/genre'
   import FiltersSection from './FiltersSection.svelte'
   import GenresSection from './GenresSection.svelte'
+  import InfoTooltip from './InfoTooltip.svelte'
   import PlaylistsSection from './PlaylistsSection.svelte'
+  import RatingBoxes from './RatingBoxes.svelte'
   import { criteria, edges, library, visibleLibrary } from '../stores'
 
   const enabledCount = $derived(
     [$criteria.key, $criteria.bpm, $criteria.genre, $criteria.year].filter((c) => c.enabled).length,
+  )
+
+  const keyMoves = $derived(
+    [
+      $criteria.key.plusTwo ? '+2' : null,
+      $criteria.key.plusSeven ? '+7' : null,
+      $criteria.key.vinylMode ? 'vinyl' : null,
+    ].filter((m) => m !== null),
   )
 
   // Keep the threshold valid when criteria get disabled.
@@ -48,20 +58,19 @@
         Key <span class="hint">adjacent on the wheel</span>
       </label>
       <!-- The minor/major ring switch moved to the Filters section (v9
-           issue 6) — it always was a visibility filter, not a criterion. -->
+           issue 6) — it always was a visibility filter, not a criterion.
+           The advanced key moves are surfaced here as a subtle note (v10
+           issue 2), like the BPM ratios below. -->
+      {#if keyMoves.length > 0}
+        <p class="sub-option ratio-note">moves: {keyMoves.join(' · ')}</p>
+      {/if}
     </div>
 
     <div class="criterion">
       <label>
         <input type="checkbox" bind:checked={$criteria.bpm.enabled} />
         BPM within
-        <input
-          type="number"
-          min="0"
-          max="50"
-          bind:value={$criteria.bpm.maxPercent}
-          disabled={!$criteria.bpm.enabled}
-        /> %
+        <input type="number" min="0" max="50" bind:value={$criteria.bpm.maxPercent} /> %
       </label>
       <!-- The metric-ratio toggles live in advanced → Key & BPM; surface
            their effect here so a bare "8%" is never silently misleading. -->
@@ -94,50 +103,37 @@
           {/if}
         </span>
       </label>
-      <!-- The method itself is a first-class choice; its parameters
-           (mode/k/threshold) and the sourced explainers stay in the
-           advanced menu — here only a subtle "recommended" marker. -->
-      <label class="sub-option method">
-        <select bind:value={$criteria.genre.method} disabled={!$criteria.genre.enabled}>
-          {#each METHOD_PICK_ORDER as method (method)}
-            <option value={method}>
-              {METHOD_LABEL[method]}{method === 'hybrid' ? ' — recommended' : ''}
-            </option>
-          {/each}
-        </select>
-      </label>
+      <!-- The method + its parameters (mode/k/threshold) and the sourced
+           explainers live in the advanced menu now (v10 issue 2); here only
+           a subtle note of which method is active. -->
+      <p class="sub-option ratio-note">method: {METHOD_LABEL[$criteria.genre.method]}</p>
     </div>
 
     <div class="criterion">
       <label>
         <input type="checkbox" bind:checked={$criteria.year.enabled} />
         Year within
-        <input
-          type="number"
-          min="0"
-          max="50"
-          bind:value={$criteria.year.maxYears}
-          disabled={!$criteria.year.enabled}
-        /> years
+        <input type="number" min="0" max="50" bind:value={$criteria.year.maxYears} /> years
       </label>
     </div>
 
     <div class="criterion threshold">
-      <label for="threshold">
-        Require <strong>{Math.min($criteria.threshold, enabledCount)}</strong> of
-        <strong>{enabledCount}</strong> to match
-      </label>
-      <input
-        id="threshold"
-        type="range"
-        min="1"
+      <div class="threshold-head">
+        <span>
+          Require <strong>{Math.min($criteria.threshold, enabledCount)}</strong> of
+          <strong>{enabledCount}</strong> to match
+        </span>
+        <InfoTooltip label="How matching counts">
+          Missing data never blocks a combo: for each pair, only criteria known on both sides count
+          towards the bar.
+        </InfoTooltip>
+      </div>
+      <RatingBoxes
+        value={Math.min($criteria.threshold, Math.max(enabledCount, 1))}
         max={Math.max(enabledCount, 1)}
-        bind:value={$criteria.threshold}
+        onchange={(v) => criteria.update((c) => ({ ...c, threshold: v }))}
+        label="Required matches"
       />
-      <p class="hint">
-        Missing data never blocks a combo: for each pair, only criteria known on both sides count
-        towards the bar.
-      </p>
     </div>
   </details>
 </aside>
@@ -207,19 +203,9 @@
     color: var(--walk-bright);
   }
 
-  .criterion .method select {
-    width: 100%;
-    font-size: 12px;
-  }
-
   input[type='number'] {
     width: 58px;
     padding: 2px 6px;
-  }
-
-  input[type='range'] {
-    width: 100%;
-    padding: 0;
   }
 
   .hint {
@@ -227,7 +213,14 @@
     font-size: 12px;
   }
 
-  .threshold p {
-    margin: 6px 0 0;
+  .threshold-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .threshold-head span {
+    flex: 1;
   }
 </style>

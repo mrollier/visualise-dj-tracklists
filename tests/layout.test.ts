@@ -57,10 +57,12 @@ describe('relaxSlotAngles (issue 17)', () => {
 
   test('interacting pairs end at least their chord gap apart (below saturation)', () => {
     // A/B share a radius, C/D share another; the two clumps ignore each
-    // other, so the tight window is only tight per clump.
+    // other. The window is roomy enough that full chord gaps and a centred
+    // cloud (v10 issue 5) both hold; in a tighter window centring wins and
+    // gaps compress gracefully.
     const out = relaxSlotAngles(
       [node('a', 200), node('b', 200), node('c', 320), node('d', 320)],
-      3,
+      6,
       P,
     )
     const gapAB = Math.abs((out.get('a') ?? 0) - (out.get('b') ?? 0))
@@ -68,7 +70,7 @@ describe('relaxSlotAngles (issue 17)', () => {
     expect(gapAB).toBeGreaterThanOrEqual(minAngularGapDeg(200, 200, P) - 0.05)
     expect(gapCD).toBeGreaterThanOrEqual(minAngularGapDeg(320, 320, P) - 0.05)
     for (const offset of out.values()) {
-      expect(Math.abs(offset)).toBeLessThanOrEqual(3 + 1e-9)
+      expect(Math.abs(offset)).toBeLessThanOrEqual(6 + 1e-9)
     }
   })
 
@@ -76,6 +78,24 @@ describe('relaxSlotAngles (issue 17)', () => {
     const out = relaxSlotAngles([node('low', 150), node('high', 300)], 6, P)
     const values = [...out.values()].sort((x, y) => x - y)
     expect(values).toEqual([-6, 6])
+  })
+
+  const mean = (out: Map<string, number>): number =>
+    [...out.values()].reduce((a, b) => a + b, 0) / out.size
+
+  test('the cloud stays centred on the slot line (mean offset ≈ 0)', () => {
+    // A dense, asymmetric slot: mixed radii that interact and saturate the
+    // window. The weight of the key must sit on its angle, not drift off it.
+    const nodes = [
+      ...Array.from({ length: 20 }, (_, i) => node(`lo${i}`, 120)),
+      ...Array.from({ length: 12 }, (_, i) => node(`hi${i}`, 122)),
+    ]
+    expect(Math.abs(mean(relaxSlotAngles(nodes, 4, P)))).toBeLessThan(0.02)
+  })
+
+  test('saturation stays centred (mean offset ≈ 0)', () => {
+    const nodes = Array.from({ length: 50 }, (_, i) => node(`n${i}`, 110))
+    expect(Math.abs(mean(relaxSlotAngles(nodes, 7.5, P)))).toBeLessThan(0.02)
   })
 
   test('saturation squeezes evenly: bounded, finite, roughly uniform', () => {

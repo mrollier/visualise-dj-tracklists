@@ -3,16 +3,24 @@
   // §C). Since v9 (issue 19) it docks under the right panel — the bottom
   // right of the whole app — instead of floating on the wheel, where it
   // crowded the legend and zoom controls.
-  import { mustInclude, selectedId, trackById } from '../stores'
+  import { mustInclude, pinnedFirst, pinnedLast, selectedId, trackById } from '../stores'
+  import type { Writable } from 'svelte/store'
 
   const selectedTrack = $derived(
     $selectedId === null ? null : ($trackById.get($selectedId) ?? null),
   )
   const isMustIncluded = $derived($selectedId !== null && $mustInclude.includes($selectedId))
+  const isFirst = $derived($selectedId !== null && $pinnedFirst === $selectedId)
+  const isLast = $derived($selectedId !== null && $pinnedLast === $selectedId)
   function toggleMustInclude() {
     const id = $selectedId
     if (id === null) return
     mustInclude.update((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]))
+  }
+  function togglePin(store: Writable<string | null>) {
+    const id = $selectedId
+    if (id === null) return
+    store.update((cur) => (cur === id ? null : id))
   }
 </script>
 
@@ -37,6 +45,26 @@
     >
       {isMustIncluded ? '★ in suggested sets' : '☆ must include in suggested sets'}
     </button>
+    <div class="pins">
+      <button
+        class="pin-toggle"
+        class:on={isFirst}
+        aria-pressed={isFirst}
+        title="Open suggested sets with this track"
+        onclick={() => togglePin(pinnedFirst)}
+      >
+        ⏮ open
+      </button>
+      <button
+        class="pin-toggle"
+        class:on={isLast}
+        aria-pressed={isLast}
+        title="Close suggested sets with this track"
+        onclick={() => togglePin(pinnedLast)}
+      >
+        close ⏭
+      </button>
+    </div>
   </div>
 {/if}
 
@@ -82,6 +110,23 @@
   }
 
   .must-toggle.on {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .pins {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+  }
+
+  .pin-toggle {
+    flex: 1;
+    font-size: 11px;
+    color: var(--ink-secondary);
+  }
+
+  .pin-toggle.on {
     color: var(--accent);
     border-color: var(--accent);
   }

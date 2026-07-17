@@ -94,18 +94,22 @@ export function relaxSlotAngles(
     const gap = Math.min(minAngularGapDeg(order[prev].r, order[cur].r, nodeRadius), uniformShare)
     if (angles[cur] - angles[prev] < gap) angles[cur] = angles[prev] + gap
   }
-  const first = angles[sorted[0]]
-  const last = angles[sorted[n - 1]]
-  if (last > halfSpreadDeg) {
-    const span = last - first
-    if (span > 2 * halfSpreadDeg) {
-      // Larger-than-required gaps survived the sweep and pushed the span past
-      // the window: compress linearly (order and relative spacing preserved).
-      const scale = (2 * halfSpreadDeg) / span
-      for (let k = 0; k < n; k++) angles[k] = -halfSpreadDeg + (angles[k] - first) * scale
-    } else {
-      for (let k = 0; k < n; k++) angles[k] -= last - halfSpreadDeg
-    }
+  // Re-centre on the slot line (v10 issue 5): the one-directional sweep above
+  // biases the cloud's centroid off 0, so a key's weight drifts off its angle.
+  // Subtract the mean to pin the centroid to 0, then — if the span overflows
+  // the window — scale about the origin, which keeps the centroid at 0 while
+  // fitting the bounds (graceful saturation, order and spacing preserved).
+  let sum = 0
+  for (let k = 0; k < n; k++) sum += angles[k]
+  const meanAngle = sum / n
+  let maxAbs = 0
+  for (let k = 0; k < n; k++) {
+    angles[k] -= meanAngle
+    maxAbs = Math.max(maxAbs, Math.abs(angles[k]))
+  }
+  if (maxAbs > halfSpreadDeg) {
+    const scale = halfSpreadDeg / maxAbs
+    for (let k = 0; k < n; k++) angles[k] *= scale
   }
   order.forEach(({ id }, k) => out.set(id, angles[k]))
   return out

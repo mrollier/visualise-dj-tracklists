@@ -180,7 +180,9 @@
       bySlot.get(track.key)!.push(track)
     }
     const targetScale = scaleLinear().domain(targetDomain).range([R_MIN, R_MAX]).clamp(true)
-    const half = 7.5 * $settings.slotSpreadFactor
+    // Cap the fan-out at ±4° (v10 issue 5), not the wedge's full ±7.5°: nodes
+    // then stay well inside their key sector and never brush the next key.
+    const half = 4 * $settings.slotSpreadFactor
     for (const [key, group] of bySlot) {
       const offsets = relaxSlotAngles(
         group.map((track) => {
@@ -898,7 +900,9 @@
   .sector {
     fill: var(--sector-minor);
     stroke: none;
-    transition: opacity 0.5s ease;
+    /* Match the 600ms radial tween (cubic-out) so the wedge settles WITH the
+       nodes, not ~100ms early — that early settle read as a flash (v10 #7). */
+    transition: opacity 0.6s cubic-bezier(0.33, 1, 0.68, 1);
   }
 
   .sector.major {
@@ -910,7 +914,7 @@
   }
 
   .key-label {
-    transition: opacity 0.5s ease;
+    transition: opacity 0.6s cubic-bezier(0.33, 1, 0.68, 1);
   }
 
   .key-label.excluded {
