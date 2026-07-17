@@ -7,6 +7,7 @@ import {
   nextSetName,
   ordinalSetName,
   removeAllOccurrences,
+  uniqueSetName,
 } from '../src/core/sets'
 
 describe('the set cap (v8 issue 18)', () => {
@@ -39,9 +40,25 @@ describe('nextSetName', () => {
     expect(nextSetName(['First Set', 'Second Set'])).toBe('Third Set')
   })
 
-  test('skips arbitrary taken ordinals and ignores custom names', () => {
-    expect(nextSetName(['Second Set', 'peak time bangers'])).toBe('First Set')
-    expect(nextSetName(['First Set', 'Third Set'])).toBe('Second Set')
+  test('counts the EXISTING sets, custom names included (v9 issue 18)', () => {
+    // The reported bug: two renamed sets, add a third → it said "First Set".
+    expect(nextSetName(['warm-up', 'peak time bangers'])).toBe('Third Set')
+    expect(nextSetName(['Second Set', 'peak time bangers'])).toBe('Third Set')
+  })
+
+  test('scans past taken ordinals beyond the count', () => {
+    expect(nextSetName(['First Set', 'Third Set'])).toBe('Fourth Set')
+  })
+})
+
+describe('uniqueSetName (v9 issue 18)', () => {
+  test('a free name passes through untouched', () => {
+    expect(uniqueSetName('Peak time', ['First Set'])).toBe('Peak time')
+  })
+
+  test('clashes get a file-manager suffix, counting past taken ones', () => {
+    expect(uniqueSetName('Peak time', ['Peak time'])).toBe('Peak time (2)')
+    expect(uniqueSetName('Peak time', ['Peak time', 'Peak time (2)'])).toBe('Peak time (3)')
   })
 })
 

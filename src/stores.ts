@@ -15,7 +15,7 @@ import {
 import { computeGenreClasses } from './core/genreClasses'
 import { genreFamilyClasses, playlistClasses } from './core/iconClasses'
 import type { ImportReport, Playlist, Track } from './core/model'
-import { canAddSet, freshFirstSet, nextSetName, type TrackSet } from './core/sets'
+import { canAddSet, freshFirstSet, nextSetName, uniqueSetName, type TrackSet } from './core/sets'
 import { DEFAULT_SETTINGS, type AppSettings } from './core/settings'
 import type { TrackSort } from './core/trackSort'
 
@@ -114,18 +114,19 @@ export function addSet(): void {
   activeSetId.set(set.id)
 }
 
-/** ◀/▶: activate the previous or next set in the list (v8 issue 18). */
-export function activateAdjacentSet(dir: 1 | -1): void {
-  const $sets = get(sets)
-  const index = $sets.findIndex((s) => s.id === get(activeSetId))
-  const next = $sets[index + dir]
-  if (next !== undefined) activeSetId.set(next.id)
-}
-
+/**
+ * Rename a set; a name another set already holds gains a " (2)" suffix
+ * (v9 issue 18) — names key nothing internally, but an ambiguous dropdown
+ * helps no one.
+ */
 export function renameSet(id: string, name: string): void {
   const trimmed = name.trim()
   if (trimmed === '') return
-  sets.update(($sets) => $sets.map((s) => (s.id === id ? { ...s, name: trimmed } : s)))
+  const taken = get(sets)
+    .filter((s) => s.id !== id)
+    .map((s) => s.name)
+  const unique = uniqueSetName(trimmed, taken)
+  sets.update(($sets) => $sets.map((s) => (s.id === id ? { ...s, name: unique } : s)))
 }
 
 /**

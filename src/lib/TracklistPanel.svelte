@@ -7,7 +7,6 @@
   import { promptExportName } from './exportName'
   import { canAddSet, MAX_SETS } from '../core/sets'
   import {
-    activateAdjacentSet,
     activeSet,
     activeSetId,
     addSet,
@@ -72,8 +71,8 @@
 
   const exportBase = $derived(($libraryName || 'tracklist').replace(/\.[a-z0-9]+$/i, ''))
 
-  // The sets ARE the suggestion browser (v8 issue 18): ◀/▶ and the dropdown
-  // navigate the (≤ 8) named sets. ✨ regenerates IN PLACE while the active
+  // The sets ARE the suggestion browser (v8 issue 18): the dropdown
+  // navigates the (≤ 8) named sets. ✨ regenerates IN PLACE while the active
   // set is untouched generator output or empty — successive presses are one
   // Cmd+Z apart, which replaces the old ◀-history — and otherwise starts a
   // NEW set so a hand-edited one is never overwritten. Generator writes go
@@ -147,16 +146,10 @@
         }}
       />
     {:else}
-      {@const activeIndex = $sets.findIndex((s) => s.id === $activeSetId)}
-      <button
-        class="nav"
-        title="Previous set"
-        aria-label="Previous set"
-        onclick={() => activateAdjacentSet(-1)}
-        disabled={activeIndex <= 0}>◀</button
-      >
+      <!-- v9 issue 18: the ◀/▶ arrows are gone (the dropdown covers set
+           switching) — the name gets the room and a bigger face instead. -->
       <select
-        class="set-switch micro-label"
+        class="set-switch"
         aria-label="Active set"
         value={$activeSetId}
         onchange={(e) => activeSetId.set(e.currentTarget.value)}
@@ -165,13 +158,6 @@
           <option value={s.id}>{s.name}</option>
         {/each}
       </select>
-      <button
-        class="nav"
-        title="Next set"
-        aria-label="Next set"
-        onclick={() => activateAdjacentSet(1)}
-        disabled={activeIndex >= $sets.length - 1}>▶</button
-      >
       {#if $activeSet.generated}
         <span class="badge" title="Untouched generated set">✨</span>
       {/if}
@@ -301,7 +287,11 @@
     border: none;
     background: none;
     padding: 2px 0;
-    max-width: 130px;
+    flex: 1;
+    min-width: 0;
+    max-width: 190px;
+    font-size: 14px;
+    font-weight: 600;
     text-overflow: ellipsis;
     cursor: pointer;
   }
@@ -355,22 +345,6 @@
 
   .suggest-row .primary {
     flex: 1;
-  }
-
-  .head .nav {
-    padding: 1px 5px;
-    font-size: 10px;
-    background: none;
-    border: none;
-    color: var(--ink-muted);
-  }
-
-  .head .nav:not(:disabled):hover {
-    color: var(--ink);
-  }
-
-  .head .nav:disabled {
-    opacity: 0.3;
   }
 
   .hint {

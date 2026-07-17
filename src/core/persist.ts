@@ -3,7 +3,14 @@ import { DEFAULT_CRITERIA, type CriteriaConfig } from './combos'
 import { EMPTY_FILTERS, type LibraryFilters } from './filter'
 import { normalizeKey } from './keys'
 import type { Playlist, Track } from './model'
-import { freshFirstSet, MAX_SETS, newSetId, ordinalSetName, type TrackSet } from './sets'
+import {
+  freshFirstSet,
+  MAX_SETS,
+  newSetId,
+  ordinalSetName,
+  uniqueSetName,
+  type TrackSet,
+} from './sets'
 import { DEFAULT_SETTINGS, type AppSettings } from './settings'
 
 /**
@@ -164,6 +171,14 @@ export function parseProject(json: string): Project {
   // The sets are the suggestion browser (v8 issue 18): a hand-edited save
   // with more than the cap keeps its first MAX_SETS entries.
   sets = sets.slice(0, MAX_SETS)
+  // v9 (issue 18): saves that already carry duplicate names get the same
+  // auto-suffix a rename would.
+  const seenNames: string[] = []
+  sets = sets.map((s) => {
+    const name = uniqueSetName(s.name, seenNames)
+    seenNames.push(name)
+    return name === s.name ? s : { ...s, name }
+  })
   const activeSetId =
     typeof p.activeSetId === 'string' && sets.some((s) => s.id === p.activeSetId)
       ? p.activeSetId

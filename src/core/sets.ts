@@ -30,12 +30,30 @@ export function ordinalSetName(index: number): string {
   return index < ORDINALS.length ? `${ORDINALS[index]} Set` : `Set ${index + 1}`
 }
 
-/** The lowest ordinal name not yet taken (custom names don't block any). */
+/**
+ * The default name for a NEW set: count the existing sets — renamed ones
+ * included — so two custom-named sets are followed by "Third Set", not
+ * "First Set" again (v9 issue 18), scanning past any taken ordinals.
+ */
 export function nextSetName(existing: readonly string[]): string {
   const taken = new Set(existing)
-  for (let i = 0; ; i++) {
+  for (let i = existing.length; ; i++) {
     const name = ordinalSetName(i)
     if (!taken.has(name)) return name
+  }
+}
+
+/**
+ * Force a unique set name, file-manager style (v9 issue 18): a clash gains
+ * " (2)", " (3)", … — applied on rename, on create, and when loading saves
+ * that already carry duplicates.
+ */
+export function uniqueSetName(name: string, taken: readonly string[]): string {
+  const names = new Set(taken)
+  if (!names.has(name)) return name
+  for (let n = 2; ; n++) {
+    const candidate = `${name} (${n})`
+    if (!names.has(candidate)) return candidate
   }
 }
 

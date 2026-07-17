@@ -94,6 +94,20 @@ describe('project persistence (v3)', () => {
     expect('tracklist' in parsed).toBe(false)
   })
 
+  test('duplicate set names in a save are auto-suffixed on load (v9 issue 18)', () => {
+    const withDupes = {
+      ...project,
+      sets: [
+        { id: 's1', name: 'Peak', trackIds: [], generated: false },
+        { id: 's2', name: 'Peak', trackIds: [], generated: false },
+        { id: 's3', name: 'Peak', trackIds: [], generated: false },
+      ],
+      activeSetId: 's1',
+    }
+    const parsed = parseProject(serializeProject(withDupes))
+    expect(parsed.sets.map((s) => s.name)).toEqual(['Peak', 'Peak (2)', 'Peak (3)'])
+  })
+
   test('a missing or unknown activeSetId falls back to the first set', () => {
     const bad = JSON.parse(serializeProject(project)) as Record<string, unknown>
     bad.activeSetId = 'no-such-set'
