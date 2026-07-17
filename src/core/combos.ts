@@ -267,6 +267,51 @@ export function focusEdges(
   )
 }
 
+/**
+ * The combo graph as the stores consume it (v11 issue 2a). At threshold 0
+ * every pair is a combo — a complete graph that must NOT be materialized
+ * (a real library would allocate n²/2 edge objects), so it is reported
+ * symbolically: `complete: true`, no edges, an arithmetic pair count. Note
+ * the symbolic graph includes pairs with no shared metadata, which
+ * evaluateCombo would exclude — at "require 0" nothing is required.
+ */
+export interface ComboView {
+  edges: ComboEdge[]
+  complete: boolean
+  pairCount: number
+}
+
+export function computeComboView(tracks: Track[], config: CriteriaConfig): ComboView {
+  if (config.threshold === 0) {
+    const n = tracks.length
+    return { edges: [], complete: true, pairCount: n < 2 ? 0 : (n * (n - 1)) / 2 }
+  }
+  const edges = computeEdges(tracks, config)
+  return { edges, complete: false, pairCount: edges.length }
+}
+
+/**
+ * Flip one criterion on/off, keeping the N-of-M threshold honest (v11 issue
+ * 2b): enabling while the threshold demanded ALL enabled criteria keeps
+ * demanding all (2-of-2 becomes 3-of-3); a partial or deliberate zero
+ * requirement is left alone; disabling clamps to the remaining count.
+ */
+export function toggleCriterion(
+  config: CriteriaConfig,
+  field: CriterionField,
+  enabled: boolean,
+): CriteriaConfig {
+  const enabledCount = (cfg: CriteriaConfig): number =>
+    [cfg.key, cfg.bpm, cfg.genre, cfg.year].filter((c) => c.enabled).length
+  const before = enabledCount(config)
+  const next: CriteriaConfig = { ...config, [field]: { ...config[field], enabled } }
+  const after = enabledCount(next)
+  let threshold = config.threshold
+  if (enabled && !config[field].enabled && before > 0 && threshold === before) threshold = after
+  if (after > 0 && threshold > after) threshold = after
+  return { ...next, threshold }
+}
+
 /** All undirected combo edges for a track set, each pair reported once. */
 export function computeEdges(tracks: Track[], config: CriteriaConfig): ComboEdge[] {
   const genreMatch = makeGenreMatcher(

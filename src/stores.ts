@@ -1,6 +1,6 @@
 import { derived, get, writable, type Writable } from 'svelte/store'
 import {
-  computeEdges,
+  computeComboView,
   focusEdges as computeFocusEdges,
   DEFAULT_CRITERIA,
   makeGenreMatcher,
@@ -206,20 +206,38 @@ export const scopedGenres = derived(playlistScopedLibrary, ($scoped) => {
   return [...seen.values()].sort((a, b) => a.localeCompare(b))
 })
 
-export const edges = derived([visibleLibrary, criteria], ([$visibleLibrary, $criteria]) =>
-  computeEdges($visibleLibrary, $criteria),
+/**
+ * The combo graph, possibly symbolic: at threshold 0 every pair is a combo
+ * and the edge list stays empty (v11 issue 2a) — consumers read `complete`
+ * and `pairCount` instead of materializing n²/2 edges.
+ */
+export const comboView = derived([visibleLibrary, criteria], ([$visibleLibrary, $criteria]) =>
+  computeComboView($visibleLibrary, $criteria),
 )
+
+export const edges = derived(comboView, ($comboView) => $comboView.edges)
+export const comboComplete = derived(comboView, ($comboView) => $comboView.complete)
+export const comboPairCount = derived(comboView, ($comboView) => $comboView.pairCount)
 
 /**
  * The combo edges the wheel actually draws (v9 issue 8): the star around the
  * selected track, plus the cluster's interconnections when the setting asks.
  * No selection = no edges; the full `edges` set above keeps feeding
- * suggestions, retry and adjacency.
+ * suggestions, retry and adjacency. On a complete graph (threshold 0) the
+ * star is synthesized around the selection — the cluster option is ignored
+ * there, since "the cluster" would be every pair on the wheel.
  */
 export const focusEdges = derived(
-  [edges, selectedId, settings],
-  ([$edges, $selectedId, $settings]) =>
-    computeFocusEdges($edges, $selectedId, $settings.focusClusterEdges),
+  [edges, selectedId, settings, comboComplete, visibleLibrary],
+  ([$edges, $selectedId, $settings, $comboComplete, $visibleLibrary]) => {
+    if ($comboComplete) {
+      if ($selectedId === null) return []
+      return $visibleLibrary
+        .filter((t) => t.id !== $selectedId)
+        .map((t) => ({ sourceId: $selectedId, targetId: t.id, matched: [] }))
+    }
+    return computeFocusEdges($edges, $selectedId, $settings.focusClusterEdges)
+  },
 )
 
 /** Library-wide genre matcher, so pairwise UI (set transitions) agrees with the wheel's edges. */

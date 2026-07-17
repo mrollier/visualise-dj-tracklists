@@ -1,11 +1,12 @@
 <script lang="ts">
+  import { toggleCriterion, type CriterionField } from '../core/combos'
   import { METHOD_LABEL } from '../core/genre'
   import FiltersSection from './FiltersSection.svelte'
   import GenresSection from './GenresSection.svelte'
   import InfoTooltip from './InfoTooltip.svelte'
   import PlaylistsSection from './PlaylistsSection.svelte'
   import RatingBoxes from './RatingBoxes.svelte'
-  import { criteria, edges, library, visibleLibrary } from '../stores'
+  import { comboPairCount, criteria, library, visibleLibrary } from '../stores'
 
   const enabledCount = $derived(
     [$criteria.key, $criteria.bpm, $criteria.genre, $criteria.year].filter((c) => c.enabled).length,
@@ -19,7 +20,15 @@
     ].filter((m) => m !== null),
   )
 
-  // Keep the threshold valid when criteria get disabled.
+  // Enabling/disabling goes through toggleCriterion (v11 issue 2b): enabling
+  // while "require all" was set keeps requiring all; disabling clamps.
+  function setEnabled(field: CriterionField, event: Event): void {
+    const checked = event.currentTarget instanceof HTMLInputElement && event.currentTarget.checked
+    criteria.update((c) => toggleCriterion(c, field, checked))
+  }
+
+  // Keep the threshold valid when criteria get disabled elsewhere (e.g. a
+  // loaded project); a deliberate 0 stays 0.
   $effect(() => {
     if ($criteria.threshold > enabledCount && enabledCount > 0) {
       criteria.update((c) => ({ ...c, threshold: enabledCount }))
@@ -41,7 +50,7 @@
       <span class="label">tracks</span>
     </div>
     <div class="stat">
-      <span class="value">{$edges.length}</span>
+      <span class="value">{$comboPairCount}</span>
       <span class="label">combo suggestions</span>
     </div>
   </div>
@@ -57,7 +66,11 @@
 
     <div class="criterion">
       <label>
-        <input type="checkbox" bind:checked={$criteria.key.enabled} />
+        <input
+          type="checkbox"
+          checked={$criteria.key.enabled}
+          onchange={(e) => setEnabled('key', e)}
+        />
         Key <span class="hint">adjacent on the wheel</span>
       </label>
       <!-- The minor/major ring switch moved to the Filters section (v9
@@ -71,7 +84,11 @@
 
     <div class="criterion">
       <label>
-        <input type="checkbox" bind:checked={$criteria.bpm.enabled} />
+        <input
+          type="checkbox"
+          checked={$criteria.bpm.enabled}
+          onchange={(e) => setEnabled('bpm', e)}
+        />
         BPM within
         <input type="number" min="0" max="50" bind:value={$criteria.bpm.maxPercent} /> %
       </label>
@@ -94,7 +111,11 @@
 
     <div class="criterion">
       <label>
-        <input type="checkbox" bind:checked={$criteria.genre.enabled} />
+        <input
+          type="checkbox"
+          checked={$criteria.genre.enabled}
+          onchange={(e) => setEnabled('genre', e)}
+        />
         Genre
         <span class="hint">
           {#if $criteria.genre.method === 'exact'}
@@ -114,7 +135,11 @@
 
     <div class="criterion">
       <label>
-        <input type="checkbox" bind:checked={$criteria.year.enabled} />
+        <input
+          type="checkbox"
+          checked={$criteria.year.enabled}
+          onchange={(e) => setEnabled('year', e)}
+        />
         Year within
         <input type="number" min="0" max="50" bind:value={$criteria.year.maxYears} /> years
       </label>

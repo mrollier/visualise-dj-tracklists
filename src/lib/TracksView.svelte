@@ -14,6 +14,7 @@
   import { sortTracks, type TrackSortField } from '../core/trackSort'
   import {
     appendToSet,
+    comboComplete,
     hoveredId,
     mustInclude,
     neighbours,
@@ -70,7 +71,14 @@
     return out
   })
   const rows = $derived(inSetOnly ? inSetRows : sorted.slice(0, MAX_ROWS))
-  const connectedIds = $derived($selectedId === null ? null : $neighbours.get($selectedId))
+  const connectedIds = $derived.by(() => {
+    if ($selectedId === null) return null
+    // Threshold 0 (v11 issue 2a): complete graph, every other row connects.
+    if ($comboComplete) {
+      return new Set($visibleLibrary.filter((t) => t.id !== $selectedId).map((t) => t.id))
+    }
+    return $neighbours.get($selectedId)
+  })
   const mustSet = $derived(new Set($mustInclude))
 
   function selectRow(id: string) {

@@ -1,11 +1,13 @@
 import { describe, expect, test } from 'vitest'
 import {
+  computeComboView,
   computeEdges,
   DEFAULT_CRITERIA,
   focusEdges,
   evaluateCombo,
   makeGenreMatcher,
   matchedGenrePairs,
+  toggleCriterion,
 } from '../src/core/combos'
 import type { ComboEdge, CriteriaConfig } from '../src/core/combos'
 import { EMPTY_TRACK_FIELDS, type Track } from '../src/core/model'
@@ -415,6 +417,85 @@ describe('threshold logic', () => {
       expect(count).toBeLessThanOrEqual(previous)
       previous = count
     }
+  })
+})
+
+describe('computeComboView (v11 issue 2a: threshold 0 goes symbolic)', () => {
+  const tracks = [
+    track({ id: 'a' }),
+    track({ id: 'b', key: '3B', bpm: 174, genre: 'DnB', year: 1998 }),
+    track({ id: 'c', bpm: 126 }),
+    track({ id: 'd', key: null, bpm: null, genre: null, year: null }),
+  ]
+
+  test('threshold ≥ 1 materializes edges as before', () => {
+    const view = computeComboView(tracks, config({ threshold: 3 }))
+    expect(view.complete).toBe(false)
+    expect(view.edges).toEqual(computeEdges(tracks, config({ threshold: 3 })))
+    expect(view.pairCount).toBe(view.edges.length)
+  })
+
+  test('threshold 0 reports the complete graph without materializing it', () => {
+    const view = computeComboView(tracks, config({ threshold: 0 }))
+    expect(view.complete).toBe(true)
+    expect(view.edges).toEqual([])
+    expect(view.pairCount).toBe((4 * 3) / 2) // every pair, metadata or not
+  })
+
+  test('an empty library is complete-with-zero-pairs at threshold 0', () => {
+    const view = computeComboView([], config({ threshold: 0 }))
+    expect(view.pairCount).toBe(0)
+    expect(view.edges).toEqual([])
+  })
+})
+
+describe('toggleCriterion (v11 issue 2b: enabling keeps "require all")', () => {
+  test('enabling a criterion bumps a require-all threshold', () => {
+    // key + bpm enabled, require 2 of 2 → enabling year reads 3 of 3.
+    const cfg = config({
+      genre: { ...DEFAULT_CRITERIA.genre, enabled: false },
+      year: { ...DEFAULT_CRITERIA.year, enabled: false },
+      threshold: 2,
+    })
+    const next = toggleCriterion(cfg, 'year', true)
+    expect(next.year.enabled).toBe(true)
+    expect(next.threshold).toBe(3)
+  })
+
+  test('a partial requirement is left alone when enabling', () => {
+    const cfg = config({ year: { ...DEFAULT_CRITERIA.year, enabled: false }, threshold: 2 })
+    // 3 enabled, require 2 → enabling the 4th keeps require 2.
+    expect(toggleCriterion(cfg, 'year', true).threshold).toBe(2)
+  })
+
+  test('a deliberate require-zero stays zero when enabling', () => {
+    const cfg = config({ year: { ...DEFAULT_CRITERIA.year, enabled: false }, threshold: 0 })
+    expect(toggleCriterion(cfg, 'year', true).threshold).toBe(0)
+  })
+
+  test('disabling clamps the threshold to the remaining count', () => {
+    const cfg = config({ threshold: 4 }) // all four enabled
+    const next = toggleCriterion(cfg, 'genre', false)
+    expect(next.genre.enabled).toBe(false)
+    expect(next.threshold).toBe(3)
+  })
+
+  test('enabling the first criterion clamps a stale threshold down to 1', () => {
+    const cfg = config({
+      key: { ...DEFAULT_CRITERIA.key, enabled: false },
+      bpm: { ...DEFAULT_CRITERIA.bpm, enabled: false },
+      genre: { ...DEFAULT_CRITERIA.genre, enabled: false },
+      year: { ...DEFAULT_CRITERIA.year, enabled: false },
+      threshold: 3,
+    })
+    expect(toggleCriterion(cfg, 'key', true).threshold).toBe(1)
+  })
+
+  test('does not mutate its input', () => {
+    const cfg = config({ threshold: 4 })
+    toggleCriterion(cfg, 'genre', false)
+    expect(cfg.genre.enabled).toBe(true)
+    expect(cfg.threshold).toBe(4)
   })
 })
 

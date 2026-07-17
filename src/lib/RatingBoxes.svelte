@@ -2,7 +2,8 @@
   // Discrete require-N-of-M control: N boxes, fill k to require k matches
   // (star-rating semantics). Sliders are for continuous values; this is a
   // count, so it gets boxes (v10 issue 3). Clicking the top-filled box steps
-  // down one; the minimum is 1.
+  // down one — all the way to zero (v11 issue 2a): "require 0" is a valid,
+  // deliberate everything-connects choice.
   interface Props {
     value: number
     max: number
@@ -12,7 +13,7 @@
   let { value, max, onchange, label = 'Required matches' }: Props = $props()
 
   function pick(k: number): void {
-    onchange(k === value ? Math.max(1, k - 1) : k)
+    onchange(k === value ? k - 1 : k)
   }
 </script>
 

@@ -70,7 +70,8 @@ function migrateCriteria(raw: Record<string, unknown>): CriteriaConfig {
     year: { ...defaults.year, ...(raw.year as object) },
     threshold: typeof raw.threshold === 'number' ? raw.threshold : defaults.threshold,
   }
-  criteria.threshold = Math.max(1, Math.min(4, criteria.threshold))
+  // 0 is a deliberate "require nothing" since v11 (issue 2a).
+  criteria.threshold = Math.max(0, Math.min(4, criteria.threshold))
   return criteria
 }
 

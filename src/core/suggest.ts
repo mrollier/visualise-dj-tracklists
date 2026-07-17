@@ -130,7 +130,19 @@ function pick<T>(scored: { item: T; score: number }[], randomness: number, rand:
   return scored[scored.length - 1].item
 }
 
-function buildNeighbours(tracks: Track[], criteria: CriteriaConfig): Map<string, string[]> {
+/** Adjacency lookup: who neighbours `id` in the combo graph. */
+type NeighboursOf = (id: string) => string[]
+
+/**
+ * At threshold 0 the combo graph is complete (v11 issue 2a) — everyone
+ * neighbours everyone, computed lazily instead of materializing n²/2 edges.
+ * Otherwise the usual adjacency map from computeEdges.
+ */
+function buildNeighbours(tracks: Track[], criteria: CriteriaConfig): NeighboursOf {
+  if (criteria.threshold === 0) {
+    const ids = tracks.map((t) => t.id)
+    return (id) => ids.filter((other) => other !== id)
+  }
   const neighbours = new Map<string, string[]>()
   for (const edge of computeEdges(tracks, criteria)) {
     if (!neighbours.has(edge.sourceId)) neighbours.set(edge.sourceId, [])
@@ -138,7 +150,7 @@ function buildNeighbours(tracks: Track[], criteria: CriteriaConfig): Map<string,
     neighbours.get(edge.sourceId)!.push(edge.targetId)
     neighbours.get(edge.targetId)!.push(edge.sourceId)
   }
-  return neighbours
+  return (id) => neighbours.get(id) ?? []
 }
 
 /**
@@ -148,13 +160,13 @@ function buildNeighbours(tracks: Track[], criteria: CriteriaConfig): Map<string,
  */
 function randomStart(
   tracks: Track[],
-  neighbours: Map<string, string[]>,
+  neighbours: NeighboursOf,
   exclude: string | null,
   rand: () => number,
 ): string {
   const eligible = tracks.filter((t) => t.id !== exclude)
   const pool = eligible.length > 0 ? eligible : tracks
-  const connected = pool.filter((t) => (neighbours.get(t.id)?.length ?? 0) > 0)
+  const connected = pool.filter((t) => neighbours(t.id).length > 0)
   const from = connected.length > 0 ? connected : pool
   return from[Math.min(from.length - 1, Math.floor(rand() * from.length))].id
 }
@@ -162,14 +174,14 @@ function randomStart(
 /** Rank unvisited neighbours of `current` by score (descending, id tie-break). */
 function rankedCandidates(
   current: Track,
-  neighbours: Map<string, string[]>,
+  neighbours: NeighboursOf,
   byId: Map<string, Track>,
   used: ReadonlySet<string>,
   criteria: CriteriaConfig,
   genreMatch: GenreMatcher,
   scoreExtra?: (candidate: Track) => number,
 ): { item: string; score: number }[] {
-  return (neighbours.get(current.id) ?? [])
+  return neighbours(current.id)
     .filter((id) => !used.has(id))
     .map((id) => {
       const candidate = byId.get(id)!
@@ -326,7 +338,11 @@ export function nextExhausted(
   neighbours: ReadonlyMap<string, ReadonlySet<string>>,
   tracklist: string[],
   selectedId: string | null,
+  complete = false,
 ): boolean {
+  // A complete graph (threshold 0, v11 issue 2a) never exhausts — the
+  // stores' adjacency map is deliberately empty then.
+  if (complete) return false
   const anchorId = nextAnchorId(tracklist, selectedId)
   if (anchorId === null) return false
   const used = new Set(tracklist)
@@ -358,6 +374,7 @@ export function retryState(
   lastPick: NextSuggestion | null,
   triedIds: readonly string[],
   visibleIds: readonly string[],
+  complete = false,
 ): RetryState {
   if (lastPick === null) return 'none'
   const { trackId, insertIndex } = lastPick
@@ -367,6 +384,9 @@ export function retryState(
   const fresh = (id: string): boolean => !used.has(id) && !tried.has(id)
   if (insertIndex === 0) {
     // Opener slot: openers are drawn from the whole pool, not edge-gated.
+    if (visibleIds.some(fresh)) return 'retry'
+  } else if (complete) {
+    // Threshold 0 (v11 issue 2a): every fresh track is a MATCHING retry.
     if (visibleIds.some(fresh)) return 'retry'
   } else {
     for (const id of neighbours.get(tracklist[insertIndex - 1]) ?? []) {

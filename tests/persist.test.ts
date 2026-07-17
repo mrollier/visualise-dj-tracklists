@@ -343,6 +343,11 @@ describe('project persistence (v3)', () => {
     expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual(['dateAdded'])
   })
 
+  test('a saved require-zero threshold survives the load (v11 issue 2a)', () => {
+    const zero = { ...project, criteria: { ...structuredClone(DEFAULT_CRITERIA), threshold: 0 } }
+    expect(parseProject(serializeProject(zero)).criteria.threshold).toBe(0)
+  })
+
   test('v3 saves lift their top-level ranges into filters.properties (v11 issue 1)', () => {
     const raw = JSON.parse(serializeProject(project)) as {
       version: number

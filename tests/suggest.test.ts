@@ -36,6 +36,34 @@ const tracks = [
   track({ id: 'e', key: '3B', bpm: 90, genre: 'Ambient', year: 1980 }),
 ]
 
+describe('threshold 0: every track neighbours every other (v11 issue 2a)', () => {
+  test('suggestWalk reaches the full length even across the isolated track', () => {
+    const walk = suggestWalk(tracks, config({ threshold: 0 }), { seedId: 'a', length: 5 })
+    expect(walk).toHaveLength(5)
+    expect([...walk].sort()).toEqual(['a', 'b', 'c', 'd', 'e'])
+  })
+
+  test('suggestNext extends an otherwise-exhausted anchor without force', () => {
+    // 'e' is isolated under the default criteria — at threshold 0 it still
+    // gets a successor.
+    const next = suggestNext(tracks, config({ threshold: 0 }), ['e'])
+    expect(next).not.toBeNull()
+  })
+
+  test('nextExhausted is never exhausted while the graph is complete', () => {
+    const empty = new Map<string, Set<string>>()
+    expect(nextExhausted(empty, ['a'], null, true)).toBe(false)
+    expect(nextExhausted(empty, ['a'], null, false)).toBe(true)
+  })
+
+  test('retryState offers a matching retry while the graph is complete', () => {
+    const empty = new Map<string, Set<string>>()
+    const pick = { trackId: 'b', insertIndex: 1 }
+    expect(retryState(empty, ['a', 'b'], pick, [], ['a', 'b', 'c'], true)).toBe('retry')
+    expect(retryState(empty, ['a', 'b'], pick, [], ['a', 'b', 'c'], false)).toBe('force-retry')
+  })
+})
+
 describe('suggestWalk', () => {
   test('starts from the given seed and walks the combo graph', () => {
     const walk = suggestWalk(tracks, config(), { seedId: 'a', length: 10 })

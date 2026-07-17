@@ -37,6 +37,7 @@
     iconClasses,
     library,
     mustInclude,
+    comboComplete,
     neighbours,
     pinnedFirst,
     pinnedLast,
@@ -298,6 +299,8 @@
 
   const focusSet = $derived.by(() => {
     if ($selectedId === null) return null
+    // Threshold 0 (v11 issue 2a): the graph is complete, everything focuses.
+    if ($comboComplete) return new Set($visibleLibrary.map((t) => t.id))
     // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived-local
     const set = new Set([$selectedId])
     for (const n of $neighbours.get($selectedId) ?? []) set.add(n)
@@ -375,7 +378,7 @@
   // greys out once every visible track is used, and a retry ring swaps the
   // last pick for a different one while alternatives exist.
   let hubSeed = Math.floor(Math.random() * 2 ** 31)
-  const hubExhausted = $derived(nextExhausted($neighbours, $tracklist, $selectedId))
+  const hubExhausted = $derived(nextExhausted($neighbours, $tracklist, $selectedId, $comboComplete))
   const usedIds = $derived(new Set($tracklist))
   const hubAllUsed = $derived(
     $visibleLibrary.length > 0 && $visibleLibrary.every((t) => usedIds.has(t.id)),
@@ -397,7 +400,7 @@
   // The ring degrades instead of vanishing: retry → force retry (+ ⟲ reset)
   // → reset-only, per the pure state machine (v8 issues 2+3).
   const hubRetryState = $derived(
-    retryState($neighbours, $tracklist, lastHubPick, triedIds, [...visibleIds]),
+    retryState($neighbours, $tracklist, lastHubPick, triedIds, [...visibleIds], $comboComplete),
   )
 
   function hubSuggest() {
