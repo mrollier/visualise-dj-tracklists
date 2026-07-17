@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { genreFamilyOf } from '../src/core/genre'
+import { genreFamilyOf, umbrellaFor } from '../src/core/genre'
 import { classIndexOfTrack, genreFamilyClasses, playlistClasses } from '../src/core/iconClasses'
 import { EMPTY_TRACK_FIELDS, type Playlist, type Track } from '../src/core/model'
 
@@ -58,16 +58,50 @@ describe('genreFamilyClasses', () => {
     expect(result!.classOf.get('unknown genre x')).toBeUndefined()
   })
 
-  test('beyond maxClasses, only the largest families keep a symbol', () => {
+  test('beyond maxClasses, families merge into their umbrella (v10 issue 10)', () => {
+    // house/techno/trance all sit under 'electronic'; jazz under root 'music'.
+    // Capped at 2, the electronic cluster collapses to one umbrella class
+    // rather than the smaller families dropping to circles.
     const result = genreFamilyClasses(genres, 2)
     expect(result!.classes).toHaveLength(2)
-    expect(result!.classes.map((c) => c.label)).toEqual(['house', 'jazz'])
-    expect(result!.classOf.get('psytrance')).toBeUndefined()
+    expect(result!.classes.map((c) => c.label)).toEqual(['electronic', 'jazz'])
+    expect(result!.classes[0].size).toBe(4) // house×2 + techno + trance
+    expect(result!.classOf.get('psytrance')).toBe(0) // now an umbrella member
+    expect(result!.classOf.get('melodic techno')).toBe(0)
+    expect(result!.classOf.get('deep house')).toBe(0)
+    expect(result!.classOf.get('jazz')).toBe(1)
+  })
+
+  test('cap of 1 collapses everything to a single class (shapes off)', () => {
+    const result = genreFamilyClasses(genres, 1)
+    expect(result!.classes).toHaveLength(1)
+    for (const primary of ['deep house', 'melodic techno', 'psytrance', 'jazz']) {
+      expect(result!.classOf.get(primary)).toBe(0)
+    }
+  })
+
+  test('merging is deterministic under input permutation', () => {
+    const a = genreFamilyClasses(genres, 2)
+    const b = genreFamilyClasses([...genres].reverse(), 2)
+    expect(a!.classes).toEqual(b!.classes)
   })
 
   test('fewer than two families means nothing to distinguish', () => {
     expect(genreFamilyClasses(['Deep House', 'Tech House'], 4)).toBeNull()
     expect(genreFamilyClasses([], 4)).toBeNull()
+  })
+})
+
+describe('umbrellaFor (v10 issue 10)', () => {
+  test('a family resolves to its broadest parent', () => {
+    expect(umbrellaFor('techno')).toBe('electronic')
+    expect(umbrellaFor('house')).toBe('electronic')
+    expect(umbrellaFor('jazz')).toBe('music') // a root child → the root
+  })
+
+  test('the root has no umbrella', () => {
+    expect(umbrellaFor('music')).toBeNull()
+    expect(umbrellaFor('Zydeco Polka Fusion')).toBeNull()
   })
 })
 

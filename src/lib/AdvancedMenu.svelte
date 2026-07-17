@@ -365,9 +365,9 @@
       Edges only appear around the selected track: its own connections by default; this also draws
       how those neighbours link amongst themselves.
     </p>
-    <label>
+    <label class:off-view={$viewMode !== 'wheel'} title="Only affects the Wheel view">
       Node icons (Wheel view)
-      <select bind:value={$settings.iconMode}>
+      <select bind:value={$settings.iconMode} disabled={$viewMode !== 'wheel'}>
         <option value="families">Genre families (curated tree)</option>
         <option value="playlists">Playlists (first one wins)</option>
         <option value="clusters">Genre clusters (hybrid space)</option>
@@ -378,8 +378,8 @@
       <input
         class="classes-input"
         type="number"
-        min="2"
-        max="6"
+        min="1"
+        max="8"
         bind:value={$settings.maxGenreClasses}
       />
     </label>

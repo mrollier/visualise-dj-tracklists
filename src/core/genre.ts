@@ -256,6 +256,30 @@ export function genreFamilyOf(rawLabel: string): string | null {
   return null
 }
 
+/**
+ * The umbrella one level up from a family: its broadest direct parent in the
+ * curated tree (lowest information content — nearest the root). house/techno
+ * → 'electronic'; a root child like 'jazz' → the root 'music'. Null for the
+ * root itself and for labels the tree does not know. Used to collapse families
+ * into fewer classes when the symbol cap is tight (v10 issue 10).
+ */
+export function umbrellaFor(label: string): string | null {
+  const norm = normalizeGenre(label)
+  if (norm === genreTree.root) return null
+  const parents = treeParents[norm]
+  if (parents === undefined || parents.length === 0) return null
+  let best: string | null = null
+  let bestIC = Infinity
+  for (const parent of parents) {
+    const ic = treeIC.get(parent) ?? 1
+    if (ic < bestIC || (ic === bestIC && (best === null || parent.localeCompare(best) < 0))) {
+      bestIC = ic
+      best = parent
+    }
+  }
+  return best
+}
+
 // --- embedding & hybrid methods -----------------------------------------------
 // Pack v2 (see scripts/build-genre-embedding.mjs): per-label top-k neighbour
 // lists with mutual-proximity scores in [0,1]. Pairs absent from both lists
