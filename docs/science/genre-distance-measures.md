@@ -123,7 +123,7 @@ Four shifts do matter here:
 
 | # | Step | What it answers | Effort / gate |
 | --- | --- | --- | --- |
-| P1 | **Coverage instrumentation**: measure, for a real imported library, what fraction of its normalized genre labels hit the pack vocabulary / the tree / only the lexical fallback; surface the number in the import ⓘ report | how big the OOV problem actually is — every later step is sized by this | small; do first |
+| P1 | **Coverage instrumentation**: measure, for a real imported library, what fraction of its normalized genre labels hit the pack vocabulary / the tree / only the lexical fallback; surface the number in the import ⓘ report | how big the OOV problem actually is — every later step is sized by this | small; do first — a manual dry run already ran, see §6 |
 | P2 | **CLAP-text pack experiment**: encode the current vocabulary + tree labels with the LAION-CLAP text encoder offline; emit the *same* neighbour-list pack format; score on the 40-triplet eval against hybrid | whether a permissively-licensed, OOV-capable vector source can replace or join the AcousticBrainz pack | medium; gate: ≥ hybrid's triplet accuracy before any UI work |
 | P3 | **Grow the eval**: extend the 40 hand-authored triplets toward the research report's proposed ~200 DJ-adjudicated triplets (external judges, not the author) | whether our method ranking is real or self-confirmation | small to start, human-time bound |
 | P4 | **Hyperbolic experiment**: Poincaré embedding fit on the same co-occurrence data, tree edges as supervision; compare on P3's eval | whether one geometry can subsume the embedding/taxonomy/hybrid trio | research-grade; only if P2 leaves headroom |
@@ -142,7 +142,8 @@ normalization → alias table → delimiter splitting → lexical fallback — h
 spelling variants of *known* genres but does nothing principled with the rest:
 an unknown label silently degrades to token overlap, which scores "melodic
 124" ≈ 0 against everything. We don't yet know (i) how common such labels are
-in real libraries (P1 measures this), (ii) whether they should map to genres
+in real libraries (P1 measures this — a first measurement on one real library
+in §6 says ~21 % of tagged tracks), (ii) whether they should map to genres
 at all or be recognized as a different *kind* of tag (mood/energy/slot
 descriptors that Rekordbox users routinely put in the genre field), or
 (iii) which resolver is right — edit-distance guessing is cheap and dumb, a
@@ -185,6 +186,91 @@ multilingual pack.
 **(g) Licence ceiling.** The shipped pack inherits CC BY-NC-SA from
 AcousticBrainz, which is fine for this private, non-commercial app but caps
 any future distribution. P2 doubles as the escape hatch.
+
+## 6. P1 dry run — measured coverage of one real library (2026-07-16)
+
+Before building the instrumentation, P1 ran once by hand: a throwaway script
+replicated the app's exact resolution chain (`normalizeGenre` → alias table →
+delimiter splitting → the pack's squashed-spelling lookup, verbatim from
+[`src/core/genre.ts`](../../src/core/genre.ts)) and pushed a real 2080-track
+Rekordbox collection (local only, gitignored) through it against the shipped
+hybrid pack. A track counts as covered by its *best* component, mirroring the
+runtime's max aggregation. **Status: findings recorded, follow-up shelved** —
+nothing below is implemented.
+
+### Headline numbers
+
+2080 tracks, 152 unique genre strings, 305 tracks (14.7 %) with a blank genre
+(harmless: missing metadata never blocks a combo). Of the 1775 genre-tagged
+tracks:
+
+| Where the best component lands                 | Tracks | Share  |
+| ---------------------------------------------- | ------ | ------ |
+| Pack + tree (full hybrid treatment)            | 1274   | 71.8 % |
+| Pack only                                      | 131    | 7.4 %  |
+| Tree only                                      | 1      | 0.1 %  |
+| Lexical fallback with some token overlap       | 246    | 13.9 % |
+| Lexical fallback with **zero** overlap — genre-invisible | 123 | 6.9 % |
+
+One in five tagged tracks never reaches the embedding; one in fourteen is a
+complete genre-space island (behaves like the exact method: matches nothing).
+
+### The fallback bucket is four different problems
+
+1. **Personal descriptive labels** — blind spot (a) exactly as predicted:
+   "Techno Melancholic" (20 tracks), "House Ethno" (19), "Techno Rave" (8),
+   "Techno Half Tempo" (3), "Techno Melodieus" (2, Dutch). Token overlap
+   collapses all of them to ≈ 0.5 × "techno"/"house" — the encoded distinction
+   is discarded, and no method can recover it from the string alone without a
+   semantic resolver.
+2. **Real genres missing from the vocabulary** — blind spot (e), and they are
+   big crates, not long-tail noise: **"Turkish Funk" (83 tracks, the library's
+   5th-largest genre)** and **"Tribe" (54 tracks, zero overlap with anything)**.
+   The whole free-party cluster is invisible — Tribe, Tekno (the scene
+   spelling, ≠ "techno" to the matcher), Mental Tekno, Acidcore, Acid Tribe,
+   Freetekno, Raggatek — plus plain gaps: Acid Trance (11), Future Garage (10),
+   Minimal House (9), New Beat (7), Persian Funk (17), Jumpstyle, Zouk, Juke,
+   UK Hardcore, Balkan, Electro Swing. Most are fixable today by adding nodes
+   to [`genre-tree.json`](../../src/data/genre-tree.json) — no research needed.
+3. **Non-genre noise in the genre field** — "Nieuw!!!" (7), "90s" (13),
+   "Other", "Misc", "MASHUP", "Trance best", "Guy", and download-site
+   watermarks ("electronicfresh.com", "djsoundtop.com"). Confirms that any
+   resolver needs a *reject* class ("this is not a genre") before mapping —
+   nearest-neighbour alone would confidently mis-map garbage.
+4. **Normalization bugs**, each small and testable:
+   - **"Garage" (18 tracks) is OOV** although the pack knows "garage house"
+     and "uk garage"; "U.K. Garage" also misses because `cleanupGenre` and the
+     squashed lookup don't strip periods.
+   - **"Pop – Synthpop"** stays one unknown blob: en/em dashes aren't
+     separators, while "Synthpop" alone is fully covered.
+   - **"Classic Soul And R&B"** normalizes to the mangled
+     `classic soul & r & b` — the `and → &` rewrite fires before the alias
+     table can recognize "r&b".
+   - Discogs's single compound genre **"Folk, World, & Country"** is shredded
+     by comma-splitting into a stray `& country` component (an alias-table
+     keep-whole entry would fix it, like "Organic House / Downtempo").
+
+### Shelved action list, in bang-for-buck order
+
+1. **Curated-tree additions** (~15 nodes: the free-tekno cluster, regional
+   funk, garage, and the plain gaps above) — cheap, immediately lifts the two
+   biggest OOV crates.
+2. **Normalization fixes** (periods, dashes, alias-before-`and`-rewrite,
+   compound-genre alias entries) — four TDD-sized patches.
+3. **Ship P1 proper**: automate this measurement at import and surface it in
+   the ⓘ report ("369 of 1775 tracks have genres outside the similarity
+   data — top: Turkish Funk ×83, Tribe ×54, …"), so any collection gets the
+   diagnosis this dry run gave one snapshot of one library.
+4. **P2 framing sharpened**: a CLAP text tower would embed the *semantic* OOV
+   labels ("Turkish Funk", "Tribe", "Techno Melancholic") natively, but no
+   embedding rescues class-3 noise — the resolver design must pair mapping
+   with rejection.
+5. The 305 blank-genre tracks are untouchable by any label-space method; only
+   audio analysis (P5) reaches them.
+
+Caveat: this is one library, one snapshot — the percentages size *this*
+collection's problem, not the general one. That is precisely why P1 belongs in
+the product rather than in a script.
 
 ## References
 
