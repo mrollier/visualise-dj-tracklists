@@ -763,7 +763,9 @@ if ((await page.locator('.shape-chip').count()) !== chipsAll) {
 
 // v10 issue 2: the genre method is chosen in the advanced menu now; the combo
 // panel shows only a subtle note of the active method.
-const methodNote = await page.locator('.criterion .ratio-note', { hasText: 'method:' }).textContent()
+const methodNote = await page
+  .locator('.criterion .ratio-note', { hasText: 'method:' })
+  .textContent()
 if (!methodNote || methodNote.trim() === 'method:') {
   errors.push(`the criteria-panel method note is missing, got "${methodNote}"`)
 }
