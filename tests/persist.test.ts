@@ -270,6 +270,12 @@ describe('project persistence (v3)', () => {
     })
   })
 
+  test('saves from before focus-only edges default the cluster toggle off (v9 issue 8)', () => {
+    const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    Reflect.deleteProperty(raw.settings as Record<string, unknown>, 'focusClusterEdges')
+    expect(parseProject(JSON.stringify(raw)).settings.focusClusterEdges).toBe(false)
+  })
+
   test('saves from before icon modes default to genre families (v8 issues 4+5)', () => {
     const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
     Reflect.deleteProperty(raw.settings as Record<string, unknown>, 'iconMode')

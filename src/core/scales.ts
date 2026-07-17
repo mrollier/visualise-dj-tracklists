@@ -97,13 +97,14 @@ export function radialDomain(
 }
 
 /**
- * Edge opacity while a track is focused, derived from the user's base edge
- * opacity so the setting keeps working in focus mode (issue 15). The factors
- * are calibrated so the default base (0.35) reproduces the pre-v7 contrast
- * (0.6 in focus, 0.05 dimmed).
+ * Opacity of the selection's own star edges, derived from the user's base
+ * edge opacity so the setting keeps working in focus mode (issue 15). The
+ * factor is calibrated so the default base (0.35) gives the pre-v7 in-focus
+ * contrast (0.6); cluster edges draw at the plain base. Since v9 (issue 8)
+ * edges outside focus aren't dimmed — they simply aren't drawn.
  */
-export function focusEdgeOpacity(base: number, inFocus: boolean): number {
-  return inFocus ? Math.min(0.95, base * 1.7) : base * 0.15
+export function focusEdgeOpacity(base: number): number {
+  return Math.min(0.95, base * 1.7)
 }
 
 export function makeNodeColor(

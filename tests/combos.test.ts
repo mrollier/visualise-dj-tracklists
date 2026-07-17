@@ -2,11 +2,12 @@ import { describe, expect, test } from 'vitest'
 import {
   computeEdges,
   DEFAULT_CRITERIA,
+  focusEdges,
   evaluateCombo,
   makeGenreMatcher,
   matchedGenrePairs,
 } from '../src/core/combos'
-import type { CriteriaConfig } from '../src/core/combos'
+import type { ComboEdge, CriteriaConfig } from '../src/core/combos'
 import { EMPTY_TRACK_FIELDS, type Track } from '../src/core/model'
 
 function track(overrides: Partial<Track> & { id: string }): Track {
@@ -431,5 +432,46 @@ describe('computeEdges', () => {
     const tracks = [track({ id: 'a' }), track({ id: 'b', bpm: 126 })]
     const [edge] = computeEdges(tracks, config({ threshold: 4 }))
     expect(edge.matched).toEqual(expect.arrayContaining(['key', 'bpm', 'genre', 'year']))
+  })
+})
+
+describe('focusEdges (v9 issue 8)', () => {
+  const edge = (sourceId: string, targetId: string): ComboEdge => ({
+    sourceId,
+    targetId,
+    matched: ['key'],
+  })
+  // a's neighbours are b and c; b–c interlink; c–d leaves the cluster.
+  const edges = [edge('a', 'b'), edge('c', 'a'), edge('b', 'c'), edge('c', 'd'), edge('d', 'e')]
+
+  test('no selection means no edges at all', () => {
+    expect(focusEdges(edges, null, false)).toEqual([])
+    expect(focusEdges(edges, null, true)).toEqual([])
+  })
+
+  test('the star: edges incident to the selection, as source AND as target', () => {
+    expect(focusEdges(edges, 'a', false)).toEqual([edge('a', 'b'), edge('c', 'a')])
+  })
+
+  test('cluster off excludes neighbour-to-neighbour edges', () => {
+    expect(focusEdges(edges, 'a', false)).not.toContainEqual(edge('b', 'c'))
+  })
+
+  test('cluster on adds neighbour interlinks but never edges leaving the cluster', () => {
+    const out = focusEdges(edges, 'a', true)
+    expect(out).toContainEqual(edge('b', 'c'))
+    expect(out).not.toContainEqual(edge('c', 'd'))
+    expect(out).not.toContainEqual(edge('d', 'e'))
+  })
+
+  test('a selection with no incident edges shows nothing, cluster or not', () => {
+    expect(focusEdges(edges, 'z', true)).toEqual([])
+  })
+
+  test('preserves input order and never mutates the input', () => {
+    const copy = edges.map((e) => ({ ...e }))
+    const out = focusEdges(edges, 'a', true)
+    expect(out.map((e) => `${e.sourceId}-${e.targetId}`)).toEqual(['a-b', 'c-a', 'b-c'])
+    expect(edges).toEqual(copy)
   })
 })

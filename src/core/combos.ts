@@ -238,6 +238,35 @@ export function evaluateCombo(
   return { evaluable, matched, isCombo }
 }
 
+/**
+ * The combo edges the wheel actually DRAWS (v9 issue 8): none without a
+ * selection, the incident star with one, and — when asked — the edges among
+ * the selection's neighbours (the cluster's interconnections). Edges leaving
+ * the cluster stay hidden either way. Order-preserving, non-mutating; the
+ * full edge set keeps feeding suggestions and adjacency unchanged.
+ */
+export function focusEdges(
+  edges: readonly ComboEdge[],
+  selectedId: string | null,
+  includeCluster: boolean,
+): ComboEdge[] {
+  if (selectedId === null) return []
+  if (!includeCluster) {
+    return edges.filter((e) => e.sourceId === selectedId || e.targetId === selectedId)
+  }
+  const neighbourIds = new Set<string>()
+  for (const e of edges) {
+    if (e.sourceId === selectedId) neighbourIds.add(e.targetId)
+    else if (e.targetId === selectedId) neighbourIds.add(e.sourceId)
+  }
+  return edges.filter(
+    (e) =>
+      e.sourceId === selectedId ||
+      e.targetId === selectedId ||
+      (neighbourIds.has(e.sourceId) && neighbourIds.has(e.targetId)),
+  )
+}
+
 /** All undirected combo edges for a track set, each pair reported once. */
 export function computeEdges(tracks: Track[], config: CriteriaConfig): ComboEdge[] {
   const genreMatch = makeGenreMatcher(

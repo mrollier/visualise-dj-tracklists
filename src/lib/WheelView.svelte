@@ -30,8 +30,8 @@
   import {
     appendToSet,
     criteria,
-    edges,
     effectiveColorAxis,
+    focusEdges,
     filters,
     iconClasses,
     library,
@@ -299,9 +299,11 @@
     return base
   }
 
+  // Only focus edges are drawn at all (v9 issue 8): the selection's own star
+  // brightens, the cluster's interconnections stay at the plain base.
   function edgeOpacity(sourceId: string, targetId: string): number {
-    if (focusSet === null) return $settings.edgeOpacity
-    return focusEdgeOpacity($settings.edgeOpacity, focusSet.has(sourceId) && focusSet.has(targetId))
+    const isStar = sourceId === $selectedId || targetId === $selectedId
+    return isStar ? focusEdgeOpacity($settings.edgeOpacity) : $settings.edgeOpacity
   }
 
   function select(node: PlacedNode) {
@@ -583,8 +585,8 @@
       {/if}
 
       <!-- Hub button: suggest the next track for the set -->
-      <!-- Suggestion edges -->
-      {#each $edges as edge (`${edge.sourceId}→${edge.targetId}`)}
+      <!-- Suggestion edges: only around the selected track (v9 issue 8) -->
+      {#each $focusEdges as edge (`${edge.sourceId}→${edge.targetId}`)}
         {@const a = nodeById.get(edge.sourceId)}
         {@const b = nodeById.get(edge.targetId)}
         {#if a && b}

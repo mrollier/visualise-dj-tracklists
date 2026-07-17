@@ -1,6 +1,7 @@
 import { derived, get, writable, type Writable } from 'svelte/store'
 import {
   computeEdges,
+  focusEdges as computeFocusEdges,
   DEFAULT_CRITERIA,
   makeGenreMatcher,
   type CriteriaConfig,
@@ -200,6 +201,18 @@ export const scopedGenres = derived(playlistScopedLibrary, ($scoped) => {
 
 export const edges = derived([visibleLibrary, criteria], ([$visibleLibrary, $criteria]) =>
   computeEdges($visibleLibrary, $criteria),
+)
+
+/**
+ * The combo edges the wheel actually draws (v9 issue 8): the star around the
+ * selected track, plus the cluster's interconnections when the setting asks.
+ * No selection = no edges; the full `edges` set above keeps feeding
+ * suggestions, retry and adjacency.
+ */
+export const focusEdges = derived(
+  [edges, selectedId, settings],
+  ([$edges, $selectedId, $settings]) =>
+    computeFocusEdges($edges, $selectedId, $settings.focusClusterEdges),
 )
 
 /** Library-wide genre matcher, so pairwise UI (set transitions) agrees with the wheel's edges. */

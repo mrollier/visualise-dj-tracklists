@@ -346,6 +346,18 @@
         disabled={$viewMode !== 'wheel'}
       />
     </label>
+    <label class="row" class:off-view={$viewMode !== 'wheel'} title="Only affects the Wheel view">
+      <input
+        type="checkbox"
+        bind:checked={$settings.focusClusterEdges}
+        disabled={$viewMode !== 'wheel'}
+      />
+      Interconnect the selection's cluster
+    </label>
+    <p class="hint">
+      Edges only appear around the selected track: its own connections by default; this also draws
+      how those neighbours link amongst themselves.
+    </p>
     <label>
       Node icons
       <select bind:value={$settings.iconMode}>

@@ -31,6 +31,11 @@ export interface AppSettings {
   jitterSeed: number
   /** Base opacity of suggestion edges. */
   edgeOpacity: number
+  /**
+   * Also draw the edges AMONG the selected track's neighbours (v9 issue 8).
+   * Off = just the star around the selection; edges never draw without one.
+   */
+  focusClusterEdges: boolean
   /** Target number of tracks for the suggested-set generator. */
   suggestLength: number
   /** 0 = safest transitions, 1 = adventurous/dissonant sampling. */
@@ -70,6 +75,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   slotSpreadFactor: 1,
   jitterSeed: 0,
   edgeOpacity: 0.35,
+  focusClusterEdges: false,
   suggestLength: 15,
   suggestRandomness: 0.25,
   iconMode: 'families',

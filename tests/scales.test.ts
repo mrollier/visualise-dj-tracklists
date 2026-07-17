@@ -62,20 +62,18 @@ describe('ACCENT_TOKENS (app-wide colour scheme, issue 13)', () => {
 })
 
 describe('focusEdgeOpacity', () => {
-  test('scales both focus states from the base edge opacity (issue 15)', () => {
-    // the default 0.35 reproduces the pre-v7 hardcoded contrast (0.6 / 0.05)
-    expect(focusEdgeOpacity(0.35, true)).toBeCloseTo(0.6, 1)
-    expect(focusEdgeOpacity(0.35, false)).toBeCloseTo(0.05, 1)
-    // in-focus is always brighter than dimmed for any positive base
+  test('star edges brighten from the base edge opacity (issue 15, v9 issue 8)', () => {
+    // the default 0.35 reproduces the pre-v7 hardcoded in-focus contrast (0.6)
+    expect(focusEdgeOpacity(0.35)).toBeCloseTo(0.6, 1)
+    // the star always draws brighter than the cluster's plain base
     for (const base of [0.1, 0.35, 0.6, 0.9]) {
-      expect(focusEdgeOpacity(base, true)).toBeGreaterThan(focusEdgeOpacity(base, false))
+      expect(focusEdgeOpacity(base)).toBeGreaterThan(base)
     }
   })
 
   test('zero base hides edges entirely; high bases stay clamped', () => {
-    expect(focusEdgeOpacity(0, true)).toBe(0)
-    expect(focusEdgeOpacity(0, false)).toBe(0)
-    expect(focusEdgeOpacity(0.9, true)).toBeLessThanOrEqual(0.95)
+    expect(focusEdgeOpacity(0)).toBe(0)
+    expect(focusEdgeOpacity(0.9)).toBeLessThanOrEqual(0.95)
   })
 })
 
