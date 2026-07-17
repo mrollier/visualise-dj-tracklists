@@ -36,10 +36,7 @@ beforeEach(() => {
   tracklist.set(['rb-1'])
   playlists.set([{ name: 'Old list', trackIds: ['rb-1'] }])
   filters.set({
-    bpm: [100, 120],
-    year: null,
-    rating: [3, 5],
-    dateAdded: null,
+    properties: { bpm: [100, 120], rating: [3, 5] },
     genres: ['techno'],
     playlists: [],
     keyRing: 'both',

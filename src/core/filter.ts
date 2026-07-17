@@ -1,25 +1,31 @@
-import { camelotRing } from './keys'
+import { camelotNumber, camelotRing } from './keys'
 import type { Playlist, Track } from './model'
+import { PROPERTY_BY_KEY, TRACK_PROPERTIES, type TrackProperty } from './properties'
+import type { TrackSortField } from './trackSort'
 
 /**
  * Library-level filters (remarks 2, 6, 8): they decide which tracks are
  * visible at all — on the wheel, in the combo graph, and for suggestions.
- * A null range/list means "not filtering on this field". A track missing a
- * value never fails a range filter (consistent with the combo engine's
- * missing-data policy); genre-less tracks likewise always pass.
+ * Since v11 (issue 1) every track property can carry a range filter; the
+ * property's kind (registry, `properties.ts`) decides the semantics:
+ *
+ * - number: inclusive [min, max]; a missing value never fails (consistent
+ *   with the combo engine's missing-data policy).
+ * - text: case-insensitive lexical range with a prefix-inclusive upper bound
+ *   (artist "b"–"k" keeps "Kraftwerk"); an empty side is open; missing
+ *   passes.
+ * - date: inclusive 'YYYY-MM-DD' lexical bounds. Unlike the other kinds, a
+ *   missing date is EXCLUDED while the filter is active (v10 issue 4b,
+ *   generalized) — "between these dates" has no sensible answer for an
+ *   unknown date, and hiding them is what a DJ browsing by recency wants.
+ * - key: inclusive range over the Camelot NUMBER (1–12), both rings — the
+ *   ring is filtered separately by `keyRing`, so the two compose.
  */
+export type PropertyRange = [number, number] | [string, string]
+
 export interface LibraryFilters {
-  bpm: [number, number] | null
-  year: [number, number] | null
-  rating: [number, number] | null
-  /**
-   * Date-added range as inclusive 'YYYY-MM-DD' bounds (lexical); null = off.
-   * Unlike the numeric ranges, an undated track is EXCLUDED while this filter
-   * is active (v10 issue 4b) — "added between these dates" has no sensible
-   * answer for an unknown date, and hiding them is what a DJ browsing by
-   * recency wants.
-   */
-  dateAdded: [string, string] | null
+  /** Active per-property ranges; an absent key means "not filtering". */
+  properties: Partial<Record<TrackSortField, PropertyRange>>
   /** Allow-list of genres (compared case-insensitively); null = all genres. */
   genres: string[] | null
   /**
@@ -39,43 +45,98 @@ export interface LibraryFilters {
 /** Pseudo-playlist name: tracks that appear in no playlist at all. */
 export const NOT_IN_PLAYLIST = '__not-in-a-playlist__'
 
-/**
- * The range filters whose visibility the user manages (v10 issue 4b): Date-
- * added shows by default, the rest are opt-in via the advanced "Filters shown"
- * checklist. Genres, Playlists and the Keys ring are their own always-visible
- * sections and are not part of this list.
- */
-export type FilterKey = 'bpm' | 'year' | 'rating' | 'dateAdded'
-export const ALL_FILTER_KEYS: readonly FilterKey[] = ['bpm', 'year', 'rating', 'dateAdded']
-export const DEFAULT_VISIBLE_FILTERS: readonly FilterKey[] = ['dateAdded']
-
 export const EMPTY_FILTERS: LibraryFilters = {
-  bpm: null,
-  year: null,
-  rating: null,
-  dateAdded: null,
+  properties: {},
   genres: null,
   playlists: null,
   keyRing: 'both',
 }
 
-export interface LibraryExtents {
-  bpm: [number, number] | null
-  year: [number, number] | null
-  rating: [number, number] | null
+/** One saved range, checked against its property's kind; null = drop it. */
+function sanitizeRange(prop: TrackProperty, entry: unknown): PropertyRange | null {
+  if (!Array.isArray(entry) || entry.length !== 2) return null
+  const [a, b] = entry as [unknown, unknown]
+  switch (prop.kind) {
+    case 'number': {
+      if (typeof a !== 'number' || !Number.isFinite(a)) return null
+      if (typeof b !== 'number' || !Number.isFinite(b)) return null
+      return [a, b]
+    }
+    case 'key': {
+      if (typeof a !== 'number' || !Number.isFinite(a)) return null
+      if (typeof b !== 'number' || !Number.isFinite(b)) return null
+      const clamp = (v: number): number => Math.max(1, Math.min(12, Math.round(v)))
+      return [clamp(a), clamp(b)]
+    }
+    case 'date':
+    case 'text':
+      return typeof a === 'string' && typeof b === 'string' ? [a, b] : null
+  }
 }
 
 /**
- * Min/max of each filterable numeric field over the library (missing values
- * ignored; null when no track has the field). The filter inputs default to
- * these, so freshly imported libraries start with their true ranges visible.
+ * Normalize saved filters, whatever their vintage (v11 issue 1): the v4
+ * per-property map is sanitized entry by entry (unknown properties and
+ * kind-mismatched tuples dropped, key ranges clamped into 1–12); v3-and-older
+ * saves carried top-level bpm/year/rating/dateAdded ranges, which lift into
+ * the map. The bespoke fields (genres, playlists, keyRing) carry over.
  */
-export function libraryExtents(tracks: Track[]): LibraryExtents {
-  const extent = (field: 'bpm' | 'year' | 'rating'): [number, number] | null => {
-    const values = tracks.map((t) => t[field]).filter((v): v is number => v !== null)
-    return values.length === 0 ? null : [Math.min(...values), Math.max(...values)]
+export function migrateFilters(raw: unknown): LibraryFilters {
+  const out = structuredClone(EMPTY_FILTERS)
+  if (typeof raw !== 'object' || raw === null) return out
+  const p = raw as Record<string, unknown>
+  if (Array.isArray(p.genres)) {
+    out.genres = p.genres.filter((g): g is string => typeof g === 'string')
   }
-  return { bpm: extent('bpm'), year: extent('year'), rating: extent('rating') }
+  if (Array.isArray(p.playlists)) {
+    out.playlists = p.playlists.filter((n): n is string => typeof n === 'string')
+  }
+  if (p.keyRing === 'minor' || p.keyRing === 'major') out.keyRing = p.keyRing
+  const rawProperties =
+    typeof p.properties === 'object' && p.properties !== null
+      ? (p.properties as Record<string, unknown>)
+      : { bpm: p.bpm, year: p.year, rating: p.rating, dateAdded: p.dateAdded }
+  for (const prop of TRACK_PROPERTIES) {
+    if (!prop.filterable) continue
+    const range = sanitizeRange(prop, rawProperties[prop.key])
+    if (range !== null) out.properties[prop.key] = range
+  }
+  return out
+}
+
+/**
+ * Min/max per requested property over the library, missing values ignored;
+ * null when no track has the property. Only number- and key-kind properties
+ * have extents (key runs over Camelot numbers); other kinds are skipped.
+ * The filter inputs default to these, so freshly imported libraries start
+ * with their true ranges visible.
+ */
+export function propertyExtents(
+  tracks: Track[],
+  keys: readonly TrackSortField[],
+): Partial<Record<TrackSortField, [number, number] | null>> {
+  const out: Partial<Record<TrackSortField, [number, number] | null>> = {}
+  for (const key of keys) {
+    const kind = PROPERTY_BY_KEY.get(key)?.kind
+    if (kind !== 'number' && kind !== 'key') continue
+    let min = Infinity
+    let max = -Infinity
+    for (const track of tracks) {
+      let value: number
+      if (kind === 'key') {
+        if (track.key === null) continue
+        value = camelotNumber(track.key)
+      } else {
+        const raw = track[key]
+        if (typeof raw !== 'number') continue
+        value = raw
+      }
+      if (value < min) min = value
+      if (value > max) max = value
+    }
+    out[key] = min === Infinity ? null : [min, max]
+  }
+  return out
 }
 
 /**
@@ -89,24 +150,49 @@ export function wholeExtent(extent: [number, number]): [number, number] {
 
 /**
  * Keep min <= max by pulling the side the user just edited to the other
- * bound (editing min past max collapses onto max, and vice versa).
+ * bound (editing min past max collapses onto max, and vice versa). Generic
+ * since v11: string bounds clamp lexically for the text filters.
  */
-export function clampRange(range: [number, number], edited: 'min' | 'max'): [number, number] {
+export function clampRange<T extends number | string>(
+  range: [T, T],
+  edited: 'min' | 'max',
+): [T, T] {
   const [min, max] = range
   if (min <= max) return range
   return edited === 'min' ? [max, max] : [min, min]
 }
 
-function inRange(value: number | null, range: [number, number] | null): boolean {
-  if (range === null || value === null) return true
-  return value >= range[0] && value <= range[1]
-}
-
-/** Lexical date-range test; a missing date FAILS an active range (see above). */
-function inDateRange(value: string | null, range: [string, string] | null): boolean {
-  if (range === null) return true
-  if (value === null) return false
-  return value >= range[0] && value <= range[1]
+/** One property's pass test; kind-aware (see the module comment). */
+function passesProperty(track: Track, prop: TrackProperty, range: PropertyRange): boolean {
+  const raw = track[prop.key]
+  switch (prop.kind) {
+    case 'number': {
+      if (typeof range[0] !== 'number' || typeof range[1] !== 'number') return true
+      if (raw === null) return true
+      const value = Number(raw)
+      return value >= range[0] && value <= range[1]
+    }
+    case 'key': {
+      if (typeof range[0] !== 'number' || typeof range[1] !== 'number') return true
+      if (track.key === null) return true
+      const value = camelotNumber(track.key)
+      return value >= range[0] && value <= range[1]
+    }
+    case 'date': {
+      if (typeof range[0] !== 'string' || typeof range[1] !== 'string') return true
+      if (raw === null) return false // missing dates hide while active
+      return raw >= range[0] && raw <= range[1]
+    }
+    case 'text': {
+      if (typeof range[0] !== 'string' || typeof range[1] !== 'string') return true
+      if (raw === null) return true
+      const value = String(raw).toLowerCase()
+      const min = range[0].toLowerCase()
+      const max = range[1].toLowerCase()
+      // Upper bound is prefix-inclusive: "kraftwerk" passes max "k".
+      return value >= min && (max === '' || value.slice(0, max.length) <= max)
+    }
+  }
 }
 
 /** The track ids the playlist selection allows, or null when it is inert. */
@@ -150,16 +236,20 @@ export function applyFilters(
   filters: LibraryFilters,
   playlists: Playlist[] = [],
 ): Track[] {
+  // Resolve the active property filters once, in registry order — unknown
+  // keys in a corrupted save simply never match a property and stay inert.
+  const active: { prop: TrackProperty; range: PropertyRange }[] = []
+  for (const prop of TRACK_PROPERTIES) {
+    const range = filters.properties[prop.key]
+    if (range !== undefined) active.push({ prop, range })
+  }
   const allowed =
     filters.genres === null ? null : new Set(filters.genres.map((g) => g.toLowerCase()))
   const allowedIds = playlistMemberIds(tracks, filters.playlists, playlists)
   const ring = filters.keyRing === 'minor' ? 'A' : filters.keyRing === 'major' ? 'B' : null
   return tracks.filter(
     (t) =>
-      inRange(t.bpm, filters.bpm) &&
-      inRange(t.year, filters.year) &&
-      inRange(t.rating, filters.rating) &&
-      inDateRange(t.dateAdded, filters.dateAdded) &&
+      active.every(({ prop, range }) => passesProperty(t, prop, range)) &&
       (allowed === null || t.genre === null || allowed.has(t.genre.toLowerCase())) &&
       (allowedIds === null || allowedIds.has(t.id)) &&
       (ring === null || t.key === null || camelotRing(t.key) === ring),

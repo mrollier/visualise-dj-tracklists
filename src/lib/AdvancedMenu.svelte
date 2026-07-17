@@ -6,7 +6,7 @@
   import { resetAdvancedCriteria, resetAdvancedSettings } from '../core/reset'
   import { type BpmProgression } from '../core/settings'
   import { COLUMN_LABELS } from '../core/columns'
-  import { ALL_FILTER_KEYS, type FilterKey } from '../core/filter'
+  import { PROPERTY_BY_KEY } from '../core/properties'
   import type { TrackSortField } from '../core/trackSort'
   import InfoTooltip from './InfoTooltip.svelte'
   import {
@@ -58,15 +58,10 @@
     criteria.update(resetAdvancedCriteria)
   }
 
-  // --- Filters shown (v10 issue 4b): which range filters appear in the left
-  // panel. Hiding one also clears it, so a hidden filter never keeps acting.
-  const FILTER_LABELS: Record<FilterKey, string> = {
-    bpm: 'BPM',
-    year: 'Year',
-    rating: 'Rating',
-    dateAdded: 'Date added',
-  }
-  function toggleFilterVisible(key: FilterKey) {
+  // --- Track properties (v11 issue 1): one table decides, per property,
+  // whether it shows as a Tracks-view column and as a left-panel filter.
+  // Hiding a filter also clears it, so a hidden filter never keeps acting.
+  function toggleFilterVisible(key: TrackSortField) {
     const nowShown = !$settings.visibleFilters.includes(key)
     settings.update((s) => ({
       ...s,
@@ -74,12 +69,18 @@
         ? [...s.visibleFilters, key]
         : s.visibleFilters.filter((k) => k !== key),
     }))
-    if (!nowShown) filters.update((f) => ({ ...f, [key]: null }))
+    if (!nowShown) {
+      filters.update((f) => {
+        const properties = { ...f.properties }
+        Reflect.deleteProperty(properties, key)
+        return { ...f, properties }
+      })
+    }
   }
 
-  // --- Tracks-table columns (v8 issue 15, v9 issue 12) ---
-  // Checkboxes list the columns in the user's own order and toggle only the
-  // hidden set — a re-enabled column reappears at its previous position.
+  // Column checkboxes list the columns in the user's own order and toggle
+  // only the hidden set — a re-enabled column reappears at its previous
+  // position (v8 issue 15, v9 issue 12).
   function toggleColumn(field: TrackSortField) {
     settings.update((s) => ({
       ...s,
@@ -167,7 +168,9 @@
   // MUST be bind:open: Svelte 5 treats a plain open={} as controlled and
   // re-asserts the declared value after every user toggle, so a one-way
   // attribute (reactive or static) permanently slams the sections shut.
-  const SECTION_IDS = ['genre', 'keybpm', 'display', 'filters', 'tracks', 'set'] as const
+  // 'filters' merged into 'tracks' in v11 (issue 1) — the surviving id keeps
+  // old saves' fold memory for the section that remains.
+  const SECTION_IDS = ['genre', 'keybpm', 'display', 'tracks', 'set'] as const
   type SectionId = (typeof SECTION_IDS)[number]
   // One-time init from the store: settings is a svelte store, not runes state.
   const initiallyOpen = get(settings).advancedOpen
@@ -419,46 +422,40 @@
 
   <details
     class="section"
-    bind:open={sectionState.filters}
-    ontoggle={(e) => persistToggle('filters', e)}
-  >
-    <summary>Filters shown</summary>
-    <p class="hint">
-      Which range filters appear in the left panel. Date-added shows by default; hiding a filter
-      also clears it.
-    </p>
-    {#each ALL_FILTER_KEYS as key (key)}
-      <label class="row">
-        <input
-          type="checkbox"
-          checked={$settings.visibleFilters.includes(key)}
-          onchange={() => toggleFilterVisible(key)}
-        />
-        {FILTER_LABELS[key]}
-      </label>
-    {/each}
-  </details>
-
-  <details
-    class="section"
     bind:open={sectionState.tracks}
     ontoggle={(e) => persistToggle('tracks', e)}
   >
-    <summary>Tracks table</summary>
+    <summary>Track properties</summary>
     <p class="hint">
-      Columns shown in the Tracks view — drag the table headers to reorder them. A hidden column
-      remembers its place.
+      Column = shown in the Tracks view (drag the table headers to reorder; a hidden column
+      remembers its place). Filter = shown in the left panel; hiding a filter also clears it.
     </p>
+    <div class="prop-head" aria-hidden="true">
+      <span class="prop-name"></span>
+      <span>column</span>
+      <span>filter</span>
+    </div>
     <div class="scroll-list">
       {#each $settings.trackColumns as field (field)}
-        <label class="row">
+        <div class="prop-row">
+          <span class="prop-name">{COLUMN_LABELS[field]}</span>
           <input
             type="checkbox"
+            aria-label="{COLUMN_LABELS[field]} column"
             checked={!$settings.hiddenColumns.includes(field)}
             onchange={() => toggleColumn(field)}
           />
-          {COLUMN_LABELS[field]}
-        </label>
+          {#if PROPERTY_BY_KEY.get(field)?.filterable === true}
+            <input
+              type="checkbox"
+              aria-label="{COLUMN_LABELS[field]} filter"
+              checked={$settings.visibleFilters.includes(field)}
+              onchange={() => toggleFilterVisible(field)}
+            />
+          {:else}
+            <span></span>
+          {/if}
+        </div>
       {/each}
     </div>
   </details>
@@ -678,14 +675,44 @@
     gap: 4px;
   }
 
-  /* A fixed-height scroll box for the long column list (v10 issue 22),
+  /* A fixed-height scroll box for the long property list (v10 issue 22),
      matching the Genres/Playlists lists on the left. */
   .scroll-list {
-    max-height: 180px;
+    max-height: 200px;
     overflow-y: auto;
     border: 1px solid var(--border);
     border-radius: 6px;
     padding: 4px 8px;
+  }
+
+  /* The per-property Column/Filter grid (v11 issue 1). */
+  .prop-head,
+  .prop-row {
+    display: grid;
+    grid-template-columns: 1fr 48px 48px;
+    align-items: center;
+    justify-items: center;
+    gap: 2px;
+  }
+
+  .prop-head {
+    padding: 2px 24px 2px 8px;
+    color: var(--ink-muted);
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .prop-row {
+    padding: 2px 0;
+  }
+
+  .prop-name {
+    justify-self: start;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
   }
 
   label.off-view {

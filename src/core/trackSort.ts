@@ -34,6 +34,7 @@ export type TrackSortField =
   | 'colour'
   | 'dateModified'
   | 'lastPlayed'
+  | 'location'
 
 export interface TrackSort {
   field: TrackSortField

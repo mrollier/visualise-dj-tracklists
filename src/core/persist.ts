@@ -1,14 +1,9 @@
 import { migrateColumns } from './columns'
 import { DEFAULT_CRITERIA, type CriteriaConfig } from './combos'
-import {
-  ALL_FILTER_KEYS,
-  DEFAULT_VISIBLE_FILTERS,
-  EMPTY_FILTERS,
-  type FilterKey,
-  type LibraryFilters,
-} from './filter'
+import { migrateFilters, type LibraryFilters } from './filter'
 import { normalizeKey } from './keys'
 import type { Playlist, Track } from './model'
+import { DEFAULT_VISIBLE_FILTERS, TRACK_PROPERTIES } from './properties'
 import {
   freshFirstSet,
   MAX_SETS,
@@ -24,10 +19,11 @@ import { DEFAULT_SETTINGS, type AppSettings } from './settings'
  * explicit save/load (a .json file the user keeps) and localStorage autosave.
  * Version history: v1 (no filters/settings, criteria had a rating criterion),
  * v2 (filters + settings + colour axis; rating became a filter),
- * v3 (multiple named sets replace the single tracklist — issue 18).
+ * v3 (multiple named sets replace the single tracklist — issue 18),
+ * v4 (filters carry a per-property range map — v11 issue 1).
  */
 export interface Project {
-  version: 3
+  version: 4
   libraryName: string
   tracks: Track[]
   criteria: CriteriaConfig
@@ -151,7 +147,7 @@ export function parseProject(json: string): Project {
   }
   const p = raw as Record<string, unknown> &
     Omit<Partial<Project>, 'version'> & { version?: number; tracklist?: unknown }
-  if (p.version !== 1 && p.version !== 2 && p.version !== 3) {
+  if (p.version !== 1 && p.version !== 2 && p.version !== 3 && p.version !== 4) {
     throw new Error(`Unsupported project version: ${String(p.version)}`)
   }
   const hasSetShape = Array.isArray(p.sets) || Array.isArray(p.tracklist)
@@ -209,21 +205,36 @@ export function parseProject(json: string): Project {
   const columns = migrateColumns(rawSettings.trackColumns, rawSettings.hiddenColumns)
   settings.trackColumns = columns.trackColumns
   settings.hiddenColumns = columns.hiddenColumns
-  // v10 (issue 4b): visibleFilters is new; older saves back-fill to the
-  // default (Date-added on). Garbage entries are dropped; [] is a valid
-  // "hide every range filter" choice and is kept.
-  const validFilterKeys = new Set<string>(ALL_FILTER_KEYS)
-  settings.visibleFilters = Array.isArray(rawSettings.visibleFilters)
-    ? rawSettings.visibleFilters.filter((k): k is FilterKey => validFilterKeys.has(k as string))
+  // v11 (issue 1): filters normalize into the per-property map, whatever
+  // their vintage; migrateFilters lifts v3 top-level ranges and drops
+  // garbage entries.
+  const filters = migrateFilters(p.filters)
+  // visibleFilters (v10 issue 4b, widened in v11 to every property): saved
+  // arrays keep their valid keys; older saves back-fill to the default.
+  // [] is a valid "hide every property filter" choice. Either way, an
+  // actively filtering property is forced visible — the hide-clears-filter
+  // invariant means nothing may filter invisibly.
+  const validFilterKeys = new Set<string>(
+    TRACK_PROPERTIES.filter((prop) => prop.filterable).map((prop) => prop.key),
+  )
+  const savedVisible = rawSettings.visibleFilters
+  settings.visibleFilters = Array.isArray(savedVisible)
+    ? savedVisible.filter(
+        (k): k is (typeof settings.visibleFilters)[number] =>
+          typeof k === 'string' && validFilterKeys.has(k),
+      )
     : [...DEFAULT_VISIBLE_FILTERS]
+  for (const prop of TRACK_PROPERTIES) {
+    if (filters.properties[prop.key] !== undefined && !settings.visibleFilters.includes(prop.key)) {
+      settings.visibleFilters.push(prop.key)
+    }
+  }
   return {
-    version: 3,
+    version: 4,
     libraryName: typeof p.libraryName === 'string' ? p.libraryName : '',
     tracks,
     criteria: migrateCriteria(p.criteria as unknown as Record<string, unknown>),
-    // Merge-defaults: saves from before the playlists filter existed gain
-    // playlists: null (inactive) rather than failing to parse.
-    filters: { ...structuredClone(EMPTY_FILTERS), ...(p.filters as object | undefined) },
+    filters,
     settings,
     sets,
     activeSetId,

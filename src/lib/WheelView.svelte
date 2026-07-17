@@ -118,10 +118,19 @@
     $playlistScopedLibrary.map((t) => t[$radialAxis]).filter((v): v is number => v !== null),
   )
 
+  // The radial axes are all number-kind properties; narrow the stored range
+  // (v11 issue 1: filters carry a per-property map) for the domain maths.
+  const radialFilterRange = $derived.by((): [number, number] | null => {
+    const range = $filters.properties[$radialAxis]
+    return range !== undefined && typeof range[0] === 'number' && typeof range[1] === 'number'
+      ? [range[0], range[1]]
+      : null
+  })
+
   const targetDomain = $derived.by((): [number, number] => {
     const extent: [number, number] | null =
       radialValues.length === 0 ? null : [Math.min(...radialValues), Math.max(...radialValues)]
-    const domain = radialDomain($filters[$radialAxis], extent)
+    const domain = radialDomain(radialFilterRange, extent)
     // Nice once here (not per animation frame — nicing interpolated
     // endpoints would make the tween judder in rounded steps).
     return scaleLinear().domain(domain).nice().domain() as [number, number]
@@ -151,7 +160,7 @@
   // Tick values come from the settled target domain (labels don't churn
   // mid-animation); their positions ride the animated scale.
   const gridTicks = $derived.by(() => {
-    if (radialValues.length === 0 && $filters[$radialAxis] === null) return []
+    if (radialValues.length === 0 && radialFilterRange === null) return []
     const ticks = scaleLinear().domain(targetDomain).ticks(4)
     return $radialAxis === 'bpm' ? ticks : ticks.filter(Number.isInteger)
   })

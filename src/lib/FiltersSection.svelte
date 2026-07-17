@@ -1,47 +1,65 @@
 <script lang="ts">
   import { get } from 'svelte/store'
-  import { clampRange, libraryExtents, wholeExtent, type LibraryFilters } from '../core/filter'
+  import {
+    clampRange,
+    propertyExtents,
+    wholeExtent,
+    type LibraryFilters,
+    type PropertyRange,
+  } from '../core/filter'
+  import { PROPERTY_BY_KEY, type TrackProperty } from '../core/properties'
+  import type { TrackSortField } from '../core/trackSort'
   import { filters, library, playlistScopedLibrary, settings, visibleLibrary } from '../stores'
 
-  type RangeField = 'bpm' | 'year' | 'rating'
   type RangeSide = 'min' | 'max'
 
-  const RANGE_ROWS: { field: RangeField; label: string }[] = [
-    { field: 'bpm', label: 'BPM' },
-    { field: 'year', label: 'Year' },
-    { field: 'rating', label: 'Rating' },
-  ]
-  // Only the range filters the user has chosen to show (v10 issue 4b).
-  const visibleRangeRows = $derived(
-    RANGE_ROWS.filter((r) => $settings.visibleFilters.includes(r.field)),
+  // The rows on show: the user's visibleFilters selection (advanced "Track
+  // properties" table), resolved through the registry (v11 issue 1).
+  const rows = $derived(
+    $settings.visibleFilters
+      .map((key) => PROPERTY_BY_KEY.get(key))
+      .filter((p): p is TrackProperty => p !== undefined && p.filterable),
   )
-  const showDateAdded = $derived($settings.visibleFilters.includes('dateAdded'))
 
-  // Date-added is a lexical 'YYYY-MM-DD' range with its own <input type=date>
-  // boxes; empty side = open-ended (a far past/future bound keeps JSON finite).
-  let dateInputs = $state({ min: '', max: '' })
-  function commitDate() {
-    const { min, max } = dateInputs
-    const range: LibraryFilters['dateAdded'] =
-      min === '' && max === ''
-        ? null
-        : [min === '' ? '0000-01-01' : min, max === '' ? '9999-12-31' : max]
-    filters.update((f) => ({ ...f, dateAdded: range }))
-  }
+  // Extents of the playlist-scoped library for the numeric-ish rows: the
+  // defaults follow the playlists you work in, not the whole collection.
+  const scopedExtents = $derived(
+    propertyExtents(
+      $playlistScopedLibrary,
+      rows.filter((p) => p.kind === 'number' || p.kind === 'key').map((p) => p.key),
+    ),
+  )
 
-  // Local min/max fields, seeded from the playlist selection's actual
+  // Local min/max text per row, seeded from the playlist selection's actual
   // extremes or from an active filter. Only user edits (and playlist
-  // toggles, which reset the ranges) write to the filters store, so loaded
-  // projects keep their saved ranges.
-  let inputs = $state({
-    bpm: { min: '', max: '' },
-    year: { min: '', max: '' },
-    rating: { min: '', max: '' },
-  })
+  // toggles, which reset the numeric ranges) write to the filters store, so
+  // loaded projects keep their saved ranges.
+  let inputs = $state<Partial<Record<TrackSortField, { min: string; max: string }>>>({})
 
-  // Extents of the playlist-scoped library: the defaults follow the
-  // playlists you work in, not the whole collection.
-  const scopedExtents = $derived(libraryExtents($playlistScopedLibrary))
+  // Date sentinels keep persisted JSON finite while a side stays open.
+  const DATE_OPEN_MIN = '0000-01-01'
+  const DATE_OPEN_MAX = '9999-12-31'
+
+  function seedRow(prop: TrackProperty, active: LibraryFilters): void {
+    const range = active.properties[prop.key]
+    if (prop.kind === 'number' || prop.kind === 'key') {
+      const seeded = range ?? whole(scopedExtents[prop.key] ?? null)
+      inputs[prop.key] =
+        seeded === undefined || seeded === null
+          ? { min: '', max: '' }
+          : { min: String(seeded[0]), max: String(seeded[1]) }
+    } else if (prop.kind === 'date') {
+      inputs[prop.key] = {
+        min: range === undefined || range[0] === DATE_OPEN_MIN ? '' : String(range[0]),
+        max: range === undefined || range[1] === DATE_OPEN_MAX ? '' : String(range[1]),
+      }
+    } else {
+      inputs[prop.key] =
+        range === undefined
+          ? { min: '', max: '' }
+          : { min: String(range[0]), max: String(range[1]) }
+    }
+  }
 
   let seededForLibrary: unknown = null
   let seededForPlaylists: unknown = null
@@ -54,33 +72,29 @@
       // Never writes to the store here.
       seededForLibrary = lib
       seededForPlaylists = selection
+      inputs = {}
       const active = get(filters)
-      for (const { field } of RANGE_ROWS) {
-        const range = active[field] ?? whole(scopedExtents[field])
-        inputs[field] = {
-          min: range === null ? '' : String(range[0]),
-          max: range === null ? '' : String(range[1]),
-        }
-      }
-      // Seed the date boxes from a saved date filter (blank = open-ended).
-      dateInputs = {
-        min:
-          active.dateAdded === null || active.dateAdded[0] === '0000-01-01'
-            ? ''
-            : active.dateAdded[0],
-        max:
-          active.dateAdded === null || active.dateAdded[1] === '9999-12-31'
-            ? ''
-            : active.dateAdded[1],
-      }
+      for (const prop of rows) seedRow(prop, active)
       return
     }
-    // Toggling playlists resets every range to the new selection's extremes
-    // (deliberate: stale ranges from another playlist would silently hide
-    // tracks — the user asked for this reset).
+    // Toggling playlists resets the NUMERIC ranges to the new selection's
+    // extremes (deliberate: stale ranges from another playlist would
+    // silently hide tracks). Text and date filters are absolute criteria,
+    // not scope-relative, so they survive the toggle.
     if (selection !== seededForPlaylists) {
       seededForPlaylists = selection
-      for (const { field } of RANGE_ROWS) resetRange(field)
+      for (const prop of rows) {
+        if (prop.kind === 'number' || prop.kind === 'key') resetRange(prop)
+      }
+    }
+  })
+
+  // A filter made visible after load has no input entry yet — seed it
+  // lazily so the row opens showing the saved filter or the scoped extent.
+  $effect(() => {
+    const active = get(filters)
+    for (const prop of rows) {
+      if (inputs[prop.key] === undefined) seedRow(prop, active)
     }
   })
 
@@ -88,38 +102,76 @@
     return extent === null ? null : wholeExtent(extent)
   }
 
+  function boxes(key: TrackSortField): { min: string; max: string } {
+    return inputs[key] ?? { min: '', max: '' }
+  }
+
+  /** Record a keystroke into the row's local state, then commit. */
+  function setBox(prop: TrackProperty, side: RangeSide, value: string, reflect = false): void {
+    inputs[prop.key] = { ...boxes(prop.key), [side]: value }
+    commit(prop, side, reflect)
+  }
+
+  function writeProperty(key: TrackSortField, range: PropertyRange | null): void {
+    filters.update((f) => {
+      const properties = { ...f.properties }
+      if (range === null) Reflect.deleteProperty(properties, key)
+      else properties[key] = range
+      return { ...f, properties }
+    })
+  }
+
   /**
    * Push the boxes into the store, clamped so min never exceeds max. The
    * store always receives the clamped range; the boxes themselves are only
    * rewritten on change (blur/enter), so clamping never fights mid-typing.
    */
-  function commit(field: RangeField, edited: RangeSide, reflect = false) {
-    const { min, max } = inputs[field]
-    // An emptied side falls back to the selection extreme (keeps JSON-safe
-    // finite bounds); both sides empty = not filtering.
-    const extent = scopedExtents[field]
-    let range: LibraryFilters[RangeField] = null
-    if (min !== '' || max !== '') {
-      range = clampRange(
+  function commit(prop: TrackProperty, edited: RangeSide, reflect = false): void {
+    const { min, max } = boxes(prop.key)
+    if (min === '' && max === '') {
+      writeProperty(prop.key, null)
+      return
+    }
+    if (prop.kind === 'number' || prop.kind === 'key') {
+      // An emptied side falls back to the selection extreme (keeps JSON-safe
+      // finite bounds); key ranges fall back to the full 1–12 wheel.
+      const extent = scopedExtents[prop.key] ?? (prop.kind === 'key' ? [1, 12] : null)
+      const range = clampRange(
         [
           min === '' ? (extent?.[0] ?? 0) : Number(min),
           max === '' ? (extent?.[1] ?? 9999) : Number(max),
         ],
         edited,
       )
-      if (reflect) inputs[field] = { min: String(range[0]), max: String(range[1]) }
+      if (reflect) inputs[prop.key] = { min: String(range[0]), max: String(range[1]) }
+      writeProperty(prop.key, range)
+    } else if (prop.kind === 'date') {
+      writeProperty(prop.key, [min === '' ? DATE_OPEN_MIN : min, max === '' ? DATE_OPEN_MAX : max])
+    } else {
+      // Text: lowercased prefix bounds; an empty side stays open, so only
+      // clamp when both sides are present.
+      let low = min.trim().toLowerCase()
+      let high = max.trim().toLowerCase()
+      if (low !== '' && high !== '') {
+        ;[low, high] = clampRange([low, high], edited)
+        if (reflect) inputs[prop.key] = { min: low, max: high }
+      }
+      writeProperty(prop.key, low === '' && high === '' ? null : [low, high])
     }
-    filters.update((f) => ({ ...f, [field]: range }))
   }
 
-  /** Reset a range to the whole numbers just outside the selection's extremes. */
-  function resetRange(field: RangeField) {
-    const range = whole(scopedExtents[field])
-    inputs[field] = {
-      min: range === null ? '' : String(range[0]),
-      max: range === null ? '' : String(range[1]),
+  /** Reset: numeric ranges to the selection's whole-number extremes; text
+   *  and date rows to blank (off). */
+  function resetRange(prop: TrackProperty): void {
+    if (prop.kind === 'number' || prop.kind === 'key') {
+      const range = whole(scopedExtents[prop.key] ?? null)
+      inputs[prop.key] =
+        range === null ? { min: '', max: '' } : { min: String(range[0]), max: String(range[1]) }
+      writeProperty(prop.key, range)
+    } else {
+      inputs[prop.key] = { min: '', max: '' }
+      writeProperty(prop.key, null)
     }
-    filters.update((f) => ({ ...f, [field]: range }))
   }
 
   // The minor/major ring switch (issue 6): semantically always a filter
@@ -141,64 +193,76 @@
     >
   </summary>
 
-  {#each visibleRangeRows as { field, label } (field)}
+  {#each rows as prop (prop.key)}
     <div class="filter-row">
-      <span class="filter-label">{label}</span>
-      <input
-        type="number"
-        placeholder="min"
-        min="0"
-        max={inputs[field].max === '' ? (field === 'rating' ? '5' : undefined) : inputs[field].max}
-        bind:value={inputs[field].min}
-        oninput={() => commit(field, 'min')}
-        onchange={() => commit(field, 'min', true)}
-      />
-      <span class="dash">–</span>
-      <input
-        type="number"
-        placeholder="max"
-        min={inputs[field].min === '' ? '0' : inputs[field].min}
-        max={field === 'rating' ? '5' : undefined}
-        bind:value={inputs[field].max}
-        oninput={() => commit(field, 'max')}
-        onchange={() => commit(field, 'max', true)}
-      />
+      <span class="filter-label">{prop.key === 'dateAdded' ? 'Added' : prop.label}</span>
+      {#if prop.kind === 'number' || prop.kind === 'key'}
+        <input
+          type="number"
+          placeholder="min"
+          min={prop.kind === 'key' ? '1' : '0'}
+          max={boxes(prop.key).max === ''
+            ? prop.kind === 'key'
+              ? '12'
+              : prop.key === 'rating'
+                ? '5'
+                : undefined
+            : boxes(prop.key).max}
+          value={boxes(prop.key).min}
+          oninput={(e) => setBox(prop, 'min', e.currentTarget.value)}
+          onchange={(e) => setBox(prop, 'min', e.currentTarget.value, true)}
+        />
+        <span class="dash">–</span>
+        <input
+          type="number"
+          placeholder="max"
+          min={boxes(prop.key).min === '' ? (prop.kind === 'key' ? '1' : '0') : boxes(prop.key).min}
+          max={prop.kind === 'key' ? '12' : prop.key === 'rating' ? '5' : undefined}
+          value={boxes(prop.key).max}
+          oninput={(e) => setBox(prop, 'max', e.currentTarget.value)}
+          onchange={(e) => setBox(prop, 'max', e.currentTarget.value, true)}
+        />
+      {:else if prop.kind === 'date'}
+        <input
+          type="date"
+          aria-label="{prop.label} after"
+          value={boxes(prop.key).min}
+          onchange={(e) => setBox(prop, 'min', e.currentTarget.value)}
+        />
+        <span class="dash">–</span>
+        <input
+          type="date"
+          aria-label="{prop.label} before"
+          value={boxes(prop.key).max}
+          onchange={(e) => setBox(prop, 'max', e.currentTarget.value)}
+        />
+      {:else}
+        <input
+          type="text"
+          placeholder="from"
+          aria-label="{prop.label} from"
+          value={boxes(prop.key).min}
+          onchange={(e) => setBox(prop, 'min', e.currentTarget.value, true)}
+        />
+        <span class="dash">–</span>
+        <input
+          type="text"
+          placeholder="to"
+          aria-label="{prop.label} to"
+          value={boxes(prop.key).max}
+          onchange={(e) => setBox(prop, 'max', e.currentTarget.value, true)}
+        />
+      {/if}
       <button
         class="range-reset"
-        title="Reset to the selection's range"
-        aria-label="Reset {label} range"
-        onclick={() => resetRange(field)}>↺</button
+        title={prop.kind === 'number' || prop.kind === 'key'
+          ? "Reset to the selection's range"
+          : 'Clear this filter'}
+        aria-label="Reset {prop.label} filter"
+        onclick={() => resetRange(prop)}>↺</button
       >
     </div>
   {/each}
-
-  {#if showDateAdded}
-    <div class="filter-row">
-      <span class="filter-label">Added</span>
-      <input
-        type="date"
-        aria-label="Added after"
-        bind:value={dateInputs.min}
-        onchange={commitDate}
-      />
-      <span class="dash">–</span>
-      <input
-        type="date"
-        aria-label="Added before"
-        bind:value={dateInputs.max}
-        onchange={commitDate}
-      />
-      <button
-        class="range-reset"
-        title="Clear the date filter"
-        aria-label="Clear date filter"
-        onclick={() => {
-          dateInputs = { min: '', max: '' }
-          commitDate()
-        }}>↺</button
-      >
-    </div>
-  {/if}
 
   <div class="filter-row">
     <span class="filter-label">Keys</span>
@@ -239,12 +303,17 @@
   }
 
   .filter-label {
-    width: 44px;
+    width: 64px;
+    flex-shrink: 0;
     color: var(--ink-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .filter-row input {
     width: 64px;
+    min-width: 0;
     padding: 2px 6px;
   }
 
@@ -252,6 +321,10 @@
     width: auto;
     flex: 1;
     min-width: 0;
+  }
+
+  .filter-row input[type='text'] {
+    flex: 1;
   }
 
   .dash {

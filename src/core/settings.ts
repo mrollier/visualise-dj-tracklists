@@ -1,5 +1,5 @@
 import { ALL_TRACK_COLUMNS, DEFAULT_HIDDEN_COLUMNS } from './columns'
-import { DEFAULT_VISIBLE_FILTERS, type FilterKey } from './filter'
+import { DEFAULT_VISIBLE_FILTERS } from './properties'
 import type { TrackSortField } from './trackSort'
 
 /**
@@ -64,10 +64,10 @@ export interface AppSettings {
   /** Columns currently hidden from the Tracks table. */
   hiddenColumns: TrackSortField[]
   /**
-   * Which range filters appear in the left panel (v10 issue 4b); the rest are
-   * hidden until ticked in the advanced "Filters shown" checklist.
+   * Which property filters appear in the left panel (v11 issue 1); the rest
+   * are hidden until ticked in the advanced "Track properties" table.
    */
-  visibleFilters: FilterKey[]
+  visibleFilters: TrackSortField[]
   /**
    * Which advanced-menu sections the user has opened (v8 issue 17). Empty on
    * first use — every section starts folded; the menu then remembers.

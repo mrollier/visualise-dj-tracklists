@@ -6,6 +6,7 @@ import {
   migrateColumns,
   visibleColumns,
 } from '../src/core/columns'
+import { TRACK_PROPERTIES } from '../src/core/properties'
 
 const CLASSIC_SEVEN = ['artist', 'title', 'key', 'bpm', 'genre', 'year', 'rating'] as const
 
@@ -13,7 +14,15 @@ describe('the canonical column set (issues 10 + 12)', () => {
   test('covers every sortable field exactly once, classic seven first', () => {
     expect(new Set(ALL_TRACK_COLUMNS).size).toBe(ALL_TRACK_COLUMNS.length)
     expect(ALL_TRACK_COLUMNS.slice(0, 7)).toEqual([...CLASSIC_SEVEN])
-    expect(ALL_TRACK_COLUMNS.length).toBe(26)
+    expect(ALL_TRACK_COLUMNS.length).toBe(27)
+    expect(ALL_TRACK_COLUMNS.at(-1)).toBe('location')
+  })
+
+  test('derives from the property registry (v11 issue 1: one source of truth)', () => {
+    expect(ALL_TRACK_COLUMNS).toEqual(TRACK_PROPERTIES.map((p) => p.key))
+    for (const p of TRACK_PROPERTIES) {
+      expect(COLUMN_LABELS[p.key]).toBe(p.label)
+    }
   })
 
   test('every column has a label; hidden-by-default = everything beyond the seven', () => {
@@ -65,6 +74,16 @@ describe('migrateColumns (issue 12)', () => {
     const out = migrateColumns(order, hidden)
     expect(out.trackColumns).toEqual(order)
     expect(out.hiddenColumns).toEqual(hidden)
+  })
+
+  test('a save predating a canonical column hides the newcomer even when hiddenColumns exists (v11: location)', () => {
+    // A v10 save has a full order WITHOUT location and its own hidden array.
+    const oldOrder = ALL_TRACK_COLUMNS.filter((f) => f !== 'location')
+    const out = migrateColumns([...oldOrder], ['album'])
+    expect(out.trackColumns).toEqual([...oldOrder, 'location'])
+    expect(out.hiddenColumns).toContain('album')
+    expect(out.hiddenColumns).toContain('location')
+    expect(visibleColumns(out.trackColumns, out.hiddenColumns)).not.toContain('location')
   })
 
   test('an all-hidden save gets title forced back visible', () => {

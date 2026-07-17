@@ -7,11 +7,15 @@ import { DEFAULT_SETTINGS } from '../src/core/settings'
 import { SAMPLE_TRACKS } from '../src/data/sample-tracks'
 
 const project: Project = {
-  version: 3,
+  version: 4,
   libraryName: 'My crate',
   tracks: SAMPLE_TRACKS,
   criteria: { ...structuredClone(DEFAULT_CRITERIA), threshold: 4 },
-  filters: { ...structuredClone(EMPTY_FILTERS), bpm: [120, 140], playlists: ['Openers'] },
+  filters: {
+    ...structuredClone(EMPTY_FILTERS),
+    properties: { bpm: [120, 140] },
+    playlists: ['Openers'],
+  },
   settings: { ...structuredClone(DEFAULT_SETTINGS), colorScheme: 'aqua' },
   sets: [
     {
@@ -83,7 +87,7 @@ describe('project persistence (v3)', () => {
       colorAxis: 'auto',
     })
     const parsed = parseProject(v2)
-    expect(parsed.version).toBe(3)
+    expect(parsed.version).toBe(4)
     expect(parsed.sets).toHaveLength(1)
     expect(parsed.sets[0]).toMatchObject({
       name: 'First Set',
@@ -290,18 +294,121 @@ describe('project persistence (v3)', () => {
     expect(parseProject(JSON.stringify(raw)).settings.focusClusterEdges).toBe(false)
   })
 
-  test('saves from before visibleFilters default to Date-added on (v10 issue 4b)', () => {
+  test('saves from before visibleFilters default to BPM/Year/Rating (v11 revert of v10 4b)', () => {
     const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
     Reflect.deleteProperty(raw.settings as Record<string, unknown>, 'visibleFilters')
+    // The fixture has an active bpm filter, which the back-fill guard must
+    // keep visible — it is already in the default, so the default stands.
+    expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual([
+      'bpm',
+      'year',
+      'rating',
+    ])
+  })
+
+  test('visibleFilters keeps valid keys, drops garbage, allows empty; any property qualifies (v11)', () => {
+    const raw = JSON.parse(serializeProject(project)) as {
+      settings: Record<string, unknown>
+      filters: Record<string, unknown>
+    }
+    raw.filters.properties = {} // keep the active-filter guard out of this test
+    raw.settings.visibleFilters = ['bpm', 'nonsense', 'rating']
+    expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual(['bpm', 'rating'])
+    raw.settings.visibleFilters = ['artist', 'dateAdded']
+    expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual([
+      'artist',
+      'dateAdded',
+    ])
+    raw.settings.visibleFilters = []
+    expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual([])
+  })
+
+  test('a back-filled visibleFilters always includes the actively filtering properties (v11)', () => {
+    const raw = JSON.parse(serializeProject(project)) as {
+      settings: Record<string, unknown>
+      filters: Record<string, unknown>
+    }
+    Reflect.deleteProperty(raw.settings, 'visibleFilters')
+    raw.filters.properties = { dateAdded: ['2020-01-01', '2024-12-31'] }
+    // dateAdded is filtering but not in the new default — it must be appended
+    // so no filter can act invisibly.
+    expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual([
+      'bpm',
+      'year',
+      'rating',
+      'dateAdded',
+    ])
+    // An explicit [] with an active filter gains that filter's row too.
+    raw.settings.visibleFilters = []
     expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual(['dateAdded'])
   })
 
-  test('visibleFilters keeps valid keys, drops garbage, allows empty (v10 issue 4b)', () => {
-    const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
-    ;(raw.settings as Record<string, unknown>).visibleFilters = ['bpm', 'nonsense', 'rating']
-    expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual(['bpm', 'rating'])
-    ;(raw.settings as Record<string, unknown>).visibleFilters = []
-    expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual([])
+  test('v3 saves lift their top-level ranges into filters.properties (v11 issue 1)', () => {
+    const raw = JSON.parse(serializeProject(project)) as {
+      version: number
+      filters: Record<string, unknown>
+    }
+    raw.version = 3
+    raw.filters = {
+      bpm: [120, 130],
+      year: null,
+      rating: [3, 5],
+      dateAdded: ['2020-01-01', '9999-12-31'],
+      genres: null,
+      playlists: ['Openers'],
+      keyRing: 'minor',
+    }
+    const parsed = parseProject(JSON.stringify(raw))
+    expect(parsed.filters.properties).toEqual({
+      bpm: [120, 130],
+      rating: [3, 5],
+      dateAdded: ['2020-01-01', '9999-12-31'],
+    })
+    expect(parsed.filters.playlists).toEqual(['Openers'])
+    expect(parsed.filters.keyRing).toBe('minor')
+    expect(parsed.version).toBe(4)
+  })
+
+  test('garbage property filters are dropped or clamped (v11 issue 1)', () => {
+    const raw = JSON.parse(serializeProject(project)) as { filters: Record<string, unknown> }
+    raw.filters.properties = {
+      bpm: [120, 130], // fine
+      nonsense: [1, 2], // unknown property
+      artist: [3, 4], // numbers on a text property
+      year: ['a', 'b'], // strings on a number property
+      rating: [3], // not a pair
+      key: [0, 99], // clamps into 1–12
+      genre: ['a', 'm'], // fine — text
+    }
+    const parsed = parseProject(JSON.stringify(raw))
+    expect(parsed.filters.properties).toEqual({
+      bpm: [120, 130],
+      key: [1, 12],
+      genre: ['a', 'm'],
+    })
+  })
+
+  test('an active text filter round-trips through serialize → parse (v11 issue 1)', () => {
+    const withText: Project = {
+      ...project,
+      filters: {
+        ...structuredClone(EMPTY_FILTERS),
+        properties: { artist: ['b', 'k'], key: [8, 12] },
+      },
+    }
+    const parsed = parseProject(serializeProject(withText))
+    expect(parsed.filters.properties).toEqual({ artist: ['b', 'k'], key: [8, 12] })
+  })
+
+  test('old saves without location in hiddenColumns keep it hidden (v11 issue 1)', () => {
+    const raw = JSON.parse(serializeProject(project)) as { settings: Record<string, unknown> }
+    raw.settings.trackColumns = (raw.settings.trackColumns as string[]).filter(
+      (f) => f !== 'location',
+    )
+    raw.settings.hiddenColumns = ['album']
+    const settings = parseProject(JSON.stringify(raw)).settings
+    expect(settings.hiddenColumns).toContain('location')
+    expect(visibleColumns(settings.trackColumns, settings.hiddenColumns)).not.toContain('location')
   })
 
   test('saves from before icon modes default to genre families (v8 issues 4+5)', () => {
@@ -371,7 +478,7 @@ describe('project persistence (v3)', () => {
       radialAxis: 'bpm',
     })
     const migrated = parseProject(v1)
-    expect(migrated.version).toBe(3)
+    expect(migrated.version).toBe(4)
     expect(migrated.filters).toEqual(EMPTY_FILTERS)
     expect(migrated.settings).toEqual(DEFAULT_SETTINGS)
     expect(migrated.colorAxis).toBe('auto')

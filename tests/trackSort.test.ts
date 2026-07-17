@@ -100,6 +100,19 @@ describe('sortTracks (the Tracks table view)', () => {
     ])
   })
 
+  test('location sorts as a path string; missing sinks (v11 issue 1)', () => {
+    const rows = [
+      track({ id: 'a', location: '/music/zz-top/track.mp3' }),
+      track({ id: 'b', location: '/music/aphex/track.mp3' }),
+      track({ id: 'c', location: null }),
+    ]
+    expect(sortTracks(rows, { field: 'location', dir: 'asc' }).map((t) => t.id)).toEqual([
+      'b',
+      'a',
+      'c',
+    ])
+  })
+
   test('the new columns sort too: album (locale), dateAdded (ISO), duration (v8 issue 15)', () => {
     const albums = [
       track({ id: 'a', album: 'Zenith' }),

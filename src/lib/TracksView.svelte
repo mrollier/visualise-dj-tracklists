@@ -9,6 +9,7 @@
   import { COLUMN_LABELS, visibleColumns } from '../core/columns'
   import type { Track } from '../core/model'
   import { nextStarState, type StarState } from '../core/pins'
+  import { formatPropertyValue, PROPERTY_BY_KEY } from '../core/properties'
   import { removeAllOccurrences } from '../core/sets'
   import { sortTracks, type TrackSortField } from '../core/trackSort'
   import {
@@ -30,20 +31,10 @@
 
   // Columns = the full settings order minus the hidden set (v9 issue 12).
   const columns = $derived(visibleColumns($settings.trackColumns, $settings.hiddenColumns))
-  const STRING_FIELDS = new Set<TrackSortField>([
-    'artist',
-    'title',
-    'genre',
-    'album',
-    'composer',
-    'grouping',
-    'remixer',
-    'label',
-    'mix',
-    'comments',
-    'colour',
-    'kind',
-  ])
+  // Kind and formatting come from the property registry (v11 issue 1).
+  function isTextColumn(field: TrackSortField): boolean {
+    return PROPERTY_BY_KEY.get(field)?.kind === 'text'
+  }
 
   function toggleSort(field: TrackSortField) {
     trackSort.update((sort) =>
@@ -51,17 +42,6 @@
         ? { field, dir: sort.dir === 'asc' ? 'desc' : 'asc' }
         : { field, dir: 'asc' },
     )
-  }
-
-  function cellText(track: Track, field: TrackSortField): string {
-    const value = track[field]
-    if (value === null) return '—'
-    if (field === 'durationSec') {
-      const secs = Math.round(value as number)
-      return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`
-    }
-    if (field === 'size') return `${((value as number) / (1024 * 1024)).toFixed(1)} MB`
-    return String(value)
   }
 
   // Sorting always runs over the whole selection, but only the top window is
@@ -306,9 +286,12 @@
                 </td>
               {:else}
                 <td
-                  class:ellipsis={STRING_FIELDS.has(field)}
-                  class:tabular={!STRING_FIELDS.has(field)}
-                  class:title={field === 'title'}>{cellText(track, field)}</td
+                  class:ellipsis={isTextColumn(field)}
+                  class:tabular={!isTextColumn(field)}
+                  class:title={field === 'title'}
+                  title={field === 'location' && track.location !== null
+                    ? track.location
+                    : undefined}>{formatPropertyValue(track, field)}</td
                 >
               {/if}
             {/each}

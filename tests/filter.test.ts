@@ -4,8 +4,8 @@ import {
   applyPlaylistFilter,
   clampRange,
   EMPTY_FILTERS,
-  libraryExtents,
   NOT_IN_PLAYLIST,
+  propertyExtents,
   wholeExtent,
   type LibraryFilters,
 } from '../src/core/filter'
@@ -35,18 +35,22 @@ function filters(overrides: Partial<LibraryFilters>): LibraryFilters {
   return { ...EMPTY_FILTERS, ...overrides }
 }
 
-describe('applyFilters', () => {
+describe('applyFilters (v11 issue 1: per-property ranges)', () => {
   test('no filters passes everything through', () => {
+    expect(EMPTY_FILTERS.properties).toEqual({})
     expect(applyFilters(tracks, EMPTY_FILTERS)).toHaveLength(4)
   })
 
   test('bpm range keeps tracks inside [min, max]', () => {
-    const out = applyFilters(tracks, filters({ bpm: [130, 180] }))
+    const out = applyFilters(tracks, filters({ properties: { bpm: [130, 180] } }))
     expect(out.map((t) => t.id)).toEqual(['b', 'c', 'd']) // d has no bpm → passes
   })
 
   test('year and rating ranges combine (AND)', () => {
-    const out = applyFilters(tracks, filters({ year: [2015, 2025], rating: [4, 5] }))
+    const out = applyFilters(
+      tracks,
+      filters({ properties: { year: [2015, 2025], rating: [4, 5] } }),
+    )
     expect(out.map((t) => t.id)).toEqual(['b', 'd'])
   })
 
@@ -55,12 +59,8 @@ describe('applyFilters', () => {
     expect(out.map((t) => t.id)).toEqual(['a', 'c', 'd'])
   })
 
-  test('empty genre allow-list means no genre filtering', () => {
-    expect(applyFilters(tracks, filters({ genres: null }))).toHaveLength(4)
-  })
-
-  test('missing values never fail a range filter', () => {
-    const out = applyFilters(tracks, filters({ bpm: [500, 600] }))
+  test('missing values never fail a number-range filter', () => {
+    const out = applyFilters(tracks, filters({ properties: { bpm: [500, 600] } }))
     expect(out.map((t) => t.id)).toEqual(['d'])
   })
 
@@ -83,7 +83,65 @@ describe('applyFilters', () => {
   })
 })
 
-describe('dateAdded filter (v10 issue 4b)', () => {
+describe('text prefix-ranges (v11 issue 1)', () => {
+  const artists = [
+    track({ id: 'a', artist: 'Aphex Twin' }),
+    track({ id: 'b', artist: 'Bicep' }),
+    track({ id: 'k', artist: 'Kraftwerk' }),
+    track({ id: 'l', artist: 'Laurent Garnier' }),
+    track({ id: 'none', artist: null }),
+  ]
+
+  test('keeps names starting between the bounds, upper bound prefix-inclusive', () => {
+    const out = applyFilters(artists, filters({ properties: { artist: ['b', 'k'] } }))
+    // "kraftwerk" starts with "k" → in; "laurent…" > "k…" → out
+    expect(out.map((t) => t.id)).toEqual(['b', 'k', 'none'])
+  })
+
+  test('compares case-insensitively', () => {
+    const out = applyFilters(artists, filters({ properties: { artist: ['B', 'K'] } }))
+    expect(out.map((t) => t.id)).toEqual(['b', 'k', 'none'])
+  })
+
+  test('an empty side is open', () => {
+    expect(
+      applyFilters(artists, filters({ properties: { artist: ['', 'b'] } })).map((t) => t.id),
+    ).toEqual(['a', 'b', 'none'])
+    expect(
+      applyFilters(artists, filters({ properties: { artist: ['k', ''] } })).map((t) => t.id),
+    ).toEqual(['k', 'l', 'none'])
+  })
+
+  test('missing text passes; genre text-range ANDs with the genre checklist', () => {
+    const out = applyFilters(
+      tracks,
+      filters({ properties: { genre: ['t', 't'] }, genres: ['Techno', 'Trance', 'Drum & Bass'] }),
+    )
+    expect(out.map((t) => t.id)).toEqual(['a', 'b', 'd'])
+  })
+})
+
+describe('key ordinal ranges (v11 issue 1: Camelot number, both rings)', () => {
+  const keyed = [
+    track({ id: 'low', key: '3A' }),
+    track({ id: 'inA', key: '9A' }),
+    track({ id: 'inB', key: '11B' }),
+    track({ id: 'high', key: '12B' }),
+    track({ id: 'none', key: null }),
+  ]
+
+  test('8–12 hits both rings; missing keys pass', () => {
+    const out = applyFilters(keyed, filters({ properties: { key: [8, 12] } }))
+    expect(out.map((t) => t.id)).toEqual(['inA', 'inB', 'high', 'none'])
+  })
+
+  test('composes with the ring switch', () => {
+    const out = applyFilters(keyed, filters({ properties: { key: [8, 12] }, keyRing: 'minor' }))
+    expect(out.map((t) => t.id)).toEqual(['inA', 'none'])
+  })
+})
+
+describe('date-kind filters exclude undated tracks (generalizes v10 issue 4b)', () => {
   const dated = [
     track({ id: 'old', dateAdded: '2019-05-01' }),
     track({ id: 'mid', dateAdded: '2022-06-15' }),
@@ -91,39 +149,53 @@ describe('dateAdded filter (v10 issue 4b)', () => {
     track({ id: 'none', dateAdded: null }),
   ]
 
-  test('null range passes everything, including undated tracks', () => {
-    expect(applyFilters(dated, filters({ dateAdded: null })).map((t) => t.id)).toEqual([
-      'old',
-      'mid',
-      'new',
-      'none',
-    ])
-  })
-
   test('filters lexically by YYYY-MM-DD, bounds inclusive', () => {
-    const out = applyFilters(dated, filters({ dateAdded: ['2022-06-15', '2024-01-20'] }))
+    const out = applyFilters(
+      dated,
+      filters({ properties: { dateAdded: ['2022-06-15', '2024-01-20'] } }),
+    )
     expect(out.map((t) => t.id)).toEqual(['mid', 'new'])
   })
 
-  test('undated tracks are excluded while the date filter is active', () => {
-    const out = applyFilters(dated, filters({ dateAdded: ['2000-01-01', '2030-01-01'] }))
+  test('undated tracks are excluded while a date filter is active', () => {
+    const out = applyFilters(
+      dated,
+      filters({ properties: { dateAdded: ['2000-01-01', '2030-01-01'] } }),
+    )
     expect(out.map((t) => t.id)).toEqual(['old', 'mid', 'new'])
+  })
+
+  test('the rule covers every date-kind property (lastPlayed too)', () => {
+    const played = [
+      track({ id: 'p', lastPlayed: '2024-03-01' }),
+      track({ id: 'never', lastPlayed: null }),
+    ]
+    const out = applyFilters(
+      played,
+      filters({ properties: { lastPlayed: ['2024-01-01', '2024-12-31'] } }),
+    )
+    expect(out.map((t) => t.id)).toEqual(['p'])
   })
 })
 
-describe('libraryExtents', () => {
-  test('reports min/max per numeric field, ignoring missing values', () => {
-    expect(libraryExtents(tracks)).toEqual({
+describe('propertyExtents (v11: computed only for requested keys)', () => {
+  test('reports min/max for number properties, ignoring missing values', () => {
+    expect(propertyExtents(tracks, ['bpm', 'year', 'rating'])).toEqual({
       bpm: [120, 174],
       year: [2010, 2023],
       rating: [2, 5],
     })
   })
 
-  test('a field with no values at all yields null', () => {
+  test('key extents run over Camelot numbers across both rings', () => {
+    const keyed = [track({ id: 'a', key: '3A' }), track({ id: 'b', key: '11B' })]
+    expect(propertyExtents(keyed, ['key'])).toEqual({ key: [3, 11] })
+  })
+
+  test('a property with no values yields null; unrequested and non-range kinds are absent', () => {
     const unrated = [track({ id: 'x', rating: null })]
-    expect(libraryExtents(unrated).rating).toBeNull()
-    expect(libraryExtents([])).toEqual({ bpm: null, year: null, rating: null })
+    expect(propertyExtents(unrated, ['rating'])).toEqual({ rating: null })
+    expect(propertyExtents(tracks, ['bpm', 'artist'])).toEqual({ bpm: [120, 174] })
   })
 })
 
@@ -156,7 +228,7 @@ describe('playlist filtering', () => {
   test('playlist selection intersects with the other filters', () => {
     const visible = applyFilters(
       tracks,
-      filters({ playlists: ['Openers', 'Peak'], bpm: [130, 180] }),
+      filters({ playlists: ['Openers', 'Peak'], properties: { bpm: [130, 180] } }),
       playlists,
     )
     expect(visible.map((t) => t.id)).toEqual(['b', 'c'])
@@ -215,7 +287,7 @@ describe('wholeExtent', () => {
   })
 })
 
-describe('clampRange', () => {
+describe('clampRange (generic over numbers and strings since v11)', () => {
   test('an edited min above the max is pulled down to the max', () => {
     expect(clampRange([130, 124], 'min')).toEqual([124, 124])
   })
@@ -231,5 +303,11 @@ describe('clampRange', () => {
 
   test('equal bounds are allowed', () => {
     expect(clampRange([128, 128], 'min')).toEqual([128, 128])
+  })
+
+  test('string bounds clamp lexically', () => {
+    expect(clampRange(['k', 'b'], 'min')).toEqual(['b', 'b'])
+    expect(clampRange(['k', 'b'], 'max')).toEqual(['k', 'k'])
+    expect(clampRange(['b', 'k'], 'min')).toEqual(['b', 'k'])
   })
 })
