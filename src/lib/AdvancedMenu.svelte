@@ -7,12 +7,14 @@
   import { type BpmProgression } from '../core/settings'
   import { COLUMN_LABELS } from '../core/columns'
   import type { TrackSortField } from '../core/trackSort'
+  import InfoTooltip from './InfoTooltip.svelte'
   import {
     criteria,
     mustInclude,
     pinnedFirst,
     pinnedLast,
     rightPanel,
+    selectedId,
     settings,
     trackById,
     viewMode,
@@ -201,19 +203,21 @@
   >
     <summary>Genre matching</summary>
     <label>
-      Method
+      <span class="label-with-info">
+        Method
+        <InfoTooltip label="About this method">
+          {METHOD_EXPLAINER[$criteria.genre.method].text}
+          {#each METHOD_EXPLAINER[$criteria.genre.method].sources as source (source.href)}
+            <a href={source.href} target="_blank" rel="noreferrer">[{source.label}]</a>
+          {/each}
+        </InfoTooltip>
+      </span>
       <select bind:value={$criteria.genre.method}>
         {#each METHOD_PICK_ORDER as method (method)}
           <option value={method}>{METHOD_LABEL_LONG[method]}</option>
         {/each}
       </select>
     </label>
-    <p class="hint">
-      {METHOD_EXPLAINER[$criteria.genre.method].text}
-      {#each METHOD_EXPLAINER[$criteria.genre.method].sources as source (source.href)}
-        <a href={source.href} target="_blank" rel="noreferrer">[{source.label}]</a>
-      {/each}
-    </p>
     {#if $criteria.genre.method !== 'exact'}
       <div class="mode-row">
         <label class="row">
@@ -227,8 +231,14 @@
       </div>
       {#if $criteria.genre.mode === 'topk'}
         <label>
-          Link each genre to its <strong>{$criteria.genre.k}</strong> nearest
-          <input type="range" min="1" max="15" step="1" bind:value={$criteria.genre.k} />
+          Link each genre to its nearest
+          <input
+            class="classes-input"
+            type="number"
+            min="1"
+            max="8"
+            bind:value={$criteria.genre.k}
+          />
         </label>
         <label>
           Minimum score <strong>{$criteria.genre.threshold.toFixed(2)}</strong>
@@ -266,7 +276,7 @@
     <summary>Key & BPM</summary>
     <label class="row">
       <input type="checkbox" bind:checked={$criteria.key.plusTwo} />
-      allow +2 moves (energy jump)
+      allow +2 moves
     </label>
     <label class="row">
       <input type="checkbox" bind:checked={$criteria.key.plusSeven} />
@@ -275,30 +285,30 @@
     <label class="row">
       <input type="checkbox" bind:checked={$criteria.key.vinylMode} />
       vinyl mode
+      <InfoTooltip label="About vinyl mode">
+        Beatmatching on vinyl shifts pitch with tempo, so keys are compared after the shift needed
+        to beatmatch. Tempo gaps landing on a whole semitone transpose the key; gaps in between
+        detune it — even same-key tracks lose their match. Gaps beyond the BPM tolerance can't
+        beatmatch at all.
+      </InfoTooltip>
     </label>
-    <p class="hint">
-      Beatmatching on vinyl shifts pitch with tempo, so keys are compared after the shift needed to
-      beatmatch. Tempo gaps landing on a whole semitone transpose the key (+7 Camelot); gaps in
-      between detune it — even same-key tracks lose their match. Gaps beyond the BPM tolerance (the
-      pitch fader's range) can't beatmatch at all.
-    </p>
     <label class="row">
       <input type="checkbox" bind:checked={$criteria.bpm.unitTime} />
-      ± unit time (normal 1:1 matching)
+      ± unit time
     </label>
     <label class="row">
       <input type="checkbox" bind:checked={$criteria.bpm.halfDouble} />
-      ± half/double time (85 ↔ 170)
+      ± half/double time
     </label>
     <label class="row">
       <input type="checkbox" bind:checked={$criteria.bpm.twoThirds} />
-      ± 2/3 time (triplet ↔ four-on-the-floor)
+      ± 2/3 time
+      <InfoTooltip label="About metric ratios">
+        The BPM criterion matches at every enabled metric ratio, each within the same % tolerance.
+        Switching unit time off hides the ordinary matches so only the exotic combos remain — expect
+        most edges to vanish.
+      </InfoTooltip>
     </label>
-    <p class="hint">
-      The BPM criterion matches at every enabled metric ratio, each within the same % tolerance.
-      Switching unit time off hides the ordinary matches so only the exotic combos remain — expect
-      most edges to vanish.
-    </p>
   </details>
 
   <details
@@ -342,29 +352,22 @@
         disabled={$viewMode !== 'wheel'}
       />
     </label>
-    <label class:off-view={$viewMode !== 'wheel'} title="Only affects the Wheel view">
-      Edge opacity <strong>{$settings.edgeOpacity.toFixed(2)}</strong>
-      <input
-        type="range"
-        min="0"
-        max="0.9"
-        step="0.05"
-        bind:value={$settings.edgeOpacity}
-        disabled={$viewMode !== 'wheel'}
-      />
-    </label>
-    <label class="row" class:off-view={$viewMode !== 'wheel'} title="Only affects the Wheel view">
-      <input
-        type="checkbox"
-        bind:checked={$settings.focusClusterEdges}
-        disabled={$viewMode !== 'wheel'}
-      />
-      Interconnect the selection's cluster
-    </label>
-    <p class="hint">
-      Edges only appear around the selected track: its own connections by default; this also draws
-      how those neighbours link amongst themselves.
-    </p>
+    <!-- Edges are focus-only (v9), so their controls appear only when a track
+         is selected on the wheel — not greyed the rest of the time (v10 #20). -->
+    {#if $viewMode === 'wheel' && $selectedId !== null}
+      <label>
+        Edge opacity <strong>{$settings.edgeOpacity.toFixed(2)}</strong>
+        <input type="range" min="0" max="0.9" step="0.05" bind:value={$settings.edgeOpacity} />
+      </label>
+      <label class="row">
+        <input type="checkbox" bind:checked={$settings.focusClusterEdges} />
+        Interconnect the selection's cluster
+      </label>
+      <p class="hint">
+        Edges only appear around the selected track: its own connections by default; this also draws
+        how those neighbours link amongst themselves.
+      </p>
+    {/if}
     <label class:off-view={$viewMode !== 'wheel'} title="Only affects the Wheel view">
       Node icons (Wheel view)
       <select bind:value={$settings.iconMode} disabled={$viewMode !== 'wheel'}>
@@ -374,7 +377,15 @@
       </select>
     </label>
     <label>
-      Max symbol classes
+      <span class="label-with-info">
+        Max symbol classes
+        <InfoTooltip label="About symbol classes">
+          Distinct node shapes (circle, square, triangle, …) mark up to this many classes: curated
+          genre families, the selected playlists, or similarity clusters. The largest classes keep a
+          symbol; smaller families merge into a broader umbrella when they exceed the cap. The genre
+          map always shows genre families, whatever the icon mode.
+        </InfoTooltip>
+      </span>
       <input
         class="classes-input"
         type="number"
@@ -383,12 +394,6 @@
         bind:value={$settings.maxGenreClasses}
       />
     </label>
-    <p class="hint">
-      Distinct node shapes (circle, square, triangle, …) mark up to this many classes: curated genre
-      families, the selected playlists, or similarity clusters. The largest classes keep a symbol;
-      everything stays a circle when nothing separates. The genre map always shows genre families,
-      whatever the icon mode.
-    </p>
   </details>
 
   <details
@@ -401,16 +406,18 @@
       Columns shown in the Tracks view — drag the table headers to reorder them. A hidden column
       remembers its place.
     </p>
-    {#each $settings.trackColumns as field (field)}
-      <label class="row">
-        <input
-          type="checkbox"
-          checked={!$settings.hiddenColumns.includes(field)}
-          onchange={() => toggleColumn(field)}
-        />
-        {COLUMN_LABELS[field]}
-      </label>
-    {/each}
+    <div class="scroll-list">
+      {#each $settings.trackColumns as field (field)}
+        <label class="row">
+          <input
+            type="checkbox"
+            checked={!$settings.hiddenColumns.includes(field)}
+            onchange={() => toggleColumn(field)}
+          />
+          {COLUMN_LABELS[field]}
+        </label>
+      {/each}
+    </div>
   </details>
 
   <details class="section" bind:open={sectionState.set} ontoggle={(e) => persistToggle('set', e)}>
@@ -617,6 +624,25 @@
 
   label.row {
     justify-content: flex-start;
+    /* Keep the label text beside its checkbox, never wrapped under it (v10
+       issue 19). */
+    flex-wrap: nowrap;
+  }
+
+  .label-with-info {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* A fixed-height scroll box for the long column list (v10 issue 22),
+     matching the Genres/Playlists lists on the left. */
+  .scroll-list {
+    max-height: 180px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 8px;
   }
 
   label.off-view {
