@@ -1,10 +1,12 @@
 <script lang="ts">
-  // The selected track's card: details + the "must include" mark (design-v6
+  // The selected track's card: details + the suggestion marks (design-v6
   // §C). Since v9 (issue 19) it docks under the right panel — the bottom
-  // right of the whole app — instead of floating on the wheel, where it
-  // crowded the legend and zoom controls.
+  // right of the whole app. Since v11 (issue 15) the three marks are one
+  // compact icon row (★ ⏮ ⏭) with an ⓘ explaining them, reclaiming the
+  // vertical space the labelled buttons ate.
   import { mustInclude, pinnedFirst, pinnedLast, selectedId, trackById } from '../stores'
   import type { Writable } from 'svelte/store'
+  import InfoTooltip from './InfoTooltip.svelte'
 
   const selectedTrack = $derived(
     $selectedId === null ? null : ($trackById.get($selectedId) ?? null),
@@ -36,34 +38,43 @@
       <dt>Genre</dt>
       <dd>{selectedTrack.genre ?? 'missing'}</dd>
     </dl>
-    <button
-      class="must-toggle"
-      class:on={isMustIncluded}
-      aria-pressed={isMustIncluded}
-      title="Suggested sets will strongly favour including this track"
-      onclick={toggleMustInclude}
-    >
-      {isMustIncluded ? '★ in suggested sets' : '☆ must include in suggested sets'}
-    </button>
-    <div class="pins">
+    <div class="marks">
       <button
-        class="pin-toggle"
+        class="mark-toggle"
+        class:on={isMustIncluded}
+        aria-pressed={isMustIncluded}
+        aria-label="Must include in suggested sets"
+        title="Suggested sets will strongly favour including this track"
+        onclick={toggleMustInclude}
+      >
+        {isMustIncluded ? '★' : '☆'}
+      </button>
+      <button
+        class="mark-toggle"
         class:on={isFirst}
         aria-pressed={isFirst}
+        aria-label="Open suggested sets with this track"
         title="Open suggested sets with this track"
         onclick={() => togglePin(pinnedFirst)}
       >
-        ⏮ open
+        ⏮
       </button>
       <button
-        class="pin-toggle"
+        class="mark-toggle"
         class:on={isLast}
         aria-pressed={isLast}
+        aria-label="Close suggested sets with this track"
         title="Close suggested sets with this track"
         onclick={() => togglePin(pinnedLast)}
       >
-        close ⏭
+        ⏭
       </button>
+      <InfoTooltip label="About these marks" align="right">
+        <strong>Marks for suggested sets</strong>
+        <span>★ — strongly favour including this track.</span>
+        <span>⏮ — open generated sets with it.</span>
+        <span>⏭ — close generated sets with it.</span>
+      </InfoTooltip>
     </div>
   </div>
 {/if}
@@ -103,30 +114,20 @@
     color: var(--ink-secondary);
   }
 
-  .must-toggle {
-    width: 100%;
-    font-size: 11px;
-    color: var(--ink-secondary);
-  }
-
-  .must-toggle.on {
-    color: var(--accent);
-    border-color: var(--accent);
-  }
-
-  .pins {
+  .marks {
     display: flex;
+    align-items: center;
     gap: 6px;
-    margin-top: 6px;
   }
 
-  .pin-toggle {
+  .mark-toggle {
     flex: 1;
-    font-size: 11px;
+    padding: 2px 0;
+    font-size: 12px;
     color: var(--ink-secondary);
   }
 
-  .pin-toggle.on {
+  .mark-toggle.on {
     color: var(--accent);
     border-color: var(--accent);
   }
