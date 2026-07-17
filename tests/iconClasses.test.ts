@@ -121,12 +121,26 @@ describe('playlistClasses', () => {
     expect(result!.classOf.get('t5')).toBeUndefined()
   })
 
-  test('beyond maxClasses, the largest keep a symbol; panel order breaks ties', () => {
+  test('a cap below the playlist count drops ALL distinction (v11 issue 7)', () => {
+    // Two symbols for three playlists would read as "two playlists" — a
+    // partial legend misleads, so below the cap everything is a circle.
     const c: Playlist = { name: 'Extra', trackIds: ['t5'] }
-    const result = playlistClasses(tracks, [c, playlistA, playlistB], 2)
-    // Extra and Peak both hold one track; Extra sits higher in the panel
-    expect(result!.classes.map((c2) => c2.label)).toEqual(['Warm-up', 'Extra'])
-    expect(result!.classOf.get('t4')).toBeUndefined()
+    expect(playlistClasses(tracks, [c, playlistA, playlistB], 2)).toBeNull()
+  })
+
+  test('a cap equal to the populated playlist count keeps every symbol', () => {
+    const c: Playlist = { name: 'Extra', trackIds: ['t5'] }
+    const result = playlistClasses(tracks, [c, playlistA, playlistB], 3)
+    expect(result).not.toBeNull()
+    expect(result!.classes).toHaveLength(3)
+  })
+
+  test('empty selected playlists do not count against the cap', () => {
+    const empty: Playlist = { name: 'Empty', trackIds: ['ghost-only'] }
+    const result = playlistClasses(tracks, [empty, playlistA, playlistB], 2)
+    // Only Warm-up and Peak hold visible tracks — two classes fit a cap of 2.
+    expect(result).not.toBeNull()
+    expect(result!.classes.map((c2) => c2.label)).toEqual(['Warm-up', 'Peak'])
   })
 
   test('fewer than two selected playlists means nothing to distinguish', () => {

@@ -117,8 +117,10 @@ export function genreFamilyClasses(
  * Icons from playlist membership: a track's class is the FIRST selected
  * playlist (panel order) containing it. Tracks in none of the selected
  * playlists stay unclassed; a single selected playlist distinguishes
- * nothing and yields null. Beyond maxClasses, the largest playlists keep
- * their symbol.
+ * nothing and yields null. Playlists have no umbrella tree to merge into,
+ * so a cap BELOW the populated-playlist count yields null too (v11 issue
+ * 7): two symbols for three playlists would read as "two playlists" —
+ * distinction is all or nothing.
  */
 export function playlistClasses(
   tracks: Track[],
@@ -141,9 +143,8 @@ export function playlistClasses(
   const classes = [...sizes]
     .filter(([, size]) => size > 0)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, Math.max(1, maxClasses))
     .map(([label, size]) => ({ label, size }))
-  if (classes.length < 2) return null
+  if (classes.length < 2 || classes.length > Math.max(1, maxClasses)) return null
   const indexOfPlaylist = new Map(classes.map((cls, index) => [cls.label, index]))
   const classOf = new Map<string, number>()
   for (const [id, name] of playlistOfTrack) {

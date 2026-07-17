@@ -1270,8 +1270,12 @@
     background: var(--walk);
   }
 
+  /* Right-aligned via auto margin (v11 issue 8): when the chips overflow
+     onto a second line, the hint becomes its own deliberate right-aligned
+     item instead of a ragged left-aligned tail. */
   .legend-hint {
-    margin-left: 12px;
+    margin-left: auto;
+    white-space: nowrap;
     color: var(--ink-muted);
   }
 
