@@ -70,20 +70,51 @@ await page.getByText('combo suggestions').waitFor()
 await page.waitForTimeout(900) // let the radial tween fully settle before probing
 await page.screenshot({ path: `${scratch}/02-wheel.png` })
 
-// v10 issue 4b: BPM/Year/Rating range filters are opt-in now (only Date-added
-// shows by default). Enable them via the advanced "Filters shown" checklist so
-// the filter-driven checks below have their controls.
-await page.getByRole('button', { name: /Advanced/ }).click()
-await page.locator('.panel details.section > summary', { hasText: 'Filters shown' }).click()
+// v11 issue 1: BPM/Year/Rating filters are the default again (the v10
+// Date-added default is reverted), so the filter-driven checks below need no
+// advanced-menu setup. v11 issue 4: the sample's info moved to the status ⓘ.
 {
-  const shown = page.locator('.panel details.section', { hasText: 'Filters shown' })
-  for (const name of ['BPM', 'Year', 'Rating']) {
-    await shown.getByRole('checkbox', { name, exact: true }).check()
+  const filterLabels = await page.locator('.filter-row .filter-label').allTextContents()
+  for (const expected of ['BPM', 'Year', 'Rating', 'Keys']) {
+    if (!filterLabels.some((l) => l.trim() === expected)) {
+      errors.push(`default filters should include ${expected}, got [${filterLabels}]`)
+    }
+  }
+  if (filterLabels.some((l) => l.includes('Added'))) {
+    errors.push('Date-added should be opt-in again, not a default filter (v11)')
+  }
+  if ((await page.locator('.sample-load').count()) !== 0) {
+    errors.push('the Load-sample button should no longer carry its own info icon')
+  }
+  const statusInfo = await importReportText()
+  if (!/themed playlists/.test(statusInfo)) {
+    errors.push(`the status ⓘ should report the sample's playlists, got "${statusInfo}"`)
   }
 }
-// Re-fold so the fold-memory stays empty for the "first open" check below.
-await page.locator('.panel details.section > summary', { hasText: 'Filters shown' }).click()
-await page.keyboard.press('Escape')
+// v11 issue 2a: the require-boxes reach zero — every pair becomes a combo,
+// and the stat line computes the complete graph arithmetically.
+{
+  const visibleCount = Number.parseInt(
+    (await page.locator('.stat .value').first().textContent()) ?? '0',
+    10,
+  )
+  const firstBox = page.locator('.boxes .box').first()
+  await firstBox.click() // fill down to 1
+  await firstBox.click() // …and clear to 0
+  const thresholdText = (await page.locator('.threshold-head').textContent())?.replace(/\s+/g, ' ')
+  if (!thresholdText?.includes('0 of 4')) {
+    errors.push(`clicking the last filled box should read "require 0 of 4", got "${thresholdText}"`)
+  }
+  const comboStat = Number.parseInt(
+    (await page.locator('.stat .value').nth(1).textContent()) ?? '0',
+    10,
+  )
+  const completePairs = (visibleCount * (visibleCount - 1)) / 2
+  if (comboStat !== completePairs) {
+    errors.push(`threshold 0 should count ${completePairs} combos (complete), got ${comboStat}`)
+  }
+  await page.locator('.boxes .box').nth(2).click() // restore require 3
+}
 
 // genre-class shapes: the legend must carry shape chips for the collection
 if ((await page.locator('.shape-chip').count()) === 0) {
@@ -122,7 +153,7 @@ if (ticksFiltered.join() !== ticksBefore.join()) {
   errors.push(`a rating filter rescaled the radial ticks: ${ticksBefore} -> ${ticksFiltered}`)
 }
 await page.screenshot({ path: `${scratch}/03a-gapped-fans.png` })
-await page.getByRole('button', { name: 'Reset Rating range' }).click()
+await page.getByRole('button', { name: 'Reset Rating filter' }).click()
 await page.waitForTimeout(400)
 
 // min can never exceed max (ISSUES.md #1): typing an absurd min clamps
@@ -134,7 +165,7 @@ const bpmVals = await bpmRow.locator('input').evaluateAll((els) => els.map((e) =
 if (Number(bpmVals[0]) > Number(bpmVals[1])) {
   errors.push(`BPM min ${bpmVals[0]} ended above max ${bpmVals[1]}`)
 }
-await page.getByRole('button', { name: 'Reset BPM range' }).click()
+await page.getByRole('button', { name: 'Reset BPM filter' }).click()
 await page.waitForTimeout(400)
 
 // the RADIAL axis follows its filter (ISSUES.md #2): a narrow BPM range
@@ -148,7 +179,7 @@ if (ticksNarrow.join() === ticksWide.join()) {
   errors.push('a narrow BPM filter did not rescale the radial ticks')
 }
 await page.screenshot({ path: `${scratch}/03b-radial-rescale.png` })
-await page.getByRole('button', { name: 'Reset BPM range' }).click()
+await page.getByRole('button', { name: 'Reset BPM filter' }).click()
 await page.waitForTimeout(900)
 const ticksReset = await page.locator('text.tick-label').allTextContents()
 if (ticksReset.join() !== ticksWide.join()) {
@@ -183,9 +214,13 @@ const legendBox = await page.locator('.legend').boundingBox()
 if (cardBox && legendBox && cardBox.x < legendBox.x + legendBox.width) {
   errors.push('the selected-track card overlaps the legend')
 }
-await page.locator('.must-toggle').click()
-if ((await page.locator('.must-toggle[aria-pressed="true"]').count()) !== 1) {
-  errors.push('the must-include toggle did not switch on')
+// v11 issue 15: the card's marks are a compact icon row (★ ⏮ ⏭ + ⓘ).
+await page.locator('.marks .mark-toggle').first().click()
+if ((await page.locator('.marks .mark-toggle[aria-pressed="true"]').count()) !== 1) {
+  errors.push('the must-include mark did not switch on')
+}
+if ((await page.locator('.marks .mark-toggle').count()) !== 3) {
+  errors.push('the selected-track card should show exactly three mark icons')
 }
 await page.screenshot({ path: `${scratch}/04-selected.png` })
 
@@ -209,6 +244,17 @@ if ((await page.locator('.must-list li').count()) !== 1) {
   errors.push('the must-include mark did not appear in the Set & suggestions section')
 }
 await page.getByRole('spinbutton', { name: 'Suggested set length' }).fill('8')
+// v11 issue 14: resetting to defaults asks first — cancel leaves everything.
+await page.getByRole('button', { name: /Return to default settings/ }).click()
+if (
+  (await page.locator('dialog[open]').getByRole('button', { name: 'Reset settings' }).count()) !== 1
+) {
+  errors.push('Return to default settings should open a confirmation dialog')
+}
+await page.locator('dialog[open]').getByRole('button', { name: 'Cancel' }).click()
+if ((await page.getByRole('spinbutton', { name: 'Suggested set length' }).inputValue()) !== '8') {
+  errors.push('cancelling the reset dialog should keep the settings untouched')
+}
 await page.keyboard.press('Escape')
 await page.getByRole('button', { name: /Suggest a set/ }).click()
 await page.waitForTimeout(300)
@@ -403,10 +449,17 @@ if (desc[0] < desc[desc.length - 1]) errors.push('BPM descending sort is not des
 if ((await page.locator('.tracks-view td.rating .stars').count()) === 0) {
   errors.push('ratings should render as stars in the Tracks view')
 }
+// v11 issue 1: columns live in the unified "Track properties" table now,
+// one row per property with a Column and a Filter checkbox.
 await page.getByRole('button', { name: /Advanced/ }).click()
-await page.locator('.panel details.section > summary', { hasText: 'Tracks table' }).click()
-await page.getByRole('checkbox', { name: 'Length', exact: true }).check()
-await page.locator('.panel details.section > summary', { hasText: 'Tracks table' }).click()
+await page.locator('.panel details.section > summary', { hasText: 'Track properties' }).click()
+if ((await page.locator('.prop-row').count()) !== 27) {
+  errors.push(
+    `the Track properties table should list 27 rows, got ${await page.locator('.prop-row').count()}`,
+  )
+}
+await page.getByRole('checkbox', { name: 'Length column', exact: true }).check()
+await page.locator('.panel details.section > summary', { hasText: 'Track properties' }).click()
 await page.keyboard.press('Escape')
 if ((await page.locator('.tracks-view th button', { hasText: 'Length' }).count()) !== 1) {
   errors.push('enabling the Length column did not add its header')
@@ -471,6 +524,42 @@ if ((await starOf(openerRow).textContent())?.trim() !== '⏮') {
   await page.waitForTimeout(200)
   if ((await page.locator('aside ol li.track').count()) !== setLenBefore) {
     errors.push('clicking the position number did not remove the track from the set')
+  }
+}
+// v11 issues 11+12: header icons align over their columns; the ☰ toggle
+// shows only the set (position order), hiding the sort triangle; both
+// return untouched on toggle-back.
+{
+  const headerStarBox = await page.locator('.header-star').boundingBox()
+  const rowStarBox = await page.locator('.tag.star').first().boundingBox()
+  if (headerStarBox && rowStarBox) {
+    const headerMid = headerStarBox.x + headerStarBox.width / 2
+    const rowMid = rowStarBox.x + rowStarBox.width / 2
+    if (Math.abs(headerMid - rowMid) > 3) {
+      errors.push(
+        `header ★ misaligned with row stars (${headerMid.toFixed(1)} vs ${rowMid.toFixed(1)})`,
+      )
+    }
+  }
+  const setEntries = await page.locator('aside ol li.track').count()
+  const dirBefore = await page.locator('.tracks-view .dir').count()
+  if (dirBefore !== 1)
+    errors.push('the sorted column should show its triangle before set-only mode')
+  await page.locator('.pos-toggle').click()
+  await page.waitForTimeout(200)
+  const setOnlyRows = await page.locator('.tracks-view tbody tr').count()
+  if (setOnlyRows > setEntries || setOnlyRows === 0) {
+    errors.push(
+      `set-only mode should list the set's tracks (≤ ${setEntries} deduped), got ${setOnlyRows}`,
+    )
+  }
+  if ((await page.locator('.tracks-view .dir').count()) !== 0) {
+    errors.push('the sort triangle should hide while set order rules (v11 issue 12b)')
+  }
+  await page.locator('.pos-toggle').click()
+  await page.waitForTimeout(200)
+  if ((await page.locator('.tracks-view .dir').count()) !== 1) {
+    errors.push('the sort triangle should return when leaving set-only mode')
   }
 }
 // v8 issue 15: header drag reorders columns persistently
@@ -639,6 +728,34 @@ if ((await page.locator('g.hub.warning').count()) !== 1) {
     }
   }
 }
+// v11 issue 16b: after that short suggestion the SET button also offers a
+// force mode — it fills the walk with rule-breaking picks and reports how
+// many transitions were forced.
+{
+  const forceButton = page.locator('.suggest-row .force')
+  if ((await forceButton.count()) !== 1) {
+    errors.push('a short suggestion should morph the button into ⚡ Force to N')
+  } else {
+    if (!/⚡ Force to 99/.test((await forceButton.textContent()) ?? '')) {
+      errors.push('the force button should name the target length')
+    }
+    await page.screenshot({ path: `${scratch}/07e-force-set.png` })
+    await forceButton.click()
+    await page.waitForTimeout(400)
+    const forcedNote = await page.locator('.forced-note').textContent()
+    if (!/forced/.test(forcedNote ?? '')) {
+      errors.push('a forced set should report its forced transitions')
+    }
+    // The pool (Classic demo) is smaller than 99: force uses every track.
+    const visibleNodes = await page.locator('g.node').count()
+    if ((await page.locator('aside ol li.track').count()) !== visibleNodes) {
+      errors.push('force should walk through the entire remaining pool')
+    }
+    if ((await page.locator('.suggest-row .force').count()) !== 0) {
+      errors.push('after forcing, the button should return to its normal state')
+    }
+  }
+}
 await page.locator('aside').first().getByRole('button', { name: 'All' }).first().click()
 await page.waitForTimeout(400)
 
@@ -646,9 +763,12 @@ await page.waitForTimeout(400)
 // and containment — no node may drift out of the frame (ISSUES.md #12)
 await page.getByRole('button', { name: 'Genres', exact: true }).click()
 await page.waitForTimeout(1200)
-// wheel-only controls grey out off-wheel (ISSUES.md v7 #4)
-if ((await page.locator('header select:disabled').count()) !== 2) {
-  errors.push('Radius/Colour selects should be disabled in the Genres view')
+// wheel-only controls DIM off-wheel but stay adjustable (v11 issue 13)
+if ((await page.locator('header select:disabled').count()) !== 0) {
+  errors.push('Radius/Colour should dim, not disable, in the Genres view (v11)')
+}
+if ((await page.locator('header label.off-view').count()) !== 2) {
+  errors.push('Radius/Colour labels should carry the off-view dim in the Genres view')
 }
 // v8 issues 12+13: no 'exact' chip (it can never draw an edge), and the five
 // remaining chips sit on ONE line
@@ -933,17 +1053,52 @@ if ((await shapeFingerprint()) !== shapesHybrid) {
 }
 await advMethodSelect.selectOption('hybrid')
 await page.waitForTimeout(300)
+// v11 issue 6: the method explainer's ⓘ pins open on click, so its citation
+// links are reachable; an outside click dismisses it.
+{
+  const methodInfo = page
+    .locator('.panel details.section', { hasText: 'Genre matching' })
+    .locator('.info')
+    .first()
+  await methodInfo.click()
+  await page.locator('h1').hover() // move the pointer well away
+  await page.waitForTimeout(200)
+  if ((await page.locator('.info-wrap .tooltip').count()) !== 1) {
+    errors.push('a clicked ⓘ should stay pinned open after the pointer leaves')
+  }
+  if ((await page.locator('.info-wrap .tooltip a').count()) === 0) {
+    errors.push('the pinned method explainer should expose its citation links')
+  }
+  await page.locator('.panel .head h2').click()
+  await page.waitForTimeout(200)
+  if ((await page.locator('.info-wrap .tooltip').count()) !== 0) {
+    errors.push('an outside click should dismiss the pinned tooltip')
+  }
+}
 await ensureSectionOpen('Display')
 await page
   .locator('.panel label', { hasText: 'Node icons' })
   .locator('select')
   .selectOption('playlists')
 await page.waitForTimeout(500)
+// v11 issue 7: ALL sample playlists are selected here — more than the class
+// cap — so the playlists mode must drop distinction entirely (no chips)…
+if ((await page.locator('.shape-chip').count()) !== 0) {
+  errors.push('a class cap below the playlist count should drop every shape chip (v11 issue 7)')
+}
+// …until the selection narrows to within the cap.
+await page.locator('aside').first().getByRole('button', { name: 'None' }).first().click()
+for (const name of ['Classic demo', 'Peak-Time Techno', 'Trance Journey']) {
+  await page.getByRole('checkbox', { name }).check()
+}
+await page.waitForTimeout(600)
 const chipLabels = await page.$$eval('.shape-chip', (chips) => chips.map((c) => c.textContent))
 if (!chipLabels.some((label) => label?.includes('Classic demo'))) {
-  errors.push(`playlists icon mode should list playlist names in the legend (${chipLabels})`)
+  errors.push(`playlists icon mode should list playlist names within the cap (${chipLabels})`)
 }
 await page.screenshot({ path: `${scratch}/08b-playlist-icons.png` })
+await page.locator('aside').first().getByRole('button', { name: 'All' }).first().click()
+await page.waitForTimeout(400)
 await page
   .locator('.panel label', { hasText: 'Node icons' })
   .locator('select')
@@ -1087,9 +1242,23 @@ if ((await page.locator('g.hub.disabled').count()) !== 1) {
   errors.push('the hub did not disable once every visible track was in the set')
 }
 await page.locator('aside').last().getByRole('button', { name: 'Clear' }).click()
-// v10: Clear now asks to confirm
+// v10: Clear now asks to confirm; v11 issue 17: the dialog no longer claims
+// the clear "cannot be undone" (Cmd+Z restores it).
+{
+  const dialogBody = await page.locator('dialog[open] p').textContent()
+  if (/cannot be undone/i.test(dialogBody ?? '')) {
+    errors.push('the clear-set dialog still claims it cannot be undone (v11 issue 17)')
+  }
+}
 await page.getByRole('button', { name: 'Clear set' }).click()
 await page.waitForTimeout(150)
+// v11 issue 12a: with the set now empty, the tracks-view ☰ toggle disables.
+await page.getByRole('button', { name: 'Tracks', exact: true }).click()
+if (!(await page.locator('.pos-toggle').isDisabled())) {
+  errors.push('the ☰ set-only toggle should disable while the set is empty')
+}
+await page.getByRole('button', { name: 'Wheel', exact: true }).click()
+await page.waitForTimeout(200)
 // the genre checklist follows the playlist selection (ISSUES.md v7 #14):
 // Warm-up & After holds only a Melodic House track (plus one without genre),
 // so the collection's other genres must not clutter the list

@@ -89,14 +89,18 @@
 
   // When a suggestion stops short of the target length, the button morphs
   // into a force variant (v11 issue 16b) — mirroring the wheel hub — and a
-  // notice reports how many steps had to break the criteria. Both reset on
-  // the next ordinary suggest or set switch.
+  // notice reports how many steps had to break the criteria. The window is
+  // tied to the set the suggestion wrote (a suggest may itself CREATE a set
+  // via addSet, so a bare on-id-change reset would wipe it immediately);
+  // navigating to any other set closes it.
   let shortBy = $state(0)
   let forcedSteps = $state<number | null>(null)
+  let forceForSetId = $state<string | null>(null)
   $effect(() => {
-    void $activeSet.id // dependency: switching sets closes the force window
-    shortBy = 0
-    forcedSteps = null
+    if ($activeSet.id !== forceForSetId) {
+      shortBy = 0
+      forcedSteps = null
+    }
   })
 
   function suggest(force = false) {
@@ -113,6 +117,7 @@
       force,
     })
     setGeneratedTracklist(walk.ids)
+    forceForSetId = $activeSet.id
     shortBy = force ? 0 : Math.max(0, $settings.suggestLength - walk.ids.length)
     forcedSteps = force ? walk.forced : null
   }

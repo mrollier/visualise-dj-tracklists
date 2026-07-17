@@ -36,7 +36,10 @@ Your library never leaves your machine — there is no backend, no account, no u
   deterministic, and never reshuffled by criterion changes), your selected
   **playlists** (first one wins), or similarity **clusters** in the hybrid space —
   capped by a "max symbol classes" setting (1–8); past the cap, smaller genre
-  families **merge into their umbrella** in the tree rather than dropping to circles.
+  families **merge into their umbrella** in the tree rather than dropping to
+  circles. Playlists have no umbrella to merge into, so a cap below the selected
+  playlist count drops the distinction entirely — all circles, no legend — rather
+  than showing a misleading partial set.
 - **Nodes that hold still**: every track's angle is a property of your _library_,
   not of the current filters — filtering and playlist toggling only make nodes
   appear or disappear, leaving gaps in the same-key fans, so nothing ever shuffles
@@ -54,10 +57,11 @@ Your library never leaves your machine — there is no backend, no account, no u
   make no distinction. Rating and year rings only sit on whole values.
 - **Map the genres**: a second central view (Wheel | Genres | Tracks switch) lays your
   library's genres out with a force simulation — screen distance approximates the
-  distance measure, and you can **grab a node anywhere and drag it** to jiggle the
-  clusters, the neighbours settling around it (panning stays on the background; the
-  re-layout eases in slowly enough to follow). Node icons here always follow the
-  **curated genre families**, with a shape legend at the bottom.
+  distance measure, and you can **grab a node and drag it — the whole graph leans
+  after it** through empty space (gravity is towed along with the drag) and drifts
+  home when you let go (panning stays on the background; the re-layout eases in
+  slowly enough to follow). Node icons here always follow the **curated genre
+  families**, with a shape legend at the bottom.
   **One method's edge overlay draws at a time** — it follows your active criterion
   method (drawing exactly the pairs the criterion links, k/threshold included), or
   pick another on the chips; switching never leaves the old overlay stacked.
@@ -67,31 +71,40 @@ Your library never leaves your machine — there is no backend, no account, no u
 - **Browse the tracks**: the third central view is a classic sortable table of
   everything the wheel shows — playlists AND filters scope it — with every column
   sortable (keys in Camelot order, missing values last, ratings as stars), and the
-  sort survives view switches. Pick **which columns show** in the advanced menu —
-  **every metadata field the Rekordbox XML carries** is available, 26 columns from
-  Artist to Play count to Bit rate — and **drag the headers** to reorder them; a
-  hidden column remembers its place. Clicking a row selects it everywhere and
-  highlights its combo neighbours. Two leading cells: a **single star that cycles
-  on click** — essential (must-include) → opener ⏮ → closer ⏭ → off, skipping the
-  opener/closer stage when another track already holds it (tagged tracks wear a
-  subtle ring on the wheel); and a **＋ cell that appends to the set and turns into
-  the track's position number(s)** — hover it for a ✕ that takes the track out
-  again. The header ★ (revealed on header hover) stars the whole view at once, and
-  a toggle on the position header flips the table to **just this set, in order,
-  with every metadata column** — the set panel's list, fleshed out.
-- **Filter**: a **Date-added** range shows by default; BPM / year / rating ranges are
-  opt-in via a **"Filters shown" checklist** in the advanced menu (hiding one also
-  clears it). A **both/minor/major** switch shows one Camelot ring only (the excluded
-  ring's sector tint fades out so the wheel visibly answers), and a **Genres section**
-  of its own — a checklist **scoped to the selected playlists** with a live count —
-  decide what participates in the graph at all. Numeric ranges pre-fill with the whole
-  numbers just outside the selected playlists' actual extremes, reset to them with a ↺
-  per range (and whenever you toggle playlists), and a min can never cross its max. The
-  filter header counts visible tracks against the playlist selection.
+  sort survives view switches. Every track property — **27 of them, everything the
+  Rekordbox XML carries**, from Artist to Play count to file Location — has a row
+  in the advanced **"Track properties" table** with two checkboxes: **shown as a
+  column** here, and **shown as a filter** in the left panel. **Drag the headers**
+  to reorder columns; a hidden column remembers its place. Clicking a row selects
+  it everywhere and highlights its combo neighbours. Two leading cells: a **single
+  star that cycles on click** — essential (must-include) → opener ⏮ → closer ⏭ →
+  off, skipping the opener/closer stage when another track already holds it
+  (tagged tracks wear a subtle ring on the wheel); and a **＋ cell that appends to
+  the set and turns into the track's position number(s)** — hover it for a ✕ that
+  takes the track out again. The header ★ (revealed on header hover, aligned over
+  the row stars) stars the whole view at once, and a ☰ toggle on the position
+  header flips the table to **just this set, in order, with every metadata
+  column** — the set panel's list, fleshed out (it disables while the set is
+  empty, and the sort triangle hides while set order rules).
+- **Filter on anything**: BPM / year / rating ranges show by default; **any other
+  property** joins them via the Track-properties table (hiding a filter also
+  clears it). Text properties filter by **prefix range** — artists from "b" to
+  "k" keeps Kraftwerk — dates by range (undated tracks hide while a date filter
+  is active), and the key by **Camelot number** (8–12 hits both rings), composing
+  with the **both/minor/major** ring switch (the excluded ring's sector tint
+  fades out so the wheel visibly answers). A **Genres section** of its own — a
+  checklist **scoped to the selected playlists** with a live count — decides what
+  participates in the graph at all. Numeric ranges pre-fill with the whole
+  numbers just outside the selected playlists' actual extremes, reset to them
+  with a ↺ per range (and whenever you toggle playlists), and a min can never
+  cross its max. The filter header counts visible tracks against the playlist
+  selection.
 - **Tune the criteria**: key / BPM / genre / year each toggleable and ranged (the
   parameters stay editable even while a criterion is switched off); an edge appears
   when at least _N_ of the enabled criteria match, _N_ set with a **row of boxes**
-  (fill as many as you require). Missing metadata never blocks a combo. The BPM
+  (fill as many as you require — down to **zero**, where everything connects;
+  enabling another criterion keeps a "require all" bar at "require all"). Missing
+  metadata never blocks a combo. The BPM
   tolerance defaults to **±8%** — the pitch range of a classic
   Technics fader — and goes down to **0% for exact matches**. BPM matches at every
   enabled **metric ratio**: unit time (1:1, on by default — switch it off to isolate
@@ -128,10 +141,13 @@ Your library never leaves your machine — there is no backend, no account, no u
   shows the **active set's name** over up to **eight named sets** — ＋ counts
   onward from what you have ("Third Set" after two renamed ones), ✎ renames inline
   (clashes auto-suffix to "Name (2)"), and a subtle ✨ badge marks a set that is
-  untouched generator output. **✨ Suggest** regenerates such a set **in place**
-  (Cmd+Z steps back through the previous suggestions) and starts a **new set** when
-  the current one is hand-edited — your work is never overwritten. All sets persist
-  with the project.
+  untouched generator output. **✨ Suggest a set from the wheel** regenerates such
+  a set **in place** (Cmd+Z steps back through the previous suggestions) and
+  starts a **new set** when the current one is hand-edited — your work is never
+  overwritten. When the criteria run out before the target length, the button
+  morphs into **⚡ Force to N** — like the hub's force, it fills the remaining
+  steps with the closest rule-breaking picks (still weighted by adventurousness)
+  and reports how many transitions were forced. All sets persist with the project.
 - **Shape the generated order**: pick the opening/closing track and the essential
   (must-include) tracks in the **Tracks view** — the same pins as 📌 on the set's
   first/last rows; with both ends set, the walk grows from both ends inward. The
@@ -146,9 +162,12 @@ Your library never leaves your machine — there is no backend, no account, no u
   path, the genre map, even the native checkboxes and sliders — not just the nodes;
   a ☀/☾ switch flips between the dark and light theme (fresh visitors follow the
   system preference), and a **Return to default settings** button at the panel's
-  foot resets everything the panel owns (your filters, sets and theme survive).
-  The top bar stays lean: the imported collection's name plus an ⓘ whose tooltip
-  holds the import details.
+  foot resets everything the panel owns — after a confirmation (your filters, sets
+  and theme survive). Controls that don't affect the current view **dim but stay
+  adjustable**. The top bar stays lean: the imported collection's name plus an ⓘ
+  whose tooltip holds the import details (the sample collection raises one too).
+  Every ⓘ in the app also **pins open on click** — links inside stay reachable —
+  and positions itself to never clip at a panel edge.
 - **Take it with you**: export the set as M3U8 (Rekordbox re-imports it) or CSV; save
   the whole project as JSON — every export asks for a filename first. Everything
   autosaves to the browser; a Reset button (with confirmation) wipes the slate.
