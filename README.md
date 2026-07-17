@@ -26,7 +26,10 @@ Your library never leaves your machine — there is no backend, no account, no u
   2000 nodes.
 - **See the web**: key as angle on a 24-slot Camelot wheel (every harmonically compatible
   key angularly adjacent, minor/major sectors tinted), switchable radius (BPM / rating /
-  year), node colour on its own axis. Tracks without a key sit in a labelled gutter at
+  year), node colour on its own axis. Combo edges draw **around the track you select**:
+  its star of compatible neighbours by default, plus the cluster's own interconnections
+  with an advanced toggle — an unselected wheel stays a clean constellation (the set's
+  walk is always visible). Tracks without a key sit in a labelled gutter at
   their true BPM. Zoom to resolve detail — node disks keep their size while the
   structure magnifies. Node **shapes** (circle, square, triangle, …) carry a class of
   your choosing: **genre families** from the curated genre tree (the default —
@@ -36,36 +39,45 @@ Your library never leaves your machine — there is no backend, no account, no u
 - **Nodes that hold still**: every track's angle is a property of your _library_,
   not of the current filters — filtering and playlist toggling only make nodes
   appear or disappear, leaving gaps in the same-key fans, so nothing ever shuffles
-  around while you narrow down. Same-key fans spread evenly in a **stable random
-  order** (no artificial BPM sweep); a ↻ button re-shuffles them, and the spread
-  itself scales from 0 to 1. The one deliberate exception is the **radial axis**:
+  around while you narrow down. Same-key tracks **repel each other along their
+  slot's arc** — a deterministic relaxation that only separates nodes that would
+  actually overlap (radius stays pinned to the value it encodes), squeezes evenly
+  when a slot is genuinely full, and is bounded by the spread setting (0 to 1 of
+  the 15° sector). No randomness anywhere: the same library always draws the same
+  wheel. The one deliberate exception is the **radial axis**:
   tighten the min/max of the value shown as radius and the rings, ticks and radii
   glide to the new range (and back, via each filter's ↺ reset). The legend lists
   only the genre classes you can currently see, and disappears when the symbols
   make no distinction. Rating and year rings only sit on whole values.
 - **Map the genres**: a second central view (Wheel | Genres | Tracks switch) lays your
   library's genres out with a force simulation — screen distance approximates the
-  distance measure, and you can **drag the nodes around** to jiggle the clusters.
+  distance measure, and you can **drag the nodes around** to jiggle the clusters
+  (panning stays on the background). Node icons here always follow the **curated
+  genre families**, with a shape legend at the bottom.
   Toggleable per-method edge overlays show where the similarity methods agree and
   disagree — the overlay for your **active criterion method draws exactly the pairs
   the criterion links**, k/threshold included. **Click two genres to compare them**:
   a docked card locks with every method's score for the pair (hovering a single edge
   still works); a "show nearby genres" toggle ghosts in related genres you don't own
   yet.
-- **Browse the tracks**: the third central view is a classic sortable table of the
-  selected playlists — every column sortable (keys in Camelot order, missing values
-  last, ratings as stars), and the sort survives view switches. Pick **which columns
-  show** (Album, Date added and Length join the classic seven) in the advanced menu
-  and **drag the headers** to reorder them. Clicking a row selects it everywhere and
-  highlights its combo neighbours; the leading **＋ cell appends to the set and turns
-  into the track's position number(s)** once it's in. Per-row toggles mark a track
-  **essential** (★) or pin it as the **opener/closer** of generated sets (a pinned
-  track's ★ lights up by itself — it's included by construction); tagged tracks wear
-  a subtle ring on the wheel.
-- **Filter**: BPM / year / rating ranges plus a genre checklist **scoped to the
-  selected playlists** decide what participates in the graph at all, and a
-  **both/minor/major** switch beside the key criterion shows one Camelot ring only —
-  the excluded ring's sector tint fades out so the wheel visibly answers. Ranges
+- **Browse the tracks**: the third central view is a classic sortable table of
+  everything the wheel shows — playlists AND filters scope it — with every column
+  sortable (keys in Camelot order, missing values last, ratings as stars), and the
+  sort survives view switches. Pick **which columns show** in the advanced menu —
+  **every metadata field the Rekordbox XML carries** is available, 26 columns from
+  Artist to Play count to Bit rate — and **drag the headers** to reorder them; a
+  hidden column remembers its place. Clicking a row selects it everywhere and
+  highlights its combo neighbours. The leading cells: ★/⏮/⏭ toggles mark a track
+  **essential** or pin it as the **opener/closer** of generated sets (a pinned
+  track's ★ lights up by itself — it's included by construction; tagged tracks wear
+  a subtle ring on the wheel), the header ★ stars the whole view at once, and the
+  **＋ cell appends to the set and turns into the track's position number(s)** —
+  hover it and it becomes a ✕ that takes the track out again.
+- **Filter**: BPM / year / rating ranges, a **both/minor/major** switch that shows
+  one Camelot ring only (the excluded ring's sector tint fades out so the wheel
+  visibly answers), and a **Genres section** of its own — a checklist **scoped to
+  the selected playlists** with a live count — decide what participates in the
+  graph at all. Ranges
   pre-fill with the whole numbers just outside the selected playlists' actual
   extremes, reset to them with a ↺ per range (and whenever you toggle playlists), and
   a min can never cross its max. The filter header counts visible tracks against the
@@ -89,8 +101,9 @@ Your library never leaves your machine — there is no backend, no account, no u
   (electronic) and sparse genre regions; a classic score threshold remains available.
   Umbrella tags ("Electronic", "Dance") never drive a match, and multi-genre fields
   ("House / Techno") match through their best component.
-- **Weave a set**: click to focus (a card shows the selection's details, docked
-  bottom-right), double-click to append (the same track can appear twice — just not
+- **Weave a set**: click to focus (a card with the selection's details docks under
+  the set panel, and hovering a set row highlights its node on the wheel and its
+  table row), double-click to append (the same track can appear twice — just not
   back-to-back), or press the wheel's centre **＋ next** button to slot in the best
   next track (it inserts _between_ tracks when your selection sits mid-set; the
   selection then follows the pick, so pressing again continues from the head). A
@@ -103,8 +116,9 @@ Your library never leaves your machine — there is no backend, no account, no u
   every visible track is in the set. **Cmd+Z / Cmd+Shift+Z** undo and redo set edits
   and selection changes.
 - **Keep several sets — they ARE the suggestion browser**: the set panel's header
-  reads **◀ [set name] ▶** over up to **eight named sets** — ＋ starts a "Second Set"
-  (then Third, …), ✎ renames inline, and a subtle ✨ badge marks a set that is
+  shows the **active set's name** over up to **eight named sets** — ＋ counts
+  onward from what you have ("Third Set" after two renamed ones), ✎ renames inline
+  (clashes auto-suffix to "Name (2)"), and a subtle ✨ badge marks a set that is
   untouched generator output. **✨ Suggest** regenerates such a set **in place**
   (Cmd+Z steps back through the previous suggestions) and starts a **new set** when
   the current one is hand-edited — your work is never overwritten. All sets persist
@@ -120,9 +134,12 @@ Your library never leaves your machine — there is no backend, no account, no u
   the set) as collapsible sections that start folded and **remember what you keep
   open**, so the wheel reacts live while you tune without a wall of controls. The
   **colour scheme** (blue / aqua / violet) tints the whole app — accents, the set
-  path, the genre map — not just the nodes; a ☀/☾ switch flips between the dark and
-  light theme (fresh visitors follow the system preference). The top bar stays lean:
-  the imported collection's name plus an ⓘ whose tooltip holds the import details.
+  path, the genre map, even the native checkboxes and sliders — not just the nodes;
+  a ☀/☾ switch flips between the dark and light theme (fresh visitors follow the
+  system preference), and a **Return to default settings** button at the panel's
+  foot resets everything the panel owns (your filters, sets and theme survive).
+  The top bar stays lean: the imported collection's name plus an ⓘ whose tooltip
+  holds the import details.
 - **Take it with you**: export the set as M3U8 (Rekordbox re-imports it) or CSV; save
   the whole project as JSON — every export asks for a filename first. Everything
   autosaves to the browser; a Reset button (with confirmation) wipes the slate.

@@ -67,7 +67,7 @@ await page.screenshot({ path: `${scratch}/02a-sample-collection.png` })
 // toggle every sample playlist on and work from the full collection
 await page.locator('aside').first().getByRole('button', { name: 'All' }).first().click()
 await page.getByText('combo suggestions').waitFor()
-await page.waitForTimeout(400)
+await page.waitForTimeout(900) // let the radial tween fully settle before probing
 await page.screenshot({ path: `${scratch}/02-wheel.png` })
 
 // genre-class shapes: the legend must carry shape chips for the collection
@@ -151,7 +151,9 @@ await page.screenshot({ path: `${scratch}/03-tooltip.png` })
 // click to select → focus dimming + the selected-track card with the
 // must-include toggle (design-v6 §C)
 await node.dispatchEvent('mouseleave')
-await node.click({ force: true })
+// dispatched, like the hover above: in a dense 11A slot a neighbour's hit
+// circle can sit on top — which node wins a raw click is not under test
+await node.dispatchEvent('click')
 await page.waitForTimeout(200)
 if ((await page.locator('.selected-card').count()) !== 1) {
   errors.push('selecting a node did not show the selected-track card')
@@ -191,7 +193,7 @@ await page.locator('.panel details.section > summary', { hasText: 'Set & suggest
 if ((await page.locator('.must-list li').count()) !== 1) {
   errors.push('the must-include mark did not appear in the Set & suggestions section')
 }
-await page.locator('.panel input[type=number]').fill('8')
+await page.getByRole('spinbutton', { name: 'Suggested set length' }).fill('8')
 await page.keyboard.press('Escape')
 await page.getByRole('button', { name: /Suggest a set/ }).click()
 await page.waitForTimeout(300)
@@ -256,19 +258,19 @@ if ((await page.locator('aside ol li.track').count()) !== 0) {
 if ((await page.locator('g.node .dot.in-walk').count()) !== 0) {
   errors.push('the wheel still shows the previous set as the walk')
 }
-// ◀/▶ browse the sets (v8 issue 18)
-await page.getByRole('button', { name: 'Previous set' }).click()
+// the dropdown browses the sets (v8 issue 18; the ◀/▶ arrows retired in v9)
+const setOptionValues = await page
+  .locator('aside .head select option')
+  .evaluateAll((os) => os.map((o) => o.value))
+await page.locator('aside .head select').selectOption(setOptionValues[0])
 await page.waitForTimeout(150)
 if ((await page.locator('aside ol li.track').count()) !== firstSetCount) {
-  errors.push('◀ did not step back to the first set')
+  errors.push('selecting the first set did not restore its walk')
 }
-if (!(await page.getByRole('button', { name: 'Previous set' }).isDisabled())) {
-  errors.push('◀ should disable on the first set')
-}
-await page.getByRole('button', { name: 'Next set' }).click()
+await page.locator('aside .head select').selectOption(setOptionValues[1])
 await page.waitForTimeout(150)
 if ((await page.locator('aside ol li.track').count()) !== 0) {
-  errors.push('▶ did not step forward to the empty second set')
+  errors.push('selecting the second set did not show it empty')
 }
 await page.getByRole('button', { name: 'Delete set' }).click()
 await page.waitForTimeout(150)
@@ -319,7 +321,7 @@ await page.keyboard.press(undoKey) // back to the full set
 await page.waitForTimeout(150)
 
 // ✨ on a HAND-EDITED set never overwrites it: a new set appears alongside
-// (v8 issue 18), and ◀ still finds the edited one intact
+// (v8 issue 18), and the dropdown still finds the edited one intact
 const editedTitles = await page.locator('aside ol li.track .names strong').allTextContents()
 await page.locator('.suggest-row .primary').click()
 await page.waitForTimeout(250)
@@ -329,7 +331,10 @@ if ((await page.locator('aside .head select option').count()) !== 2) {
 if ((await page.locator('aside .head .badge').count()) !== 1) {
   errors.push('the freshly generated set should wear the ✨ badge')
 }
-await page.getByRole('button', { name: 'Previous set' }).click()
+const twoSetValues = await page
+  .locator('aside .head select option')
+  .evaluateAll((os) => os.map((o) => o.value))
+await page.locator('aside .head select').selectOption(twoSetValues[0])
 await page.waitForTimeout(150)
 if (
   (await page.locator('aside ol li.track .names strong').allTextContents()).join() !==
@@ -337,7 +342,7 @@ if (
 ) {
   errors.push('the hand-edited set was not left intact by ✨')
 }
-await page.getByRole('button', { name: 'Next set' }).click()
+await page.locator('aside .head select').selectOption(twoSetValues[1])
 await page.waitForTimeout(150)
 
 // pinned closer: pin the last track of the generated set (pins are session
@@ -401,10 +406,11 @@ if ((await page.locator('.tracks-view tbody tr.connected').count()) === 0) {
 await page.locator('.tracks-view tbody tr').first().click() // deselect again
 // tag a row as opener (avoiding the already-pinned closer), one as essential
 let openerRow = page.locator('.tracks-view tbody tr').first()
-let openerTitle = await openerRow.locator('td:nth-child(3)').textContent()
+// title sits in the 4th cell since the tags/pos cells lead (v9 issue 13)
+let openerTitle = await openerRow.locator('td:nth-child(4)').textContent()
 if (openerTitle === lastTitle) {
   openerRow = page.locator('.tracks-view tbody tr').nth(2)
-  openerTitle = await openerRow.locator('td:nth-child(3)').textContent()
+  openerTitle = await openerRow.locator('td:nth-child(4)').textContent()
 }
 await openerRow.locator('.tag[aria-label="Pin as opening track"]').click()
 // v8 issue 15: the pinned opener's ★ reads as on and disabled ("included")
@@ -418,24 +424,31 @@ await page
   .nth(1)
   .locator('.tag[aria-label="Mark essential"]')
   .click()
-// v8 issue 15: the ＋ cell appends and turns into the set position number
+// v8 issue 15 / v9 issue 14: the ＋ cell appends and turns into the set
+// position number; clicking the number takes the track out again
 {
   const setLenBefore = await page.locator('aside ol li.track').count()
-  const freshRow = page.locator('.tracks-view tbody tr .pos-btn:not(.in-set)').first()
-  await freshRow.dispatchEvent('click')
+  const freshBtn = await page
+    .locator('.tracks-view tbody tr .pos-btn:not(.in-set)')
+    .first()
+    .elementHandle()
+  await freshBtn.dispatchEvent('click')
   await page.waitForTimeout(200)
   if ((await page.locator('aside ol li.track').count()) !== setLenBefore + 1) {
     errors.push('the ＋ cell did not append the track to the set')
   }
-  const posText = await page.locator('.tracks-view tbody tr .pos-btn.in-set').last().textContent()
+  const posText = await freshBtn.$eval('.num', (el) => el.textContent)
   if (!/^\d+(,\d+)*$/.test(posText?.trim() ?? '')) {
     errors.push(`an in-set ＋ cell should read as position number(s), got "${posText}"`)
   }
-  await page.keyboard.press('Meta+z') // leave the set as it was
+  await freshBtn.dispatchEvent('click') // v9 issue 14: removes, set as it was
   await page.waitForTimeout(200)
+  if ((await page.locator('aside ol li.track').count()) !== setLenBefore) {
+    errors.push('clicking the position number did not remove the track from the set')
+  }
 }
 // v8 issue 15: header drag reorders columns persistently
-const headerOrder = () => page.locator('.tracks-view th button').allTextContents()
+const headerOrder = () => page.locator('.tracks-view th button.sort').allTextContents()
 {
   const before = await headerOrder()
   const keyHeader = page.locator('.tracks-view th', { has: page.getByText('Key', { exact: true }) })
@@ -552,7 +565,7 @@ await page.locator('aside').first().getByRole('button', { name: 'None' }).first(
 await page.getByRole('checkbox', { name: 'Classic demo' }).check()
 await page.waitForTimeout(400)
 await page.getByRole('button', { name: /Advanced/ }).click()
-await page.locator('.panel input[type=number]').fill('99') // Set & suggestions is open
+await page.getByRole('spinbutton', { name: 'Suggested set length' }).fill('99')
 await page.keyboard.press('Escape')
 await page.locator('.suggest-row .primary').click()
 await page.waitForTimeout(400)
@@ -786,9 +799,13 @@ await page.waitForTimeout(300)
 await page.getByRole('checkbox', { name: /half\/double/ }).check()
 await page.waitForTimeout(300)
 await page.screenshot({ path: `${scratch}/09-advanced.png` })
-// re-jitter reshuffles same-key fans exactly once (ISSUES.md v7 #16): the
-// ↻ button moves nodes; filtering afterwards still moves none
+// the same-key spread bounds the deterministic relaxation (v9 issues 1+17):
+// 0 collapses the fans, and restoring 1 reproduces the EXACT layout — no
+// randomness (the ↻ re-jitter button is gone)
 await page.locator('.panel details.section > summary', { hasText: 'Display' }).click()
+if ((await page.getByRole('button', { name: 'Re-jitter same-key fans' }).count()) !== 0) {
+  errors.push('the ↻ re-jitter button should be gone (v9 issue 1)')
+}
 const fanProbe = () =>
   page.$$eval('g.node', (gs) =>
     gs.map((g) => ({
@@ -796,16 +813,27 @@ const fanProbe = () =>
       d: g.querySelector('path')?.getAttribute('transform'),
     })),
   )
-const beforeJitter = await fanProbe()
-await page.getByRole('button', { name: 'Re-jitter same-key fans' }).click()
+const setSpread = (value) =>
+  page
+    .locator('.panel label', { hasText: 'Same-key spread' })
+    .locator('input[type=range]')
+    .evaluate((el, v) => {
+      el.value = v
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+    }, value)
+const beforeSpread = await fanProbe()
+await setSpread('0')
 await page.waitForTimeout(300)
-const afterJitter = await fanProbe()
-const jittered = afterJitter.filter((a) => {
-  const b = beforeJitter.find((p) => p.label === a.label)
-  return b && b.d !== a.d
-})
-if (jittered.length === 0) {
-  errors.push('the re-jitter button moved no same-key fan nodes')
+const collapsed = await fanProbe()
+if (!collapsed.some((a) => beforeSpread.find((b) => b.label === a.label)?.d !== a.d)) {
+  errors.push('spread 0 moved no same-key fan nodes')
+}
+await setSpread('1')
+await page.waitForTimeout(300)
+const restored = await fanProbe()
+const drifted = restored.filter((a) => beforeSpread.find((b) => b.label === a.label)?.d !== a.d)
+if (drifted.length > 0) {
+  errors.push(`the relaxation is not deterministic: ${drifted.length} nodes drifted after 0→1`)
 }
 // the colour scheme tints the whole app: --accent follows the scheme in
 // both themes (ISSUES.md v7 #13)
@@ -879,8 +907,12 @@ await page.waitForTimeout(300)
 await page.locator('.panel details.section > summary', { hasText: 'Display' }).click()
 await page.keyboard.press('Escape')
 
-// minor/major key filter (v8 issue 10): minor-only hides the B ring's nodes
-// and fades its sector tint; "both" restores everything
+// minor/major key filter (v8 issue 10; the switch moved to Filters in v9
+// issue 6): minor-only hides the B ring's nodes and fades its sector tint;
+// "both" restores everything
+await page
+  .locator('aside details:has(> summary:has-text("Filters"))')
+  .evaluate((d) => (d.open = true))
 const nodesBothRings = await page.locator('g.node').count()
 await page.locator('.ring-switch button', { hasText: 'minor' }).click()
 await page.waitForTimeout(600)
@@ -1014,15 +1046,15 @@ await page.waitForTimeout(150)
 // the genre checklist follows the playlist selection (ISSUES.md v7 #14):
 // Warm-up & After holds only a Melodic House track (plus one without genre),
 // so the collection's other genres must not clutter the list
-await page.locator('summary', { hasText: 'Filters' }).click()
-await page.locator('.genres > summary').click()
-const scopedGenreList = await page.locator('.genres li').allTextContents()
+// (the checklist is its own top-level Genres section since v9 issue 7)
+const genresDetails = page.locator('aside details:has(> summary:has-text("Genres"))')
+await genresDetails.evaluate((d) => (d.open = true))
+const scopedGenreList = await genresDetails.locator('li').allTextContents()
 const scopedTrimmed = scopedGenreList.map((s) => s.trim())
 if (scopedTrimmed.join() !== 'Melodic House') {
   errors.push(`genre checklist not scoped to the selected playlist: [${scopedTrimmed}]`)
 }
-await page.locator('.genres > summary').click()
-await page.locator('summary', { hasText: 'Filters' }).click()
+await genresDetails.evaluate((d) => (d.open = false))
 await page.getByRole('checkbox', { name: 'Not in a playlist' }).check()
 await page.waitForTimeout(300)
 await page.screenshot({ path: `${scratch}/14c-playlists.png` })
