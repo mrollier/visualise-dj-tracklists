@@ -1,7 +1,7 @@
 <script lang="ts">
   import { get } from 'svelte/store'
   import { clampRange, libraryExtents, wholeExtent, type LibraryFilters } from '../core/filter'
-  import { filters, library, scopedGenres, playlistScopedLibrary, visibleLibrary } from '../stores'
+  import { filters, library, playlistScopedLibrary, visibleLibrary } from '../stores'
 
   type RangeField = 'bpm' | 'year' | 'rating'
   type RangeSide = 'min' | 'max'
@@ -94,27 +94,13 @@
     filters.update((f) => ({ ...f, [field]: range }))
   }
 
-  function toggleGenre(genre: string, on: boolean) {
-    filters.update((f) => {
-      const current = f.genres ?? $scopedGenres
-      const next = on
-        ? current.includes(genre)
-          ? current
-          : [...current, genre]
-        : current.filter((g) => g !== genre)
-      // All genres selected = no filter.
-      return { ...f, genres: next.length >= $scopedGenres.length ? null : next }
-    })
-  }
-
-  function setAllGenres(on: boolean) {
-    filters.update((f) => ({ ...f, genres: on ? null : [] }))
-  }
-
-  const activeGenres = $derived(new Set($filters.genres ?? $scopedGenres))
-  const genreSummary = $derived(
-    $filters.genres === null ? 'all' : `${$filters.genres.length}/${$scopedGenres.length}`,
-  )
+  // The minor/major ring switch (issue 6): semantically always a filter
+  // (v8 issue 10) — since v9 its control finally lives here too.
+  const RING_CHOICES = [
+    { value: 'both', label: 'both' },
+    { value: 'minor', label: 'minor' },
+    { value: 'major', label: 'major' },
+  ] as const
 </script>
 
 <details>
@@ -158,27 +144,20 @@
     </div>
   {/each}
 
-  <details class="genres">
-    <summary class="micro-label">Genres <span class="summary-count">{genreSummary}</span></summary>
-    <div class="genre-actions">
-      <button onclick={() => setAllGenres(true)}>All</button>
-      <button onclick={() => setAllGenres(false)}>None</button>
-    </div>
-    <ul>
-      {#each $scopedGenres as genre (genre)}
-        <li>
-          <label>
-            <input
-              type="checkbox"
-              checked={activeGenres.has(genre)}
-              onchange={(e) => toggleGenre(genre, e.currentTarget.checked)}
-            />
-            {genre}
-          </label>
-        </li>
+  <div class="filter-row">
+    <span class="filter-label">Keys</span>
+    <div class="ring-switch" role="group" aria-label="Show keys">
+      {#each RING_CHOICES as choice (choice.value)}
+        <button
+          class:on={$filters.keyRing === choice.value}
+          aria-pressed={$filters.keyRing === choice.value}
+          onclick={() => filters.update((f) => ({ ...f, keyRing: choice.value }))}
+        >
+          {choice.label}
+        </button>
       {/each}
-    </ul>
-  </details>
+    </div>
+  </div>
 </details>
 
 <style>
@@ -228,34 +207,28 @@
     color: var(--ink);
   }
 
-  .genres {
-    margin-top: 6px;
+  .ring-switch {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
   }
 
-  .genre-actions {
-    display: flex;
-    gap: 6px;
-    margin: 4px 0;
+  .ring-switch button {
+    padding: 2px 10px;
+    font-size: 11.5px;
+    background: none;
+    border: none;
+    border-radius: 0;
+    color: var(--ink-muted);
   }
 
-  .genre-actions button {
-    font-size: 11px;
-    padding: 1px 8px;
+  .ring-switch button + button {
+    border-left: 1px solid var(--border);
   }
 
-  ul {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    max-height: 180px;
-    overflow-y: auto;
-  }
-
-  li label {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 2px 0;
-    font-size: 13px;
+  .ring-switch button.on {
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    color: var(--ink);
   }
 </style>

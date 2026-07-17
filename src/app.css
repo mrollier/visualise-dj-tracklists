@@ -5,6 +5,9 @@
    preference unless the user flipped the switch). */
 :root {
   color-scheme: dark;
+  /* Native checkboxes, radios, ranges and progress bars follow the accent
+     scheme (v9 issue 2); --accent itself is stamped by src/lib/theme.ts. */
+  accent-color: var(--accent);
 
   --page: #0b0b0b;
   --surface: #1a1a19;

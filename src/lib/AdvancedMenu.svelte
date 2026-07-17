@@ -3,6 +3,7 @@
   import { matchedGenrePairs } from '../core/combos'
   import { METHOD_LABEL_LONG, METHOD_PICK_ORDER, type GenreMethod } from '../core/genre'
   import type { Track } from '../core/model'
+  import { resetAdvancedCriteria, resetAdvancedSettings } from '../core/reset'
   import { type BpmProgression } from '../core/settings'
   import { COLUMN_LABELS } from '../core/columns'
   import type { TrackSortField } from '../core/trackSort'
@@ -45,6 +46,12 @@
   )
   function goToTracksView() {
     viewMode.set('tracks')
+  }
+
+  // v9 issue 3: reset everything the advanced panel owns and nothing else.
+  function resetToDefaults() {
+    settings.update(resetAdvancedSettings)
+    criteria.update(resetAdvancedCriteria)
   }
 
   // --- Tracks-table columns (v8 issue 15, v9 issue 12) ---
@@ -367,8 +374,14 @@
       </select>
     </label>
     <label>
-      Max symbol classes <strong>{$settings.maxGenreClasses}</strong>
-      <input type="range" min="2" max="6" step="1" bind:value={$settings.maxGenreClasses} />
+      Max symbol classes
+      <input
+        class="classes-input"
+        type="number"
+        min="2"
+        max="6"
+        bind:value={$settings.maxGenreClasses}
+      />
     </label>
     <p class="hint">
       Distinct node shapes (circle, square, triangle, …) mark up to this many classes: curated genre
@@ -474,6 +487,11 @@
       <button class="to-tracks" onclick={goToTracksView}>Choose in the Tracks view →</button>
     </div>
   </details>
+
+  <!-- v9 issue 3: everything this panel owns, back to its default value.
+       Filters, playlists, sets, pins, and the theme are deliberately not
+       touched — they live elsewhere. -->
+  <button class="reset-defaults" onclick={resetToDefaults}> ↺ Return to default settings </button>
 </aside>
 
 <style>
@@ -623,6 +641,22 @@
     margin-top: 6px;
     font-size: 11px;
     color: var(--ink-secondary);
+  }
+
+  .classes-input {
+    width: 58px;
+    padding: 2px 6px;
+  }
+
+  .reset-defaults {
+    margin: 12px 0 4px;
+    width: 100%;
+    font-size: 12px;
+    color: var(--ink-secondary);
+  }
+
+  .reset-defaults:hover {
+    color: var(--ink);
   }
 
   /* Two radio choices; each label keeps its circle and text on one line

@@ -1,14 +1,9 @@
 <script lang="ts">
   import { METHOD_LABEL, METHOD_PICK_ORDER } from '../core/genre'
   import FiltersSection from './FiltersSection.svelte'
+  import GenresSection from './GenresSection.svelte'
   import PlaylistsSection from './PlaylistsSection.svelte'
-  import { criteria, edges, filters, library, visibleLibrary } from '../stores'
-
-  const RING_CHOICES = [
-    { value: 'both', label: 'both' },
-    { value: 'minor', label: 'minor' },
-    { value: 'major', label: 'major' },
-  ] as const
+  import { criteria, edges, library, visibleLibrary } from '../stores'
 
   const enabledCount = $derived(
     [$criteria.key, $criteria.bpm, $criteria.genre, $criteria.year].filter((c) => c.enabled).length,
@@ -42,6 +37,8 @@
 
   <FiltersSection />
 
+  <GenresSection />
+
   <details open>
     <summary class="micro-label">Combo criteria</summary>
 
@@ -50,19 +47,8 @@
         <input type="checkbox" bind:checked={$criteria.key.enabled} />
         Key <span class="hint">adjacent on the wheel</span>
       </label>
-      <!-- A visibility filter, not a pairwise criterion: it hides the other
-           Camelot ring outright (v8 issue 10), independent of the slider. -->
-      <div class="sub-option ring-switch" role="group" aria-label="Show keys">
-        {#each RING_CHOICES as choice (choice.value)}
-          <button
-            class:on={$filters.keyRing === choice.value}
-            aria-pressed={$filters.keyRing === choice.value}
-            onclick={() => filters.update((f) => ({ ...f, keyRing: choice.value }))}
-          >
-            {choice.label}
-          </button>
-        {/each}
-      </div>
+      <!-- The minor/major ring switch moved to the Filters section (v9
+           issue 6) — it always was a visibility filter, not a criterion. -->
     </div>
 
     <div class="criterion">
@@ -210,31 +196,6 @@
 
   .criterion .sub-option {
     margin: 4px 0 0 22px;
-  }
-
-  .ring-switch {
-    display: inline-flex;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    overflow: hidden;
-  }
-
-  .ring-switch button {
-    padding: 2px 10px;
-    font-size: 11.5px;
-    background: none;
-    border: none;
-    border-radius: 0;
-    color: var(--ink-muted);
-  }
-
-  .ring-switch button + button {
-    border-left: 1px solid var(--border);
-  }
-
-  .ring-switch button.on {
-    background: color-mix(in srgb, var(--accent) 18%, transparent);
-    color: var(--ink);
   }
 
   .ratio-note {
