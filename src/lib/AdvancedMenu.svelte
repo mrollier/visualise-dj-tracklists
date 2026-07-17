@@ -8,6 +8,7 @@
   import { COLUMN_LABELS } from '../core/columns'
   import { PROPERTY_BY_KEY } from '../core/properties'
   import type { TrackSortField } from '../core/trackSort'
+  import ConfirmDialog from './ConfirmDialog.svelte'
   import InfoTooltip from './InfoTooltip.svelte'
   import {
     criteria,
@@ -53,6 +54,7 @@
   }
 
   // v9 issue 3: reset everything the advanced panel owns and nothing else.
+  let resetConfirm: ConfirmDialog
   function resetToDefaults() {
     settings.update(resetAdvancedSettings)
     criteria.update(resetAdvancedCriteria)
@@ -349,58 +351,47 @@
         <option value="violet">Violet</option>
       </select>
     </label>
-    <!-- Spread and edge opacity only affect the wheel (issue 4); the colour
-         scheme and genre classes stay live everywhere. -->
+    <!-- One consistent rule (v11 issue 13): a control whose effect is not
+         visible in the CURRENT view dims (with a title saying where it
+         acts) but stays adjustable — never disabled. The colour scheme
+         stays live everywhere. -->
     <label class:off-view={$viewMode !== 'wheel'} title="Only affects the Wheel view">
       Same-key spread <strong>×{$settings.slotSpreadFactor.toFixed(2)}</strong>
-      <!-- v9 issue 1: the ↻ re-jitter button is retired — slot placement is
-           deterministic now (issue 17), so there is no fan order to re-roll.
-           Kept for reference in case a shuffle ever returns:
-      <button
-        class="re-jitter"
-        title="Re-shuffle the same-key fan order"
-        aria-label="Re-jitter same-key fans"
-        disabled={$viewMode !== 'wheel'}
-        onclick={(e) => {
-          e.preventDefault()
-          settings.update((s) => ({ ...s, jitterSeed: Math.floor(Math.random() * 2 ** 31) }))
-        }}>↻</button
-      >
-      -->
-      <input
-        type="range"
-        min="0"
-        max="1"
-        step="0.05"
-        bind:value={$settings.slotSpreadFactor}
-        disabled={$viewMode !== 'wheel'}
-      />
+      <input type="range" min="0" max="1" step="0.05" bind:value={$settings.slotSpreadFactor} />
     </label>
-    <!-- Edges are focus-only (v9), so their controls appear only when a track
-         is selected on the wheel — not greyed the rest of the time (v10 #20). -->
-    {#if $viewMode === 'wheel' && $selectedId !== null}
-      <label>
-        Edge opacity <strong>{$settings.edgeOpacity.toFixed(2)}</strong>
-        <input type="range" min="0" max="0.9" step="0.05" bind:value={$settings.edgeOpacity} />
-      </label>
-      <label class="row">
-        <input type="checkbox" bind:checked={$settings.focusClusterEdges} />
-        Interconnect the selection's cluster
-      </label>
-      <p class="hint">
+    <!-- Edges are focus-only (v9): these dim unless a wheel track is
+         selected, but stay adjustable in advance (v11 issue 13). -->
+    <label
+      class:off-view={$viewMode !== 'wheel' || $selectedId === null}
+      title="Only visible around a selected track on the Wheel"
+    >
+      Edge opacity <strong>{$settings.edgeOpacity.toFixed(2)}</strong>
+      <input type="range" min="0" max="0.9" step="0.05" bind:value={$settings.edgeOpacity} />
+    </label>
+    <label
+      class="row"
+      class:off-view={$viewMode !== 'wheel' || $selectedId === null}
+      title="Only visible around a selected track on the Wheel"
+    >
+      <input type="checkbox" bind:checked={$settings.focusClusterEdges} />
+      Interconnect the selection's cluster
+      <InfoTooltip label="About focus edges">
         Edges only appear around the selected track: its own connections by default; this also draws
         how those neighbours link amongst themselves.
-      </p>
-    {/if}
+      </InfoTooltip>
+    </label>
     <label class:off-view={$viewMode !== 'wheel'} title="Only affects the Wheel view">
       Node icons (Wheel view)
-      <select bind:value={$settings.iconMode} disabled={$viewMode !== 'wheel'}>
+      <select bind:value={$settings.iconMode}>
         <option value="families">Genre families (curated tree)</option>
         <option value="playlists">Playlists (first one wins)</option>
         <option value="clusters">Genre clusters (hybrid space)</option>
       </select>
     </label>
-    <label>
+    <label
+      class:off-view={$viewMode === 'tracks'}
+      title="Affects the Wheel and Genres views' symbols"
+    >
       <span class="label-with-info">
         Max symbol classes
         <InfoTooltip label="About symbol classes">
@@ -537,8 +528,18 @@
 
   <!-- v9 issue 3: everything this panel owns, back to its default value.
        Filters, playlists, sets, pins, and the theme are deliberately not
-       touched — they live elsewhere. -->
-  <button class="reset-defaults" onclick={resetToDefaults}> ↺ Return to default settings </button>
+       touched — they live elsewhere. Confirmed first (v11 issue 14): it
+       changes a lot at once and sits where a stray click can reach it. -->
+  <button class="reset-defaults" onclick={() => resetConfirm.open(resetToDefaults)}>
+    ↺ Return to default settings
+  </button>
+  <ConfirmDialog
+    bind:this={resetConfirm}
+    title="Reset all advanced settings?"
+    body="Genre matching, key & BPM moves, display options and suggestion settings all return to their defaults. Filters, playlists and your sets are kept."
+    confirmLabel="Reset settings"
+    danger
+  />
 </aside>
 
 <style>

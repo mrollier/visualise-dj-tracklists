@@ -205,14 +205,15 @@
       >
     </div>
 
-    <!-- Radius/Colour only mean something on the wheel (issue 4), and nothing
-         at all without a library (v10: grey the inert controls after reset). -->
+    <!-- Radius/Colour only mean something on the wheel (issue 4): off-wheel
+         they DIM but stay adjustable (v11 issue 13). Without a library they
+         act on nothing and disable outright — a different rule that stays. -->
     <label
       class:off-view={$viewMode !== 'wheel' || $library.length === 0}
       title="Only affects the Wheel view"
     >
       Radius
-      <select bind:value={$radialAxis} disabled={$viewMode !== 'wheel' || $library.length === 0}>
+      <select bind:value={$radialAxis} disabled={$library.length === 0}>
         <option value="bpm">BPM</option>
         <option value="rating">Rating</option>
         <option value="year">Year</option>
@@ -224,7 +225,7 @@
       title="Only affects the Wheel view"
     >
       Colour
-      <select bind:value={$colorAxis} disabled={$viewMode !== 'wheel' || $library.length === 0}>
+      <select bind:value={$colorAxis} disabled={$library.length === 0}>
         <option value="auto">Auto</option>
         <option value="rating">Rating</option>
         <option value="bpm">BPM</option>
