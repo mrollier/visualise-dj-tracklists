@@ -6,6 +6,7 @@
   // the track's position number(s) once included (v8 issue 15); per-row
   // toggles mark a track as essential (must-include) or as the opener/closer
   // of generated sets — the same pins as everywhere else.
+  import { COLUMN_LABELS, visibleColumns } from '../core/columns'
   import type { Track } from '../core/model'
   import { sortTracks, type TrackSortField } from '../core/trackSort'
   import {
@@ -21,22 +22,24 @@
     trackSort,
   } from '../stores'
 
-  const COLUMN_LABEL: Record<TrackSortField, string> = {
-    artist: 'Artist',
-    title: 'Title',
-    key: 'Key',
-    bpm: 'BPM',
-    genre: 'Genre',
-    year: 'Year',
-    rating: 'Rating',
-    album: 'Album',
-    dateAdded: 'Date added',
-    durationSec: 'Length',
-  }
+  const COLUMN_LABEL = COLUMN_LABELS
 
-  // Columns = the settings list: membership AND order (v8 issue 15).
-  const columns = $derived($settings.trackColumns)
-  const STRING_FIELDS = new Set<TrackSortField>(['artist', 'title', 'genre', 'album'])
+  // Columns = the full settings order minus the hidden set (v9 issue 12).
+  const columns = $derived(visibleColumns($settings.trackColumns, $settings.hiddenColumns))
+  const STRING_FIELDS = new Set<TrackSortField>([
+    'artist',
+    'title',
+    'genre',
+    'album',
+    'composer',
+    'grouping',
+    'remixer',
+    'label',
+    'mix',
+    'comments',
+    'colour',
+    'kind',
+  ])
 
   function toggleSort(field: TrackSortField) {
     trackSort.update((sort) =>
@@ -53,6 +56,7 @@
       const secs = Math.round(value as number)
       return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`
     }
+    if (field === 'size') return `${((value as number) / (1024 * 1024)).toFixed(1)} MB`
     return String(value)
   }
 

@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest'
+import { enrichTrack } from '../src/data/enrich'
 import { ALL_SAMPLE_PACKS, SAMPLE_COLLECTION, SAMPLE_PACKS } from '../src/data/samples'
 
 describe('sample packs', () => {
@@ -50,5 +51,41 @@ describe('the sample collection', () => {
     for (const playlist of SAMPLE_COLLECTION.playlists) {
       for (const id of playlist.trackIds) expect(ids.has(id)).toBe(true)
     }
+  })
+})
+
+describe('sample metadata enrichment (v9 issue 11)', () => {
+  const tracks = SAMPLE_COLLECTION.tracks
+
+  test.each(['album', 'durationSec', 'dateAdded'] as const)(
+    '%s is present on most tracks but deliberately not all',
+    (field) => {
+      const have = tracks.filter((t) => t[field] !== null).length
+      expect(have / tracks.length).toBeGreaterThan(0.7)
+      expect(have).toBeLessThan(tracks.length) // realistic gaps survive
+    },
+  )
+
+  test('generated values are plausible', () => {
+    for (const t of tracks) {
+      if (t.durationSec !== null) {
+        expect(t.durationSec).toBeGreaterThanOrEqual(120)
+        expect(t.durationSec).toBeLessThanOrEqual(600)
+      }
+      if (t.dateAdded !== null) {
+        expect(t.dateAdded).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+        const year = Number(t.dateAdded.slice(0, 4))
+        expect(year).toBeGreaterThanOrEqual(2018)
+        expect(year).toBeLessThanOrEqual(2025)
+        // A file cannot enter the library before its release year.
+        if (t.year !== null) expect(year).toBeGreaterThanOrEqual(Math.min(t.year, 2018))
+      }
+    }
+  })
+
+  test('enrichment is deterministic: same track in, same track out', () => {
+    const base = tracks[0]
+    const extras = { label: 'Test Label', albums: { [base.artist ?? '']: 'Test LP' } }
+    expect(enrichTrack(base, extras)).toEqual(enrichTrack(base, extras))
   })
 })

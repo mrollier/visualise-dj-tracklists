@@ -1,6 +1,6 @@
 import Papa from 'papaparse'
 import { normalizeKey } from '../keys'
-import { buildReport, type ImportResult, type Track } from '../model'
+import { buildReport, EMPTY_TRACK_FIELDS, type ImportResult, type Track } from '../model'
 
 /** Header synonyms → Track field, matched case-insensitively after trimming. */
 const HEADER_MAP: Record<string, keyof Track> = {
@@ -70,6 +70,7 @@ export function importCsv(csv: string): ImportResult {
       continue
     }
     tracks.push({
+      ...EMPTY_TRACK_FIELDS,
       id: `csv-${index}`,
       title,
       artist: str('artist'),

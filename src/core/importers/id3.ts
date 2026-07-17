@@ -1,5 +1,5 @@
 import { normalizeKey } from '../keys'
-import type { Track } from '../model'
+import { EMPTY_TRACK_FIELDS, type Track } from '../model'
 
 /** The subset of audio tags we care about, already flattened by the caller. */
 export interface FlatTags {
@@ -21,6 +21,7 @@ export interface FlatTags {
 export function trackFromTags(id: string, fileName: string, tags: FlatTags): Track {
   const stem = fileName.replace(/\.[a-z0-9]+$/i, '')
   return {
+    ...EMPTY_TRACK_FIELDS,
     id,
     title: tags.title?.trim() || stem,
     artist: tags.artist?.trim() || null,

@@ -1,3 +1,4 @@
+import { migrateColumns } from './columns'
 import { DEFAULT_CRITERIA, type CriteriaConfig } from './combos'
 import { EMPTY_FILTERS, type LibraryFilters } from './filter'
 import { normalizeKey } from './keys'
@@ -89,6 +90,22 @@ function sanitizeTrack(raw: unknown): Track | null {
     album: str(entry.album),
     dateAdded: str(entry.dateAdded),
     location: str(entry.location),
+    composer: str(entry.composer),
+    grouping: str(entry.grouping),
+    kind: str(entry.kind),
+    size: num(entry.size),
+    discNumber: num(entry.discNumber),
+    trackNumber: num(entry.trackNumber),
+    bitRate: num(entry.bitRate),
+    sampleRate: num(entry.sampleRate),
+    comments: str(entry.comments),
+    playCount: num(entry.playCount),
+    remixer: str(entry.remixer),
+    label: str(entry.label),
+    mix: str(entry.mix),
+    colour: str(entry.colour),
+    dateModified: str(entry.dateModified),
+    lastPlayed: str(entry.lastPlayed),
   }
 }
 
@@ -166,6 +183,11 @@ export function parseProject(json: string): Project {
     settings.jitterSeed = DEFAULT_SETTINGS.jitterSeed
   }
   Reflect.deleteProperty(settings, 'slotSpreadDeg')
+  // v9 (issue 12): trackColumns became the full ordering + a hidden list;
+  // older partial lists keep their order and visible set.
+  const columns = migrateColumns(rawSettings.trackColumns, rawSettings.hiddenColumns)
+  settings.trackColumns = columns.trackColumns
+  settings.hiddenColumns = columns.hiddenColumns
   return {
     version: 3,
     libraryName: typeof p.libraryName === 'string' ? p.libraryName : '',

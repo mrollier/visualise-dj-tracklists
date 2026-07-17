@@ -82,10 +82,19 @@ export function importRekordboxXml(xml: string): ImportResult {
       errors.push(`Skipped TRACK ${entry.TrackID ?? '?'}: it has no Name`)
       continue
     }
+    // Rekordbox writes "0" for unknown numeric attributes; a positive-only
+    // reading turns those placeholders into missing values.
+    const posNum = (field: string): number | null => {
+      const n = Number(str(field) ?? 0)
+      return Number.isFinite(n) && n > 0 ? n : null
+    }
     const bpm = Number(str('AverageBpm') ?? 0)
     const year = Number(str('Year') ?? 0)
     const rating = Number(str('Rating') ?? NaN)
     const duration = Number(str('TotalTime') ?? 0)
+    // PlayCount is the exception: 0 is a real count, only absence is missing.
+    const playCountRaw = str('PlayCount')
+    const playCount = playCountRaw === null ? NaN : Number(playCountRaw)
     // Hand-edited exports can repeat TrackIDs; node ids must stay unique.
     const base = `rb-${str('TrackID') ?? `row${tracks.length}`}`
     let id = base
@@ -104,6 +113,22 @@ export function importRekordboxXml(xml: string): ImportResult {
       album: str('Album'),
       dateAdded: str('DateAdded'),
       location: str('Location'),
+      composer: str('Composer'),
+      grouping: str('Grouping'),
+      kind: str('Kind'),
+      size: posNum('Size'),
+      discNumber: posNum('DiscNumber'),
+      trackNumber: posNum('TrackNumber'),
+      bitRate: posNum('BitRate'),
+      sampleRate: posNum('SampleRate'),
+      comments: str('Comments'),
+      playCount: Number.isFinite(playCount) ? playCount : null,
+      remixer: str('Remixer'),
+      label: str('Label'),
+      mix: str('Mix'),
+      colour: str('Colour'),
+      dateModified: str('DateModified'),
+      lastPlayed: str('LastPlayed'),
     })
   }
 

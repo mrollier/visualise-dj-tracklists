@@ -9,21 +9,17 @@ import {
   wholeExtent,
   type LibraryFilters,
 } from '../src/core/filter'
-import type { Track } from '../src/core/model'
+import { EMPTY_TRACK_FIELDS, type Track } from '../src/core/model'
 
 function track(overrides: Partial<Track> & { id: string }): Track {
   return {
+    ...EMPTY_TRACK_FIELDS,
     title: overrides.id,
-    artist: null,
     key: '8A',
     bpm: 128,
     genre: 'Techno',
     year: 2020,
     rating: 4,
-    durationSec: null,
-    album: null,
-    dateAdded: null,
-    location: null,
     ...overrides,
   }
 }

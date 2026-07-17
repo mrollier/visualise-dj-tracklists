@@ -17,8 +17,73 @@ export interface Track {
   dateAdded: string | null
   /** File path or URL from the source library; needed for M3U8 export. */
   location: string | null
+  // v9 (issue 10): the remaining Rekordbox collection attributes, so the
+  // Tracks-table columns can cover every metadata type the XML carries.
+  composer: string | null
+  grouping: string | null
+  /** File format as Rekordbox names it, e.g. "MP3 File". */
+  kind: string | null
+  /** File size in bytes. */
+  size: number | null
+  discNumber: number | null
+  trackNumber: number | null
+  /** kbit/s. */
+  bitRate: number | null
+  /** Hz. */
+  sampleRate: number | null
+  comments: string | null
+  /** 0 is a real count ("never played"), not "unknown". */
+  playCount: number | null
+  remixer: string | null
+  /** Record label. */
+  label: string | null
+  mix: string | null
+  /** Rekordbox colour tag, raw (e.g. "0xFF007F"); rendered as text for now. */
+  colour: string | null
+  /** 'YYYY-MM-DD', like dateAdded. */
+  dateModified: string | null
+  /** 'YYYY-MM-DD', like dateAdded. */
+  lastPlayed: string | null
 }
 
+/**
+ * Every non-identity Track field as null — the spread base for importers,
+ * sample data and tests, so adding a field never ripples hand-typed nulls
+ * through the codebase.
+ */
+export const EMPTY_TRACK_FIELDS: Omit<Track, 'id' | 'title'> = {
+  artist: null,
+  key: null,
+  bpm: null,
+  genre: null,
+  year: null,
+  rating: null,
+  durationSec: null,
+  album: null,
+  dateAdded: null,
+  location: null,
+  composer: null,
+  grouping: null,
+  kind: null,
+  size: null,
+  discNumber: null,
+  trackNumber: null,
+  bitRate: null,
+  sampleRate: null,
+  comments: null,
+  playCount: null,
+  remixer: null,
+  label: null,
+  mix: null,
+  colour: null,
+  dateModified: null,
+  lastPlayed: null,
+}
+
+/**
+ * The import report deliberately counts only the five wheel/combo axes —
+ * a library without remixers or labels is not "missing metadata".
+ */
 export type MetadataField = 'key' | 'bpm' | 'genre' | 'year' | 'rating'
 
 export const METADATA_FIELDS: readonly MetadataField[] = ['key', 'bpm', 'genre', 'year', 'rating']

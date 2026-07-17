@@ -69,6 +69,49 @@ describe('importRekordboxXml', () => {
     expect(tracks[3].dateAdded).toBe('2023-11-20')
   })
 
+  test('reads the full metadata set: strings, empty means null (issue 10)', () => {
+    const t = tracks[0] // Midnight Drive: rich attributes, several empty
+    expect(t.kind).toBe('MP3 File')
+    expect(t.label).toBe('Night Shift')
+    expect(t.colour).toBe('0xFF007F')
+    expect(t.dateModified).toBe('2023-05-02')
+    expect(t.lastPlayed).toBe('2024-02-11')
+    expect(t.composer).toBeNull() // Composer="" is empty
+    expect(t.grouping).toBeNull()
+    expect(t.comments).toBeNull()
+    expect(t.remixer).toBeNull()
+    expect(t.mix).toBeNull()
+    const s = tracks[3] // Seven Bridges: the non-empty counterparts
+    expect(s.composer).toBe('E. Vermeulen')
+    expect(s.grouping).toBe('Closers')
+    expect(s.comments).toBe('peak time only')
+    expect(s.remixer).toBe('Nova Pulse')
+    expect(s.mix).toBe('VIP Mix')
+    expect(s.label).toBeNull() // no Label attribute at all
+    expect(s.lastPlayed).toBeNull()
+  })
+
+  test('reads the full metadata set: numbers, 0 placeholders except PlayCount (issue 10)', () => {
+    const t = tracks[0]
+    expect(t.size).toBe(14680064)
+    expect(t.trackNumber).toBe(1)
+    expect(t.discNumber).toBeNull() // DiscNumber="0" is a placeholder
+    expect(t.bitRate).toBe(320)
+    expect(t.sampleRate).toBe(44100)
+    expect(t.playCount).toBe(12)
+    expect(tracks[2].playCount).toBe(0) // PlayCount="0" is a real zero, NOT missing
+    expect(tracks[3].trackNumber).toBeNull() // TrackNumber="0" placeholder
+    const bare = tracks[1] // Glasswork: most attributes absent
+    expect(bare.size).toBeNull()
+    expect(bare.bitRate).toBeNull()
+    expect(bare.sampleRate).toBeNull()
+    expect(bare.playCount).toBe(3)
+  })
+
+  test('the import report still counts only the five wheel axes (issue 10 regression)', () => {
+    expect(Object.keys(report.missing).sort()).toEqual(['bpm', 'genre', 'key', 'rating', 'year'])
+  })
+
   test('rejects XML that is not a Rekordbox collection', () => {
     const { tracks: none, report: bad } = importRekordboxXml('<foo><bar/></foo>')
     expect(none).toEqual([])

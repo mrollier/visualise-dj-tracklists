@@ -1,5 +1,6 @@
 import { normalizeKey } from '../core/keys'
-import type { Playlist, Track } from '../core/model'
+import { EMPTY_TRACK_FIELDS, type Playlist, type Track } from '../core/model'
+import { enrichTrack, type PackExtras } from './enrich'
 import { SAMPLE_TRACKS } from './sample-tracks'
 
 /**
@@ -28,21 +29,128 @@ type Row = [
   number | null,
 ]
 
+// Fictional labels and albums per pack (v9 issue 11) — the curated half of
+// the enrichment; durations/dates/play counts are hashed in enrichTrack.
+const PACK_EXTRAS: Record<string, PackExtras> = {
+  'peak-techno': {
+    label: 'Kraftfeld',
+    albums: {
+      Voltkraft: 'Voltage Works',
+      'Selene Marr': 'Lunar Faults',
+      Duskwerk: 'Werkstatt',
+      KOVA: 'Pressure Systems',
+      Ferrite: 'Oxide',
+      'Nadir Bloom': 'Perihelion',
+    },
+  },
+  'liquid-dnb': {
+    label: 'Riverline',
+    albums: {
+      'Alba Circuit': 'Estuary',
+      Mireille: 'Sodium Nights',
+      'Fen & Marrow': 'Wetlands',
+      'Quiet Engine': 'Idle Hours',
+      Tallowe: 'Candlewick',
+    },
+  },
+  'melodic-sunset': {
+    label: 'Golden Hour Recordings',
+    albums: {
+      'Cerulean Kites': 'Ferry Songs',
+      'Ines Vela': 'Jacaranda LP',
+      'Helio Marsh': 'Brackish',
+      'Nocturne Bay': 'Bayside',
+      Kastell: 'Sandstone',
+    },
+  },
+  'trance-journey': {
+    label: 'Anthemic',
+    albums: {
+      'Meridian Arc': 'Cathedrals',
+      Aurelia: 'Golden Ratio',
+      'Polar Route': 'Latitudes',
+      'Elara Frost': 'Permafrost',
+      'Stellar Ferry': 'Crossings',
+    },
+  },
+  'uk-garage': {
+    // White labels: the pack keeps label sparse via the null here.
+    label: null,
+    albums: {
+      'Marlowe & Dux': 'Silk & Chrome',
+      'Sable D': 'Signal EP',
+      'Vex Almeida': 'Postcodes',
+      Junia: 'Call Back EP',
+      'Ostara Crew': 'Estate Tapes',
+    },
+  },
+  'disco-funk': {
+    label: 'Gold Leaf',
+    albums: {
+      'The Velvet Yards': 'Roller Rink',
+      'Otis Fontaine': 'Gravity LP',
+      'Ripe Cuts': 'Fruit Machine',
+      'Delphine Gold': 'Champagne Years',
+      'Marceau Bros.': 'Revue',
+    },
+  },
+  'deep-classic-house': {
+    label: 'South Loop',
+    albums: {
+      'Marshall Keys': 'Warehouse Sermons',
+      'Roux Deville': 'Deville LP',
+      'Nina Solace': 'Small Hours EP',
+      'Bram Oduya': 'Ecologies',
+      'Cato & Pearl': 'Garden Level LP',
+    },
+  },
+  'halftime-bass': {
+    label: 'Subsoil',
+    albums: {
+      'Grey Mantis': 'Tar Pit EP',
+      Okto: 'Ferrofluid EP',
+      'Split Signal': 'Twin Engine LP',
+      'Vantablack Audio': 'Event Horizon EP',
+    },
+  },
+  'organic-downtempo': {
+    label: 'Terracotta',
+    albums: {
+      'Sol Reverie': 'Clay Lanterns LP',
+      'Anouk Meadow': 'Fig Season EP',
+      Tembo: 'Caravan Dust LP',
+      Ilma: 'Moon Tea EP',
+    },
+  },
+  'hard-industrial': {
+    label: 'Blast Works',
+    albums: {
+      'Krupp 9': 'Blast Furnace EP',
+      'Mara Volt': 'Cooling Tower EP',
+      'DK Ostwald': 'Drop Forge LP',
+      'Vice Grip': 'Impact Wrench EP',
+    },
+  },
+}
+
 function pack(id: string, name: string, description: string, rows: Row[]): SamplePack {
-  const tracks: Track[] = rows.map(([title, artist, key, bpm, genre, year, rating], i) => ({
-    id: `${id}-${i}`,
-    title,
-    artist,
-    key: normalizeKey(key),
-    bpm,
-    genre,
-    year,
-    rating,
-    durationSec: null,
-    album: null,
-    dateAdded: null,
-    location: null,
-  }))
+  const extras = PACK_EXTRAS[id] ?? { label: null, albums: {} }
+  const tracks: Track[] = rows.map(([title, artist, key, bpm, genre, year, rating], i) =>
+    enrichTrack(
+      {
+        ...EMPTY_TRACK_FIELDS,
+        id: `${id}-${i}`,
+        title,
+        artist,
+        key: normalizeKey(key),
+        bpm,
+        genre,
+        year,
+        rating,
+      },
+      extras,
+    ),
+  )
   return { id, name, description, tracks }
 }
 

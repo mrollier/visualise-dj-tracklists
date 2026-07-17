@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest'
+import { ALL_TRACK_COLUMNS, visibleColumns } from '../src/core/columns'
 import { DEFAULT_CRITERIA } from '../src/core/combos'
 import { EMPTY_FILTERS } from '../src/core/filter'
 import { parseProject, serializeProject, type Project } from '../src/core/persist'
@@ -147,10 +148,13 @@ describe('project persistence (v3)', () => {
     expect(parseProject(JSON.stringify(raw)).settings.advancedOpen).toEqual([])
   })
 
-  test('saves from before trackColumns default to the classic seven (v8 issue 15)', () => {
+  test('saves from before trackColumns show the classic seven (v8 issue 15, v9 issue 12)', () => {
     const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
     Reflect.deleteProperty(raw.settings as Record<string, unknown>, 'trackColumns')
-    expect(parseProject(JSON.stringify(raw)).settings.trackColumns).toEqual([
+    Reflect.deleteProperty(raw.settings as Record<string, unknown>, 'hiddenColumns')
+    const settings = parseProject(JSON.stringify(raw)).settings
+    expect(settings.trackColumns).toEqual([...ALL_TRACK_COLUMNS])
+    expect(visibleColumns(settings.trackColumns, settings.hiddenColumns)).toEqual([
       'artist',
       'title',
       'key',
@@ -159,6 +163,19 @@ describe('project persistence (v3)', () => {
       'year',
       'rating',
     ])
+  })
+
+  test('a v8 save with a reordered partial column list keeps its visible set (issue 12)', () => {
+    const raw = JSON.parse(serializeProject(project)) as { settings: Record<string, unknown> }
+    raw.settings.trackColumns = ['title', 'bpm', 'key']
+    Reflect.deleteProperty(raw.settings, 'hiddenColumns')
+    const settings = parseProject(JSON.stringify(raw)).settings
+    expect(visibleColumns(settings.trackColumns, settings.hiddenColumns)).toEqual([
+      'title',
+      'bpm',
+      'key',
+    ])
+    expect(settings.trackColumns).toHaveLength(ALL_TRACK_COLUMNS.length)
   })
 
   test('saves from before album/dateAdded parse those fields to null (v8 issue 15)', () => {
@@ -183,6 +200,74 @@ describe('project persistence (v3)', () => {
     const parsed = parseProject(serializeProject(withFields))
     expect(parsed.tracks[0].album).toBe('Night Shift EP')
     expect(parsed.tracks[0].dateAdded).toBe('2020-03-14')
+  })
+
+  test('the v9 metadata fields round-trip, sanitize, and default to null (issue 10)', () => {
+    const withFields = {
+      ...project,
+      tracks: [
+        {
+          ...project.tracks[0],
+          label: 'Night Shift',
+          playCount: 0,
+          lastPlayed: '2024-02-11',
+          bitRate: 320,
+          colour: '0xFF007F',
+        },
+        { ...project.tracks[1], label: 42, playCount: 'many', size: Infinity }, // wrong types
+        ...project.tracks.slice(2),
+      ],
+    }
+    const parsed = parseProject(serializeProject(withFields as unknown as Project))
+    expect(parsed.tracks[0]).toMatchObject({
+      label: 'Night Shift',
+      playCount: 0, // a real zero survives
+      lastPlayed: '2024-02-11',
+      bitRate: 320,
+      colour: '0xFF007F',
+    })
+    expect(parsed.tracks[1]).toMatchObject({ label: null, playCount: null, size: null })
+    // Saves predating the fields parse them all to null: strip the keys the
+    // way an old file simply wouldn't have them.
+    const raw = JSON.parse(serializeProject(project)) as { tracks: Record<string, unknown>[] }
+    for (const field of [
+      'composer',
+      'grouping',
+      'kind',
+      'size',
+      'discNumber',
+      'trackNumber',
+      'bitRate',
+      'sampleRate',
+      'comments',
+      'playCount',
+      'remixer',
+      'label',
+      'mix',
+      'colour',
+      'dateModified',
+      'lastPlayed',
+    ]) {
+      Reflect.deleteProperty(raw.tracks[0], field)
+    }
+    expect(parseProject(JSON.stringify(raw)).tracks[0]).toMatchObject({
+      composer: null,
+      grouping: null,
+      kind: null,
+      size: null,
+      discNumber: null,
+      trackNumber: null,
+      bitRate: null,
+      sampleRate: null,
+      comments: null,
+      playCount: null,
+      remixer: null,
+      label: null,
+      mix: null,
+      colour: null,
+      dateModified: null,
+      lastPlayed: null,
+    })
   })
 
   test('saves from before icon modes default to genre families (v8 issues 4+5)', () => {

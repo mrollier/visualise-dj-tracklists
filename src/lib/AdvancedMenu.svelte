@@ -4,6 +4,7 @@
   import { METHOD_LABEL_LONG, METHOD_PICK_ORDER, type GenreMethod } from '../core/genre'
   import type { Track } from '../core/model'
   import { type BpmProgression } from '../core/settings'
+  import { COLUMN_LABELS } from '../core/columns'
   import type { TrackSortField } from '../core/trackSort'
   import {
     criteria,
@@ -46,37 +47,15 @@
     viewMode.set('tracks')
   }
 
-  // --- Tracks-table columns (v8 issue 15) ---
-  const ALL_COLUMNS: readonly TrackSortField[] = [
-    'artist',
-    'title',
-    'key',
-    'bpm',
-    'genre',
-    'year',
-    'rating',
-    'album',
-    'dateAdded',
-    'durationSec',
-  ]
-  const COLUMN_LABEL: Record<TrackSortField, string> = {
-    artist: 'Artist',
-    title: 'Title',
-    key: 'Key',
-    bpm: 'BPM',
-    genre: 'Genre',
-    year: 'Year',
-    rating: 'Rating',
-    album: 'Album',
-    dateAdded: 'Date added',
-    durationSec: 'Length',
-  }
+  // --- Tracks-table columns (v8 issue 15, v9 issue 12) ---
+  // Checkboxes list the columns in the user's own order and toggle only the
+  // hidden set — a re-enabled column reappears at its previous position.
   function toggleColumn(field: TrackSortField) {
     settings.update((s) => ({
       ...s,
-      trackColumns: s.trackColumns.includes(field)
-        ? s.trackColumns.filter((f) => f !== field)
-        : [...s.trackColumns, field],
+      hiddenColumns: s.hiddenColumns.includes(field)
+        ? s.hiddenColumns.filter((f) => f !== field)
+        : [...s.hiddenColumns, field],
     }))
   }
   // Live feedback for the k/threshold sliders (issue 12): on the wheel the
@@ -388,15 +367,18 @@
     ontoggle={(e) => persistToggle('tracks', e)}
   >
     <summary>Tracks table</summary>
-    <p class="hint">Columns shown in the Tracks view — drag the table headers to reorder them.</p>
-    {#each ALL_COLUMNS as field (field)}
+    <p class="hint">
+      Columns shown in the Tracks view — drag the table headers to reorder them. A hidden column
+      remembers its place.
+    </p>
+    {#each $settings.trackColumns as field (field)}
       <label class="row">
         <input
           type="checkbox"
-          checked={$settings.trackColumns.includes(field)}
+          checked={!$settings.hiddenColumns.includes(field)}
           onchange={() => toggleColumn(field)}
         />
-        {COLUMN_LABEL[field]}
+        {COLUMN_LABELS[field]}
       </label>
     {/each}
   </details>

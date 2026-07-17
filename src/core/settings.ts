@@ -1,3 +1,4 @@
+import { ALL_TRACK_COLUMNS, DEFAULT_HIDDEN_COLUMNS } from './columns'
 import type { TrackSortField } from './trackSort'
 
 /**
@@ -47,10 +48,13 @@ export interface AppSettings {
   /** Preferred BPM trajectory for generated sets. */
   bpmProgression: BpmProgression
   /**
-   * The Tracks table's columns: membership AND order (v8 issue 15). Fields
-   * not listed are hidden; header drag reorders this list.
+   * The Tracks table's column ORDER — always every column (v9 issue 12);
+   * header drag reorders this list. Visibility lives in hiddenColumns, so a
+   * column keeps its position while hidden.
    */
   trackColumns: TrackSortField[]
+  /** Columns currently hidden from the Tracks table. */
+  hiddenColumns: TrackSortField[]
   /**
    * Which advanced-menu sections the user has opened (v8 issue 17). Empty on
    * first use — every section starts folded; the menu then remembers.
@@ -69,6 +73,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   iconMode: 'families',
   maxGenreClasses: 4,
   bpmProgression: 'any',
-  trackColumns: ['artist', 'title', 'key', 'bpm', 'genre', 'year', 'rating'],
+  trackColumns: [...ALL_TRACK_COLUMNS],
+  hiddenColumns: [...DEFAULT_HIDDEN_COLUMNS],
   advancedOpen: [],
 }

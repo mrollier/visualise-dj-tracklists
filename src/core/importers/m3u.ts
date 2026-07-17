@@ -1,4 +1,4 @@
-import { buildReport, type ImportReport, type Track } from '../model'
+import { buildReport, EMPTY_TRACK_FIELDS, type ImportReport, type Track } from '../model'
 
 /**
  * Import an M3U/M3U8 playlist as an ordered tracklist (remark 4: bring an
@@ -85,17 +85,11 @@ export function importM3u(m3u: string, library: Track[]): M3uImportResult {
       const title =
         dash > 0 ? pendingName!.slice(dash + 3).trim() : (pendingName ?? stem(basename(path)))
       const track: Track = {
+        ...EMPTY_TRACK_FIELDS,
         id: `m3u-${newTracks.length}-${basename(path)}`,
         title,
         artist,
-        key: null,
-        bpm: null,
-        genre: null,
-        year: null,
-        rating: null,
         durationSec: pendingDuration,
-        album: null,
-        dateAdded: null,
         location: path,
       }
       newTracks.push(track)

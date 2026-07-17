@@ -1,7 +1,7 @@
 import { get } from 'svelte/store'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { EMPTY_FILTERS } from '../src/core/filter'
-import type { Track } from '../src/core/model'
+import { EMPTY_TRACK_FIELDS, type Track } from '../src/core/model'
 import { ALL_SAMPLE_PACKS, SAMPLE_COLLECTION } from '../src/data/samples'
 import {
   isSampleLibrary,
@@ -22,20 +22,7 @@ import {
 } from '../src/stores'
 
 function track(id: string): Track {
-  return {
-    id,
-    title: id,
-    artist: null,
-    key: null,
-    bpm: null,
-    genre: null,
-    year: null,
-    rating: null,
-    album: null,
-    dateAdded: null,
-    durationSec: null,
-    location: null,
-  }
+  return { ...EMPTY_TRACK_FIELDS, id, title: id }
 }
 
 const REPORT = { total: 1, missing: { key: 1, bpm: 1, genre: 1, year: 1, rating: 1 }, errors: [] }

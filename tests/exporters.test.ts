@@ -3,10 +3,11 @@ import { exportTracklistCsv } from '../src/core/exporters/csv'
 import { ensureExtension } from '../src/core/exporters/filename'
 import { exportM3u } from '../src/core/exporters/m3u'
 import { importCsv } from '../src/core/importers/csv'
-import type { Track } from '../src/core/model'
+import { EMPTY_TRACK_FIELDS, type Track } from '../src/core/model'
 
 const tracks: Track[] = [
   {
+    ...EMPTY_TRACK_FIELDS,
     id: 'a',
     title: 'Midnight Drive',
     artist: 'Nova Pulse',
@@ -21,18 +22,9 @@ const tracks: Track[] = [
     location: 'file://localhost/Users/dj/Music/midnight%20drive.mp3',
   },
   {
+    ...EMPTY_TRACK_FIELDS,
     id: 'b',
     title: 'Glasswork',
-    artist: null,
-    key: null,
-    bpm: null,
-    genre: null,
-    year: null,
-    rating: null,
-    durationSec: null,
-    album: null,
-    dateAdded: null,
-    location: null,
   },
 ]
 

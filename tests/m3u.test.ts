@@ -1,21 +1,17 @@
 import { describe, expect, test } from 'vitest'
 import { exportM3u } from '../src/core/exporters/m3u'
 import { importM3u, rematchAfterImport } from '../src/core/importers/m3u'
-import type { Track } from '../src/core/model'
+import { EMPTY_TRACK_FIELDS, type Track } from '../src/core/model'
 
 function track(overrides: Partial<Track> & { id: string }): Track {
   return {
+    ...EMPTY_TRACK_FIELDS,
     title: overrides.id,
-    artist: null,
     key: '8A',
     bpm: 128,
     genre: 'Techno',
     year: 2020,
     rating: 4,
-    durationSec: null,
-    album: null,
-    dateAdded: null,
-    location: null,
     ...overrides,
   }
 }
@@ -88,18 +84,9 @@ describe('importM3u', () => {
 
 describe('rematchAfterImport', () => {
   const bare = (id: string, overrides: Partial<Track>): Track => ({
+    ...EMPTY_TRACK_FIELDS,
     id,
     title: id,
-    artist: null,
-    key: null,
-    bpm: null,
-    genre: null,
-    year: null,
-    rating: null,
-    durationSec: null,
-    album: null,
-    dateAdded: null,
-    location: null,
     ...overrides,
   })
 

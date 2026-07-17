@@ -18,6 +18,22 @@ export type TrackSortField =
   | 'album'
   | 'dateAdded'
   | 'durationSec'
+  | 'composer'
+  | 'grouping'
+  | 'kind'
+  | 'size'
+  | 'discNumber'
+  | 'trackNumber'
+  | 'bitRate'
+  | 'sampleRate'
+  | 'comments'
+  | 'playCount'
+  | 'remixer'
+  | 'label'
+  | 'mix'
+  | 'colour'
+  | 'dateModified'
+  | 'lastPlayed'
 
 export interface TrackSort {
   field: TrackSortField

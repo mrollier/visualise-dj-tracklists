@@ -1,5 +1,6 @@
-import type { Track } from '../core/model'
 import { normalizeKey } from '../core/keys'
+import { EMPTY_TRACK_FIELDS, type Track } from '../core/model'
+import { enrichTrack, type PackExtras } from './enrich'
 
 // Fictional demo library so the app shows its value before any import.
 // Fields: title, artist, key, bpm, genre, year, rating (null = missing).
@@ -50,19 +51,42 @@ const ROWS: Row[] = [
   ['Closing Chord', 'Aurora Fields', '9B', 120, 'Melodic House', 2024, null],
 ]
 
+// The classic pack's fictional label and albums (v9 issue 11). Greyfield is
+// deliberately absent: the edge-case tracks keep their gaps.
+const CLASSIC_EXTRAS: PackExtras = {
+  label: 'Night Shift Trax',
+  albums: {
+    'Nova Pulse': 'Night Shift EP',
+    Ferro: 'Foundry',
+    'Mira Volt': 'Rotor EP',
+    Kern: 'Grid Studies',
+    'Aurora Fields': 'Prisma',
+    Lumen: 'Refraction',
+    Cerulean: 'Tidelines',
+    'Aya Reyes': 'Under Current',
+    Kasteel: 'Seven Bridges LP',
+    Verdigris: 'Patina',
+    Halide: 'Silver Salt',
+    'Meridian Arc': 'Meridian',
+    Solstice: 'Turning Point',
+    'Polaris Twins': 'Twin Stars',
+  },
+}
+
 export const SAMPLE_TRACKS: Track[] = ROWS.map(
-  ([title, artist, key, bpm, genre, year, rating], i) => ({
-    id: `sample-${i}`,
-    title,
-    artist,
-    key: normalizeKey(key),
-    bpm,
-    genre,
-    year,
-    rating,
-    durationSec: null,
-    album: null,
-    dateAdded: null,
-    location: null,
-  }),
+  ([title, artist, key, bpm, genre, year, rating], i) =>
+    enrichTrack(
+      {
+        ...EMPTY_TRACK_FIELDS,
+        id: `sample-${i}`,
+        title,
+        artist,
+        key: normalizeKey(key),
+        bpm,
+        genre,
+        year,
+        rating,
+      },
+      CLASSIC_EXTRAS,
+    ),
 )

@@ -1,5 +1,5 @@
 import { normalizeKey } from '../keys'
-import { buildReport, type ImportResult, type Track } from '../model'
+import { buildReport, EMPTY_TRACK_FIELDS, type ImportResult, type Track } from '../model'
 
 /**
  * Rekordbox "export playlist as TXT": a tab-separated table of whatever
@@ -93,18 +93,15 @@ export function importRekordboxTxt(buffer: ArrayBuffer): ImportResult {
     }
     const bpm = Number(row.get('bpm') ?? '')
     tracks.push({
+      ...EMPTY_TRACK_FIELDS, // the TXT export carries no album/year/extras
       id: `txt-${tracks.length}`,
       title,
       artist: row.get('artist') ?? null,
       key: normalizeKey(row.get('key') ?? null),
       bpm: Number.isFinite(bpm) && bpm > 0 ? bpm : null,
       genre: row.get('genre') ?? null,
-      // The export has no release year — "Date Added" is not one.
-      year: null,
       rating: parseRating(row.get('rating') ?? ''),
       durationSec: parseTime(row.get('durationSec') ?? ''),
-      album: null, // the TXT export carries no album column
-      dateAdded: null,
       location: row.get('location') ?? null,
     })
   }
