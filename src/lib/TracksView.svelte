@@ -58,6 +58,12 @@
   // set order (deduped by first occurrence), with all metadata columns —
   // the right panel's set, fleshed out. Column sorting is suspended here.
   let inSetOnly = $state(false)
+  // If the set empties while set-only mode is on (clear, deletions), exit
+  // the mode — otherwise the table dead-ends on the empty hint with the
+  // toggle disabled (v11 issue 12a).
+  $effect(() => {
+    if ($tracklist.length === 0 && inSetOnly) inSetOnly = false
+  })
   const inSetRows = $derived.by(() => {
     // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived-local
     const seen = new Set<string>()
@@ -185,11 +191,17 @@
           </th>
           <th class="pos-col">
             <!-- Toggle a metadata-rich, set-only, position-ordered view (v10
-                 issue 15). -->
+                 issue 15). Disabled while the set is empty — an empty
+                 set-only table is a dead end (v11 issue 12a). -->
             <button
               class="pos-toggle"
               class:on={inSetOnly}
-              title={inSetOnly ? 'Show all tracks' : 'Show only this set, in order'}
+              disabled={$tracklist.length === 0}
+              title={$tracklist.length === 0
+                ? 'Add tracks to the set first'
+                : inSetOnly
+                  ? 'Show all tracks'
+                  : 'Show only this set, in order'}
               aria-label="Toggle the set-only view"
               aria-pressed={inSetOnly}
               onclick={() => (inSetOnly = !inSetOnly)}>☰</button
@@ -218,7 +230,7 @@
                 dragField = null
                 dropField = null
               }}
-              aria-sort={$trackSort.field === field
+              aria-sort={!inSetOnly && $trackSort.field === field
                 ? $trackSort.dir === 'asc'
                   ? 'ascending'
                   : 'descending'
@@ -226,7 +238,10 @@
             >
               <button class="sort" onclick={() => toggleSort(field)}>
                 {COLUMN_LABEL[field]}
-                {#if $trackSort.field === field}<span class="dir"
+                <!-- Set order supersedes column sorting in set-only mode, so
+                     the triangle hides there (v11 issue 12b); the stored
+                     sort is untouched and returns on toggle-back. -->
+                {#if !inSetOnly && $trackSort.field === field}<span class="dir"
                     >{$trackSort.dir === 'asc' ? '▲' : '▼'}</span
                   >{/if}
               </button>
@@ -470,12 +485,19 @@
     text-overflow: ellipsis;
   }
 
+  /* Header and body icons share a centred column (v11 issue 11): the ★ in
+     the header sits exactly over the row stars, the ☰ over the ＋/numbers. */
   .tags-col {
     width: 30px;
+    text-align: center;
   }
 
   .tags {
-    text-align: left;
+    text-align: center;
+  }
+
+  .pos-col {
+    text-align: center;
   }
 
   /* The header ★ appears on header hover, like the row stars on row hover
@@ -505,6 +527,12 @@
   .pos-toggle:hover,
   .pos-toggle.on {
     color: var(--accent);
+  }
+
+  .pos-toggle:disabled {
+    color: var(--ink-muted);
+    opacity: 0.4;
+    cursor: default;
   }
 
   .tag {
