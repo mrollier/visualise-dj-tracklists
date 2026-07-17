@@ -281,15 +281,18 @@
       // Weak positional gravity instead of forceCenter: forceCenter only
       // recentres the mean, so disconnected components drift apart under
       // the charge with nothing pulling them back (ISSUES.md #12). The
-      // pull must stay gentle or connected layouts visibly compress.
-      .force('x', forceX(WIDTH / 2).strength(CONTAIN_STRENGTH))
-      .force('y', forceY(HEIGHT / 2).strength(CONTAIN_STRENGTH))
+      // pull must stay gentle or connected layouts visibly compress. The
+      // instances are kept so a drag can TOW the gravity targets (v11
+      // issue 9c) — the whole graph, linked or not, leans after the
+      // grabbed node through empty space.
+      .force('x', (gravityX = forceX<GenreNode>(WIDTH / 2).strength(CONTAIN_STRENGTH)))
+      .force('y', (gravityY = forceY<GenreNode>(HEIGHT / 2).strength(CONTAIN_STRENGTH)))
       // Slow cooling and strong damping: nodes drift into place organically
       // instead of springing (issue 5, pairs with the centre spawn of issue
-      // 3). alphaDecay lowered ~3× (v10 issue 9) so a method change animates
-      // slowly enough to follow.
-      .alphaDecay(0.006)
-      .velocityDecay(0.55)
+      // 3). alphaDecay lowered again (v10 issue 9, v11 issue 10) so a
+      // method change eases into its new layout instead of snapping.
+      .alphaDecay(0.002)
+      .velocityDecay(0.6)
       .on('tick', () => {
         const current = simulation!.nodes() as GenreNode[]
         for (const n of current) {
@@ -338,11 +341,19 @@
   }
 
   // --- node dragging (v8 issue 11): jiggle the clusters ------------------------
-  // Purely for play: dragging pins the node under the pointer and reheats
-  // the simulation so its neighbourhood swings along; releasing lets the
-  // physics re-settle. Nothing is remembered.
+  // Purely for play: dragging pins the node under the pointer, reheats the
+  // simulation, and TOWS the gravity targets by the drag displacement with
+  // temporarily strengthened pull (v11 issue 9c) — so the WHOLE graph,
+  // connected or not, follows the grabbed node through empty space.
+  // Releasing restores the centre and the slow cooling drifts everything
+  // home visibly. Nothing is remembered.
   let layerEl: SVGGElement
   let dragging = $state<GenreNode | null>(null)
+  let gravityX: ReturnType<typeof forceX<GenreNode>>
+  let gravityY: ReturnType<typeof forceY<GenreNode>>
+  let dragOrigin = { x: 0, y: 0 }
+  /** Gravity gets this much stronger while towing, or the far graph barely reacts. */
+  const TOW_STRENGTH = 4 * CONTAIN_STRENGTH
 
   function layerPoint(e: PointerEvent): { x: number; y: number } {
     const ctm = layerEl.getScreenCTM()
@@ -366,8 +377,11 @@
     dragging = node
     dragDistance = 0
     dragStart = { x: e.clientX, y: e.clientY }
+    dragOrigin = { x: node.x ?? WIDTH / 2, y: node.y ?? HEIGHT / 2 }
     node.fx = node.x
     node.fy = node.y
+    gravityX.strength(TOW_STRENGTH)
+    gravityY.strength(TOW_STRENGTH)
     simulation?.alphaTarget(0.3).restart()
   }
 
@@ -376,6 +390,11 @@
     const p = layerPoint(e)
     dragging.fx = p.x
     dragging.fy = p.y
+    // Tow the gravity targets by the drag displacement: every node is
+    // pulled after the grabbed one, not just its link neighbours (the
+    // "drag the whole graph through empty space" feel, v11 issue 9c).
+    gravityX.x(WIDTH / 2 + (p.x - dragOrigin.x))
+    gravityY.y(HEIGHT / 2 + (p.y - dragOrigin.y))
     dragDistance = Math.hypot(e.clientX - dragStart.x, e.clientY - dragStart.y)
   }
 
@@ -384,6 +403,10 @@
     dragging.fx = null
     dragging.fy = null
     dragging = null
+    // Gravity eases home: targets and strength restore, the slow cooling
+    // (alphaDecay 0.002) drifts the graph back visibly.
+    gravityX.x(WIDTH / 2).strength(CONTAIN_STRENGTH)
+    gravityY.y(HEIGHT / 2).strength(CONTAIN_STRENGTH)
     simulation?.alphaTarget(0)
     if (dragDistance > 4) suppressClicksUntil = performance.now() + 150
     dragDistance = 0
@@ -551,11 +574,10 @@
             if (e.key === 'Enter') nodeClick(node)
           }}
         >
-          <!-- Transparent hit-shape (v10 issue 8): the symbol path only fills
-               its own outline, and the label had pointer-events:none, so a
-               press on the label or a symbol concavity fell through to
-               d3-zoom and panned the canvas. This circle covers the symbol so
-               the whole node is grabbable; the label is grabbable too. -->
+          <!-- Transparent hit-shape (v10 issue 8): the symbol path only
+               fills its own outline, so a press in a concavity fell through
+               to d3-zoom and panned the canvas. This circle is the node's
+               one grab handle (the label is a caption — v11 issue 9b). -->
           <circle class="node-hit" r={nodeRadius(node) + 5} />
           <path
             d={shapePath(node.ghost ? null : classIndexOf(node.id), nodeRadius(node))}
@@ -718,8 +740,10 @@
   .genre-label {
     fill: var(--ink-secondary);
     font-size: 11px;
-    /* Grabbable so a press on the label drags the node (v10 issue 8). */
-    pointer-events: auto;
+    /* A caption, not a grab handle (v11 issue 9b): SVG text hit-tests only
+       the glyph strokes, so "grab the label" mostly missed and started a
+       pan instead — the node's hit-circle is the one honest handle. */
+    pointer-events: none;
   }
 
   .overlays {
