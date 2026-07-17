@@ -18,7 +18,6 @@
     tracklist,
     viewMode,
   } from '../stores'
-  import { SAMPLE_COLLECTION } from '../data/samples'
   import ConfirmDialog from './ConfirmDialog.svelte'
   import InfoTooltip from './InfoTooltip.svelte'
   import ResetDialog from './ResetDialog.svelte'
@@ -182,14 +181,6 @@
       .map(([field, count]) => `${count}× ${field}`)
     return parts.length > 0 ? `missing: ${parts.join(', ')}` : null
   })
-
-  // A static profile of the bundled sample collection for its info icon (v10):
-  // how many tracks, and how much metadata is deliberately missing.
-  const sampleReport = buildReport(SAMPLE_COLLECTION.tracks, [])
-  const sampleMissing = Object.entries(sampleReport.missing)
-    .filter(([, count]) => count > 0)
-    .map(([field, count]) => `${count}× ${field}`)
-    .join(', ')
 </script>
 
 <header>
@@ -250,21 +241,11 @@
       hidden
       onchange={onFileChosen}
     />
-    <span class="sample-load">
-      <button
-        onclick={loadSample}
-        title="Load the sample collection (all themed packs as playlists)">Load sample</button
-      >
-      <InfoTooltip label="About the sample collection" align="right">
-        <strong>{sampleReport.total} sample tracks</strong>
-        <span>across {SAMPLE_COLLECTION.playlists.length} themed playlists</span>
-        {#if sampleMissing}
-          <span>missing: {sampleMissing}</span>
-        {:else}
-          <span>every field present</span>
-        {/if}
-      </InfoTooltip>
-    </span>
+    <!-- The sample's own info icon moved to the status ⓘ (v11 issue 4):
+         loading raises an import report like any other import. -->
+    <button onclick={loadSample} title="Load the sample collection (all themed packs as playlists)"
+      >Load sample</button
+    >
     <button onclick={saveProject} disabled={$library.length === 0}>Save project</button>
     <button
       class="advanced-toggle"
@@ -306,23 +287,18 @@
       <span class="name">{$libraryName}</span>
     {/if}
     {#if $lastImportReport}
-      <span class="info-wrap">
-        <button class="info" aria-label="Import details" aria-describedby="import-report-tip">
-          ⓘ
-        </button>
-        <div class="tooltip" role="tooltip" id="import-report-tip">
-          <strong>{$lastImportReport.total} tracks imported</strong>
-          {#if missingSummary}
-            <span>{missingSummary}</span>
-          {/if}
-          {#if $lastImportReport.errors.length > 0}
-            <span>{$lastImportReport.errors.length} skipped</span>
-          {/if}
-          {#each $lastImportReport.notes ?? [] as note (note)}
-            <span>{note}</span>
-          {/each}
-        </div>
-      </span>
+      <InfoTooltip label="Import details" align="right">
+        <strong>{$lastImportReport.total} tracks imported</strong>
+        {#if missingSummary}
+          <span>{missingSummary}</span>
+        {/if}
+        {#if $lastImportReport.errors.length > 0}
+          <span>{$lastImportReport.errors.length} skipped</span>
+        {/if}
+        {#each $lastImportReport.notes ?? [] as note (note)}
+          <span>{note}</span>
+        {/each}
+      </InfoTooltip>
     {/if}
   </div>
 </header>
@@ -413,60 +389,6 @@
     color: var(--walk-bright);
   }
 
-  .sample-load {
-    display: inline-flex;
-    align-items: center;
-    gap: 1px;
-  }
-
-  .info-wrap {
-    position: relative;
-    flex-shrink: 0;
-    display: inline-flex;
-  }
-
-  .info {
-    background: none;
-    border: none;
-    padding: 0 2px;
-    font-size: 13px;
-    color: var(--ink-muted);
-    cursor: help;
-  }
-
-  .info:hover,
-  .info:focus-visible {
-    color: var(--ink);
-  }
-
-  .tooltip {
-    display: none;
-    position: absolute;
-    top: calc(100% + 6px);
-    right: 0;
-    z-index: 20;
-    min-width: 200px;
-    max-width: 320px;
-    background: var(--surface-raised);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px 10px;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
-    color: var(--ink-secondary);
-    text-align: left;
-  }
-
-  .tooltip strong {
-    display: block;
-    color: var(--ink);
-  }
-
-  .tooltip span {
-    display: block;
-  }
-
-  .info-wrap:hover .tooltip,
-  .info:focus-visible + .tooltip {
-    display: block;
-  }
+  /* The import-report popover converted to the shared InfoTooltip (v11
+     issues 3+6) — its hand-rolled twin CSS is gone with it. */
 </style>

@@ -94,6 +94,14 @@ describe('loadSampleCollection', () => {
     expect(get(tracklist)).toEqual([])
     expect(isSampleLibrary(get(library))).toBe(true)
   })
+
+  test('raises an import report so the status ⓘ appears (v11 issue 4)', () => {
+    loadSampleCollection()
+    const report = get(lastImportReport)
+    expect(report).not.toBeNull()
+    expect(report?.total).toBe(SAMPLE_COLLECTION.tracks.length)
+    expect(report?.notes?.join(' ')).toContain(`${SAMPLE_COLLECTION.playlists.length} themed`)
+  })
 })
 
 describe('replaceNeedsConfirmation', () => {

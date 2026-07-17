@@ -1,7 +1,7 @@
 import { get } from 'svelte/store'
 import { DEFAULT_CRITERIA } from '../core/combos'
 import { EMPTY_FILTERS } from '../core/filter'
-import type { ImportReport, Playlist, Track } from '../core/model'
+import { buildReport, type ImportReport, type Playlist, type Track } from '../core/model'
 import { parseProject, serializeProject, type Project } from '../core/persist'
 import { freshFirstSet } from '../core/sets'
 import { DEFAULT_SETTINGS } from '../core/settings'
@@ -108,10 +108,15 @@ export function replaceLibrary(replacement: {
  * then behaves exactly like an imported collection XML (design-v6 §D).
  */
 export function loadSampleCollection(): void {
+  // The sample raises a report like any import, so the status ⓘ next to
+  // "Sample collection" shows its counts (v11 issue 4).
+  const report = buildReport(SAMPLE_COLLECTION.tracks, [])
+  report.notes = [`${SAMPLE_COLLECTION.playlists.length} themed playlists`]
   replaceLibrary({
     tracks: SAMPLE_COLLECTION.tracks,
     name: SAMPLE_COLLECTION.name,
     playlists: SAMPLE_COLLECTION.playlists,
+    report,
   })
 }
 
