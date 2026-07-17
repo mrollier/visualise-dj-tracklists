@@ -3,7 +3,8 @@
 A local-first web app that shows a DJ library as a **graph** instead of a list: tracks are
 nodes on a Camelot-wheel polar view, suggested combos are edges computed from tunable
 matching criteria (key adjacency, BPM, genre similarity, year), and a tracklist is a
-visible **walk** woven through that structure.
+visible **walk** woven through that structure. It is a map of what you _could_ play,
+not a log of what you did.
 
 Your library never leaves your machine — there is no backend, no account, no upload.
 
@@ -134,6 +135,37 @@ Your library never leaves your machine — there is no backend, no account, no u
 
 ![The light theme](docs/screenshots/light-mode.png)
 
+## Where it sits
+
+DJ tooling usually sells visualisation, set-planning, and track suggestion as three
+separate products; this app is the synthesis of all three, built around one idea no
+established tool ships: the **whole library drawn as a graph on the Camelot wheel,
+with the set as a visible walk through it**. Set-builders like DJ.Studio or Mixgraph
+show a timeline or a scored slot list; rekordbox's Related Tracks shows a ranked
+list; library managers show tables. Here the answer is a shape you can see and steer.
+
+It is deliberately **not** a key/BPM analyzer (it reads what Rekordbox already
+computed), not a library manager or converter (Lexicon does that better), and not
+performance software — it is the thinking tool you open _before_ the gig.
+
+Two more things set it apart. Everything is **explainable**: every edge exists
+because of criteria you set and can read, every genre score can be inspected per
+method — no black-box "AI chemistry" numbers. And everything is **local**: when the
+Spotify audio-features API shut down in 2024 it froze or killed the tools built on
+it; nothing here can break that way, because nothing leaves your machine.
+
+One boundary is a hard non-goal: **this app plans, it doesn't remember**. It will
+never log the transitions you actually played or keep a play history — the roadmap's
+"DJ fingerprints" analyse tracklists you _import_, they never record you. If you
+want a memory for the combos you've played and loved, that is exactly what
+[Mixlog](https://mixlog.app) is for — a logbook for your DJ brain, and the perfect
+complement: Mixlog remembers the transitions you played; this draws the map of the
+ones you could.
+
+The full landscape analysis, differentiation, and brand notes live in
+[docs/POSITIONING.md](docs/POSITIONING.md) (source research in
+[docs/research/](docs/research/)).
+
 ## Genre similarity
 
 "Tech House" and "Techno" are different strings but not unrelated music. The genre
@@ -200,7 +232,9 @@ view layer over it.
 The concept — track set graphs, track vector walks, and DJ "fingerprints" as statistics
 over walks — is laid out in the concept paper at
 [docs/visualise-dj-tracklists.pdf](docs/visualise-dj-tracklists.pdf); the v1 design and
-decisions live in [docs/designs/](docs/designs/).
+decisions live in [docs/designs/](docs/designs/); positioning against the wider
+DJ-tool landscape (and the naming shortlist) lives in
+[docs/POSITIONING.md](docs/POSITIONING.md).
 
 Planned next (in rough order): walk-quality metrics (the first step toward DJ
 fingerprints), weighted edges with per-criterion weight sliders, force-layout "free"
