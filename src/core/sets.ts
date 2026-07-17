@@ -53,6 +53,15 @@ export function newSetId(): string {
   return crypto.randomUUID()
 }
 
+/**
+ * Drop EVERY slot holding the given track (v9 issue 14): the Tracks-view
+ * position cell removes a track from the active set wholesale, later
+ * occurrences included, and the remaining order renumbers itself.
+ */
+export function removeAllOccurrences(ids: readonly string[], id: string): string[] {
+  return ids.filter((x) => x !== id)
+}
+
 /** A fresh un-generated "First Set", optionally seeded with tracks. */
 export function freshFirstSet(trackIds: string[] = []): TrackSet {
   return { id: newSetId(), name: ordinalSetName(0), trackIds, generated: false }

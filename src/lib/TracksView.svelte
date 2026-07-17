@@ -8,6 +8,7 @@
   // of generated sets — the same pins as everywhere else.
   import { COLUMN_LABELS, visibleColumns } from '../core/columns'
   import type { Track } from '../core/model'
+  import { removeAllOccurrences } from '../core/sets'
   import { sortTracks, type TrackSortField } from '../core/trackSort'
   import {
     appendToSet,
@@ -16,11 +17,11 @@
     neighbours,
     pinnedFirst,
     pinnedLast,
-    playlistScopedLibrary,
     selectedId,
     settings,
     tracklist,
     trackSort,
+    visibleLibrary,
   } from '../stores'
 
   const COLUMN_LABEL = COLUMN_LABELS
@@ -66,7 +67,9 @@
   // and the top of the sorted order is what gets scanned anyway. Narrowing
   // the playlist selection (or flipping the sort) reaches the rest.
   const MAX_ROWS = 500
-  const sorted = $derived(sortTracks($playlistScopedLibrary, $trackSort))
+  // The table shows what the wheel shows (v9 issue 16): the FULL filter set
+  // (ranges, genres, key ring), not just the playlist scope.
+  const sorted = $derived(sortTracks($visibleLibrary, $trackSort))
   const rows = $derived(sorted.slice(0, MAX_ROWS))
   const connectedIds = $derived($selectedId === null ? null : $neighbours.get($selectedId))
   const mustSet = $derived(new Set($mustInclude))
@@ -77,6 +80,19 @@
 
   function toggleMust(id: string) {
     mustInclude.update((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]))
+  }
+
+  // Header ★ (v9 issue 15): star every track in the current filtered view;
+  // when they are all starred already, a second click clears them again.
+  const allVisibleStarred = $derived(sorted.length > 0 && sorted.every((t) => mustSet.has(t.id)))
+  function toggleAllStars() {
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- handler-local
+    const visible = new Set(sorted.map((t) => t.id))
+    mustInclude.update((ids) =>
+      allVisibleStarred
+        ? ids.filter((id) => !visible.has(id))
+        : [...ids, ...sorted.map((t) => t.id).filter((id) => !ids.includes(id))],
+    )
   }
 
   function togglePin(store: typeof pinnedFirst, id: string) {
@@ -116,12 +132,26 @@
   {#if rows.length === 0}
     <div class="empty-hint">
       <strong>Nothing to list yet.</strong>
-      <span>Select a playlist on the left to fill the table.</span>
+      <span>Select a playlist or loosen the filters on the left to fill the table.</span>
     </div>
   {:else}
     <table>
       <thead>
         <tr>
+          <!-- Tags + position lead the row (v9 issue 13); the header ★
+               stars everything in the current view (issue 15). -->
+          <th class="tags-col">
+            <button
+              class="tag header-star"
+              class:on={allVisibleStarred}
+              title={allVisibleStarred
+                ? 'Remove the ★ from every track in this view'
+                : 'Mark every track in this view as essential'}
+              aria-label="Toggle essential for all tracks in view"
+              aria-pressed={allVisibleStarred}
+              onclick={toggleAllStars}>★</button
+            >
+          </th>
           <th class="pos-col"><span class="visually-hidden">Set position / add</span></th>
           {#each columns as field (field)}
             <th
@@ -160,7 +190,6 @@
               </button>
             </th>
           {/each}
-          <th class="tags-col"><span class="visually-hidden">Set tags</span></th>
         </tr>
       </thead>
       <tbody>
@@ -173,39 +202,6 @@
             class:set-hovered={track.id === $hoveredId}
             onclick={() => selectRow(track.id)}
           >
-            <td class="pos">
-              <!-- ＋ appends; once in the set it reads as the track's slot
-                   number(s). Clicking again appends again (duplicates are
-                   legal, just not back-to-back). -->
-              <button
-                class="pos-btn"
-                class:in-set={positions !== undefined}
-                title={positions === undefined ? 'Add to set' : 'In the set — click to add again'}
-                aria-label="Add {track.title} to the set"
-                onclick={(e) => {
-                  e.stopPropagation()
-                  appendToSet(track.id)
-                }}>{positions?.join(',') ?? '＋'}</button
-              >
-            </td>
-            {#each columns as field (field)}
-              {#if field === 'rating'}
-                <td
-                  class="tabular rating"
-                  aria-label={track.rating === null ? undefined : `${track.rating} of 5`}
-                >
-                  {#if track.rating === null}—{:else}<span class="stars"
-                      >{'★'.repeat(track.rating)}</span
-                    ><span class="stars off">{'☆'.repeat(5 - track.rating)}</span>{/if}
-                </td>
-              {:else}
-                <td
-                  class:ellipsis={STRING_FIELDS.has(field)}
-                  class:tabular={!STRING_FIELDS.has(field)}
-                  class:title={field === 'title'}>{cellText(track, field)}</td
-                >
-              {/if}
-            {/each}
             <td class="tags">
               <!-- A pinned opener/closer is included by construction, so the
                    ★ reads as on (disabled) without touching the store. -->
@@ -246,6 +242,47 @@
                 }}>⏭</button
               >
             </td>
+            <td class="pos">
+              <!-- ＋ appends; once in the set the cell reads as the track's
+                   slot number(s), and clicking removes the track from the
+                   set — every occurrence, with a ✕ appearing on hover
+                   (v9 issue 14). -->
+              <button
+                class="pos-btn"
+                class:in-set={positions !== undefined}
+                title={positions === undefined ? 'Add to set' : 'In the set — click to remove'}
+                aria-label={positions === undefined
+                  ? `Add ${track.title} to the set`
+                  : `Remove ${track.title} from the set`}
+                onclick={(e) => {
+                  e.stopPropagation()
+                  if (positions === undefined) appendToSet(track.id)
+                  else tracklist.update((ids) => removeAllOccurrences(ids, track.id))
+                }}
+              >
+                {#if positions === undefined}＋{:else}
+                  <span class="num">{positions.join(',')}</span><span class="x">✕</span>
+                {/if}
+              </button>
+            </td>
+            {#each columns as field (field)}
+              {#if field === 'rating'}
+                <td
+                  class="tabular rating"
+                  aria-label={track.rating === null ? undefined : `${track.rating} of 5`}
+                >
+                  {#if track.rating === null}—{:else}<span class="stars"
+                      >{'★'.repeat(track.rating)}</span
+                    ><span class="stars off">{'☆'.repeat(5 - track.rating)}</span>{/if}
+                </td>
+              {:else}
+                <td
+                  class:ellipsis={STRING_FIELDS.has(field)}
+                  class:tabular={!STRING_FIELDS.has(field)}
+                  class:title={field === 'title'}>{cellText(track, field)}</td
+                >
+              {/if}
+            {/each}
           </tr>
         {/each}
       </tbody>
@@ -364,6 +401,21 @@
     font-weight: 600;
   }
 
+  /* Hovering an in-set position swaps the number for a ✕ (v9 issue 14). */
+  .pos-btn .x {
+    display: none;
+  }
+
+  .pos-btn.in-set:hover .num,
+  .pos-btn.in-set:focus-visible .num {
+    display: none;
+  }
+
+  .pos-btn.in-set:hover .x,
+  .pos-btn.in-set:focus-visible .x {
+    display: inline;
+  }
+
   tbody tr:hover {
     background: color-mix(in srgb, var(--ink) 5%, transparent);
   }
@@ -403,7 +455,21 @@
   }
 
   .tags {
-    text-align: right;
+    text-align: left;
+  }
+
+  /* The header ★ stays visible (it is not row-hover-gated). */
+  .header-star {
+    opacity: 0.5;
+  }
+
+  .header-star:hover,
+  .header-star.on {
+    opacity: 1;
+  }
+
+  .header-star.on {
+    color: var(--accent);
   }
 
   .tag {

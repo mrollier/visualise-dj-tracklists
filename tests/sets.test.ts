@@ -6,6 +6,7 @@ import {
   newSetId,
   nextSetName,
   ordinalSetName,
+  removeAllOccurrences,
 } from '../src/core/sets'
 
 describe('the set cap (v8 issue 18)', () => {
@@ -57,5 +58,21 @@ describe('newSetId / freshFirstSet', () => {
     expect(set.generated).toBe(false)
     expect(set.id.length).toBeGreaterThan(0)
     expect(freshFirstSet().trackIds).toEqual([])
+  })
+})
+
+describe('removeAllOccurrences (v9 issue 14)', () => {
+  test('removes every slot holding the track, keeping the rest in order', () => {
+    expect(removeAllOccurrences(['a', 'b', 'a', 'c', 'a'], 'a')).toEqual(['b', 'c'])
+  })
+
+  test('an absent id leaves the list untouched (same contents, new array not required)', () => {
+    expect(removeAllOccurrences(['a', 'b'], 'z')).toEqual(['a', 'b'])
+  })
+
+  test('never mutates the input', () => {
+    const ids = ['a', 'b', 'a']
+    removeAllOccurrences(ids, 'a')
+    expect(ids).toEqual(['a', 'b', 'a'])
   })
 })
