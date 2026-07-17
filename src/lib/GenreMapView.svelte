@@ -32,7 +32,8 @@
     packNeighbours,
     type GenreMethod,
   } from '../core/genre'
-  import { criteria, iconClasses, visibleLibrary } from '../stores'
+  import { genreFamilyClasses } from '../core/iconClasses'
+  import { criteria, playlistScopedLibrary, settings, visibleLibrary } from '../stores'
 
   const WIDTH = 900
   const HEIGHT = 820
@@ -182,13 +183,33 @@
     return best
   })
 
-  // --- genre classes: the wheel's icon classes, where they are genre-keyed.
-  // In playlists mode (track-keyed) a genre node has no single class — the
-  // map deliberately falls back to circles (v8 issue 5).
+  // --- genre classes: ALWAYS the curated genre families here (v9 issue 4).
+  // The icon-mode setting only steers the Wheel view — genre nodes have a
+  // family by construction, so playlists/clusters make no sense on the map.
+  const familyClasses = $derived(
+    genreFamilyClasses(
+      $playlistScopedLibrary.map((t) => t.genre),
+      $settings.maxGenreClasses,
+    ),
+  )
   function classIndexOf(label: string): number | null {
-    if ($iconClasses === null || $iconClasses.keyedBy !== 'genre') return null
-    return $iconClasses.classOf.get(label) ?? null
+    return familyClasses?.classOf.get(label) ?? null
   }
+
+  /** Families present among the map's real (non-ghost) nodes, for the legend. */
+  const legendClasses = $derived.by(() => {
+    if (familyClasses === null) return []
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived-local
+    const present = new Set<number>()
+    for (const node of positioned) {
+      if (node.ghost) continue
+      const index = familyClasses.classOf.get(node.id)
+      if (index !== undefined) present.add(index)
+    }
+    return familyClasses.classes
+      .map((cls, index) => ({ label: cls.label, index }))
+      .filter((cls) => present.has(cls.index))
+  })
 
   // Plain Map on purpose: a render-time memo of static path strings, never
   // a reactive source (writing a SvelteMap during render would be a bug).
@@ -288,6 +309,21 @@
   let zoomTransform = $state('translate(0,0) scale(1)')
   const zoomBehavior = d3zoom<SVGSVGElement, unknown>()
     .scaleExtent([0.4, 6])
+    // Why a filter (v9 issue 5): d3-zoom binds a NATIVE mousedown listener on
+    // the <svg>, while Svelte 5 delegates the nodes' handlers to the app
+    // root — their stopPropagation runs long after d3 already started a pan,
+    // so node drags always lost. Rejecting drag-starts that originate on a
+    // node hands the gesture to the pointer-capture drag below; wheel events
+    // stay accepted so zooming works with the cursor over a node.
+    .filter((event: MouseEvent | WheelEvent | TouchEvent) => {
+      if (event.type !== 'wheel') {
+        const target = event.target
+        if (target instanceof Element && target.closest('.genre-node') !== null) return false
+      }
+      if ('ctrlKey' in event && event.ctrlKey && event.type !== 'wheel') return false
+      if ('button' in event && event.button !== 0) return false
+      return true
+    })
     .on('zoom', (e: D3ZoomEvent<SVGSVGElement, unknown>) => {
       zoomTransform = e.transform.toString()
     })
@@ -562,6 +598,20 @@
   </div>
 
   <div class="legend">
+    <!-- Shape legend (v9 issue 4): the curated families behind the node
+         icons — only when the symbols actually distinguish something. -->
+    {#if legendClasses.length > 1}
+      <span class="legend-shapes">
+        {#each legendClasses as cls (cls.index)}
+          <span class="shape-chip">
+            <svg width="12" height="12" viewBox="-6 -6 12 12"
+              ><path d={shapePath(cls.index, 4)} /></svg
+            >
+            {cls.label}
+          </span>
+        {/each}
+      </span>
+    {/if}
     <span class="legend-hint">
       node size: tracks with that genre · distance ≈ similarity under the enabled methods · click
       two genres to compare them
@@ -753,6 +803,26 @@
     left: 12px;
     bottom: 10px;
     font-size: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .legend-shapes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+  }
+
+  .shape-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--ink-secondary);
+  }
+
+  .shape-chip svg path {
+    fill: var(--ink-secondary);
   }
 
   .legend-hint {

@@ -359,7 +359,7 @@
       how those neighbours link amongst themselves.
     </p>
     <label>
-      Node icons
+      Node icons (Wheel view)
       <select bind:value={$settings.iconMode}>
         <option value="families">Genre families (curated tree)</option>
         <option value="playlists">Playlists (first one wins)</option>
@@ -373,7 +373,8 @@
     <p class="hint">
       Distinct node shapes (circle, square, triangle, …) mark up to this many classes: curated genre
       families, the selected playlists, or similarity clusters. The largest classes keep a symbol;
-      everything stays a circle when nothing separates. Playlist icons don't apply on the genre map.
+      everything stays a circle when nothing separates. The genre map always shows genre families,
+      whatever the icon mode.
     </p>
   </details>
 
