@@ -37,6 +37,19 @@ export interface SuggestOptions {
   progression?: BpmProgression
   /** Tracks to bias into the walk (a strong bonus until each is placed). */
   mustIncludeIds?: readonly string[]
+  /**
+   * When a tip runs out of combo candidates, fill the step with the best
+   * NON-matching track instead of stopping short (v11 issue 16b) — the same
+   * knowingly-rule-breaking pool as the wheel hub's force, softmax-sampled
+   * with the same randomness. Each such step counts into `forced`.
+   */
+  force?: boolean
+}
+
+export interface SuggestedWalk {
+  ids: string[]
+  /** How many steps had to break the criteria (0 without `force`). */
+  forced: number
 }
 
 /** Sawtooth cycle length: every SAWTOOTH_PERIODth transition drops back. */
@@ -192,11 +205,37 @@ function rankedCandidates(
     .sort((a, b) => b.score - a.score || a.item.localeCompare(b.item))
 }
 
+/**
+ * The forced candidate pool (v8 issue 16, shared with suggestNext since
+ * v11): every unused track ranked by the usual score, edge gate ignored,
+ * with a gentle preference for keys a ±2/±7-semitone move away — the least
+ * dissonant of the rule-breaking options.
+ */
+function forcedCandidates(
+  current: Track,
+  tracks: Track[],
+  used: ReadonlySet<string>,
+  criteria: CriteriaConfig,
+  genreMatch: GenreMatcher,
+  scoreExtra: (candidate: Track) => number,
+): { item: string; score: number }[] {
+  return tracks
+    .filter((t) => !used.has(t.id))
+    .map((t) => ({
+      item: t.id,
+      score:
+        scoreCandidate(current, t, criteria, genreMatch) +
+        (keysNearlyMatch(current, t, criteria) ? KEY_AFFINITY_BONUS : 0) +
+        scoreExtra(t),
+    }))
+    .sort((a, b) => b.score - a.score || a.item.localeCompare(b.item))
+}
+
 export function suggestWalk(
   tracks: Track[],
   criteria: CriteriaConfig,
   options: SuggestOptions = {},
-): string[] {
+): SuggestedWalk {
   const {
     seedId = null,
     endId = null,
@@ -205,8 +244,9 @@ export function suggestWalk(
     seed = 0,
     progression = 'any',
     mustIncludeIds = [],
+    force = false,
   } = options
-  if (tracks.length === 0) return []
+  if (tracks.length === 0) return { ids: [], forced: 0 }
 
   const byId = new Map(tracks.map((t) => [t.id, t]))
   const neighbours = buildNeighbours(tracks, criteria)
@@ -234,28 +274,38 @@ export function suggestWalk(
       : (candidate: Track) =>
           PROGRESSION_WEIGHT * progressionFit(current.bpm, candidate.bpm, step, arm)
 
+  let forced = 0
+
   if (end === null) {
     const walk = [start]
     const visited = new Set([start])
     while (walk.length < length) {
       const current = byId.get(walk[walk.length - 1])!
       const fitTerm = progressionTerm(current, walk.length - 1, progression)
-      const candidates = rankedCandidates(
+      const extra = (candidate: Track) => pendingBonus(candidate) + fitTerm(candidate)
+      let candidates = rankedCandidates(
         current,
         neighbours,
         byId,
         visited,
         criteria,
         genreMatch,
-        (candidate) => pendingBonus(candidate) + fitTerm(candidate),
+        extra,
       )
-      if (candidates.length === 0) break
+      let breaking = false
+      if (candidates.length === 0) {
+        if (!force) break
+        candidates = forcedCandidates(current, tracks, visited, criteria, genreMatch, extra)
+        if (candidates.length === 0) break // every track is already in
+        breaking = true
+      }
       const next = pick(candidates, randomness, rand)
+      if (breaking) forced++
       walk.push(next)
       visited.add(next)
       pending.delete(next)
     }
-    return walk
+    return { ids: walk, forced }
   }
 
   // Pinned closer: grow two arms — from the opener forward and the closer
@@ -297,15 +347,36 @@ export function suggestWalk(
       genreMatch,
       (candidate) => towardsA(candidate) + pendingBonus(candidate) + fitB(candidate),
     )
-    if (fromStart.length === 0 && fromEnd.length === 0) break
-    const extendStart =
-      fromEnd.length === 0 || (fromStart.length > 0 && fromStart[0].score >= fromEnd[0].score)
-    const next = pick(extendStart ? fromStart : fromEnd, randomness, rand)
+    let breaking = false
+    let extendStart: boolean
+    let pool: { item: string; score: number }[]
+    if (fromStart.length === 0 && fromEnd.length === 0) {
+      // Both arms stalled: force through the broken middle from the start
+      // arm (v11 issue 16b), or stop short as before.
+      if (!force) break
+      pool = forcedCandidates(
+        tipA,
+        tracks,
+        visited,
+        criteria,
+        genreMatch,
+        (candidate) => towardsB(candidate) + pendingBonus(candidate) + fitA(candidate),
+      )
+      if (pool.length === 0) break
+      extendStart = true
+      breaking = true
+    } else {
+      extendStart =
+        fromEnd.length === 0 || (fromStart.length > 0 && fromStart[0].score >= fromEnd[0].score)
+      pool = extendStart ? fromStart : fromEnd
+    }
+    const next = pick(pool, randomness, rand)
+    if (breaking) forced++
     ;(extendStart ? startArm : endArm).push(next)
     visited.add(next)
     pending.delete(next)
   }
-  return [...startArm, ...endArm.reverse()]
+  return { ids: [...startArm, ...endArm.reverse()], forced }
 }
 
 export interface NextSuggestion {
@@ -468,19 +539,7 @@ export function suggestNext(
   )
 
   if (candidates.length === 0 && force) {
-    // Forced: rank every unused track by the same score, edge gate ignored,
-    // with a gentle preference for keys a ±2/±7-semitone move away — the
-    // least dissonant of the rule-breaking options (v8 issue 16).
-    candidates = tracks
-      .filter((t) => !used.has(t.id))
-      .map((t) => ({
-        item: t.id,
-        score:
-          scoreCandidate(anchor, t, criteria, genreMatch) +
-          (keysNearlyMatch(anchor, t, criteria) ? KEY_AFFINITY_BONUS : 0) +
-          scoreExtra(t),
-      }))
-      .sort((a, b) => b.score - a.score || a.item.localeCompare(b.item))
+    candidates = forcedCandidates(anchor, tracks, used, criteria, genreMatch, scoreExtra)
   }
   if (candidates.length === 0) return null
 

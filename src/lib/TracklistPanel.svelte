@@ -87,7 +87,19 @@
     $visibleLibrary.length === 0 || (!canRegenerateInPlace && !canAddSet($sets)),
   )
 
-  function suggest() {
+  // When a suggestion stops short of the target length, the button morphs
+  // into a force variant (v11 issue 16b) — mirroring the wheel hub — and a
+  // notice reports how many steps had to break the criteria. Both reset on
+  // the next ordinary suggest or set switch.
+  let shortBy = $state(0)
+  let forcedSteps = $state<number | null>(null)
+  $effect(() => {
+    void $activeSet.id // dependency: switching sets closes the force window
+    shortBy = 0
+    forcedSteps = null
+  })
+
+  function suggest(force = false) {
     if (suggestDisabled) return
     if (!canRegenerateInPlace) addSet() // a fresh set, activated
     const walk = suggestWalk($visibleLibrary, $criteria, {
@@ -98,8 +110,11 @@
       seed: suggestSeed++,
       progression: $settings.bpmProgression,
       mustIncludeIds: $mustInclude,
+      force,
     })
-    setGeneratedTracklist(walk)
+    setGeneratedTracklist(walk.ids)
+    shortBy = force ? 0 : Math.max(0, $settings.suggestLength - walk.ids.length)
+    forcedSteps = force ? walk.forced : null
   }
 
   // Pins and must-include marks are library-scoped (design-v6 §C): they
@@ -184,19 +199,38 @@
   </div>
 
   <div class="suggest-row">
-    <button
-      class="primary"
-      onclick={suggest}
-      disabled={suggestDisabled}
-      title={suggestDisabled && $visibleLibrary.length > 0
-        ? `All ${MAX_SETS} sets are hand-edited — clear or delete one first`
-        : canRegenerateInPlace
-          ? 'Generate a set (replaces this untouched one — Cmd+Z steps back)'
-          : 'Generate a new set alongside this hand-edited one'}
-    >
-      ✨ Suggest a set{$selectedId !== null && canRegenerateInPlace ? ' from selection' : ''}
-    </button>
+    {#if shortBy > 0}
+      <!-- The walk stopped short: offer to push through to full length with
+           rule-breaking picks, like the wheel hub's force (v11 issue 16b). -->
+      <button
+        class="primary force"
+        onclick={() => suggest(true)}
+        disabled={suggestDisabled}
+        title="The criteria ran out {shortBy} track{shortBy === 1 ? '' : 's'} early — fill the rest
+        with the closest non-matching picks"
+      >
+        ⚡ Force to {$settings.suggestLength}
+      </button>
+    {:else}
+      <button
+        class="primary"
+        onclick={() => suggest()}
+        disabled={suggestDisabled}
+        title={suggestDisabled && $visibleLibrary.length > 0
+          ? `All ${MAX_SETS} sets are hand-edited — clear or delete one first`
+          : canRegenerateInPlace
+            ? 'Generate a set (replaces this untouched one — Cmd+Z steps back)'
+            : 'Generate a new set alongside this hand-edited one'}
+      >
+        ✨ Suggest a set from the wheel
+      </button>
+    {/if}
   </div>
+  {#if forcedSteps !== null && forcedSteps > 0}
+    <p class="forced-note">
+      ⚡ {forcedSteps} of {$settings.suggestLength - 1} transitions were forced past the criteria.
+    </p>
+  {/if}
 
   {#if walkTracks.length === 0}
     <p class="hint">
@@ -277,7 +311,7 @@
 <ConfirmDialog
   bind:this={clearDialog}
   title="Clear this set?"
-  body="Every track will be removed from the current set. This cannot be undone."
+  body="Every track will be removed from the current set."
   confirmLabel="Clear set"
   danger
 />
@@ -361,6 +395,19 @@
 
   .suggest-row .primary {
     flex: 1;
+  }
+
+  /* The rule-breaking variant borrows the wheel hub's warning look. */
+  .suggest-row .force {
+    color: var(--walk-bright);
+    border-color: var(--walk-bright);
+  }
+
+  .forced-note {
+    margin: 0;
+    padding: 0 14px 8px;
+    color: var(--walk-bright);
+    font-size: 11.5px;
   }
 
   .hint {

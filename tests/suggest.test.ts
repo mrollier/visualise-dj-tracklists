@@ -38,7 +38,7 @@ const tracks = [
 
 describe('threshold 0: every track neighbours every other (v11 issue 2a)', () => {
   test('suggestWalk reaches the full length even across the isolated track', () => {
-    const walk = suggestWalk(tracks, config({ threshold: 0 }), { seedId: 'a', length: 5 })
+    const walk = suggestWalk(tracks, config({ threshold: 0 }), { seedId: 'a', length: 5 }).ids
     expect(walk).toHaveLength(5)
     expect([...walk].sort()).toEqual(['a', 'b', 'c', 'd', 'e'])
   })
@@ -66,20 +66,20 @@ describe('threshold 0: every track neighbours every other (v11 issue 2a)', () =>
 
 describe('suggestWalk', () => {
   test('starts from the given seed and walks the combo graph', () => {
-    const walk = suggestWalk(tracks, config(), { seedId: 'a', length: 10 })
+    const walk = suggestWalk(tracks, config(), { seedId: 'a', length: 10 }).ids
     expect(walk[0]).toBe('a')
     expect(walk.length).toBeGreaterThanOrEqual(3)
   })
 
   test('never repeats a track', () => {
-    const walk = suggestWalk(tracks, config(), { seedId: 'a', length: 10 })
+    const walk = suggestWalk(tracks, config(), { seedId: 'a', length: 10 }).ids
     expect(new Set(walk).size).toBe(walk.length)
   })
 
   test('every consecutive pair is a combo edge', async () => {
     const { evaluateCombo } = await import('../src/core/combos')
     const byId = new Map(tracks.map((t) => [t.id, t]))
-    const walk = suggestWalk(tracks, config(), { seedId: 'a', length: 10 })
+    const walk = suggestWalk(tracks, config(), { seedId: 'a', length: 10 }).ids
     for (let i = 1; i < walk.length; i++) {
       const result = evaluateCombo(byId.get(walk[i - 1])!, byId.get(walk[i])!, config())
       expect(result.isCombo).toBe(true)
@@ -87,7 +87,7 @@ describe('suggestWalk', () => {
   })
 
   test('respects the target length', () => {
-    const walk = suggestWalk(tracks, config(), { seedId: 'a', length: 2 })
+    const walk = suggestWalk(tracks, config(), { seedId: 'a', length: 2 }).ids
     expect(walk).toHaveLength(2)
   })
 
@@ -96,7 +96,7 @@ describe('suggestWalk', () => {
     const starts = new Set(
       Array.from(
         { length: 10 },
-        (_, seed) => suggestWalk(clique, config(), { length: 3, seed })[0],
+        (_, seed) => suggestWalk(clique, config(), { length: 3, seed }).ids[0],
       ),
     )
     expect(starts.size).toBeGreaterThan(1)
@@ -104,24 +104,84 @@ describe('suggestWalk', () => {
 
   test('without a seed, never opens on an isolated track while connected ones exist', () => {
     for (let seed = 0; seed < 12; seed++) {
-      const walk = suggestWalk(tracks, config(), { length: 5, seed })
+      const walk = suggestWalk(tracks, config(), { length: 5, seed }).ids
       expect(walk[0]).not.toBe('e')
     }
   })
 
   test('is deterministic', () => {
-    const first = suggestWalk(tracks, config(), { seedId: 'a', length: 10 })
-    const second = suggestWalk(tracks, config(), { seedId: 'a', length: 10 })
+    const first = suggestWalk(tracks, config(), { seedId: 'a', length: 10 }).ids
+    const second = suggestWalk(tracks, config(), { seedId: 'a', length: 10 }).ids
     expect(first).toEqual(second)
   })
 
   test('an isolated seed yields a one-track walk', () => {
-    const walk = suggestWalk(tracks, config(), { seedId: 'e', length: 10 })
+    const walk = suggestWalk(tracks, config(), { seedId: 'e', length: 10 }).ids
     expect(walk).toEqual(['e'])
   })
 
   test('empty library yields an empty walk', () => {
-    expect(suggestWalk([], config(), { length: 5 })).toEqual([])
+    expect(suggestWalk([], config(), { length: 5 }).ids).toEqual([])
+  })
+
+  describe('force mode (v11 issue 16b)', () => {
+    test('a walk that stops short reports zero forced steps without force', () => {
+      const result = suggestWalk(tracks, config(), { seedId: 'a', length: 5 })
+      expect(result.ids.length).toBeLessThan(5) // 'e' is unreachable
+      expect(result.forced).toBe(0)
+    })
+
+    test('force fills the walk to the exact target length, counting the breaks', () => {
+      const result = suggestWalk(tracks, config(), { seedId: 'a', length: 5, force: true })
+      expect(result.ids).toHaveLength(5)
+      expect(new Set(result.ids).size).toBe(5)
+      expect(result.forced).toBeGreaterThan(0)
+      expect(result.forced).toBeLessThan(5)
+    })
+
+    test('force never fires while combo candidates remain', () => {
+      const result = suggestWalk(tracks, config(), { seedId: 'a', length: 3, force: true })
+      // a—b—c walk fits entirely inside the connected chain.
+      expect(result.ids).toHaveLength(3)
+      expect(result.forced).toBe(0)
+    })
+
+    test('an isolated seed force-fills to length', () => {
+      const result = suggestWalk(tracks, config(), { seedId: 'e', length: 4, force: true })
+      expect(result.ids).toHaveLength(4)
+      expect(result.ids[0]).toBe('e')
+      expect(result.forced).toBeGreaterThan(0)
+    })
+
+    test('forced walks are deterministic per seed', () => {
+      const opts = { seedId: 'a', length: 5, force: true, randomness: 1, seed: 7 }
+      expect(suggestWalk(tracks, config(), opts)).toEqual(suggestWalk(tracks, config(), opts))
+    })
+
+    test('two-ended walks force through a broken middle', () => {
+      // a and d connect to nothing shared: without force the arms stall.
+      const gap = [
+        track({ id: 'a', key: '8A', bpm: 128 }),
+        track({ id: 'z', key: '3B', bpm: 90, genre: 'Ambient', year: 1980 }),
+        track({ id: 'd', key: '8A', bpm: 129 }),
+      ]
+      const short = suggestWalk(gap, config({ threshold: 4 }), {
+        seedId: 'a',
+        endId: 'd',
+        length: 3,
+      })
+      expect(short.ids.length).toBeLessThan(3)
+      const forced = suggestWalk(gap, config({ threshold: 4 }), {
+        seedId: 'a',
+        endId: 'd',
+        length: 3,
+        force: true,
+      })
+      expect(forced.ids).toHaveLength(3)
+      expect(forced.ids[0]).toBe('a')
+      expect(forced.ids.at(-1)).toBe('d')
+      expect(forced.forced).toBeGreaterThan(0)
+    })
   })
 
   test('prefers the candidate whose genre is more similar, all else equal', () => {
@@ -135,7 +195,7 @@ describe('suggestWalk', () => {
       track({ id: 'x1', genre: 'Folk' }),
       track({ id: 'x2', genre: 'Tech House' }),
     ]
-    const walk = suggestWalk(trio, cfg, { seedId: 'a', length: 2 })
+    const walk = suggestWalk(trio, cfg, { seedId: 'a', length: 2 }).ids
     expect(walk).toEqual(['a', 'x2'])
   })
 
@@ -147,19 +207,24 @@ describe('suggestWalk', () => {
       track({ id: 'x1', bpm: 92 }), // same-time but 5 BPM off
       track({ id: 'x2', bpm: 174 }), // exact double
     ]
-    const walk = suggestWalk(trio, cfg, { seedId: 'a', length: 2 })
+    const walk = suggestWalk(trio, cfg, { seedId: 'a', length: 2 }).ids
     expect(walk).toEqual(['a', 'x2'])
   })
 
   test('randomness 0 is deterministic regardless of seed', () => {
-    const a = suggestWalk(tracks, config(), { seedId: 'a', length: 10, randomness: 0, seed: 1 })
-    const b = suggestWalk(tracks, config(), { seedId: 'a', length: 10, randomness: 0, seed: 99 })
+    const a = suggestWalk(tracks, config(), { seedId: 'a', length: 10, randomness: 0, seed: 1 }).ids
+    const b = suggestWalk(tracks, config(), {
+      seedId: 'a',
+      length: 10,
+      randomness: 0,
+      seed: 99,
+    }).ids
     expect(a).toEqual(b)
   })
 
   test('with randomness, the same seed reproduces the same walk', () => {
-    const a = suggestWalk(tracks, config(), { seedId: 'a', length: 10, randomness: 1, seed: 3 })
-    const b = suggestWalk(tracks, config(), { seedId: 'a', length: 10, randomness: 1, seed: 3 })
+    const a = suggestWalk(tracks, config(), { seedId: 'a', length: 10, randomness: 1, seed: 3 }).ids
+    const b = suggestWalk(tracks, config(), { seedId: 'a', length: 10, randomness: 1, seed: 3 }).ids
     expect(a).toEqual(b)
   })
 
@@ -168,7 +233,9 @@ describe('suggestWalk', () => {
     const clique = Array.from({ length: 6 }, (_, i) => track({ id: `t${i}` }))
     const walks = new Set(
       Array.from({ length: 8 }, (_, seed) =>
-        suggestWalk(clique, config(), { seedId: 't0', length: 6, randomness: 1, seed }).join(','),
+        suggestWalk(clique, config(), { seedId: 't0', length: 6, randomness: 1, seed }).ids.join(
+          ',',
+        ),
       ),
     )
     expect(walks.size).toBeGreaterThan(1)
@@ -188,7 +255,7 @@ describe('suggestWalk', () => {
         seedId: 'a',
         endId: 'd',
         length: 3,
-      })
+      }).ids
       expect(walk[0]).toBe('a')
       expect(walk.at(-1)).toBe('d')
       expect(walk).toHaveLength(3)
@@ -203,7 +270,7 @@ describe('suggestWalk', () => {
         length: 6,
         randomness: 1,
         seed: 2,
-      })
+      }).ids
       expect(walk[0]).toBe('t0')
       expect(walk.at(-1)).toBe('t5')
       expect(walk).toHaveLength(6)
@@ -211,15 +278,19 @@ describe('suggestWalk', () => {
     })
 
     test('a pinned end alone still closes the walk, with a random opener', () => {
-      const walk = suggestWalk(chain, config({ threshold: 4 }), { endId: 'd', length: 2, seed: 1 })
+      const walk = suggestWalk(chain, config({ threshold: 4 }), {
+        endId: 'd',
+        length: 2,
+        seed: 1,
+      }).ids
       expect(walk.at(-1)).toBe('d')
       expect(walk).toHaveLength(2)
     })
 
     test('the same seed reproduces the same pinned walk', () => {
       const opts = { seedId: 'a', endId: 'd', length: 4, randomness: 1, seed: 7 }
-      expect(suggestWalk(chain, config({ threshold: 4 }), opts)).toEqual(
-        suggestWalk(chain, config({ threshold: 4 }), opts),
+      expect(suggestWalk(chain, config({ threshold: 4 }), opts).ids).toEqual(
+        suggestWalk(chain, config({ threshold: 4 }), opts).ids,
       )
     })
   })
@@ -438,18 +509,21 @@ describe('suggestWalk with a BPM progression', () => {
   ]
 
   test('rising picks the faster candidate, falling the slower', () => {
-    expect(suggestWalk(fork, config(), { seedId: 'a', length: 2, progression: 'rising' })).toEqual([
-      'a',
-      'x2',
-    ])
-    expect(suggestWalk(fork, config(), { seedId: 'a', length: 2, progression: 'falling' })).toEqual(
-      ['a', 'x1'],
-    )
+    expect(
+      suggestWalk(fork, config(), { seedId: 'a', length: 2, progression: 'rising' }).ids,
+    ).toEqual(['a', 'x2'])
+    expect(
+      suggestWalk(fork, config(), { seedId: 'a', length: 2, progression: 'falling' }).ids,
+    ).toEqual(['a', 'x1'])
   })
 
   test("'any' reproduces the default walk exactly (regression pin)", () => {
-    const plain = suggestWalk(tracks, config(), { seedId: 'a', length: 10 })
-    const anyProg = suggestWalk(tracks, config(), { seedId: 'a', length: 10, progression: 'any' })
+    const plain = suggestWalk(tracks, config(), { seedId: 'a', length: 10 }).ids
+    const anyProg = suggestWalk(tracks, config(), {
+      seedId: 'a',
+      length: 10,
+      progression: 'any',
+    }).ids
     expect(anyProg).toEqual(plain)
   })
 })
@@ -466,27 +540,35 @@ describe('suggestWalk with must-include tracks', () => {
       seedId: 'a',
       length: 2,
       mustIncludeIds: ['x2'],
-    })
+    }).ids
     expect(walk).toEqual(['a', 'x2'])
   })
 
   test('a must-include track appears exactly once', () => {
-    const walk = suggestWalk(tracks, config(), { seedId: 'a', length: 10, mustIncludeIds: ['b'] })
+    const walk = suggestWalk(tracks, config(), {
+      seedId: 'a',
+      length: 10,
+      mustIncludeIds: ['b'],
+    }).ids
     expect(walk.filter((id) => id === 'b')).toHaveLength(1)
   })
 
   test('an unreachable must-include track is silently skipped', () => {
-    const walk = suggestWalk(tracks, config(), { seedId: 'a', length: 10, mustIncludeIds: ['e'] })
+    const walk = suggestWalk(tracks, config(), {
+      seedId: 'a',
+      length: 10,
+      mustIncludeIds: ['e'],
+    }).ids
     expect(walk).not.toContain('e')
   })
 
   test('unknown ids and an empty list are no-ops', () => {
-    const plain = suggestWalk(tracks, config(), { seedId: 'a', length: 10 })
-    expect(suggestWalk(tracks, config(), { seedId: 'a', length: 10, mustIncludeIds: [] })).toEqual(
-      plain,
-    )
+    const plain = suggestWalk(tracks, config(), { seedId: 'a', length: 10 }).ids
     expect(
-      suggestWalk(tracks, config(), { seedId: 'a', length: 10, mustIncludeIds: ['nope'] }),
+      suggestWalk(tracks, config(), { seedId: 'a', length: 10, mustIncludeIds: [] }).ids,
+    ).toEqual(plain)
+    expect(
+      suggestWalk(tracks, config(), { seedId: 'a', length: 10, mustIncludeIds: ['nope'] }).ids,
     ).toEqual(plain)
   })
 })
