@@ -290,6 +290,20 @@ describe('project persistence (v3)', () => {
     expect(parseProject(JSON.stringify(raw)).settings.focusClusterEdges).toBe(false)
   })
 
+  test('saves from before visibleFilters default to Date-added on (v10 issue 4b)', () => {
+    const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    Reflect.deleteProperty(raw.settings as Record<string, unknown>, 'visibleFilters')
+    expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual(['dateAdded'])
+  })
+
+  test('visibleFilters keeps valid keys, drops garbage, allows empty (v10 issue 4b)', () => {
+    const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    ;(raw.settings as Record<string, unknown>).visibleFilters = ['bpm', 'nonsense', 'rating']
+    expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual(['bpm', 'rating'])
+    ;(raw.settings as Record<string, unknown>).visibleFilters = []
+    expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual([])
+  })
+
   test('saves from before icon modes default to genre families (v8 issues 4+5)', () => {
     const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
     Reflect.deleteProperty(raw.settings as Record<string, unknown>, 'iconMode')

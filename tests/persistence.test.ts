@@ -39,6 +39,7 @@ beforeEach(() => {
     bpm: [100, 120],
     year: null,
     rating: [3, 5],
+    dateAdded: null,
     genres: ['techno'],
     playlists: [],
     keyRing: 'both',

@@ -1,4 +1,5 @@
 import { ALL_TRACK_COLUMNS, DEFAULT_HIDDEN_COLUMNS } from './columns'
+import { DEFAULT_VISIBLE_FILTERS, type FilterKey } from './filter'
 import type { TrackSortField } from './trackSort'
 
 /**
@@ -63,6 +64,11 @@ export interface AppSettings {
   /** Columns currently hidden from the Tracks table. */
   hiddenColumns: TrackSortField[]
   /**
+   * Which range filters appear in the left panel (v10 issue 4b); the rest are
+   * hidden until ticked in the advanced "Filters shown" checklist.
+   */
+  visibleFilters: FilterKey[]
+  /**
    * Which advanced-menu sections the user has opened (v8 issue 17). Empty on
    * first use — every section starts folded; the menu then remembers.
    */
@@ -83,5 +89,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   bpmProgression: 'any',
   trackColumns: [...ALL_TRACK_COLUMNS],
   hiddenColumns: [...DEFAULT_HIDDEN_COLUMNS],
+  visibleFilters: [...DEFAULT_VISIBLE_FILTERS],
   advancedOpen: [],
 }

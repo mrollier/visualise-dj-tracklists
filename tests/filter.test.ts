@@ -83,6 +83,34 @@ describe('applyFilters', () => {
   })
 })
 
+describe('dateAdded filter (v10 issue 4b)', () => {
+  const dated = [
+    track({ id: 'old', dateAdded: '2019-05-01' }),
+    track({ id: 'mid', dateAdded: '2022-06-15' }),
+    track({ id: 'new', dateAdded: '2024-01-20' }),
+    track({ id: 'none', dateAdded: null }),
+  ]
+
+  test('null range passes everything, including undated tracks', () => {
+    expect(applyFilters(dated, filters({ dateAdded: null })).map((t) => t.id)).toEqual([
+      'old',
+      'mid',
+      'new',
+      'none',
+    ])
+  })
+
+  test('filters lexically by YYYY-MM-DD, bounds inclusive', () => {
+    const out = applyFilters(dated, filters({ dateAdded: ['2022-06-15', '2024-01-20'] }))
+    expect(out.map((t) => t.id)).toEqual(['mid', 'new'])
+  })
+
+  test('undated tracks are excluded while the date filter is active', () => {
+    const out = applyFilters(dated, filters({ dateAdded: ['2000-01-01', '2030-01-01'] }))
+    expect(out.map((t) => t.id)).toEqual(['old', 'mid', 'new'])
+  })
+})
+
 describe('libraryExtents', () => {
   test('reports min/max per numeric field, ignoring missing values', () => {
     expect(libraryExtents(tracks)).toEqual({

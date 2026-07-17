@@ -6,10 +6,12 @@
   import { resetAdvancedCriteria, resetAdvancedSettings } from '../core/reset'
   import { type BpmProgression } from '../core/settings'
   import { COLUMN_LABELS } from '../core/columns'
+  import { ALL_FILTER_KEYS, type FilterKey } from '../core/filter'
   import type { TrackSortField } from '../core/trackSort'
   import InfoTooltip from './InfoTooltip.svelte'
   import {
     criteria,
+    filters,
     mustInclude,
     pinnedFirst,
     pinnedLast,
@@ -54,6 +56,25 @@
   function resetToDefaults() {
     settings.update(resetAdvancedSettings)
     criteria.update(resetAdvancedCriteria)
+  }
+
+  // --- Filters shown (v10 issue 4b): which range filters appear in the left
+  // panel. Hiding one also clears it, so a hidden filter never keeps acting.
+  const FILTER_LABELS: Record<FilterKey, string> = {
+    bpm: 'BPM',
+    year: 'Year',
+    rating: 'Rating',
+    dateAdded: 'Date added',
+  }
+  function toggleFilterVisible(key: FilterKey) {
+    const nowShown = !$settings.visibleFilters.includes(key)
+    settings.update((s) => ({
+      ...s,
+      visibleFilters: nowShown
+        ? [...s.visibleFilters, key]
+        : s.visibleFilters.filter((k) => k !== key),
+    }))
+    if (!nowShown) filters.update((f) => ({ ...f, [key]: null }))
   }
 
   // --- Tracks-table columns (v8 issue 15, v9 issue 12) ---
@@ -146,7 +167,7 @@
   // MUST be bind:open: Svelte 5 treats a plain open={} as controlled and
   // re-asserts the declared value after every user toggle, so a one-way
   // attribute (reactive or static) permanently slams the sections shut.
-  const SECTION_IDS = ['genre', 'keybpm', 'display', 'tracks', 'set'] as const
+  const SECTION_IDS = ['genre', 'keybpm', 'display', 'filters', 'tracks', 'set'] as const
   type SectionId = (typeof SECTION_IDS)[number]
   // One-time init from the store: settings is a svelte store, not runes state.
   const initiallyOpen = get(settings).advancedOpen
@@ -394,6 +415,28 @@
         bind:value={$settings.maxGenreClasses}
       />
     </label>
+  </details>
+
+  <details
+    class="section"
+    bind:open={sectionState.filters}
+    ontoggle={(e) => persistToggle('filters', e)}
+  >
+    <summary>Filters shown</summary>
+    <p class="hint">
+      Which range filters appear in the left panel. Date-added shows by default; hiding a filter
+      also clears it.
+    </p>
+    {#each ALL_FILTER_KEYS as key (key)}
+      <label class="row">
+        <input
+          type="checkbox"
+          checked={$settings.visibleFilters.includes(key)}
+          onchange={() => toggleFilterVisible(key)}
+        />
+        {FILTER_LABELS[key]}
+      </label>
+    {/each}
   </details>
 
   <details

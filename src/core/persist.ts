@@ -1,6 +1,12 @@
 import { migrateColumns } from './columns'
 import { DEFAULT_CRITERIA, type CriteriaConfig } from './combos'
-import { EMPTY_FILTERS, type LibraryFilters } from './filter'
+import {
+  ALL_FILTER_KEYS,
+  DEFAULT_VISIBLE_FILTERS,
+  EMPTY_FILTERS,
+  type FilterKey,
+  type LibraryFilters,
+} from './filter'
 import { normalizeKey } from './keys'
 import type { Playlist, Track } from './model'
 import {
@@ -203,6 +209,13 @@ export function parseProject(json: string): Project {
   const columns = migrateColumns(rawSettings.trackColumns, rawSettings.hiddenColumns)
   settings.trackColumns = columns.trackColumns
   settings.hiddenColumns = columns.hiddenColumns
+  // v10 (issue 4b): visibleFilters is new; older saves back-fill to the
+  // default (Date-added on). Garbage entries are dropped; [] is a valid
+  // "hide every range filter" choice and is kept.
+  const validFilterKeys = new Set<string>(ALL_FILTER_KEYS)
+  settings.visibleFilters = Array.isArray(rawSettings.visibleFilters)
+    ? rawSettings.visibleFilters.filter((k): k is FilterKey => validFilterKeys.has(k as string))
+    : [...DEFAULT_VISIBLE_FILTERS]
   return {
     version: 3,
     libraryName: typeof p.libraryName === 'string' ? p.libraryName : '',

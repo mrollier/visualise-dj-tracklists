@@ -1,7 +1,7 @@
 <script lang="ts">
   import { get } from 'svelte/store'
   import { clampRange, libraryExtents, wholeExtent, type LibraryFilters } from '../core/filter'
-  import { filters, library, playlistScopedLibrary, visibleLibrary } from '../stores'
+  import { filters, library, playlistScopedLibrary, settings, visibleLibrary } from '../stores'
 
   type RangeField = 'bpm' | 'year' | 'rating'
   type RangeSide = 'min' | 'max'
@@ -11,6 +11,23 @@
     { field: 'year', label: 'Year' },
     { field: 'rating', label: 'Rating' },
   ]
+  // Only the range filters the user has chosen to show (v10 issue 4b).
+  const visibleRangeRows = $derived(
+    RANGE_ROWS.filter((r) => $settings.visibleFilters.includes(r.field)),
+  )
+  const showDateAdded = $derived($settings.visibleFilters.includes('dateAdded'))
+
+  // Date-added is a lexical 'YYYY-MM-DD' range with its own <input type=date>
+  // boxes; empty side = open-ended (a far past/future bound keeps JSON finite).
+  let dateInputs = $state({ min: '', max: '' })
+  function commitDate() {
+    const { min, max } = dateInputs
+    const range: LibraryFilters['dateAdded'] =
+      min === '' && max === ''
+        ? null
+        : [min === '' ? '0000-01-01' : min, max === '' ? '9999-12-31' : max]
+    filters.update((f) => ({ ...f, dateAdded: range }))
+  }
 
   // Local min/max fields, seeded from the playlist selection's actual
   // extremes or from an active filter. Only user edits (and playlist
@@ -44,6 +61,17 @@
           min: range === null ? '' : String(range[0]),
           max: range === null ? '' : String(range[1]),
         }
+      }
+      // Seed the date boxes from a saved date filter (blank = open-ended).
+      dateInputs = {
+        min:
+          active.dateAdded === null || active.dateAdded[0] === '0000-01-01'
+            ? ''
+            : active.dateAdded[0],
+        max:
+          active.dateAdded === null || active.dateAdded[1] === '9999-12-31'
+            ? ''
+            : active.dateAdded[1],
       }
       return
     }
@@ -113,7 +141,7 @@
     >
   </summary>
 
-  {#each RANGE_ROWS as { field, label } (field)}
+  {#each visibleRangeRows as { field, label } (field)}
     <div class="filter-row">
       <span class="filter-label">{label}</span>
       <input
@@ -143,6 +171,34 @@
       >
     </div>
   {/each}
+
+  {#if showDateAdded}
+    <div class="filter-row">
+      <span class="filter-label">Added</span>
+      <input
+        type="date"
+        aria-label="Added after"
+        bind:value={dateInputs.min}
+        onchange={commitDate}
+      />
+      <span class="dash">–</span>
+      <input
+        type="date"
+        aria-label="Added before"
+        bind:value={dateInputs.max}
+        onchange={commitDate}
+      />
+      <button
+        class="range-reset"
+        title="Clear the date filter"
+        aria-label="Clear date filter"
+        onclick={() => {
+          dateInputs = { min: '', max: '' }
+          commitDate()
+        }}>↺</button
+      >
+    </div>
+  {/if}
 
   <div class="filter-row">
     <span class="filter-label">Keys</span>
@@ -190,6 +246,12 @@
   .filter-row input {
     width: 64px;
     padding: 2px 6px;
+  }
+
+  .filter-row input[type='date'] {
+    width: auto;
+    flex: 1;
+    min-width: 0;
   }
 
   .dash {

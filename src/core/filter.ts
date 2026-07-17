@@ -12,6 +12,14 @@ export interface LibraryFilters {
   bpm: [number, number] | null
   year: [number, number] | null
   rating: [number, number] | null
+  /**
+   * Date-added range as inclusive 'YYYY-MM-DD' bounds (lexical); null = off.
+   * Unlike the numeric ranges, an undated track is EXCLUDED while this filter
+   * is active (v10 issue 4b) — "added between these dates" has no sensible
+   * answer for an unknown date, and hiding them is what a DJ browsing by
+   * recency wants.
+   */
+  dateAdded: [string, string] | null
   /** Allow-list of genres (compared case-insensitively); null = all genres. */
   genres: string[] | null
   /**
@@ -31,10 +39,21 @@ export interface LibraryFilters {
 /** Pseudo-playlist name: tracks that appear in no playlist at all. */
 export const NOT_IN_PLAYLIST = '__not-in-a-playlist__'
 
+/**
+ * The range filters whose visibility the user manages (v10 issue 4b): Date-
+ * added shows by default, the rest are opt-in via the advanced "Filters shown"
+ * checklist. Genres, Playlists and the Keys ring are their own always-visible
+ * sections and are not part of this list.
+ */
+export type FilterKey = 'bpm' | 'year' | 'rating' | 'dateAdded'
+export const ALL_FILTER_KEYS: readonly FilterKey[] = ['bpm', 'year', 'rating', 'dateAdded']
+export const DEFAULT_VISIBLE_FILTERS: readonly FilterKey[] = ['dateAdded']
+
 export const EMPTY_FILTERS: LibraryFilters = {
   bpm: null,
   year: null,
   rating: null,
+  dateAdded: null,
   genres: null,
   playlists: null,
   keyRing: 'both',
@@ -80,6 +99,13 @@ export function clampRange(range: [number, number], edited: 'min' | 'max'): [num
 
 function inRange(value: number | null, range: [number, number] | null): boolean {
   if (range === null || value === null) return true
+  return value >= range[0] && value <= range[1]
+}
+
+/** Lexical date-range test; a missing date FAILS an active range (see above). */
+function inDateRange(value: string | null, range: [string, string] | null): boolean {
+  if (range === null) return true
+  if (value === null) return false
   return value >= range[0] && value <= range[1]
 }
 
@@ -133,6 +159,7 @@ export function applyFilters(
       inRange(t.bpm, filters.bpm) &&
       inRange(t.year, filters.year) &&
       inRange(t.rating, filters.rating) &&
+      inDateRange(t.dateAdded, filters.dateAdded) &&
       (allowed === null || t.genre === null || allowed.has(t.genre.toLowerCase())) &&
       (allowedIds === null || allowedIds.has(t.id)) &&
       (ring === null || t.key === null || camelotRing(t.key) === ring),
