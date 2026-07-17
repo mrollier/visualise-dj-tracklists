@@ -23,7 +23,6 @@
   } from 'd3-shape'
   import { zoom as d3zoom, zoomIdentity, type D3ZoomEvent } from 'd3-zoom'
   import { get } from 'svelte/store'
-  import { SvelteSet } from 'svelte/reactivity'
   import { matchedGenrePairs } from '../core/combos'
   import {
     genreComponents,
@@ -72,20 +71,19 @@
   // label means identical labels are literally the same node, so the exact
   // overlay can never draw an edge (v8 issue 12).
   const MAP_METHODS: readonly GenreMethod[] = GENRE_METHODS.filter((m) => m !== 'exact')
-  // Default overlay = the criterion's active method. The user's chip toggles
-  // stick, but switching the criterion method re-enables its overlay so the
-  // map always shows what the criterion does (issue 12). SvelteSet mutations
-  // are reactive on their own.
-  const enabledMethods = new SvelteSet<GenreMethod>(
-    [get(criteria).genre.method].filter((m) => m !== 'exact'),
+  // A single overlay method (v10 issue 16): the map draws one method's links
+  // at a time. Selecting one — by chip or by changing the criterion method —
+  // replaces the previous overlay, so switching methods never leaves the old
+  // one stacked (the v9 bug). Clicking the active chip clears the overlay.
+  let overlayMethod = $state<GenreMethod | null>(
+    get(criteria).genre.method === 'exact' ? null : get(criteria).genre.method,
   )
   $effect(() => {
-    if ($criteria.genre.method !== 'exact') enabledMethods.add($criteria.genre.method)
+    overlayMethod = $criteria.genre.method === 'exact' ? null : $criteria.genre.method
   })
 
-  function toggleMethod(method: GenreMethod) {
-    if (enabledMethods.has(method)) enabledMethods.delete(method)
-    else enabledMethods.add(method)
+  function selectMethod(method: GenreMethod): void {
+    overlayMethod = overlayMethod === method ? null : method
   }
 
   interface GenreNode extends SimulationNodeDatum {
@@ -153,7 +151,7 @@
   const edges = $derived.by(() => {
     const list: GenreEdge[] = []
     for (const method of MAP_METHODS) {
-      if (!enabledMethods.has(method)) continue
+      if (overlayMethod !== method) continue
       const isCriterion = method === $criteria.genre.method
       for (let i = 0; i < labels.length; i++) {
         for (let j = i + 1; j < labels.length; j++) {
@@ -289,11 +287,12 @@
       // pull must stay gentle or connected layouts visibly compress.
       .force('x', forceX(WIDTH / 2).strength(CONTAIN_STRENGTH))
       .force('y', forceY(HEIGHT / 2).strength(CONTAIN_STRENGTH))
-      // Slower cooling and stronger damping: nodes drift into place
-      // organically instead of springing (issue 5, pairs with the
-      // centre spawn of issue 3).
-      .alphaDecay(0.02)
-      .velocityDecay(0.5)
+      // Slow cooling and strong damping: nodes drift into place organically
+      // instead of springing (issue 5, pairs with the centre spawn of issue
+      // 3). alphaDecay lowered ~3× (v10 issue 9) so a method change animates
+      // slowly enough to follow.
+      .alphaDecay(0.006)
+      .velocityDecay(0.55)
       .on('tick', () => {
         const current = simulation!.nodes() as GenreNode[]
         for (const n of current) {
@@ -435,7 +434,7 @@
         method === $criteria.genre.method && bothInLibrary
           ? criterionPairs.has(pairKey(a, b))
           : score >= SCORE_FLOOR
-      return { method, score, linked: linked && enabledMethods.has(method) }
+      return { method, score, linked: linked && overlayMethod === method }
     })
   }
 
@@ -465,7 +464,8 @@
 
   /** Per-method perpendicular offset so parallel overlays stay visible. */
   function edgeOffset(method: GenreMethod, a: GenreNode, b: GenreNode): string {
-    const active = MAP_METHODS.filter((m) => enabledMethods.has(m))
+    // A single overlay method never runs parallel with another (v10 #16).
+    const active = overlayMethod === null ? [] : [overlayMethod]
     if (active.length < 2) return ''
     const idx = active.indexOf(method)
     const dx = (b.x ?? 0) - (a.x ?? 0)
@@ -554,6 +554,12 @@
             if (e.key === 'Enter') nodeClick(node)
           }}
         >
+          <!-- Transparent hit-shape (v10 issue 8): the symbol path only fills
+               its own outline, and the label had pointer-events:none, so a
+               press on the label or a symbol concavity fell through to
+               d3-zoom and panned the canvas. This circle covers the symbol so
+               the whole node is grabbable; the label is grabbable too. -->
+          <circle class="node-hit" r={nodeRadius(node) + 5} />
           <path
             d={shapePath(node.ghost ? null : classIndexOf(node.id), nodeRadius(node))}
             class="mark"
@@ -573,9 +579,9 @@
     {#each MAP_METHODS as method (method)}
       <button
         class="method-chip"
-        class:on={enabledMethods.has(method)}
+        class:on={overlayMethod === method}
         style="--chip: {METHOD_COLOR[method]}"
-        onclick={() => toggleMethod(method)}
+        onclick={() => selectMethod(method)}
       >
         <i class:dashed={METHOD_DASH[method] !== undefined}></i>
         {method}
@@ -708,10 +714,15 @@
     font-style: italic;
   }
 
+  .node-hit {
+    fill: transparent;
+  }
+
   .genre-label {
     fill: var(--ink-secondary);
     font-size: 11px;
-    pointer-events: none;
+    /* Grabbable so a press on the label drags the node (v10 issue 8). */
+    pointer-events: auto;
   }
 
   .overlays {
