@@ -18,7 +18,9 @@
     tracklist,
     viewMode,
   } from '../stores'
+  import { SAMPLE_COLLECTION } from '../data/samples'
   import ConfirmDialog from './ConfirmDialog.svelte'
+  import InfoTooltip from './InfoTooltip.svelte'
   import ResetDialog from './ResetDialog.svelte'
   import { promptExportName } from './exportName'
   import {
@@ -180,6 +182,14 @@
       .map(([field, count]) => `${count}× ${field}`)
     return parts.length > 0 ? `missing: ${parts.join(', ')}` : null
   })
+
+  // A static profile of the bundled sample collection for its info icon (v10):
+  // how many tracks, and how much metadata is deliberately missing.
+  const sampleReport = buildReport(SAMPLE_COLLECTION.tracks, [])
+  const sampleMissing = Object.entries(sampleReport.missing)
+    .filter(([, count]) => count > 0)
+    .map(([field, count]) => `${count}× ${field}`)
+    .join(', ')
 </script>
 
 <header>
@@ -204,19 +214,26 @@
       >
     </div>
 
-    <!-- Radius/Colour only mean something on the wheel (issue 4). -->
-    <label class:off-view={$viewMode !== 'wheel'} title="Only affects the Wheel view">
+    <!-- Radius/Colour only mean something on the wheel (issue 4), and nothing
+         at all without a library (v10: grey the inert controls after reset). -->
+    <label
+      class:off-view={$viewMode !== 'wheel' || $library.length === 0}
+      title="Only affects the Wheel view"
+    >
       Radius
-      <select bind:value={$radialAxis} disabled={$viewMode !== 'wheel'}>
+      <select bind:value={$radialAxis} disabled={$viewMode !== 'wheel' || $library.length === 0}>
         <option value="bpm">BPM</option>
         <option value="rating">Rating</option>
         <option value="year">Year</option>
       </select>
     </label>
 
-    <label class:off-view={$viewMode !== 'wheel'} title="Only affects the Wheel view">
+    <label
+      class:off-view={$viewMode !== 'wheel' || $library.length === 0}
+      title="Only affects the Wheel view"
+    >
       Colour
-      <select bind:value={$colorAxis} disabled={$viewMode !== 'wheel'}>
+      <select bind:value={$colorAxis} disabled={$viewMode !== 'wheel' || $library.length === 0}>
         <option value="auto">Auto</option>
         <option value="rating">Rating</option>
         <option value="bpm">BPM</option>
@@ -233,9 +250,21 @@
       hidden
       onchange={onFileChosen}
     />
-    <button onclick={loadSample} title="Load the sample collection (all themed packs as playlists)"
-      >Load sample</button
-    >
+    <span class="sample-load">
+      <button
+        onclick={loadSample}
+        title="Load the sample collection (all themed packs as playlists)">Load sample</button
+      >
+      <InfoTooltip label="About the sample collection" align="right">
+        <strong>{sampleReport.total} sample tracks</strong>
+        <span>across {SAMPLE_COLLECTION.playlists.length} themed playlists</span>
+        {#if sampleMissing}
+          <span>missing: {sampleMissing}</span>
+        {:else}
+          <span>every field present</span>
+        {/if}
+      </InfoTooltip>
+    </span>
     <button onclick={saveProject} disabled={$library.length === 0}>Save project</button>
     <button
       class="advanced-toggle"
@@ -254,7 +283,9 @@
     >
       {$effectiveTheme === 'dark' ? '☀' : '☾'}
     </button>
-    <button class="danger" onclick={() => resetDialog.open()}>Reset</button>
+    <button class="danger" onclick={() => resetDialog.open()} disabled={$library.length === 0}
+      >Reset</button
+    >
     <ResetDialog bind:this={resetDialog} />
     <ConfirmDialog
       bind:this={replaceDialog}
@@ -380,6 +411,12 @@
 
   .status .error {
     color: var(--walk-bright);
+  }
+
+  .sample-load {
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
   }
 
   .info-wrap {

@@ -5,6 +5,7 @@
   import type { Track } from '../core/model'
   import { suggestWalk } from '../core/suggest'
   import { promptExportName } from './exportName'
+  import ConfirmDialog from './ConfirmDialog.svelte'
   import { canAddSet, MAX_SETS } from '../core/sets'
   import {
     activeSet,
@@ -27,6 +28,8 @@
     tracklist,
     visibleLibrary,
   } from '../stores'
+
+  let clearDialog: ConfirmDialog
 
   const walkTracks = $derived(
     $tracklist.map((id) => $trackById.get(id)).filter((t): t is Track => t !== undefined),
@@ -261,10 +264,23 @@
       <button onclick={() => download('.csv', () => exportTracklistCsv(walkTracks), 'text/csv')}>
         Export CSV
       </button>
-      <button class="danger" onclick={() => tracklist.set([])}>Clear</button>
+      <button
+        class="danger"
+        onclick={() => {
+          if ($tracklist.length > 0) clearDialog.open(() => tracklist.set([]))
+        }}>Clear</button
+      >
     </div>
   {/if}
 </aside>
+
+<ConfirmDialog
+  bind:this={clearDialog}
+  title="Clear this set?"
+  body="Every track will be removed from the current set. This cannot be undone."
+  confirmLabel="Clear set"
+  danger
+/>
 
 <style>
   aside {

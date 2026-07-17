@@ -27,7 +27,10 @@
   })
 </script>
 
-<aside>
+<!-- With no library loaded, the criteria/filters act on nothing — make the
+     whole panel inert and muted so only Import / Load sample invite a click
+     (v10 additional issue). -->
+<aside class:empty={$library.length === 0} inert={$library.length === 0}>
   <div class="stats">
     <div class="stat">
       <span class="value">
@@ -146,6 +149,10 @@
     background: var(--page);
     border-right: 1px solid var(--border);
     overflow-y: auto;
+  }
+
+  aside.empty {
+    opacity: 0.45;
   }
 
   .stats {
