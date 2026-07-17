@@ -17,7 +17,7 @@
 </script>
 
 <div class="boxes" role="group" aria-label={label}>
-  {#each { length: Math.max(1, max) } as _, i (i)}
+  {#each [...Array(Math.max(1, max)).keys()] as i (i)}
     {@const k = i + 1}
     <button
       type="button"

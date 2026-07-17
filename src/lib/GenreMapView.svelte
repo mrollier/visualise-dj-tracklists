@@ -22,7 +22,6 @@
     type SymbolType,
   } from 'd3-shape'
   import { zoom as d3zoom, zoomIdentity, type D3ZoomEvent } from 'd3-zoom'
-  import { get } from 'svelte/store'
   import { matchedGenrePairs } from '../core/combos'
   import {
     genreComponents,
@@ -72,15 +71,13 @@
   // overlay can never draw an edge (v8 issue 12).
   const MAP_METHODS: readonly GenreMethod[] = GENRE_METHODS.filter((m) => m !== 'exact')
   // A single overlay method (v10 issue 16): the map draws one method's links
-  // at a time. Selecting one — by chip or by changing the criterion method —
-  // replaces the previous overlay, so switching methods never leaves the old
-  // one stacked (the v9 bug). Clicking the active chip clears the overlay.
-  let overlayMethod = $state<GenreMethod | null>(
-    get(criteria).genre.method === 'exact' ? null : get(criteria).genre.method,
+  // at a time. It tracks the criterion method (a writable $derived), so
+  // changing the criterion replaces the overlay rather than stacking it (the
+  // v9 bug); a chip click overrides until the criterion next changes, and
+  // clicking the active chip clears the overlay.
+  let overlayMethod = $derived<GenreMethod | null>(
+    $criteria.genre.method === 'exact' ? null : $criteria.genre.method,
   )
-  $effect(() => {
-    overlayMethod = $criteria.genre.method === 'exact' ? null : $criteria.genre.method
-  })
 
   function selectMethod(method: GenreMethod): void {
     overlayMethod = overlayMethod === method ? null : method

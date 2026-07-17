@@ -8,6 +8,7 @@
   // of generated sets — the same pins as everywhere else.
   import { COLUMN_LABELS, visibleColumns } from '../core/columns'
   import type { Track } from '../core/model'
+  import { nextStarState, type StarState } from '../core/pins'
   import { removeAllOccurrences } from '../core/sets'
   import { sortTracks, type TrackSortField } from '../core/trackSort'
   import {
@@ -19,6 +20,7 @@
     pinnedLast,
     selectedId,
     settings,
+    trackById,
     tracklist,
     trackSort,
     visibleLibrary,
@@ -70,7 +72,24 @@
   // The table shows what the wheel shows (v9 issue 16): the FULL filter set
   // (ranges, genres, key ring), not just the playlist scope.
   const sorted = $derived(sortTracks($visibleLibrary, $trackSort))
-  const rows = $derived(sorted.slice(0, MAX_ROWS))
+
+  // In-set-only view (v10 issue 15): show only the active set's tracks, in
+  // set order (deduped by first occurrence), with all metadata columns —
+  // the right panel's set, fleshed out. Column sorting is suspended here.
+  let inSetOnly = $state(false)
+  const inSetRows = $derived.by(() => {
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived-local
+    const seen = new Set<string>()
+    const out: Track[] = []
+    for (const id of $tracklist) {
+      if (seen.has(id)) continue
+      seen.add(id)
+      const found = $trackById.get(id)
+      if (found !== undefined) out.push(found)
+    }
+    return out
+  })
+  const rows = $derived(inSetOnly ? inSetRows : sorted.slice(0, MAX_ROWS))
   const connectedIds = $derived($selectedId === null ? null : $neighbours.get($selectedId))
   const mustSet = $derived(new Set($mustInclude))
 
@@ -78,25 +97,49 @@
     selectedId.update((current) => (current === id ? null : id))
   }
 
-  function toggleMust(id: string) {
-    mustInclude.update((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]))
+  // One click-cycle star per row (v10 issue 13): none → must → first → last →
+  // none, skipping a pin stage another track already holds.
+  function starStateOf(id: string): StarState {
+    if ($pinnedFirst === id) return 'first'
+    if ($pinnedLast === id) return 'last'
+    if (mustSet.has(id)) return 'must'
+    return 'none'
+  }
+  const STAR_GLYPH: Record<StarState, string> = { none: '☆', must: '★', first: '⏮', last: '⏭' }
+  const STAR_TITLE: Record<StarState, string> = {
+    none: 'Click to mark essential (must-include)',
+    must: 'Essential — click to make the opener',
+    first: 'Opens generated sets — click to make the closer',
+    last: 'Closes generated sets — click to clear',
+  }
+  function cycleStar(id: string) {
+    const next = nextStarState(
+      starStateOf(id),
+      $pinnedFirst !== null && $pinnedFirst !== id,
+      $pinnedLast !== null && $pinnedLast !== id,
+    )
+    mustInclude.update((ids) => ids.filter((x) => x !== id))
+    if ($pinnedFirst === id) pinnedFirst.set(null)
+    if ($pinnedLast === id) pinnedLast.set(null)
+    if (next === 'must') mustInclude.update((ids) => [...ids, id])
+    else if (next === 'first') pinnedFirst.set(id)
+    else if (next === 'last') pinnedLast.set(id)
   }
 
-  // Header ★ (v9 issue 15): star every track in the current filtered view;
-  // when they are all starred already, a second click clears them again.
-  const allVisibleStarred = $derived(sorted.length > 0 && sorted.every((t) => mustSet.has(t.id)))
+  // Header ★ (v9 issue 15): star every track in the current view; when they
+  // are all starred already, a second click clears them again. The target is
+  // the set in in-set-only mode, otherwise the whole filtered selection.
+  const starAllTarget = $derived(inSetOnly ? inSetRows : sorted)
+  const allVisibleStarred = $derived(
+    starAllTarget.length > 0 && starAllTarget.every((t) => mustSet.has(t.id)),
+  )
   function toggleAllStars() {
-    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- handler-local
-    const visible = new Set(sorted.map((t) => t.id))
+    const visible = new Set(starAllTarget.map((t) => t.id))
     mustInclude.update((ids) =>
       allVisibleStarred
         ? ids.filter((id) => !visible.has(id))
-        : [...ids, ...sorted.map((t) => t.id).filter((id) => !ids.includes(id))],
+        : [...ids, ...starAllTarget.map((t) => t.id).filter((id) => !ids.includes(id))],
     )
-  }
-
-  function togglePin(store: typeof pinnedFirst, id: string) {
-    store.update((current) => (current === id ? null : id))
   }
 
   // --- ＋/position column (v8 issue 15): 1-based slots in the ACTIVE set ---
@@ -152,7 +195,18 @@
               onclick={toggleAllStars}>★</button
             >
           </th>
-          <th class="pos-col"><span class="visually-hidden">Set position / add</span></th>
+          <th class="pos-col">
+            <!-- Toggle a metadata-rich, set-only, position-ordered view (v10
+                 issue 15). -->
+            <button
+              class="pos-toggle"
+              class:on={inSetOnly}
+              title={inSetOnly ? 'Show all tracks' : 'Show only this set, in order'}
+              aria-label="Toggle the set-only view"
+              aria-pressed={inSetOnly}
+              onclick={() => (inSetOnly = !inSetOnly)}>☰</button
+            >
+          </th>
           {#each columns as field (field)}
             <th
               class:drop-target={dropField === field}
@@ -195,7 +249,7 @@
       <tbody>
         {#each rows as track (track.id)}
           {@const positions = positionsById.get(track.id)}
-          {@const pinned = $pinnedFirst === track.id || $pinnedLast === track.id}
+          {@const starState = starStateOf(track.id)}
           <tr
             class:selected={track.id === $selectedId}
             class:connected={connectedIds?.has(track.id) === true}
@@ -203,43 +257,18 @@
             onclick={() => selectRow(track.id)}
           >
             <td class="tags">
-              <!-- A pinned opener/closer is included by construction, so the
-                   ★ reads as on (disabled) without touching the store. -->
+              <!-- One star per row cycles must-include → opener → closer (v10
+                   issue 13); the four-icon cluster is retired. -->
               <button
-                class="tag"
-                class:on={mustSet.has(track.id) || pinned}
-                disabled={pinned}
-                title={pinned
-                  ? 'Included via the opener/closer pin'
-                  : 'Essential: must appear in generated sets'}
-                aria-label="Mark essential"
-                aria-pressed={mustSet.has(track.id) || pinned}
+                class="tag star"
+                class:on={starState !== 'none'}
+                title={STAR_TITLE[starState]}
+                aria-label="Cycle essential / opener / closer"
+                aria-pressed={starState !== 'none'}
                 onclick={(e) => {
                   e.stopPropagation()
-                  toggleMust(track.id)
-                }}>★</button
-              >
-              <button
-                class="tag"
-                class:on={$pinnedFirst === track.id}
-                title="Open generated sets with this track"
-                aria-label="Pin as opening track"
-                aria-pressed={$pinnedFirst === track.id}
-                onclick={(e) => {
-                  e.stopPropagation()
-                  togglePin(pinnedFirst, track.id)
-                }}>⏮</button
-              >
-              <button
-                class="tag"
-                class:on={$pinnedLast === track.id}
-                title="Close generated sets with this track"
-                aria-label="Pin as closing track"
-                aria-pressed={$pinnedLast === track.id}
-                onclick={(e) => {
-                  e.stopPropagation()
-                  togglePin(pinnedLast, track.id)
-                }}>⏭</button
+                  cycleStar(track.id)
+                }}>{STAR_GLYPH[starState]}</button
               >
             </td>
             <td class="pos">
@@ -287,7 +316,7 @@
         {/each}
       </tbody>
     </table>
-    {#if sorted.length > MAX_ROWS}
+    {#if !inSetOnly && sorted.length > MAX_ROWS}
       <p class="capped">
         Showing the first {MAX_ROWS} of {sorted.length} tracks — flip the sort or narrow the playlist
         selection to reach the rest.
@@ -451,24 +480,39 @@
   }
 
   .tags-col {
-    width: 74px;
+    width: 30px;
   }
 
   .tags {
     text-align: left;
   }
 
-  /* The header ★ stays visible (it is not row-hover-gated). */
+  /* The header ★ appears on header hover, like the row stars on row hover
+     (v10 issue 14); it stays lit when all visible tracks are starred. */
   .header-star {
-    opacity: 0.5;
+    opacity: 0;
   }
 
-  .header-star:hover,
+  thead:hover .header-star,
+  thead:focus-within .header-star,
   .header-star.on {
     opacity: 1;
   }
 
   .header-star.on {
+    color: var(--accent);
+  }
+
+  .pos-toggle {
+    background: none;
+    border: none;
+    padding: 8px 6px;
+    font-size: 12px;
+    color: var(--ink-muted);
+  }
+
+  .pos-toggle:hover,
+  .pos-toggle.on {
     color: var(--accent);
   }
 
@@ -506,13 +550,5 @@
     margin: 8px 12px 12px;
     color: var(--ink-muted);
     font-size: 12px;
-  }
-
-  .visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
   }
 </style>
