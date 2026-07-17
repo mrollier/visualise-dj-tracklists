@@ -40,6 +40,12 @@ export const settings = writable<AppSettings>(structuredClone(DEFAULT_SETTINGS))
 export const radialAxis = writable<RadialAxis>('bpm')
 export const colorAxis = writable<ColorAxis>('auto')
 export const selectedId = writable<string | null>(null)
+/**
+ * Track hovered in the set list (v9 issue 20): mirrored as a subtle halo on
+ * the wheel node and a tint on the Tracks-view row, so the eye can find the
+ * same track across views. Never persisted, cleared on mouse-leave.
+ */
+export const hoveredId = writable<string | null>(null)
 
 /**
  * Multiple named sets (issue 18, persisted): always at least one; the active

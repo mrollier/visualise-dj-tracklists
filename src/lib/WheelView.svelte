@@ -33,6 +33,7 @@
     effectiveColorAxis,
     focusEdges,
     filters,
+    hoveredId,
     iconClasses,
     library,
     mustInclude,
@@ -44,7 +45,6 @@
     rightPanel,
     selectedId,
     settings,
-    trackById,
     tracklist,
     visibleLibrary,
   } from '../stores'
@@ -456,17 +456,6 @@
   const taggedIds = $derived(
     new Set([...$mustInclude, $pinnedFirst, $pinnedLast].filter((id) => id !== null)),
   )
-
-  // --- selected-track card: details + the "must include" mark (design-v6 §C) ---
-  const selectedTrack = $derived(
-    $selectedId === null ? null : ($trackById.get($selectedId) ?? null),
-  )
-  const isMustIncluded = $derived($selectedId !== null && $mustInclude.includes($selectedId))
-  function toggleMustInclude() {
-    const id = $selectedId
-    if (id === null) return
-    mustInclude.update((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]))
-  }
 </script>
 
 <svelte:window
@@ -652,6 +641,16 @@
           }}
         >
           <circle cx={node.x} cy={node.y} r={11 / zoomK} fill="transparent" />
+          {#if node.track.id === $hoveredId}
+            <!-- Subtle halo mirroring a hover in the set list (v9 issue 20). -->
+            <circle
+              cx={node.x}
+              cy={node.y}
+              r={12 / zoomK}
+              class="hover-ring"
+              vector-effect="non-scaling-stroke"
+            />
+          {/if}
           {#if taggedIds.has(node.track.id)}
             <!-- Subtle marker for essential/opener/closer tags set in the
                  Tracks view (issue 7) — its own ring, so it coexists with
@@ -788,7 +787,7 @@
   </div>
 
   <!-- Legend -->
-  <div class="legend" class:with-card={selectedTrack !== null}>
+  <div class="legend">
     <span class="legend-title">Colour: {AXIS_LABEL[$effectiveColorAxis]}</span>
     {#if $effectiveColorAxis === 'rating'}
       {#each [0, 1, 2, 3, 4, 5] as stars (stars)}
@@ -815,33 +814,8 @@
     <span class="legend-hint">click: focus · double-click: add to set</span>
   </div>
 
-  <!-- Selected-track card: the persistent home of a selection's details,
-       and where a track is marked "must include" (design-v6 §C). Anchored
-       bottom-RIGHT beside the set panel (v8 issue 9) so it never sits on
-       the legend; the legend's right bound clears it while it shows. -->
-  {#if selectedTrack}
-    <div class="selected-card">
-      <strong>{selectedTrack.title}</strong>
-      <span class="artist">{selectedTrack.artist ?? 'Unknown artist'}</span>
-      <dl>
-        <dt>Key</dt>
-        <dd>{selectedTrack.key ?? 'missing'}</dd>
-        <dt>BPM</dt>
-        <dd>{selectedTrack.bpm ?? 'missing'}</dd>
-        <dt>Genre</dt>
-        <dd>{selectedTrack.genre ?? 'missing'}</dd>
-      </dl>
-      <button
-        class="must-toggle"
-        class:on={isMustIncluded}
-        aria-pressed={isMustIncluded}
-        title="Suggested sets will strongly favour including this track"
-        onclick={toggleMustInclude}
-      >
-        {isMustIncluded ? '★ in suggested sets' : '☆ must include in suggested sets'}
-      </button>
-    </div>
-  {/if}
+  <!-- The selected-track card lives at the foot of the right aside since v9
+       (issue 19) — see SelectedTrackCard.svelte. -->
 
   {#if hovered}
     <div class="tooltip" style="left: {mouse.x + 14}px; top: {mouse.y + 12}px">
@@ -1172,6 +1146,15 @@
     opacity: 0.55;
   }
 
+  .hover-ring {
+    fill: var(--accent);
+    fill-opacity: 0.15;
+    stroke: var(--accent);
+    stroke-width: 1.5;
+    opacity: 0.8;
+    pointer-events: none;
+  }
+
   .dot {
     stroke: var(--node-ring);
     stroke-width: 1;
@@ -1286,60 +1269,6 @@
     padding: 8px 10px;
     pointer-events: none;
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
-  }
-
-  .selected-card {
-    position: absolute;
-    right: 52px; /* clear of the zoom-controls column */
-    bottom: 10px;
-    max-width: 240px;
-    background: var(--surface-raised);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px 10px;
-    font-size: 12px;
-  }
-
-  .legend.with-card {
-    right: 306px; /* 52px offset + 240px card + breathing room */
-  }
-
-  .selected-card strong {
-    display: block;
-  }
-
-  .selected-card .artist {
-    color: var(--ink-secondary);
-    display: block;
-    margin-bottom: 4px;
-  }
-
-  .selected-card dl {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 1px 10px;
-    margin: 0 0 6px;
-    font-size: 12px;
-  }
-
-  .selected-card dt {
-    color: var(--ink-muted);
-  }
-
-  .selected-card dd {
-    margin: 0;
-    color: var(--ink-secondary);
-  }
-
-  .must-toggle {
-    width: 100%;
-    font-size: 11px;
-    color: var(--ink-secondary);
-  }
-
-  .must-toggle.on {
-    color: var(--accent);
-    border-color: var(--accent);
   }
 
   .tooltip strong {

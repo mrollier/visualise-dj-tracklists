@@ -3,6 +3,7 @@
   import CriteriaPanel from './lib/CriteriaPanel.svelte'
   import GenreMapView from './lib/GenreMapView.svelte'
   import { restoreAutosave, startAutosave } from './lib/persistence'
+  import SelectedTrackCard from './lib/SelectedTrackCard.svelte'
   import { startTheme } from './lib/theme'
   import TopBar from './lib/TopBar.svelte'
   import TracklistPanel from './lib/TracklistPanel.svelte'
@@ -54,11 +55,17 @@
     <WheelView />
   {/if}
   <!-- The right aside: advanced settings swap in where the set lives, so the
-       wheel stays visible while settings change (design-v5 §E). -->
-  {#if $rightPanel === 'advanced'}
-    <AdvancedMenu />
-  {:else if $library.length > 0}
-    <TracklistPanel />
+       wheel stays visible while settings change (design-v5 §E). The selected
+       track's card docks at its foot whichever panel is open (v9 issue 19). -->
+  {#if $rightPanel === 'advanced' || $library.length > 0}
+    <div class="right-aside">
+      {#if $rightPanel === 'advanced'}
+        <AdvancedMenu />
+      {:else}
+        <TracklistPanel />
+      {/if}
+      <SelectedTrackCard />
+    </div>
   {/if}
 </main>
 
@@ -66,6 +73,20 @@
   main {
     flex: 1;
     display: flex;
+    min-height: 0;
+  }
+
+  .right-aside {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  /* The panels keep their own 280px width; here they just fill the column
+     so the card below never pushes them around. */
+  .right-aside > :global(aside) {
+    flex: 1;
     min-height: 0;
   }
 

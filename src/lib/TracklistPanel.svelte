@@ -12,6 +12,7 @@
     activeSetId,
     addSet,
     criteria,
+    hoveredId,
     deleteSet,
     genreMatcher,
     libraryName,
@@ -228,7 +229,12 @@
             {/if}
           </li>
         {/if}
-        <li class="track" class:active={track.id === $selectedId}>
+        <li
+          class="track"
+          class:active={track.id === $selectedId}
+          onmouseenter={() => hoveredId.set(track.id)}
+          onmouseleave={() => hoveredId.set(null)}
+        >
           <button class="row" onclick={() => selectedId.set(track.id)}>
             <span class="index">{i + 1}</span>
             <span class="names">

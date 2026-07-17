@@ -11,6 +11,7 @@
   import { sortTracks, type TrackSortField } from '../core/trackSort'
   import {
     appendToSet,
+    hoveredId,
     mustInclude,
     neighbours,
     pinnedFirst,
@@ -169,6 +170,7 @@
           <tr
             class:selected={track.id === $selectedId}
             class:connected={connectedIds?.has(track.id) === true}
+            class:set-hovered={track.id === $hoveredId}
             onclick={() => selectRow(track.id)}
           >
             <td class="pos">
@@ -368,6 +370,11 @@
 
   tbody tr.connected {
     background: color-mix(in srgb, var(--accent) 10%, transparent);
+  }
+
+  /* Mirrors a hover in the set list (v9 issue 20). */
+  tbody tr.set-hovered {
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
   }
 
   tbody tr.selected {
