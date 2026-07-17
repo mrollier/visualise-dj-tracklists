@@ -35,15 +35,18 @@ Your library never leaves your machine — there is no backend, no account, no u
   your choosing: **genre families** from the curated genre tree (the default —
   deterministic, and never reshuffled by criterion changes), your selected
   **playlists** (first one wins), or similarity **clusters** in the hybrid space —
-  capped by a "max symbol classes" setting.
+  capped by a "max symbol classes" setting (1–8); past the cap, smaller genre
+  families **merge into their umbrella** in the tree rather than dropping to circles.
 - **Nodes that hold still**: every track's angle is a property of your _library_,
   not of the current filters — filtering and playlist toggling only make nodes
   appear or disappear, leaving gaps in the same-key fans, so nothing ever shuffles
   around while you narrow down. Same-key tracks **repel each other along their
   slot's arc** — a deterministic relaxation that only separates nodes that would
   actually overlap (radius stays pinned to the value it encodes), squeezes evenly
-  when a slot is genuinely full, and is bounded by the spread setting (0 to 1 of
-  the 15° sector). No randomness anywhere: the same library always draws the same
+  when a slot is genuinely full, stays **centred on the key's angle** so a slot's
+  weight sits on its line, and is bounded by the spread setting (0 to 1 of a ±4°
+  fan kept well inside the key's sector, so neighbouring keys never touch). No
+  randomness anywhere: the same library always draws the same
   wheel. The one deliberate exception is the **radial axis**:
   tighten the min/max of the value shown as radius and the rings, ticks and radii
   glide to the new range (and back, via each filter's ↺ reset). The legend lists
@@ -51,15 +54,16 @@ Your library never leaves your machine — there is no backend, no account, no u
   make no distinction. Rating and year rings only sit on whole values.
 - **Map the genres**: a second central view (Wheel | Genres | Tracks switch) lays your
   library's genres out with a force simulation — screen distance approximates the
-  distance measure, and you can **drag the nodes around** to jiggle the clusters
-  (panning stays on the background). Node icons here always follow the **curated
-  genre families**, with a shape legend at the bottom.
-  Toggleable per-method edge overlays show where the similarity methods agree and
-  disagree — the overlay for your **active criterion method draws exactly the pairs
-  the criterion links**, k/threshold included. **Click two genres to compare them**:
-  a docked card locks with every method's score for the pair (hovering a single edge
-  still works); a "show nearby genres" toggle ghosts in related genres you don't own
-  yet.
+  distance measure, and you can **grab a node anywhere and drag it** to jiggle the
+  clusters, the neighbours settling around it (panning stays on the background; the
+  re-layout eases in slowly enough to follow). Node icons here always follow the
+  **curated genre families**, with a shape legend at the bottom.
+  **One method's edge overlay draws at a time** — it follows your active criterion
+  method (drawing exactly the pairs the criterion links, k/threshold included), or
+  pick another on the chips; switching never leaves the old overlay stacked.
+  **Click two genres to compare them**: a docked card locks with every method's
+  score for the pair (hovering a single edge still works); a "show nearby genres"
+  toggle ghosts in related genres you don't own yet.
 - **Browse the tracks**: the third central view is a classic sortable table of
   everything the wheel shows — playlists AND filters scope it — with every column
   sortable (keys in Camelot order, missing values last, ratings as stars), and the
@@ -67,24 +71,28 @@ Your library never leaves your machine — there is no backend, no account, no u
   **every metadata field the Rekordbox XML carries** is available, 26 columns from
   Artist to Play count to Bit rate — and **drag the headers** to reorder them; a
   hidden column remembers its place. Clicking a row selects it everywhere and
-  highlights its combo neighbours. The leading cells: ★/⏮/⏭ toggles mark a track
-  **essential** or pin it as the **opener/closer** of generated sets (a pinned
-  track's ★ lights up by itself — it's included by construction; tagged tracks wear
-  a subtle ring on the wheel), the header ★ stars the whole view at once, and the
-  **＋ cell appends to the set and turns into the track's position number(s)** —
-  hover it and it becomes a ✕ that takes the track out again.
-- **Filter**: BPM / year / rating ranges, a **both/minor/major** switch that shows
-  one Camelot ring only (the excluded ring's sector tint fades out so the wheel
-  visibly answers), and a **Genres section** of its own — a checklist **scoped to
-  the selected playlists** with a live count — decide what participates in the
-  graph at all. Ranges
-  pre-fill with the whole numbers just outside the selected playlists' actual
-  extremes, reset to them with a ↺ per range (and whenever you toggle playlists), and
-  a min can never cross its max. The filter header counts visible tracks against the
-  playlist selection.
-- **Tune the criteria**: key / BPM / genre / year each toggleable and ranged; an edge
-  appears when at least _N_ of the enabled criteria match. Missing metadata never blocks
-  a combo. The BPM tolerance defaults to **±8%** — the pitch range of a classic
+  highlights its combo neighbours. Two leading cells: a **single star that cycles
+  on click** — essential (must-include) → opener ⏮ → closer ⏭ → off, skipping the
+  opener/closer stage when another track already holds it (tagged tracks wear a
+  subtle ring on the wheel); and a **＋ cell that appends to the set and turns into
+  the track's position number(s)** — hover it for a ✕ that takes the track out
+  again. The header ★ (revealed on header hover) stars the whole view at once, and
+  a toggle on the position header flips the table to **just this set, in order,
+  with every metadata column** — the set panel's list, fleshed out.
+- **Filter**: a **Date-added** range shows by default; BPM / year / rating ranges are
+  opt-in via a **"Filters shown" checklist** in the advanced menu (hiding one also
+  clears it). A **both/minor/major** switch shows one Camelot ring only (the excluded
+  ring's sector tint fades out so the wheel visibly answers), and a **Genres section**
+  of its own — a checklist **scoped to the selected playlists** with a live count —
+  decide what participates in the graph at all. Numeric ranges pre-fill with the whole
+  numbers just outside the selected playlists' actual extremes, reset to them with a ↺
+  per range (and whenever you toggle playlists), and a min can never cross its max. The
+  filter header counts visible tracks against the playlist selection.
+- **Tune the criteria**: key / BPM / genre / year each toggleable and ranged (the
+  parameters stay editable even while a criterion is switched off); an edge appears
+  when at least _N_ of the enabled criteria match, _N_ set with a **row of boxes**
+  (fill as many as you require). Missing metadata never blocks a combo. The BPM
+  tolerance defaults to **±8%** — the pitch range of a classic
   Technics fader — and goes down to **0% for exact matches**. BPM matches at every
   enabled **metric ratio**: unit time (1:1, on by default — switch it off to isolate
   the exotic combos), **half/double time** (85 ↔ 170), and **2/3 time** (128 ↔ 192,
@@ -94,8 +102,9 @@ Your library never leaves your machine — there is no backend, no account, no u
   same-key tracks at different tempos detune apart, and clean-semitone gaps transpose
   into new matches. Toggling it visibly rewires the graph.
 - **Match genres that aren't spelled the same**: six selectable similarity methods
-  (see below) — the dropdown sits right in the combo panel, sourced explainers and
-  parameters in the advanced menu. The criterion defaults to the **hybrid** method
+  (see below) — chosen in the advanced menu (with sourced explainers behind info
+  icons), the combo panel showing a subtle note of the active method. The criterion
+  defaults to the **hybrid** method
   with **mutual top-k** matching — each genre links to its k nearest genres in
   _your_ library when the closeness is mutual — which self-calibrates across dense
   (electronic) and sparse genre regions; a classic score threshold remains available.
