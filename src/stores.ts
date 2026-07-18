@@ -304,6 +304,15 @@ export const iconClasses = derived(
 export const trackById = derived(library, ($library) => new Map($library.map((t) => [t.id, t])))
 
 /**
+ * Patch one track in place (v12 WS13): hand-entered metadata for vinyl-only
+ * records, edited from the selected-track card. Everything derived (edges,
+ * placement, coverage) recomputes from the library store as usual.
+ */
+export function updateTrack(id: string, patch: Partial<Track>): void {
+  library.update(($library) => $library.map((t) => (t.id === id ? { ...t, ...patch } : t)))
+}
+
+/**
  * Manual edges (v12 WS9): user-marked "these mix well" pairs — planning
  * annotations, persisted with the project, never a play log. Toggled from the
  * selected-track card's link mode; pruned when a track leaves the library.

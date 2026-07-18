@@ -12,8 +12,10 @@
     pinnedLast,
     selectedId,
     trackById,
+    updateTrack,
   } from '../stores'
   import type { Writable } from 'svelte/store'
+  import { normalizeKey } from '../core/keys'
   import InfoTooltip from './InfoTooltip.svelte'
 
   const selectedTrack = $derived(
@@ -31,7 +33,38 @@
   $effect(() => {
     void $selectedId
     linkArmed.set(false)
+    editing = false
   })
+
+  // Vinyl minimal (v12 WS13): hand-entered key/BPM/genre for records with no
+  // digital file, plus the vinyl provenance flag. ✎ opens the inline editor.
+  let editing = $state(false)
+  let editKey = $state('')
+  let editBpm = $state('')
+  let editGenre = $state('')
+  function startEdit() {
+    if (selectedTrack === null) return
+    editKey = selectedTrack.key ?? ''
+    editBpm = selectedTrack.bpm !== null ? String(selectedTrack.bpm) : ''
+    editGenre = selectedTrack.genre ?? ''
+    editing = true
+  }
+  function commitEdit() {
+    if (selectedTrack === null) return
+    // A number input binds a NUMBER in Svelte 5 — never assume string here.
+    const bpmRaw = String(editBpm).trim()
+    const bpm = Number(bpmRaw)
+    updateTrack(selectedTrack.id, {
+      key: normalizeKey(editKey),
+      bpm: bpmRaw !== '' && Number.isFinite(bpm) && bpm > 0 ? bpm : null,
+      genre: editGenre.trim() === '' ? null : editGenre.trim(),
+    })
+    editing = false
+  }
+  function toggleVinyl() {
+    if (selectedTrack === null) return
+    updateTrack(selectedTrack.id, { isVinyl: !selectedTrack.isVinyl })
+  }
   const isMustIncluded = $derived($selectedId !== null && $mustInclude.includes($selectedId))
   const isFirst = $derived($selectedId !== null && $pinnedFirst === $selectedId)
   const isLast = $derived($selectedId !== null && $pinnedLast === $selectedId)
@@ -49,16 +82,37 @@
 
 {#if selectedTrack}
   <div class="selected-card">
-    <strong>{selectedTrack.title}</strong>
+    <strong>
+      {selectedTrack.title}
+      {#if selectedTrack.isVinyl}<span class="vinyl-chip" title="Vinyl-only: no digital file"
+          >VINYL</span
+        >{/if}
+    </strong>
     <span class="artist">{selectedTrack.artist ?? 'Unknown artist'}</span>
-    <dl>
-      <dt>Key</dt>
-      <dd>{selectedTrack.key ?? 'missing'}</dd>
-      <dt>BPM</dt>
-      <dd>{selectedTrack.bpm ?? 'missing'}</dd>
-      <dt>Genre</dt>
-      <dd>{selectedTrack.genre ?? 'missing'}</dd>
-    </dl>
+    {#if editing}
+      <div class="edit-grid">
+        <label>Key <input placeholder="8A" bind:value={editKey} /></label>
+        <label>BPM <input type="number" min="1" bind:value={editBpm} /></label>
+        <label>Genre <input placeholder="Techno" bind:value={editGenre} /></label>
+        <label class="vinyl-row">
+          <input type="checkbox" checked={selectedTrack.isVinyl} onchange={toggleVinyl} />
+          Vinyl only (no file)
+        </label>
+        <span class="edit-actions">
+          <button onclick={() => (editing = false)}>Cancel</button>
+          <button class="save" onclick={commitEdit}>Save</button>
+        </span>
+      </div>
+    {:else}
+      <dl>
+        <dt>Key</dt>
+        <dd>{selectedTrack.key ?? 'missing'}</dd>
+        <dt>BPM</dt>
+        <dd>{selectedTrack.bpm ?? 'missing'}</dd>
+        <dt>Genre</dt>
+        <dd>{selectedTrack.genre ?? 'missing'}</dd>
+      </dl>
+    {/if}
     <div class="marks">
       <button
         class="mark-toggle"
@@ -99,6 +153,16 @@
         onclick={() => linkArmed.update((v) => !v)}
       >
         🔗{linkedCount > 0 ? linkedCount : ''}
+      </button>
+      <button
+        class="mark-toggle"
+        class:on={editing}
+        aria-pressed={editing}
+        aria-label="Edit key, BPM and genre by hand"
+        title="Hand-enter key, BPM and genre — for vinyl-only records and fixes"
+        onclick={() => (editing ? (editing = false) : startEdit())}
+      >
+        ✎
       </button>
       <InfoTooltip label="About these marks" align="right">
         <strong>Marks for suggested sets</strong>
@@ -177,5 +241,47 @@
     margin: 6px 0 0;
     color: var(--accent);
     font-size: 11.5px;
+  }
+
+  .vinyl-chip {
+    margin-left: 6px;
+    padding: 0 5px;
+    border: 1px solid var(--walk);
+    border-radius: 999px;
+    color: var(--walk);
+    font-size: 9.5px;
+    letter-spacing: 1px;
+    vertical-align: 1px;
+  }
+
+  .edit-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin: 4px 0 8px;
+  }
+
+  .edit-grid label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--ink-muted);
+  }
+
+  .edit-grid input:not([type='checkbox']) {
+    flex: 1;
+    min-width: 0;
+    padding: 2px 6px;
+  }
+
+  .edit-actions {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+  }
+
+  .edit-actions .save {
+    border-color: var(--accent);
+    color: var(--accent);
   }
 </style>
