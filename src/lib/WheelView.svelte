@@ -48,7 +48,10 @@
     settings,
     tracklist,
     visibleLibrary,
+    walkRevealSeen,
+    walkRevealTick,
   } from '../stores'
+  import { walkRevealPlan, WALK_REVEAL_STEP_MS } from '../core/walkReveal'
 
   const SIZE = 820
   const WIDTH = SIZE + 80 // extra room for the no-key gutter on the right
@@ -296,6 +299,13 @@
   const walkPairs = $derived(
     $tracklist.slice(0, -1).map((id, i) => [id, $tracklist[i + 1]] as const),
   )
+
+  // Walk-draw reveal (v12 WS1): while a fresh suggestion's window is open the
+  // edges dash-draw in sequence and each reached node pulses once. Keying on
+  // the tick restarts cleanly per ✨/⚡; after `seen` catches up a re-mounted
+  // wheel renders the walk plainly.
+  const revealing = $derived($walkRevealTick > $walkRevealSeen)
+  const revealPlan = $derived(walkRevealPlan($tracklist))
 
   const focusSet = $derived.by(() => {
     if ($selectedId === null) return null
@@ -620,22 +630,47 @@
         </marker>
       </defs>
       <!-- Keyed by position: the same ordered pair can occur twice when a
-           track appears in the set more than once (remark 15). -->
-      {#each walkPairs as [fromId, toId], pairIndex (pairIndex)}
-        {@const a = nodeById.get(fromId)}
-        {@const b = nodeById.get(toId)}
-        {#if a && b}
-          <line
-            x1={a.x}
-            y1={a.y}
-            x2={b.x}
-            y2={b.y}
-            class="walk-edge"
-            marker-end="url(#walk-arrow)"
-            vector-effect="non-scaling-stroke"
-          />
+           track appears in the set more than once (remark 15). The outer key
+           restarts the reveal per suggestion (v12 WS1). -->
+      {#key $walkRevealTick}
+        {#each walkPairs as [fromId, toId], pairIndex (pairIndex)}
+          {@const a = nodeById.get(fromId)}
+          {@const b = nodeById.get(toId)}
+          {#if a && b}
+            <line
+              x1={a.x}
+              y1={a.y}
+              x2={b.x}
+              y2={b.y}
+              class="walk-edge"
+              class:reveal={revealing}
+              pathLength={revealing ? 1 : undefined}
+              style:animation-delay={revealing
+                ? `${revealPlan.edgeDelays[pairIndex]}ms`
+                : undefined}
+              style:animation-duration={revealing ? `${WALK_REVEAL_STEP_MS}ms` : undefined}
+              marker-end="url(#walk-arrow)"
+              vector-effect="non-scaling-stroke"
+            />
+          {/if}
+        {/each}
+        {#if revealing}
+          <!-- One pulse per unique walk node, fired as the walk reaches it. -->
+          {#each [...revealPlan.nodeDelays] as [id, delay] (id)}
+            {@const n = nodeById.get(id)}
+            {#if n}
+              <circle
+                cx={n.x}
+                cy={n.y}
+                r={10 / zoomK}
+                class="reveal-pulse"
+                style:animation-delay="{delay}ms"
+                vector-effect="non-scaling-stroke"
+              />
+            {/if}
+          {/each}
         {/if}
-      {/each}
+      {/key}
 
       <!-- Nodes -->
       {#each visibleNodes as node (node.track.id)}
@@ -971,6 +1006,64 @@
   .walk-edge {
     stroke: var(--walk);
     stroke-width: 2;
+  }
+
+  /* Walk-draw reveal (v12 WS1): each edge dash-draws in turn. pathLength=1
+     normalises every edge to the same dash space; the element stays hidden
+     until its inline delay, then the arrowhead marks the destination while
+     the stroke travels toward it. */
+  .walk-edge.reveal {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    opacity: 0;
+    animation-name: walk-draw;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+  }
+
+  @keyframes walk-draw {
+    from {
+      opacity: 1;
+      stroke-dashoffset: 1;
+    }
+    to {
+      opacity: 1;
+      stroke-dashoffset: 0;
+    }
+  }
+
+  .reveal-pulse {
+    fill: none;
+    stroke: var(--walk-bright);
+    stroke-width: 2;
+    opacity: 0;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: node-pulse 320ms ease-out;
+  }
+
+  @keyframes node-pulse {
+    from {
+      opacity: 0.9;
+      transform: scale(0.4);
+    }
+    to {
+      opacity: 0;
+      transform: scale(1.7);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .walk-edge.reveal {
+      animation: none;
+      stroke-dasharray: none;
+      stroke-dashoffset: 0;
+      opacity: 1;
+    }
+
+    .reveal-pulse {
+      display: none;
+    }
   }
 
   .node {

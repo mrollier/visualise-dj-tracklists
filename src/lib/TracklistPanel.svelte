@@ -4,6 +4,7 @@
   import { exportM3u } from '../core/exporters/m3u'
   import type { Track } from '../core/model'
   import { suggestWalk } from '../core/suggest'
+  import { WALK_REVEAL_STEP_MS, walkRevealPlan } from '../core/walkReveal'
   import { promptExportName } from './exportName'
   import ConfirmDialog from './ConfirmDialog.svelte'
   import { canAddSet, MAX_SETS } from '../core/sets'
@@ -27,6 +28,9 @@
     trackById,
     tracklist,
     visibleLibrary,
+    bumpWalkReveal,
+    walkRevealSeen,
+    walkRevealTick,
   } from '../stores'
 
   let clearDialog: ConfirmDialog
@@ -34,6 +38,11 @@
   const walkTracks = $derived(
     $tracklist.map((id) => $trackById.get(id)).filter((t): t is Track => t !== undefined),
   )
+
+  // Rows cascade in while the wheel draws the walk (v12 WS1). Keying the list
+  // on the tick restarts the animation cleanly per suggestion; once `seen`
+  // catches up, re-renders (view switches, undo) replay nothing.
+  const revealing = $derived($walkRevealTick > $walkRevealSeen)
 
   const FIELD_SHORT: Record<CriterionField, string> = {
     key: 'key',
@@ -117,6 +126,7 @@
       force,
     })
     setGeneratedTracklist(walk.ids)
+    bumpWalkReveal(walkRevealPlan(walk.ids).totalMs)
     forceForSetId = $activeSet.id
     shortBy = force ? 0 : Math.max(0, $settings.suggestLength - walk.ids.length)
     forcedSteps = force ? walk.forced : null
@@ -245,55 +255,65 @@
     </p>
   {:else}
     <ol>
-      {#each walkTracks as track, i (i)}
-        {#if i > 0}
-          {@const t = transition(walkTracks[i - 1], track)}
-          <li class="transition" class:good={t.isCombo} class:rough={!t.isCombo}>
-            {#if t.matched.length > 0}
-              {#each t.matched as field (field)}<span class="match">{FIELD_SHORT[field]}</span
-                >{/each}
-            {:else}
-              <span class="none">no criteria match</span>
-            {/if}
-          </li>
-        {/if}
-        <li
-          class="track"
-          class:active={track.id === $selectedId}
-          onmouseenter={() => hoveredId.set(track.id)}
-          onmouseleave={() => hoveredId.set(null)}
-        >
-          <button class="row" onclick={() => selectedId.set(track.id)}>
-            <span class="index">{i + 1}</span>
-            <span class="names">
-              <strong>{track.title}</strong>
-              <small>{track.artist ?? 'Unknown artist'}</small>
-            </span>
-            <span class="meta tabular">{track.key ?? '—'} · {track.bpm ?? '—'}</span>
-          </button>
-          {#if i === 0 || i === walkTracks.length - 1}
-            {@const isFirst = i === 0}
-            {@const pinned = isFirst ? $pinnedFirst === track.id : $pinnedLast === track.id}
-            <button
-              class="pin"
-              class:pinned
-              title={isFirst
-                ? 'Keep as the opening track of suggested sets'
-                : 'Keep as the closing track of suggested sets'}
-              aria-label={isFirst ? 'Pin as first track' : 'Pin as last track'}
-              aria-pressed={pinned}
-              onclick={() => togglePin(isFirst ? pinnedFirst : pinnedLast, track.id, pinned)}
+      {#key $walkRevealTick}
+        {#each walkTracks as track, i (i)}
+          {#if i > 0}
+            {@const t = transition(walkTracks[i - 1], track)}
+            <li
+              class="transition"
+              class:good={t.isCombo}
+              class:rough={!t.isCombo}
+              class:reveal={revealing}
+              style:animation-delay="{(i - 0.5) * WALK_REVEAL_STEP_MS}ms"
             >
-              📌
-            </button>
+              {#if t.matched.length > 0}
+                {#each t.matched as field (field)}<span class="match">{FIELD_SHORT[field]}</span
+                  >{/each}
+              {:else}
+                <span class="none">no criteria match</span>
+              {/if}
+            </li>
           {/if}
-          <span class="actions">
-            <button title="Move up" aria-label="Move up" onclick={() => move(i, -1)}>↑</button>
-            <button title="Move down" aria-label="Move down" onclick={() => move(i, 1)}>↓</button>
-            <button title="Remove" aria-label="Remove" onclick={() => removeAt(i)}>✕</button>
-          </span>
-        </li>
-      {/each}
+          <li
+            class="track"
+            class:active={track.id === $selectedId}
+            class:reveal={revealing}
+            style:animation-delay="{i * WALK_REVEAL_STEP_MS}ms"
+            onmouseenter={() => hoveredId.set(track.id)}
+            onmouseleave={() => hoveredId.set(null)}
+          >
+            <button class="row" onclick={() => selectedId.set(track.id)}>
+              <span class="index">{i + 1}</span>
+              <span class="names">
+                <strong>{track.title}</strong>
+                <small>{track.artist ?? 'Unknown artist'}</small>
+              </span>
+              <span class="meta tabular">{track.key ?? '—'} · {track.bpm ?? '—'}</span>
+            </button>
+            {#if i === 0 || i === walkTracks.length - 1}
+              {@const isFirst = i === 0}
+              {@const pinned = isFirst ? $pinnedFirst === track.id : $pinnedLast === track.id}
+              <button
+                class="pin"
+                class:pinned
+                title={isFirst
+                  ? 'Keep as the opening track of suggested sets'
+                  : 'Keep as the closing track of suggested sets'}
+                aria-label={isFirst ? 'Pin as first track' : 'Pin as last track'}
+                aria-pressed={pinned}
+                onclick={() => togglePin(isFirst ? pinnedFirst : pinnedLast, track.id, pinned)}
+              >
+                📌
+              </button>
+            {/if}
+            <span class="actions">
+              <button title="Move up" aria-label="Move up" onclick={() => move(i, -1)}>↑</button>
+              <button title="Move down" aria-label="Move down" onclick={() => move(i, 1)}>↓</button>
+              <button title="Remove" aria-label="Remove" onclick={() => removeAt(i)}>✕</button>
+            </span>
+          </li>
+        {/each}
+      {/key}
     </ol>
 
     <div class="footer">
@@ -439,6 +459,31 @@
 
   .track.active {
     border-color: var(--accent);
+  }
+
+  /* Walk-draw cascade (v12 WS1): rows arrive as the wheel reaches them.
+     Hidden until each row's inline animation-delay elapses. */
+  li.reveal {
+    opacity: 0;
+    animation: row-reveal 240ms ease-out forwards;
+  }
+
+  @keyframes row-reveal {
+    from {
+      opacity: 0;
+      transform: translateY(5px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    li.reveal {
+      animation: none;
+      opacity: 1;
+    }
   }
 
   .row {

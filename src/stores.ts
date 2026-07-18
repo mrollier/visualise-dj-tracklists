@@ -48,6 +48,20 @@ export const selectedId = writable<string | null>(null)
 export const hoveredId = writable<string | null>(null)
 
 /**
+ * Walk-draw reveal trigger (v12 WS1, session-only): ✨/⚡ bumps the tick and
+ * the wheel + set list replay their staggered reveal; `seen` catches up when
+ * the reveal window closes so re-mounting a view (or undoing a suggestion)
+ * never replays it.
+ */
+export const walkRevealTick = writable(0)
+export const walkRevealSeen = writable(0)
+export function bumpWalkReveal(totalMs: number): void {
+  const tick = get(walkRevealTick) + 1
+  walkRevealTick.set(tick)
+  setTimeout(() => walkRevealSeen.update((seen) => Math.max(seen, tick)), totalMs)
+}
+
+/**
  * Multiple named sets (issue 18, persisted): always at least one; the active
  * one is what the wheel/panel edit. `tracklist` below keeps its historical
  * Writable<string[]> API but is backed by the active set, so the many
