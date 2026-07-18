@@ -6,6 +6,7 @@
   import SelectedTrackCard from './lib/SelectedTrackCard.svelte'
   import { startTheme } from './lib/theme'
   import TopBar from './lib/TopBar.svelte'
+  import TourOverlay from './lib/TourOverlay.svelte'
   import TracklistPanel from './lib/TracklistPanel.svelte'
   import TracksView from './lib/TracksView.svelte'
   import { redoOnce, startUndo, undoOnce } from './lib/undoStore'
@@ -49,6 +50,7 @@
 <svelte:window onkeydown={onKeydown} />
 
 <TopBar />
+<TourOverlay />
 
 <main>
   <CriteriaPanel />

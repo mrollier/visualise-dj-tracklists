@@ -32,6 +32,7 @@
     replaceNeedsConfirmation,
   } from './persistence'
   import { effectiveTheme, toggleTheme } from './theme'
+  import { maybeStartTour, startTour } from './tour'
 
   const AUDIO_EXTENSIONS = /\.(mp3|wav|flac|aiff?|m4a|ogg)$/i
 
@@ -171,8 +172,12 @@
   // library, loaded like an XML import. Confirms once over user work, via
   // the in-app dialog (issue 6).
   function loadSample() {
-    if (replaceNeedsConfirmation()) replaceDialog.open(loadSampleCollection)
-    else loadSampleCollection()
+    const load = () => {
+      loadSampleCollection()
+      maybeStartTour() // first-ever sample load opens the guided tour (WS12)
+    }
+    if (replaceNeedsConfirmation()) replaceDialog.open(load)
+    else load()
   }
 
   const missingSummary = $derived.by(() => {
@@ -346,6 +351,7 @@
         {#if coverageSummary}
           <span>{coverageSummary}</span>
         {/if}
+        <button class="tour-link" onclick={startTour}>Show the guided tour</button>
       </InfoTooltip>
     {/if}
   </div>
@@ -404,6 +410,17 @@
   .mode-toggle.active {
     border-color: var(--accent);
     color: var(--accent);
+  }
+
+  .tour-link {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--accent);
+    font-size: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+    text-align: left;
   }
 
   .controls label {

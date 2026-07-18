@@ -57,6 +57,8 @@ export const walkRevealTick = writable(0)
 export const walkRevealSeen = writable(0)
 /** The `s` hotkey (v12 WS14) asks whichever set panel is mounted to run ✨. */
 export const suggestHotkeyTick = writable(0)
+/** Guided-tour position (v12 WS12): null = closed; session-only. */
+export const tourStep = writable<number | null>(null)
 /** Keeps the window open past the last stagger for the trailing animations —
  * the final row fade (240ms), the last node pulse (320ms) and the completion
  * shimmer (700ms after totalMs) — so none of them get cut mid-flight. */
