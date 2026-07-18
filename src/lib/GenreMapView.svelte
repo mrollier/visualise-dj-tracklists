@@ -30,6 +30,7 @@
     packNeighbours,
     type GenreMethod,
   } from '../core/genre'
+  import { mapMotion } from '../core/genreMap'
   import { genreFamilyClasses } from '../core/iconClasses'
   import { criteria, playlistScopedLibrary, settings, visibleLibrary } from '../stores'
 
@@ -235,7 +236,15 @@
   }
 
   // --- force layout ------------------------------------------------------------
-  let positioned = $state<GenreNode[]>([])
+  // `positioned` holds per-tick SNAPSHOTS of the simulation nodes, never the
+  // live objects (v13 issue 1). The live objects must stay unproxied so
+  // fx/fy writes reach d3 (deep $state swallowed them — the v11 drag-pin
+  // silently did nothing), and the snapshots must be fresh objects so the
+  // keyed each re-renders (identical identities skip row updates). Handlers
+  // reach the live nodes through `simById`.
+  let positioned = $state.raw<GenreNode[]>([])
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive bridge
+  let simById = new Map<string, GenreNode>()
   let simulation: Simulation<GenreNode, undefined> | null = null
   const nodeById = $derived(new Map(positioned.map((n) => [n.id, n])))
   // Plain Map on purpose: non-reactive position memory. The layout effect
@@ -266,6 +275,7 @@
       return { source: a, target: b, score }
     })
     simulation?.stop()
+    simById = new Map(nodes.map((n) => [n.id, n]))
     simulation = forceSimulation(nodes)
       .force(
         'link',
@@ -289,29 +299,26 @@
       // pull must stay gentle or connected layouts visibly compress — but
       // it must also GROW with the node count (v12): summed charge scales
       // with n, so a genre-atlas-sized vocabulary would push the fringe out
-      // of frame under a fixed 0.05. The instances are kept so a drag can
-      // TOW the gravity targets (v11 issue 9c) — the whole graph, linked or
-      // not, leans after the grabbed node through empty space.
-      .force('x', (gravityX = forceX<GenreNode>(WIDTH / 2).strength(containStrength(nodes.length))))
-      .force(
-        'y',
-        (gravityY = forceY<GenreNode>(HEIGHT / 2).strength(containStrength(nodes.length))),
-      )
+      // of frame under a fixed 0.05.
+      .force('x', forceX<GenreNode>(WIDTH / 2).strength(containStrength(nodes.length)))
+      .force('y', forceY<GenreNode>(HEIGHT / 2).strength(containStrength(nodes.length)))
       // Slow cooling and strong damping: nodes drift into place organically
       // instead of springing (issue 5, pairs with the centre spawn of issue
       // 3). alphaDecay lowered again (v10 issue 9, v11 issue 10) so a
       // method change eases into its new layout instead of snapping.
       .alphaDecay(0.002)
       .velocityDecay(0.6)
-      .on('tick', () => {
-        const current = simulation!.nodes() as GenreNode[]
-        for (const n of current) {
-          if (n.x !== undefined && n.y !== undefined) lastPosition.set(n.id, { x: n.x, y: n.y })
-        }
-        positioned = [...current]
-      })
+      .on('tick', publishPositions)
     return () => simulation?.stop()
   })
+
+  function publishPositions(): void {
+    const current = (simulation?.nodes() ?? []) as GenreNode[]
+    for (const n of current) {
+      if (n.x !== undefined && n.y !== undefined) lastPosition.set(n.id, { x: n.x, y: n.y })
+    }
+    positioned = current.map((n) => ({ ...n }))
+  }
 
   // --- zoom (same pattern as the wheel) ---------------------------------------
   let svgEl: SVGSVGElement
@@ -350,20 +357,14 @@
     zoomBehavior.transform(d3select(svgEl), zoomIdentity)
   }
 
-  // --- node dragging (v8 issue 11): jiggle the clusters ------------------------
-  // Purely for play: dragging pins the node under the pointer, reheats the
-  // simulation, and TOWS the gravity targets by the drag displacement with
-  // temporarily strengthened pull (v11 issue 9c) — so the WHOLE graph,
-  // connected or not, follows the grabbed node through empty space.
-  // Releasing restores the centre and the slow cooling drifts everything
-  // home visibly. Nothing is remembered.
+  // --- node dragging (v8 issue 11, reworked v13 issue 1): grab ONE node --------
+  // The grabbed node pins exactly under the pointer (fx/fy for the physics,
+  // x/y written immediately so the render never waits for a tick); the rest
+  // of the graph reacts only through its own links. v11's whole-graph towing
+  // is gone — moving the view is the background drag's job (d3-zoom pan).
+  // Nothing is remembered on release.
   let layerEl: SVGGElement
-  let dragging = $state<GenreNode | null>(null)
-  let gravityX: ReturnType<typeof forceX<GenreNode>>
-  let gravityY: ReturnType<typeof forceY<GenreNode>>
-  let dragOrigin = { x: 0, y: 0 }
-  /** Gravity gets this much stronger while towing, or the far graph barely reacts. */
-  const TOW_STRENGTH = 4 * CONTAIN_STRENGTH
+  let draggingId = $state<string | null>(null)
 
   function layerPoint(e: PointerEvent): { x: number; y: number } {
     const ctm = layerEl.getScreenCTM()
@@ -383,40 +384,40 @@
   let suppressClicksUntil = 0
 
   function nodePointerDown(node: GenreNode, e: PointerEvent) {
+    const live = simById.get(node.id)
+    if (live === undefined) return
     if (e.currentTarget instanceof Element) e.currentTarget.setPointerCapture(e.pointerId)
-    dragging = node
+    draggingId = node.id
     dragDistance = 0
     dragStart = { x: e.clientX, y: e.clientY }
-    dragOrigin = { x: node.x ?? WIDTH / 2, y: node.y ?? HEIGHT / 2 }
-    node.fx = node.x
-    node.fy = node.y
-    gravityX.strength(TOW_STRENGTH)
-    gravityY.strength(TOW_STRENGTH)
-    simulation?.alphaTarget(0.3).restart()
+    live.fx = live.x
+    live.fy = live.y
+    // Bigger maps get a gentler reheat, or one drag churns the whole field.
+    simulation?.alphaTarget(mapMotion(labels.length).dragAlphaTarget).restart()
   }
 
   function nodePointerMove(e: PointerEvent) {
-    if (dragging === null) return
+    const live = draggingId === null ? undefined : simById.get(draggingId)
+    if (live === undefined) return
     const p = layerPoint(e)
-    dragging.fx = p.x
-    dragging.fy = p.y
-    // Tow the gravity targets by the drag displacement: every node is
-    // pulled after the grabbed one, not just its link neighbours (the
-    // "drag the whole graph through empty space" feel, v11 issue 9c).
-    gravityX.x(WIDTH / 2 + (p.x - dragOrigin.x))
-    gravityY.y(HEIGHT / 2 + (p.y - dragOrigin.y))
+    // Pin for the physics AND republish right away — waiting for the next
+    // simulation tick reads as the node lagging behind the hand.
+    live.fx = p.x
+    live.fy = p.y
+    live.x = p.x
+    live.y = p.y
+    publishPositions()
     dragDistance = Math.hypot(e.clientX - dragStart.x, e.clientY - dragStart.y)
   }
 
   function nodePointerUp() {
-    if (dragging === null) return
-    dragging.fx = null
-    dragging.fy = null
-    dragging = null
-    // Gravity eases home: targets and strength restore, the slow cooling
-    // (alphaDecay 0.002) drifts the graph back visibly.
-    gravityX.x(WIDTH / 2).strength(CONTAIN_STRENGTH)
-    gravityY.y(HEIGHT / 2).strength(CONTAIN_STRENGTH)
+    if (draggingId === null) return
+    const live = simById.get(draggingId)
+    if (live !== undefined) {
+      live.fx = null
+      live.fy = null
+    }
+    draggingId = null
     simulation?.alphaTarget(0)
     if (dragDistance > 4) suppressClicksUntil = performance.now() + 150
     dragDistance = 0
@@ -561,7 +562,7 @@
         <g
           class="genre-node"
           class:ghost={node.ghost}
-          class:dragging={dragging === node}
+          class:dragging={draggingId === node.id}
           transform="translate({node.x ?? WIDTH / 2},{node.y ?? HEIGHT / 2})"
           role="button"
           tabindex="-1"

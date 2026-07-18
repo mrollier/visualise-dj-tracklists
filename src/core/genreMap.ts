@@ -64,7 +64,10 @@ export function mapMotion(nodeCount: number): MapMotion {
   const growth = Math.max(1, Math.sqrt(nodeCount / 22))
   return {
     velocityDecay: Math.min(0.8, 0.6 + 0.2 * (growth - 1)),
-    dragAlphaTarget: Math.max(0.1, 0.3 / growth),
+    // Half of d3's classic 0.3: with the map's deliberately slow cooling, a
+    // 0.3 target keeps the whole field boiling for as long as the mouse is
+    // held; 0.15 still lets neighbours follow an active drag.
+    dragAlphaTarget: Math.max(0.06, 0.15 / growth),
   }
 }
 

@@ -66,8 +66,10 @@ describe('skeletonOpacity (v13): eases down as the map grows', () => {
 })
 
 describe('mapMotion (v13): physics calm scales with node count', () => {
-  test('small maps keep the classic tuning', () => {
-    expect(mapMotion(22)).toEqual({ velocityDecay: 0.6, dragAlphaTarget: 0.3 })
+  test('small maps keep the classic damping and a gentle drag reheat', () => {
+    // 0.15, not d3's classic 0.3: with this map's slow cooling a 0.3 target
+    // keeps the whole field boiling for as long as the mouse is held.
+    expect(mapMotion(22)).toEqual({ velocityDecay: 0.6, dragAlphaTarget: 0.15 })
   })
 
   test('bigger maps damp harder and drag with less energy', () => {
@@ -78,7 +80,7 @@ describe('mapMotion (v13): physics calm scales with node count', () => {
   })
 
   test('both knobs clamp on huge maps', () => {
-    expect(mapMotion(500)).toEqual({ velocityDecay: 0.8, dragAlphaTarget: 0.1 })
+    expect(mapMotion(500)).toEqual({ velocityDecay: 0.8, dragAlphaTarget: 0.06 })
   })
 })
 
