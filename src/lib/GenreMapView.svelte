@@ -23,14 +23,15 @@
   } from 'd3-shape'
   import { zoom as d3zoom, zoomIdentity, type D3ZoomEvent } from 'd3-zoom'
   import { matchedGenrePairs } from '../core/combos'
+  import { genreComponents, GENRE_METHODS, labelSimilarity, type GenreMethod } from '../core/genre'
   import {
-    genreComponents,
-    GENRE_METHODS,
-    labelSimilarity,
-    packNeighbours,
-    type GenreMethod,
-  } from '../core/genre'
-  import { edgeTier, mapMotion, pairKey, skeletonKeys, skeletonOpacity } from '../core/genreMap'
+    edgeTier,
+    ghostAnchors,
+    mapMotion,
+    pairKey,
+    skeletonKeys,
+    skeletonOpacity,
+  } from '../core/genreMap'
   import { genreFamilyClasses } from '../core/iconClasses'
   import { criteria, playlistScopedLibrary, settings, visibleLibrary } from '../stores'
 
@@ -121,17 +122,13 @@
     return counts
   })
 
-  const ghostLabels = $derived.by(() => {
-    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived-local
-    const ghosts = new Set<string>()
-    if (!showNeighbours) return ghosts
-    for (const label of genreCounts.keys()) {
-      for (const [neighbour] of packNeighbours(label, GHOSTS_PER_GENRE)) {
-        if (!genreCounts.has(neighbour)) ghosts.add(neighbour)
-      }
-    }
-    return ghosts
+  // Ghosts remember who summoned them (v13): a nearby genre only ever links
+  // to the library genre(s) whose neighbour lists brought it in.
+  const ghostAnchorMap = $derived.by(() => {
+    if (!showNeighbours) return new Map<string, Set<string>>()
+    return ghostAnchors(genreCounts.keys(), GHOSTS_PER_GENRE)
   })
+  const ghostLabels = $derived(new Set(ghostAnchorMap.keys()))
 
   const labels = $derived([...genreCounts.keys(), ...ghostLabels].sort())
 
@@ -160,12 +157,26 @@
         for (let j = i + 1; j < labels.length; j++) {
           const a = labels[i]
           const b = labels[j]
+          const aGhost = ghostLabels.has(a)
+          const bGhost = ghostLabels.has(b)
+          if (aGhost || bGhost) {
+            // v13: a ghost tethers to its summoner(s) only — ghost↔ghost and
+            // stray ghost↔library pairs neither draw nor pull. The tether is
+            // unconditional (no score floor): it is why the ghost exists.
+            const anchorsOfGhost =
+              aGhost && !bGhost
+                ? ghostAnchorMap.get(a)
+                : bGhost && !aGhost
+                  ? ghostAnchorMap.get(b)
+                  : undefined
+            const summoner = aGhost && !bGhost ? b : a
+            if (anchorsOfGhost?.has(summoner) === true) {
+              list.push({ a, b, method, score: labelSimilarity(a, b, method) })
+            }
+            continue
+          }
           const score = labelSimilarity(a, b, method)
-          const bothInLibrary = !ghostLabels.has(a) && !ghostLabels.has(b)
-          const linked =
-            isCriterion && bothInLibrary
-              ? criterionPairs.has(`${a}\u001f${b}`)
-              : score >= SCORE_FLOOR
+          const linked = isCriterion ? criterionPairs.has(`${a}\u001f${b}`) : score >= SCORE_FLOOR
           if (linked) list.push({ a, b, method, score })
         }
       }
@@ -243,7 +254,6 @@
   // keyed each re-renders (identical identities skip row updates). Handlers
   // reach the live nodes through `simById`.
   let positioned = $state.raw<GenreNode[]>([])
-  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive bridge
   let simById = new Map<string, GenreNode>()
   let simulation: Simulation<GenreNode, undefined> | null = null
   const nodeById = $derived(new Map(positioned.map((n) => [n.id, n])))
@@ -254,8 +264,10 @@
   const lastPosition = new Map<string, { x: number; y: number }>()
 
   $effect(() => {
+    let carried = 0
     const nodes: GenreNode[] = labels.map((id, i) => {
       const previous = lastPosition.get(id)
+      if (previous !== undefined) carried++
       return {
         id,
         count: genreCounts.get(id) ?? 0,
@@ -277,6 +289,10 @@
     simulation?.stop()
     simById = new Map(nodes.map((n) => [n.id, n]))
     simulation = forceSimulation(nodes)
+      // Reheats glide, cold starts stay hot (v13): when most nodes carry a
+      // previous position this is a toggle, not a fresh layout — no need to
+      // churn the whole field at full energy again.
+      .alpha(carried > nodes.length / 2 ? 0.3 : 1)
       .force(
         'link',
         forceLink<GenreNode, GenreLink>(links)
@@ -307,7 +323,8 @@
       // 3). alphaDecay lowered again (v10 issue 9, v11 issue 10) so a
       // method change eases into its new layout instead of snapping.
       .alphaDecay(0.002)
-      .velocityDecay(0.6)
+      // Damping grows with the map (v13): big vocabularies drift, not churn.
+      .velocityDecay(mapMotion(nodes.length).velocityDecay)
       .on('tick', publishPositions)
     return () => simulation?.stop()
   })
@@ -500,15 +517,21 @@
   // (each genre's strongest link), a hovered or selected genre lights its
   // full star, and the compare pair pops its one link. Layout still uses
   // EVERY edge; only the drawn set shrinks.
-  const skeleton = $derived(
-    skeletonKeys(edges.filter((e) => !ghostLabels.has(e.a) && !ghostLabels.has(e.b))),
-  )
+  const restingKeys = $derived.by(() => {
+    const keys = skeletonKeys(edges.filter((e) => !ghostLabels.has(e.a) && !ghostLabels.has(e.b)))
+    // Ghost tethers rest visible — they are the point of "show nearby
+    // genres" (since v13 every ghost edge IS an anchor tether).
+    for (const e of edges) {
+      if (ghostLabels.has(e.a) || ghostLabels.has(e.b)) keys.add(pairKey(e.a, e.b))
+    }
+    return keys
+  })
   const restingEdgeOpacity = $derived(skeletonOpacity(labels.length))
   const drawnEdges = $derived.by(() => {
     const state = { hover: hoveredGenre, selected: inspectA, pair: inspectPair }
     const list: { edge: GenreEdge; tier: 'pair' | 'star' | 'skeleton' }[] = []
     for (const edge of edges) {
-      const tier = edgeTier(edge, state, skeleton)
+      const tier = edgeTier(edge, state, restingKeys)
       if (tier !== null) list.push({ edge, tier })
     }
     return list
