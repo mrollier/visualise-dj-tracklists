@@ -63,7 +63,7 @@
   const GUTTER_X = SIZE + 26 // vertical strip for tracks with no key
   const GUTTER_MISSING_Y_GAP = 42
 
-  const AXIS_LABEL = { bpm: 'BPM', rating: 'rating', year: 'year' } as const
+  const AXIS_LABEL = { bpm: 'BPM', rating: 'rating', year: 'year', energy: 'energy' } as const
 
   // Genre-class node shapes (docs/designs/design-v4.md §E): class 0 (largest) keeps
   // the circle; further classes get increasingly angular symbols.

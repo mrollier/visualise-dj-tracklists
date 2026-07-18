@@ -15,6 +15,7 @@ export type TrackSortField =
   | 'genre'
   | 'year'
   | 'rating'
+  | 'energy'
   | 'album'
   | 'dateAdded'
   | 'durationSec'

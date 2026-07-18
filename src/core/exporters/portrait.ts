@@ -24,7 +24,7 @@ export interface PortraitOptions {
   walk: Track[]
   /** The visible library, drawn as the faint backdrop the walk threads. */
   library: Track[]
-  radialAxis: 'bpm' | 'rating' | 'year'
+  radialAxis: 'bpm' | 'rating' | 'year' | 'energy'
   theme: ThemeName
   scheme: ColorScheme
   /** Printed under the title; defaults to today (injectable for tests). */

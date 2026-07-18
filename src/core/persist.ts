@@ -2,7 +2,7 @@ import { migrateColumns } from './columns'
 import { DEFAULT_CRITERIA, type CriteriaConfig } from './combos'
 import { migrateFilters, type LibraryFilters } from './filter'
 import { normalizeKey } from './keys'
-import type { Playlist, Track } from './model'
+import { energyFromComments, type Playlist, type Track } from './model'
 import { DEFAULT_VISIBLE_FILTERS, TRACK_PROPERTIES } from './properties'
 import {
   freshFirstSet,
@@ -35,8 +35,8 @@ export interface Project {
   activeSetId: string
   /** Playlists from the source library (Rekordbox XML); [] elsewhere. */
   playlists: Playlist[]
-  radialAxis: 'bpm' | 'rating' | 'year'
-  colorAxis: 'auto' | 'bpm' | 'rating' | 'year'
+  radialAxis: 'bpm' | 'rating' | 'year' | 'energy'
+  colorAxis: 'auto' | 'bpm' | 'rating' | 'year' | 'energy'
 }
 
 export function serializeProject(project: Project): string {
@@ -109,6 +109,9 @@ function sanitizeTrack(raw: unknown): Track | null {
     bitRate: num(entry.bitRate),
     sampleRate: num(entry.sampleRate),
     comments: str(entry.comments),
+    // Older saves carry Comments but no energy — derive it here (v12 WS8) so
+    // an existing project gains the field without a re-import.
+    energy: num(entry.energy) ?? energyFromComments(str(entry.comments)),
     playCount: num(entry.playCount),
     remixer: str(entry.remixer),
     label: str(entry.label),
@@ -245,9 +248,15 @@ export function parseProject(json: string): Project {
     sets,
     activeSetId,
     playlists: Array.isArray(p.playlists) ? (p.playlists as Playlist[]) : [],
-    radialAxis: p.radialAxis === 'rating' || p.radialAxis === 'year' ? p.radialAxis : 'bpm',
+    radialAxis:
+      p.radialAxis === 'rating' || p.radialAxis === 'year' || p.radialAxis === 'energy'
+        ? p.radialAxis
+        : 'bpm',
     colorAxis:
-      p.colorAxis === 'bpm' || p.colorAxis === 'rating' || p.colorAxis === 'year'
+      p.colorAxis === 'bpm' ||
+      p.colorAxis === 'rating' ||
+      p.colorAxis === 'year' ||
+      p.colorAxis === 'energy'
         ? p.colorAxis
         : 'auto',
   }

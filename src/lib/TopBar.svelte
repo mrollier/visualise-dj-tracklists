@@ -243,6 +243,7 @@
           <option value="bpm">BPM</option>
           <option value="rating">Rating</option>
           <option value="year">Year</option>
+          <option value="energy">Energy</option>
         </select>
       </label>
 
@@ -256,6 +257,7 @@
           <option value="rating">Rating</option>
           <option value="bpm">BPM</option>
           <option value="year">Year</option>
+          <option value="energy">Energy</option>
         </select>
       </label>
     {/if}

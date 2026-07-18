@@ -32,6 +32,12 @@ export interface Track {
   /** Hz. */
   sampleRate: number | null
   comments: string | null
+  /**
+   * Mixed-In-Key-style energy 1–10, derived from Comments at import
+   * (v12 WS8) — the field is real so filters/columns/radius treat it like
+   * any metadata, but no DJ software writes it as a first-class attribute.
+   */
+  energy: number | null
   /** 0 is a real count ("never played"), not "unknown". */
   playCount: number | null
   remixer: string | null
@@ -71,6 +77,7 @@ export const EMPTY_TRACK_FIELDS: Omit<Track, 'id' | 'title'> = {
   bitRate: null,
   sampleRate: null,
   comments: null,
+  energy: null,
   playCount: null,
   remixer: null,
   label: null,
@@ -78,6 +85,17 @@ export const EMPTY_TRACK_FIELDS: Omit<Track, 'id' | 'title'> = {
   colour: null,
   dateModified: null,
   lastPlayed: null,
+}
+
+/**
+ * Mixed-In-Key-style energy from a Comments field (v12 WS8): the explicit
+ * "Energy N" token (N 1–10), case-insensitive, optional colon/dash. Nothing
+ * else — bare numbers or "high energy" prose must never parse.
+ */
+export function energyFromComments(comments: string | null): number | null {
+  if (comments === null) return null
+  const match = /\benergy\s*[:-]?\s*(10|[1-9])\b/i.exec(comments)
+  return match === null ? null : Number(match[1])
 }
 
 /**

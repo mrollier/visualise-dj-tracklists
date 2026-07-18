@@ -12,7 +12,7 @@ describe('TRACK_PROPERTIES (v11 issue 1: the one registry)', () => {
     const expected = ['title', ...Object.keys(EMPTY_TRACK_FIELDS)].sort()
     expect([...keys].sort()).toEqual(expected)
     expect(new Set(keys).size).toBe(keys.length)
-    expect(keys).toHaveLength(27)
+    expect(keys).toHaveLength(28)
   })
 
   test('keeps the classic seven first and location last', () => {

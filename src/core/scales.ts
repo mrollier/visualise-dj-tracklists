@@ -108,7 +108,7 @@ export function focusEdgeOpacity(base: number): number {
 }
 
 export function makeNodeColor(
-  axis: 'rating' | 'bpm' | 'year',
+  axis: 'rating' | 'bpm' | 'year' | 'energy',
   domain: [number, number],
   scheme: ColorScheme,
   theme: ThemeName = 'dark',

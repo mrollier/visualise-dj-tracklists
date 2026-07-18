@@ -1,6 +1,12 @@
 import { XMLParser } from 'fast-xml-parser'
 import { normalizeKey } from '../keys'
-import { buildReport, type ImportResult, type Playlist, type Track } from '../model'
+import {
+  buildReport,
+  energyFromComments,
+  type ImportResult,
+  type Playlist,
+  type Track,
+} from '../model'
 
 /**
  * Import a Rekordbox library export (File → Export Collection in xml format).
@@ -122,6 +128,8 @@ export function importRekordboxXml(xml: string): ImportResult {
       bitRate: posNum('BitRate'),
       sampleRate: posNum('SampleRate'),
       comments: str('Comments'),
+      // Mixed-In-Key writes "Energy N" into Comments; derive it (v12 WS8).
+      energy: energyFromComments(str('Comments')),
       playCount: Number.isFinite(playCount) ? playCount : null,
       remixer: str('Remixer'),
       label: str('Label'),

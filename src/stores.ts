@@ -19,7 +19,7 @@ import { canAddSet, freshFirstSet, nextSetName, uniqueSetName, type TrackSet } f
 import { DEFAULT_SETTINGS, type AppSettings } from './core/settings'
 import type { TrackSort } from './core/trackSort'
 
-export type RadialAxis = 'bpm' | 'rating' | 'year'
+export type RadialAxis = 'bpm' | 'rating' | 'year' | 'energy'
 export type ColorAxis = 'auto' | RadialAxis
 export type ViewMode = 'wheel' | 'genres' | 'tracks'
 

@@ -51,6 +51,7 @@ export const TRACK_PROPERTIES: readonly TrackProperty[] = [
   prop('genre', 'Genre', 'text'),
   prop('year', 'Year', 'number'),
   prop('rating', 'Rating', 'number'),
+  prop('energy', 'Energy', 'number'),
   prop('album', 'Album', 'text'),
   prop('dateAdded', 'Date added', 'date'),
   prop('durationSec', 'Length', 'number', formatDuration),
