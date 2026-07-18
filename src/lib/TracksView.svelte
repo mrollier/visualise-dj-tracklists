@@ -422,6 +422,11 @@
     border-radius: 999px;
     color: var(--ink-muted);
     opacity: 0;
+    transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .pos-btn:active {
+    transform: scale(0.8);
   }
 
   tbody tr:hover .pos-btn,
@@ -542,6 +547,12 @@
     font-size: 12px;
     color: var(--ink-muted);
     opacity: 0;
+    /* Springy press (v12 WS2): squash on :active, overshoot on release. */
+    transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .tag:active {
+    transform: scale(0.75);
   }
 
   tbody tr:hover .tag,

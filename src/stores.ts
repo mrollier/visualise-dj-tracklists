@@ -55,10 +55,17 @@ export const hoveredId = writable<string | null>(null)
  */
 export const walkRevealTick = writable(0)
 export const walkRevealSeen = writable(0)
+/** Keeps the window open past the last stagger for the trailing animations —
+ * the final row fade (240ms), the last node pulse (320ms) and the completion
+ * shimmer (700ms after totalMs) — so none of them get cut mid-flight. */
+const WALK_REVEAL_TAIL_MS = 800
 export function bumpWalkReveal(totalMs: number): void {
   const tick = get(walkRevealTick) + 1
   walkRevealTick.set(tick)
-  setTimeout(() => walkRevealSeen.update((seen) => Math.max(seen, tick)), totalMs)
+  setTimeout(
+    () => walkRevealSeen.update((seen) => Math.max(seen, tick)),
+    totalMs + WALK_REVEAL_TAIL_MS,
+  )
 }
 
 /**

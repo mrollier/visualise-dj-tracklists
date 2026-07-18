@@ -7,6 +7,7 @@
   import { WALK_REVEAL_STEP_MS, walkRevealPlan } from '../core/walkReveal'
   import { promptExportName } from './exportName'
   import ConfirmDialog from './ConfirmDialog.svelte'
+  import SparkleBurst from './SparkleBurst.svelte'
   import { canAddSet, MAX_SETS } from '../core/sets'
   import {
     activeSet,
@@ -112,8 +113,20 @@
     }
   })
 
+  // The ✨/⚡ press throws a short spark burst (v12 WS2) — pure celebration,
+  // remounted per press so rapid presses restart it.
+  let bursting = $state(false)
+  let burstTimer: ReturnType<typeof setTimeout> | undefined
+  function burst() {
+    clearTimeout(burstTimer)
+    bursting = false
+    requestAnimationFrame(() => (bursting = true))
+    burstTimer = setTimeout(() => (bursting = false), 600)
+  }
+
   function suggest(force = false) {
     if (suggestDisabled) return
+    burst()
     if (!canRegenerateInPlace) addSet() // a fresh set, activated
     const walk = suggestWalk($visibleLibrary, $criteria, {
       seedId: $pinnedFirst ?? $selectedId,
@@ -225,6 +238,7 @@
         with the closest non-matching picks"
       >
         ⚡ Force to {$settings.suggestLength}
+        <SparkleBurst active={bursting} />
       </button>
     {:else}
       <button
@@ -238,6 +252,7 @@
             : 'Generate a new set alongside this hand-edited one'}
       >
         ✨ Suggest a set from the wheel
+        <SparkleBurst active={bursting} />
       </button>
     {/if}
   </div>
@@ -420,6 +435,7 @@
 
   .suggest-row .primary {
     flex: 1;
+    position: relative; /* anchors the ✨ spark burst (v12 WS2) */
   }
 
   /* The rule-breaking variant borrows the wheel hub's warning look. */
@@ -540,6 +556,12 @@
     font-size: 11px;
     filter: grayscale(1);
     opacity: 0.5;
+    /* Springy press (v12 WS2): squash on :active, overshoot on release. */
+    transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .pin:active {
+    transform: scale(0.75);
   }
 
   .track:hover .pin,

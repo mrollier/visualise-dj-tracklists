@@ -633,43 +633,51 @@
            track appears in the set more than once (remark 15). The outer key
            restarts the reveal per suggestion (v12 WS1). -->
       {#key $walkRevealTick}
-        {#each walkPairs as [fromId, toId], pairIndex (pairIndex)}
-          {@const a = nodeById.get(fromId)}
-          {@const b = nodeById.get(toId)}
-          {#if a && b}
-            <line
-              x1={a.x}
-              y1={a.y}
-              x2={b.x}
-              y2={b.y}
-              class="walk-edge"
-              class:reveal={revealing}
-              pathLength={revealing ? 1 : undefined}
-              style:animation-delay={revealing
-                ? `${revealPlan.edgeDelays[pairIndex]}ms`
-                : undefined}
-              style:animation-duration={revealing ? `${WALK_REVEAL_STEP_MS}ms` : undefined}
-              marker-end="url(#walk-arrow)"
-              vector-effect="non-scaling-stroke"
-            />
-          {/if}
-        {/each}
-        {#if revealing}
-          <!-- One pulse per unique walk node, fired as the walk reaches it. -->
-          {#each [...revealPlan.nodeDelays] as [id, delay] (id)}
-            {@const n = nodeById.get(id)}
-            {#if n}
-              <circle
-                cx={n.x}
-                cy={n.y}
-                r={10 / zoomK}
-                class="reveal-pulse"
-                style:animation-delay="{delay}ms"
+        <!-- The group carries the completion shimmer (v12 WS2): a revealed
+             full-length walk swells bright once, right as it finishes. -->
+        <g
+          class="walk-group"
+          class:celebrate={revealing && $tracklist.length >= $settings.suggestLength}
+          style:--reveal-total="{revealPlan.totalMs}ms"
+        >
+          {#each walkPairs as [fromId, toId], pairIndex (pairIndex)}
+            {@const a = nodeById.get(fromId)}
+            {@const b = nodeById.get(toId)}
+            {#if a && b}
+              <line
+                x1={a.x}
+                y1={a.y}
+                x2={b.x}
+                y2={b.y}
+                class="walk-edge"
+                class:reveal={revealing}
+                pathLength={revealing ? 1 : undefined}
+                style:animation-delay={revealing
+                  ? `${revealPlan.edgeDelays[pairIndex]}ms`
+                  : undefined}
+                style:animation-duration={revealing ? `${WALK_REVEAL_STEP_MS}ms` : undefined}
+                marker-end="url(#walk-arrow)"
                 vector-effect="non-scaling-stroke"
               />
             {/if}
           {/each}
-        {/if}
+          {#if revealing}
+            <!-- One pulse per unique walk node, fired as the walk reaches it. -->
+            {#each [...revealPlan.nodeDelays] as [id, delay] (id)}
+              {@const n = nodeById.get(id)}
+              {#if n}
+                <circle
+                  cx={n.x}
+                  cy={n.y}
+                  r={10 / zoomK}
+                  class="reveal-pulse"
+                  style:animation-delay="{delay}ms"
+                  vector-effect="non-scaling-stroke"
+                />
+              {/if}
+            {/each}
+          {/if}
+        </g>
       {/key}
 
       <!-- Nodes -->
@@ -1032,6 +1040,18 @@
     }
   }
 
+  /* Completion shimmer (v12 WS2): fires once, timed to the reveal's end. */
+  g.walk-group.celebrate {
+    animation: walk-glow 700ms ease-in-out;
+    animation-delay: var(--reveal-total);
+  }
+
+  @keyframes walk-glow {
+    45% {
+      filter: brightness(1.7) drop-shadow(0 0 5px var(--walk-bright));
+    }
+  }
+
   .reveal-pulse {
     fill: none;
     stroke: var(--walk-bright);
@@ -1063,6 +1083,10 @@
 
     .reveal-pulse {
       display: none;
+    }
+
+    g.walk-group.celebrate {
+      animation: none;
     }
   }
 
