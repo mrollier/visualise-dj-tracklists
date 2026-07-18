@@ -55,6 +55,8 @@ export const hoveredId = writable<string | null>(null)
  */
 export const walkRevealTick = writable(0)
 export const walkRevealSeen = writable(0)
+/** The `s` hotkey (v12 WS14) asks whichever set panel is mounted to run ✨. */
+export const suggestHotkeyTick = writable(0)
 /** Keeps the window open past the last stagger for the trailing animations —
  * the final row fade (240ms), the last node pulse (320ms) and the completion
  * shimmer (700ms after totalMs) — so none of them get cut mid-flight. */

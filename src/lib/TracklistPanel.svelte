@@ -30,6 +30,7 @@
     setGeneratedTracklist,
     sets,
     settings,
+    suggestHotkeyTick,
     trackById,
     tracklist,
     visibleLibrary,
@@ -37,6 +38,7 @@
     walkRevealSeen,
     walkRevealTick,
   } from '../stores'
+  import { get } from 'svelte/store'
 
   let clearDialog: ConfirmDialog
 
@@ -177,6 +179,16 @@
     shortBy = force ? 0 : Math.max(0, $settings.suggestLength - walk.ids.length)
     forcedSteps = force ? walk.forced : null
   }
+
+  // The s hotkey (v12 WS14) presses whichever suggest button is showing —
+  // ⚡ force when the walk stopped short, plain ✨ otherwise.
+  let lastSuggestHotkey = get(suggestHotkeyTick)
+  $effect(() => {
+    const tick = $suggestHotkeyTick
+    if (tick === lastSuggestHotkey) return
+    lastSuggestHotkey = tick
+    suggest(shortBy > 0)
+  })
 
   // Pins and must-include marks are library-scoped (design-v6 §C): they
   // survive set edits — the Set order pickers set them before a set even

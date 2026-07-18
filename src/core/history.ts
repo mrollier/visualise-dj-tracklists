@@ -1,14 +1,20 @@
 /**
- * Undo/redo for set edits and the selection (issue 2). Pure and immutable:
- * the store wiring in src/lib/undoStore.ts snapshots the active set's tracks
- * (with its generated flag, so undoing a generator overwrite restores both)
- * plus the selected track. Deliberately NOT covered: settings, filters,
- * criteria, set switching, and library replacement — those reset the stack.
+ * Undo/redo for set edits, the selection, and — since v12 (WS14, ISSUES.md
+ * stub) — the behavioural settings and criteria. Pure and immutable: the
+ * store wiring in src/lib/undoStore.ts snapshots the active set's tracks
+ * (with its generated flag, so undoing a generator overwrite restores both),
+ * the selected track, and a serialised `tuning` string (settings sans the
+ * chrome fields theme/uiMode/advancedOpen, plus the combo criteria — string
+ * form keeps equality one `===` and cloning free). Deliberately NOT covered:
+ * filters, set switching, and library replacement — the latter two reset the
+ * stack.
  */
 export interface UndoSnapshot {
   trackIds: string[]
   generated: boolean
   selectedId: string | null
+  /** JSON of the behavioural settings + criteria; see undoStore.tuningOf. */
+  tuning: string
 }
 
 export interface UndoStack {
@@ -19,13 +25,19 @@ export interface UndoStack {
 
 const DEFAULT_LIMIT = 100
 
-function sameSnapshot(a: UndoSnapshot, b: UndoSnapshot): boolean {
+/** Equality of the WORK parts (tracks, flag, selection) — tuning ignored, so
+ * the store layer can tell a settings tweak from a set edit and debounce it. */
+export function sameWork(a: UndoSnapshot, b: UndoSnapshot): boolean {
   return (
     a.generated === b.generated &&
     a.selectedId === b.selectedId &&
     a.trackIds.length === b.trackIds.length &&
     a.trackIds.every((id, i) => id === b.trackIds[i])
   )
+}
+
+function sameSnapshot(a: UndoSnapshot, b: UndoSnapshot): boolean {
+  return sameWork(a, b) && a.tuning === b.tuning
 }
 
 export function initStack(present: UndoSnapshot): UndoStack {

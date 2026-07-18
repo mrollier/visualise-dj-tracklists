@@ -556,3 +556,9 @@ describe('focusEdges (v9 issue 8)', () => {
     expect(edges).toEqual(copy)
   })
 })
+
+describe('BPM tolerance default (v12 WS14, ISSUES.md stub)', () => {
+  test('defaults to 8% — the pitch-bend range of a classic Technics', () => {
+    expect(DEFAULT_CRITERIA.bpm.maxPercent).toBe(8)
+  })
+})

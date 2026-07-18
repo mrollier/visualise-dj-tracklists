@@ -1,13 +1,11 @@
 # Issues — open
 
-The v11 sixteen-issue list is implemented and recorded in
-[designs/design-v11.md](designs/design-v11.md). Below are the open items,
-scheduled into v12 ([designs/design-v12.md](designs/design-v12.md), WS14).
+Nothing open right now. The two items noted after v11 both resolved in v12
+(WS14, [designs/design-v12.md](designs/design-v12.md) §H):
 
-1. The default bpm range should be 8 percent (matching the pitch bend value of a
-   classic Technics)
-2. Some hotkeys would be nice (not too many though). At the very least Cmd+Z to
-   undo, for example settings changes and the latest selection of a track
-   (drawing the arrow) — _note: Cmd+Z has covered set edits and track selection
-   since v7; the open part is undo for settings changes plus a couple of obvious
-   keys._
+1. ~~Default BPM range 8% (Technics pitch bend)~~ — the default was already
+   8% in the code; a test now pins it.
+2. ~~Hotkeys, incl. Cmd+Z for settings changes~~ — Cmd+Z now also undoes
+   behavioural settings and criteria changes (debounced; theme/easy-mode/
+   fold state deliberately excluded), and plain 1/2/3 switch the central
+   view while s runs ✨.

@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest'
-import { initStack, record, redo, undo, type UndoSnapshot } from '../src/core/history'
+import { initStack, record, redo, sameWork, undo, type UndoSnapshot } from '../src/core/history'
 
 function snap(overrides: Partial<UndoSnapshot> = {}): UndoSnapshot {
-  return { trackIds: [], generated: false, selectedId: null, ...overrides }
+  return { trackIds: [], generated: false, selectedId: null, tuning: '{}', ...overrides }
 }
 
 describe('undo stack', () => {
@@ -54,5 +54,22 @@ describe('undo stack', () => {
     expect(stack.past.length).toBeLessThanOrEqual(5)
     // the newest states are the ones kept
     expect(undo(stack)!.present.trackIds).toEqual(['t8'])
+  })
+
+  test('a tuning-only change records an undoable step (v12 WS14)', () => {
+    let stack = initStack(snap({ tuning: '{"edgeOpacity":0.35}' }))
+    stack = record(stack, snap({ tuning: '{"edgeOpacity":0.6}' }))
+    expect(stack.past).toHaveLength(1)
+    expect(undo(stack)!.present.tuning).toBe('{"edgeOpacity":0.35}')
+    // …and an identical tuning stays a no-op.
+    stack = record(stack, snap({ tuning: '{"edgeOpacity":0.6}' }))
+    expect(stack.past).toHaveLength(1)
+  })
+
+  test('sameWork ignores tuning: it tells a settings tweak from a set edit', () => {
+    const base = snap({ trackIds: ['a'], tuning: 'x' })
+    expect(sameWork(base, snap({ trackIds: ['a'], tuning: 'y' }))).toBe(true)
+    expect(sameWork(base, snap({ trackIds: ['a', 'b'], tuning: 'x' }))).toBe(false)
+    expect(sameWork(base, snap({ trackIds: ['a'], selectedId: 'a', tuning: 'x' }))).toBe(false)
   })
 })

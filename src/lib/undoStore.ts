@@ -1,20 +1,59 @@
 import { derived, get } from 'svelte/store'
-import { initStack, record, redo, undo, type UndoSnapshot, type UndoStack } from '../core/history'
-import { activeSet, activeSetId, selectedId, setGeneratedTracklist, tracklist } from '../stores'
+import type { CriteriaConfig } from '../core/combos'
+import {
+  initStack,
+  record,
+  redo,
+  sameWork,
+  undo,
+  type UndoSnapshot,
+  type UndoStack,
+} from '../core/history'
+import type { AppSettings } from '../core/settings'
+import {
+  activeSet,
+  activeSetId,
+  criteria,
+  selectedId,
+  setGeneratedTracklist,
+  settings,
+  tracklist,
+} from '../stores'
 
 /**
- * Cmd+Z wiring (issue 2): snapshots the ACTIVE set's tracks (+ generated
- * flag) and the selection on every change, unless the change came from an
- * undo/redo itself. The stack resets on set switches and library
- * replacement — undo never resurrects one set's tracks into another.
+ * Cmd+Z wiring (issue 2; widened by v12 WS14): snapshots the ACTIVE set's
+ * tracks (+ generated flag), the selection, and the behavioural settings +
+ * criteria on every change, unless the change came from an undo/redo itself.
+ * Settings-only changes are DEBOUNCED (a slider drag lands as one step, not
+ * fifty) and the chrome fields — theme, uiMode, advancedOpen — stay out of
+ * the tuning entirely: undo never flips the theme or slams easy mode. The
+ * stack resets on set switches and library replacement — undo never
+ * resurrects one set's tracks into another.
  */
 
-let stack: UndoStack = initStack({ trackIds: [], generated: false, selectedId: null })
+const TUNING_DEBOUNCE_MS = 350
+
+let stack: UndoStack = initStack({ trackIds: [], generated: false, selectedId: null, tuning: '{}' })
 let applying = false
+let pending: UndoSnapshot | null = null
+let pendingTimer: ReturnType<typeof setTimeout> | undefined
+
+function tuningOf($settings: AppSettings, $criteria: CriteriaConfig): string {
+  const behavioural: Partial<AppSettings> = { ...$settings }
+  delete behavioural.theme
+  delete behavioural.uiMode
+  delete behavioural.advancedOpen
+  return JSON.stringify({ settings: behavioural, criteria: $criteria })
+}
 
 function currentSnapshot(): UndoSnapshot {
   const set = get(activeSet)
-  return { trackIds: set.trackIds, generated: set.generated, selectedId: get(selectedId) }
+  return {
+    trackIds: set.trackIds,
+    generated: set.generated,
+    selectedId: get(selectedId),
+    tuning: tuningOf(get(settings), get(criteria)),
+  }
 }
 
 function applySnapshot(snapshot: UndoSnapshot): void {
@@ -23,17 +62,37 @@ function applySnapshot(snapshot: UndoSnapshot): void {
     if (snapshot.generated) setGeneratedTracklist(snapshot.trackIds)
     else tracklist.set(snapshot.trackIds)
     selectedId.set(snapshot.selectedId)
+    const parsed = JSON.parse(snapshot.tuning) as {
+      settings?: Partial<AppSettings>
+      criteria?: CriteriaConfig
+    }
+    if (parsed.settings !== undefined) {
+      // The chrome fields keep their live values — they were never captured.
+      settings.update((s) => ({ ...s, ...parsed.settings }))
+    }
+    if (parsed.criteria !== undefined) criteria.set(parsed.criteria)
   } finally {
     applying = false
   }
 }
 
+function flushPending(): void {
+  clearTimeout(pendingTimer)
+  if (pending !== null) {
+    stack = record(stack, pending)
+    pending = null
+  }
+}
+
 /** Forget all history and re-seed from the current state. */
 export function resetUndo(): void {
+  clearTimeout(pendingTimer)
+  pending = null
   stack = initStack(currentSnapshot())
 }
 
 export function undoOnce(): void {
+  flushPending()
   const next = undo(stack)
   if (next === null) return
   stack = next
@@ -41,6 +100,7 @@ export function undoOnce(): void {
 }
 
 export function redoOnce(): void {
+  flushPending()
   const next = redo(stack)
   if (next === null) return
   stack = next
@@ -57,11 +117,31 @@ export function startUndo(): void {
   activeSetId.subscribe(() => {
     resetUndo()
   })
-  const watched = derived([activeSet, selectedId], ([$set, $selected]): UndoSnapshot => {
-    return { trackIds: $set.trackIds, generated: $set.generated, selectedId: $selected }
-  })
+  const watched = derived(
+    [activeSet, selectedId, settings, criteria],
+    ([$set, $selected, $settings, $criteria]): UndoSnapshot => {
+      return {
+        trackIds: $set.trackIds,
+        generated: $set.generated,
+        selectedId: $selected,
+        tuning: tuningOf($settings, $criteria),
+      }
+    },
+  )
   watched.subscribe((snapshot) => {
     if (applying) return
-    stack = record(stack, snapshot)
+    if (sameWork(stack.present, snapshot) && stack.present.tuning === snapshot.tuning) return
+    if (sameWork(stack.present, snapshot)) {
+      // Only the tuning moved: coalesce a burst (slider drag, spinner hold)
+      // into one undo step, recorded when the burst goes quiet.
+      pending = snapshot
+      clearTimeout(pendingTimer)
+      pendingTimer = setTimeout(flushPending, TUNING_DEBOUNCE_MS)
+    } else {
+      // A real edit: any tweak just before it becomes its own step first,
+      // preserving order.
+      flushPending()
+      stack = record(stack, snapshot)
+    }
   })
 }

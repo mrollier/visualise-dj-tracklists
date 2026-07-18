@@ -10,7 +10,7 @@
   import TracksView from './lib/TracksView.svelte'
   import { redoOnce, startUndo, undoOnce } from './lib/undoStore'
   import WheelView from './lib/WheelView.svelte'
-  import { library, rightPanel, settings, viewMode } from './stores'
+  import { library, rightPanel, settings, suggestHotkeyTick, viewMode } from './stores'
 
   // Easy mode (v12 WS4) is visibility-only: the stored viewMode survives
   // untouched, the centre just always shows the wheel while easy is on.
@@ -21,17 +21,28 @@
   startAutosave()
   startUndo()
 
-  // Cmd/Ctrl+Z undoes set edits and selection changes; +Shift redoes
-  // (issue 2 — deliberately the only global shortcut). Text fields and open
-  // dialogs keep their native behaviour.
+  // The deliberately small hotkey set (issue 2; v12 WS14, ISSUES.md stub):
+  // Cmd/Ctrl+Z undoes set edits, selection AND settings changes (+Shift
+  // redoes); plain 1/2/3 switch the central view; plain s runs ✨. Text
+  // fields and open dialogs keep their native behaviour.
   function onKeydown(e: KeyboardEvent) {
-    if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z') return
     const target = e.target instanceof HTMLElement ? e.target : null
-    if (target?.matches('input, textarea, select, [contenteditable="true"]')) return
-    if (document.querySelector('dialog[open]') !== null) return
-    e.preventDefault()
-    if (e.shiftKey) redoOnce()
-    else undoOnce()
+    const inField = target?.matches('input, textarea, select, [contenteditable="true"]') ?? false
+    if (inField || document.querySelector('dialog[open]') !== null) return
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+      e.preventDefault()
+      if (e.shiftKey) redoOnce()
+      else undoOnce()
+      return
+    }
+    if (e.metaKey || e.ctrlKey || e.altKey || $library.length === 0) return
+    // View digits stay inert in easy mode — the switch they mirror is hidden.
+    if ($settings.uiMode !== 'easy') {
+      if (e.key === '1') viewMode.set('wheel')
+      if (e.key === '2') viewMode.set('genres')
+      if (e.key === '3') viewMode.set('tracks')
+    }
+    if (e.key.toLowerCase() === 's') suggestHotkeyTick.update((t) => t + 1)
   }
 </script>
 
