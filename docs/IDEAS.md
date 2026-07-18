@@ -2,7 +2,7 @@
 
 Triaged 2026-07-18 against everything shipped through v11; the resulting v12 plan
 lives in [designs/design-v12.md](designs/design-v12.md). Statuses: **done** ·
-**v12** (planned) · **v13+** (backlog, shaped) · **rejected** (with why) ·
+**v12** (planned) · **v14+** (backlog, shaped) · **rejected** (with why) ·
 **research** (gated in
 [science/genre-distance-measures.md](science/genre-distance-measures.md)).
 
@@ -36,14 +36,14 @@ lives in [designs/design-v12.md](designs/design-v12.md). Statuses: **done** ·
   in spirit.
 - **Edges from existing DJ mixes on Spotify** — **rejected** as stated (the
   relevant Spotify APIs died Nov 2024; mixes aren't tracklists). Reframed as
-  **travelled edges** from imported tracklist documents — **v13+**, the "DJ
+  **travelled edges** from imported tracklist documents — **v14+**, the "DJ
   fingerprints" roadmap item and the app's namesake.
 - **Edges from musical rhyme (similar melodies in distinct keys)** —
   **research**: needs audio analysis; parked behind Essentia.js (P5).
 - **Vinyl mode per node + user input for vinyl-only tracks** — **v12** minimal:
   per-track vinyl flag + manual key/BPM/genre entry; Discogs import lands on top
-  in v13+.
-- **Edges based on links between comments** — **v13+**: once Comments parsing
+  in v14+.
+- **Edges based on links between comments** — **v14+**: once Comments parsing
   lands (v12 energy), a shared-comment-tag criterion is cheap.
 - **More parameters (energy, melody, …; analyse mp3s directly)** — split:
   **v12** parses Mixed-In-Key-style energy from Comments; direct audio analysis
@@ -80,11 +80,11 @@ lives in [designs/design-v12.md](designs/design-v12.md). Statuses: **done** ·
 
 ## Integration
 
-- **Formats from other software (VirtualDJ, …)** — **v13+**: flexible
+- **Formats from other software (VirtualDJ, …)** — **v14+**: flexible
   column-mapping import first (the enabler), then VirtualDJ, Traktor/Serato.
-- **Better playlist-export integration (different heading types)** — **v13+**:
+- **Better playlist-export integration (different heading types)** — **v14+**:
   the column-mapping import step is exactly this.
-- **Discogs export (vinyl collections)** — **v13+**, on top of v12's vinyl
+- **Discogs export (vinyl collections)** — **v14+**, on top of v12's vinyl
   minimal.
 - **Full integration inside Rekordbox (or open-source alternatives)** —
   **rejected** as stated: rekordbox has no plugin API. The real path is the

@@ -789,34 +789,45 @@ const chipTops = await page.$$eval('.method-chip', (chips) =>
 if (new Set(chipTops.map((t) => Math.round(t))).size !== 1) {
   errors.push(`method chips wrap onto multiple lines (tops: ${chipTops})`)
 }
-// v8 issue 11: nodes are draggable — grab one and pull it 60px
-const dragTarget = page.locator('.genre-node').first()
-const dragBefore = await dragTarget.getAttribute('transform')
-const dragBox = await dragTarget.boundingBox()
-if (dragBox) {
-  await page.mouse.move(dragBox.x + dragBox.width / 2, dragBox.y + dragBox.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(dragBox.x + dragBox.width / 2 + 60, dragBox.y + dragBox.height / 2 + 40, {
-    steps: 6,
-  })
-  await page.mouse.up()
-}
-await page.waitForTimeout(400)
-if ((await dragTarget.getAttribute('transform')) === dragBefore) {
-  errors.push('dragging a genre node did not move it')
-}
-// put it roughly back so the containment check below tests the PHYSICS, not
-// the user's deliberate shove
+// v13 issue 3: the map rests on a faint skeleton, not the full hairball
 {
-  const box = await dragTarget.boundingBox()
-  if (box && dragBox) {
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
-    await page.mouse.down()
-    await page.mouse.move(dragBox.x + dragBox.width / 2, dragBox.y + dragBox.height / 2, {
-      steps: 6,
-    })
-    await page.mouse.up()
+  const restNodes = await page.locator('.genre-node').count()
+  const restEdges = await page.locator('line.edge').count()
+  if (restEdges === 0) errors.push('genre map rests with no skeleton edges at all')
+  if (restEdges > restNodes) {
+    errors.push(`resting genre map too dense: ${restEdges} edges for ${restNodes} nodes`)
   }
+}
+// v8 issue 11, tightened v13 issue 1: grab ONE node — it must pin exactly
+// under the pointer (the tow is gone), then be put roughly back so the
+// containment check below tests the PHYSICS, not the deliberate shove.
+// Grab at the node's ANCHOR via the layer CTM: the <g> bounding box centre
+// includes the label and can miss the hit circle.
+const nodeAnchor = (index) =>
+  page.evaluate((i) => {
+    const m = document.querySelector('.zoom-layer').getScreenCTM()
+    const t = document.querySelectorAll('.genre-node')[i].transform.baseVal.consolidate().matrix
+    return { x: m.a * t.e + m.c * t.f + m.e, y: m.b * t.e + m.d * t.f + m.f }
+  }, index)
+{
+  const grab = await nodeAnchor(0)
+  await page.mouse.move(grab.x, grab.y)
+  await page.mouse.down()
+  const dest = { x: grab.x + 60, y: grab.y + 40 }
+  await page.mouse.move(dest.x, dest.y, { steps: 6 })
+  await page.waitForTimeout(150)
+  const held = await nodeAnchor(0)
+  const pinError = Math.hypot(held.x - dest.x, held.y - dest.y)
+  if (pinError > 5) {
+    errors.push(`dragged genre node not pinned under the pointer (${pinError.toFixed(1)}px off)`)
+  }
+  await page.mouse.up()
+  await page.waitForTimeout(300)
+  const back = await nodeAnchor(0)
+  await page.mouse.move(back.x, back.y)
+  await page.mouse.down()
+  await page.mouse.move(grab.x, grab.y, { steps: 6 })
+  await page.mouse.up()
 }
 await page.waitForTimeout(600)
 // v8 issue 14: the pair inspector — click two genres, read every method's
@@ -831,6 +842,14 @@ const inspectorRows = await page.locator('.inspector dt').count()
 if (inspectorRows !== 5) {
   errors.push(`the pair inspector should list 5 method scores, got ${inspectorRows}`)
 }
+// v13 issue 3: comparing shows at most the pair's own link at full opacity
+{
+  const bold = await page.$$eval(
+    'line.edge',
+    (ls) => ls.filter((l) => l.getAttribute('opacity') === '1').length,
+  )
+  if (bold > 1) errors.push(`${bold} full-opacity edges while comparing (want at most 1)`)
+}
 await page.screenshot({ path: `${scratch}/07b2-pair-inspector.png` })
 await page.locator('.inspector .close').click()
 if ((await page.locator('.inspector').count()) !== 0) {
@@ -838,6 +857,7 @@ if ((await page.locator('.inspector').count()) !== 0) {
 }
 await page.getByRole('button', { name: 'hybrid' }).click()
 await page.getByRole('button', { name: 'taxonomy' }).click()
+const edgesPreGhost = await page.locator('line.edge').count()
 await page.getByRole('checkbox', { name: 'show nearby genres' }).check()
 // The cooling is deliberately slow (v10 issue 9, v11 issue 10) and the
 // atlas pack (v12) roughly doubled the node count — give the layout time.
@@ -846,6 +866,17 @@ const mapNodes = await page.locator('.genre-node').count()
 const ghostNodes = await page.locator('.genre-node.ghost').count()
 if (mapNodes === 0) errors.push('genre map rendered no nodes')
 if (ghostNodes === 0) errors.push('genre map rendered no ghost neighbours')
+// v13: ghosts only tether to their summoners — every ghost gets ≥1 anchor
+// link, and the total can never exceed the summoners' neighbour budget
+{
+  const ghostGrowth = (await page.locator('line.edge').count()) - edgesPreGhost
+  const realNodes = mapNodes - ghostNodes
+  if (ghostGrowth < ghostNodes || ghostGrowth > realNodes * 3) {
+    errors.push(
+      `ghost tethers out of bounds: +${ghostGrowth} edges for ${ghostNodes} ghosts (${realNodes} real)`,
+    )
+  }
+}
 const outOfFrame = await page.$$eval(
   '.genre-node',
   (gs) =>

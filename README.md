@@ -60,21 +60,24 @@ Your library never leaves your machine — there is no backend, no account, no u
   make no distinction. Rating and year rings only sit on whole values.
 - **Map the genres**: a second central view (Wheel | Genres | Tracks switch) lays your
   library's genres out with a force simulation — screen distance approximates the
-  distance measure, and you can **grab a node and drag it — the whole graph leans
-  after it** through empty space (gravity is towed along with the drag) and drifts
-  home when you let go (panning stays on the background; the re-layout eases in
-  slowly enough to follow). Node icons here always follow the **curated genre
-  families**, with a shape legend at the bottom.
+  distance measure, and you can **grab a genre and move it**: the node pins exactly
+  under your cursor while the rest of the map responds only through its own links,
+  then everything drifts home when you let go (panning stays on the background; the
+  re-layout eases in slowly enough to follow). Node icons here always follow the
+  **curated genre families**, with a shape legend at the bottom.
   **One method's edge overlay draws at a time** — it follows your active criterion
   method (drawing exactly the pairs the criterion links, k/threshold included), or
   pick another on the chips; switching never leaves the old overlay stacked.
-  **Click two genres to compare them**: a docked card locks with every method's
-  score for the pair (hovering a single edge still works); a "show nearby genres"
-  toggle ghosts in related genres you don't own yet.
+  **The map rests on a faint skeleton** — each genre keeps only its strongest link,
+  dimming as the vocabulary grows; **hover or click a genre** to light up its full
+  connections (the wheel's focus rule), and **click two genres to compare them**: a
+  docked card locks with every method's score while only the pair's own link stays
+  highlighted. A "show nearby genres" toggle ghosts in related genres you don't own
+  yet, each tethered to the library genre that summoned it.
 - **Browse the tracks**: the third central view is a classic sortable table of
   everything the wheel shows — playlists AND filters scope it — with every column
   sortable (keys in Camelot order, missing values last, ratings as stars), and the
-  sort survives view switches. Every track property — **27 of them, everything the
+  sort survives view switches. Every track property — **28 of them, everything the
   Rekordbox XML carries**, from Artist to Play count to file Location — has a row
   in the advanced **"Track properties" table** with two checkboxes: **shown as a
   column** here, and **shown as a filter** in the left panel. **Drag the headers**
