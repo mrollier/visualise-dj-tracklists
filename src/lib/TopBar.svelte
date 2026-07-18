@@ -190,9 +190,11 @@
   const coverageSummary = $derived.by(() => {
     const cov = genreCoverage
     if (cov === null || cov.outside === 0) return null
-    const top = cov.top.map(({ label, count }) => `${label} ×${count}`).join(', ')
-    const invisible =
-      cov.invisible > 0 ? ` (${cov.invisible} of them match nothing at all)` : ''
+    const top = cov.top
+      .slice(0, 3)
+      .map(({ label, count }) => `${label} ×${count}`)
+      .join(', ')
+    const invisible = cov.invisible > 0 ? ` (${cov.invisible} of them match nothing at all)` : ''
     return `${cov.outside} of ${cov.tagged} tagged tracks have genres outside the similarity data${invisible} — top: ${top}`
   })
 

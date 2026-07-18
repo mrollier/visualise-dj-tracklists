@@ -130,6 +130,11 @@
     "electro swing": ["electronica", "jazz"],
     "uk hardcore": ["happy hardcore"],
     "juke": ["ghetto house"],
-    "folk": ["music"]
+    "folk": ["music"],
+
+    "balkan": ["folk"],
+    "thai funk": ["funk"],
+    "jackin house": ["chicago house"],
+    "halftime": ["drum & bass", "dubstep"]
   }
 }

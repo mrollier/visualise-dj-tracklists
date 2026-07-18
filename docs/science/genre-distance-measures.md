@@ -255,12 +255,18 @@ complete genre-space island (behaves like the exact method: matches nothing).
 
 ### Shelved action list, in bang-for-buck order
 
-*(v12 update: items 1 and 2 shipped — 18 tree nodes incl. the free-tekno
-cluster, regional funk and `juke`; `garage → uk garage` and the Discogs
-compound as aliases; all four normalization fixes; pack rebuilt at top-24,
-hybrid triplet eval back at 100% on the grown 33-triplet set. Zouk and
-Balkan were skipped: no honest parent exists in the tree yet. Item 3 ships
-as v12's coverage report.)*
+*(v12 update: items 1–3 shipped, plus an alias-mining pass. 22 tree nodes
+(the free-tekno cluster, regional funk incl. thai funk, juke, balkan under
+the new folk node, jackin house, halftime); all four normalization fixes;
+18 mined aliases from this library's own unresolved labels (personal
+descriptors like "Techno Melancholic" → melodic techno; noise like
+"Nieuw!!!" deliberately unmapped — the reject class is silence); pack
+rebuilt at top-24, hybrid triplet eval 100% on the grown 33-triplet set.
+Item 3 is the ⓘ coverage report, and the miner lives on as
+`tests/mine-genre-aliases.dev.test.ts`. **Re-measured on this library:
+outside 369 → 49 tracks (20.8% → 2.8%), invisible 123 → 44 (6.9% → 2.5%)**
+— what remains is almost entirely the reject class, correctly invisible.
+Zouk was skipped: no honest parent exists yet.)*
 
 1. **Curated-tree additions** (~15 nodes: the free-tekno cluster, regional
    funk, garage, and the plain gaps above) — cheap, immediately lifts the two

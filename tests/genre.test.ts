@@ -291,7 +291,10 @@ describe('normalization fixes (v12 WS5, science doc §6.4)', () => {
   })
 
   test('r&b survives inside a longer label', () => {
-    expect(normalizeGenre('Classic Soul And R&B')).toBe('classic soul & r&b')
+    // The &-unit repair keeps r&b whole mid-phrase; an unaliased phrase shows
+    // the mechanics (the real-library label itself now aliases to 'soul').
+    expect(normalizeGenre('Bass And R&B')).toBe('bass & r&b')
+    expect(normalizeGenre('Classic Soul And R&B')).toBe('soul')
   })
 
   test("Discogs's compound Folk, World, & Country stays whole", () => {
@@ -337,7 +340,7 @@ describe('computeGenreCoverage (v12 WS6 — P1 productised)', () => {
       t(''),
       t('Techno'),
       t('DnB'),
-      t('Techno Melancholic'),
+      t('Techno Dreaming'),
       t('Xyzzyfoo'),
     ])
     expect(cov.total).toBe(6)
@@ -359,11 +362,44 @@ describe('computeGenreCoverage (v12 WS6 — P1 productised)', () => {
 
   test('the top list ranks uncovered labels by track count', () => {
     const cov = computeGenreCoverage([
-      t('Techno Melancholic'),
-      t('Techno Melancholic'),
-      t('House Ethno'),
+      t('Techno Dreaming'),
+      t('Techno Dreaming'),
+      t('House Glimmer'),
     ])
-    expect(cov.top[0]).toEqual({ label: 'techno melancholic', count: 2 })
-    expect(cov.top[1]).toEqual({ label: 'house ethno', count: 1 })
+    expect(cov.top[0]).toEqual({ label: 'techno dreaming', count: 2 })
+    expect(cov.top[1]).toEqual({ label: 'house glimmer', count: 1 })
+  })
+})
+
+describe('mined aliases from the real-library dry run (v12 WS7)', () => {
+  test('personal descriptors map to their nearest genre', () => {
+    expect(normalizeGenre('Techno Melancholic')).toBe('melodic techno')
+    expect(normalizeGenre('Techno Melodieus')).toBe('melodic techno')
+    expect(normalizeGenre('House Ethno')).toBe('organic house')
+    expect(normalizeGenre('Techno Rave')).toBe('hard techno')
+    expect(normalizeGenre('Techno Half Tempo')).toBe('techno')
+  })
+
+  test('shorthand and foreign spellings resolve', () => {
+    expect(normalizeGenre('Minimal')).toBe('minimal techno')
+    expect(normalizeGenre('NDW')).toBe('new wave')
+    expect(normalizeGenre('Electronique')).toBe('electronic')
+    expect(normalizeGenre('Nederpop')).toBe('pop')
+    expect(normalizeGenre('Funk Thai')).toBe('thai funk')
+    expect(normalizeGenre('Psychedelic')).toBe('psytrance')
+  })
+
+  test('mined tree nodes have lineage', () => {
+    expect(genreSimilarity('balkan', 'folk', 'taxonomy')).toBeGreaterThan(0.15)
+    expect(genreSimilarity('thai funk', 'turkish funk', 'taxonomy')).toBeGreaterThan(0.1)
+    expect(genreSimilarity('jackin house', 'chicago house', 'taxonomy')).toBeGreaterThan(0.2)
+    expect(genreSimilarity('halftime', 'drum & bass', 'taxonomy')).toBeGreaterThan(0.2)
+  })
+
+  test('noise labels stay unmapped — the reject class is silence', () => {
+    // "Nieuw!!!", "90s", site watermarks: not genres, so no alias may
+    // confidently mis-map them; they stay (correctly) genre-invisible.
+    expect(normalizeGenre('Nieuw!!!')).toBe('nieuw!!!')
+    expect(normalizeGenre('90s')).toBe('90s')
   })
 })

@@ -96,6 +96,30 @@ const ALIASES: Record<string, string> = {
   // through cleanup, so the key carries it) instead of shredding a stray
   // "& country" component off it.
   'folk, world, & country': 'folk',
+  // v12 WS7 — mined from a real 2080-track library (tests/mine-genre-
+  // aliases.dev.test.ts): personal descriptors, shorthand and foreign
+  // spellings mapped to their nearest known genre. Non-genres ("Nieuw!!!",
+  // "90s", site watermarks) are deliberately NOT mapped — the reject class is
+  // silence, so garbage stays visibly uncovered instead of confidently wrong.
+  'techno melancholic': 'melodic techno',
+  'techno melodieus': 'melodic techno',
+  'house ethno': 'organic house',
+  'techno rave': 'hard techno',
+  'techno half tempo': 'techno',
+  minimal: 'minimal techno',
+  'soul & funk': 'funk',
+  ndw: 'new wave',
+  'classic soul & r&b': 'soul',
+  'electronic house': 'electro house',
+  electronique: 'electronic',
+  'footwork jungle': 'footwork',
+  nederpop: 'pop',
+  'rock alternative': 'alternative rock',
+  'alternative indie pop pop': 'indie pop',
+  'indie rock dance rock indie rock': 'indie rock',
+  'funk thai': 'thai funk',
+  // In a club crate "psychedelic" points at the psy lineage, not psych rock.
+  psychedelic: 'psytrance',
 }
 
 function cleanupGenre(label: string): string {
@@ -410,7 +434,8 @@ export interface GenreCoverage {
   outside: number
   /** The subset of `outside` with zero token overlap — genre-invisible. */
   invisible: number
-  /** Most frequent uncovered normalized labels, by track count, descending. */
+  /** Every uncovered normalized label with its track count, descending —
+   * consumers slice what they need (the ⓘ shows three; the alias miner all). */
   top: { label: string; count: number }[]
 }
 
@@ -443,8 +468,7 @@ export function computeGenreCoverage(tracks: readonly { genre: string | null }[]
     let bestRank = 0 // 0 = invisible, 1 = lexical overlap, 2 = pack/tree
     const uncoveredHere: string[] = []
     for (const component of genreComponents(raw)) {
-      const covered =
-        hybridSection.label(component) !== undefined || treeIC.has(component)
+      const covered = hybridSection.label(component) !== undefined || treeIC.has(component)
       if (covered) {
         bestRank = 2
         continue
@@ -464,7 +488,6 @@ export function computeGenreCoverage(tracks: readonly { genre: string | null }[]
   const top = [...uncoveredCounts.entries()]
     .map(([label, count]) => ({ label, count }))
     .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
-    .slice(0, 5)
   return {
     total: tracks.length,
     blank,
