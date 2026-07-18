@@ -14,6 +14,7 @@ import {
   lastImportReport,
   library,
   libraryName,
+  manualEdges,
   playlists,
   radialAxis,
   resetSuggestions,
@@ -28,8 +29,9 @@ const STORAGE_KEY = 'visualise-dj-tracklists:project:v1'
 
 export function currentProject(): Project {
   return {
-    version: 4,
+    version: 5,
     libraryName: get(libraryName),
+    manualEdges: get(manualEdges),
     tracks: get(library),
     criteria: get(criteria),
     filters: get(filters),
@@ -45,6 +47,7 @@ export function currentProject(): Project {
 export function applyProject(project: Project): void {
   libraryName.set(project.libraryName)
   library.set(project.tracks)
+  manualEdges.set(project.manualEdges)
   criteria.set(project.criteria)
   filters.set(project.filters)
   settings.set(project.settings)
@@ -86,6 +89,8 @@ export function replaceLibrary(replacement: {
   } = replacement
   library.set(tracks)
   libraryName.set(name)
+  // A fresh library's ids share nothing with the old marks (v12 WS9).
+  manualEdges.set([])
   // A fresh library starts over with a single First Set (issue 18).
   const first = freshFirstSet(set)
   sets.set([first])
@@ -173,6 +178,7 @@ export function startAutosave(): void {
     settings,
     sets, // every tracklist edit flows through here
     activeSetId,
+    manualEdges,
     playlists,
     radialAxis,
     colorAxis,

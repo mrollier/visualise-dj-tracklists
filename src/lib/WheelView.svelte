@@ -50,6 +50,9 @@
     visibleLibrary,
     walkRevealSeen,
     walkRevealTick,
+    linkArmed,
+    manualEdges,
+    toggleManualEdge,
   } from '../stores'
   import { walkRevealPlan, WALK_REVEAL_STEP_MS } from '../core/walkReveal'
 
@@ -331,6 +334,12 @@
   }
 
   function select(node: PlacedNode) {
+    // Link mode (v12 WS9): an armed 🔗 turns the next click into a combo
+    // mark/unmark; the selection stays on the source so marks can chain.
+    if ($linkArmed && $selectedId !== null) {
+      if (node.track.id !== $selectedId) toggleManualEdge($selectedId, node.track.id)
+      return
+    }
     selectedId.update((current) => (current === node.track.id ? null : node.track.id))
   }
 
@@ -421,6 +430,7 @@
       seed: hubSeed++,
       progression: $settings.bpmProgression,
       force: hubExhausted,
+      manualEdges: $manualEdges,
     })
     if (suggestion === null) return
     tracklist.update((ids) => ids.toSpliced(suggestion.insertIndex, 0, suggestion.trackId))
@@ -448,6 +458,7 @@
       progression: $settings.bpmProgression,
       force: state === 'force-retry',
       excludeIds: exclude,
+      manualEdges: $manualEdges,
     })
     if (suggestion === null || suggestion.insertIndex !== pick.insertIndex) {
       lastHubPick = null
@@ -610,6 +621,23 @@
             y2={b.y}
             class="combo-edge"
             opacity={edgeOpacity(edge.sourceId, edge.targetId)}
+            vector-effect="non-scaling-stroke"
+          />
+        {/if}
+      {/each}
+
+      <!-- Manual combos (v12 WS9): user-marked roads, always visible —
+           deliberate and few, they are exempt from the focus-only rule. -->
+      {#each $manualEdges as edge (edge.a + '\n' + edge.b)}
+        {@const ma = nodeById.get(edge.a)}
+        {@const mb = nodeById.get(edge.b)}
+        {#if ma && mb}
+          <line
+            x1={ma.x}
+            y1={ma.y}
+            x2={mb.x}
+            y2={mb.y}
+            class="manual-edge"
             vector-effect="non-scaling-stroke"
           />
         {/if}
@@ -1014,6 +1042,13 @@
   .walk-edge {
     stroke: var(--walk);
     stroke-width: 2;
+  }
+
+  .manual-edge {
+    stroke: var(--accent);
+    stroke-width: 1.6;
+    stroke-dasharray: 6 5;
+    opacity: 0.75;
   }
 
   /* Walk-draw reveal (v12 WS1): each edge dash-draws in turn. pathLength=1

@@ -44,6 +44,21 @@ export interface SuggestOptions {
    * with the same randomness. Each such step counts into `forced`.
    */
   force?: boolean
+  /**
+   * Planning annotations (v12 WS9): user-marked pairs count as edges (the
+   * walk may traverse them) and carry a strong bonus, like must-include.
+   */
+  manualEdges?: readonly ManualPair[]
+}
+
+/** An unordered user-marked pair; the store's ManualEdge extends it with a tag. */
+export interface ManualPair {
+  a: string
+  b: string
+}
+
+function pairKey(x: string, y: string): string {
+  return x < y ? `${x}\n${y}` : `${y}\n${x}`
 }
 
 export interface SuggestedWalk {
@@ -61,6 +76,8 @@ const SAWTOOTH_PERIOD = 4
 const PROGRESSION_WEIGHT = 0.8
 /** Strictly above the maximum matched-criteria score (4 criteria). */
 const MUST_INCLUDE_BONUS = 5
+/** A user-marked combo is a deliberate plan: rank it like a must-include. */
+const MANUAL_EDGE_BONUS = 5
 /**
  * Forced picks only: a nudge towards ±2/±7-semitone key relations, below
  * the 0.5 genre weight so it re-ranks harmonic near-ties, not styles.
@@ -151,17 +168,28 @@ type NeighboursOf = (id: string) => string[]
  * neighbours everyone, computed lazily instead of materializing n²/2 edges.
  * Otherwise the usual adjacency map from computeEdges.
  */
-function buildNeighbours(tracks: Track[], criteria: CriteriaConfig): NeighboursOf {
+function buildNeighbours(
+  tracks: Track[],
+  criteria: CriteriaConfig,
+  manualEdges: readonly ManualPair[] = [],
+): NeighboursOf {
   if (criteria.threshold === 0) {
+    // Complete graph subsumes every manual pair.
     const ids = tracks.map((t) => t.id)
     return (id) => ids.filter((other) => other !== id)
   }
   const neighbours = new Map<string, string[]>()
-  for (const edge of computeEdges(tracks, criteria)) {
-    if (!neighbours.has(edge.sourceId)) neighbours.set(edge.sourceId, [])
-    if (!neighbours.has(edge.targetId)) neighbours.set(edge.targetId, [])
-    neighbours.get(edge.sourceId)!.push(edge.targetId)
-    neighbours.get(edge.targetId)!.push(edge.sourceId)
+  const connect = (x: string, y: string) => {
+    if (!neighbours.has(x)) neighbours.set(x, [])
+    if (!neighbours.has(y)) neighbours.set(y, [])
+    if (!neighbours.get(x)!.includes(y)) neighbours.get(x)!.push(y)
+    if (!neighbours.get(y)!.includes(x)) neighbours.get(y)!.push(x)
+  }
+  for (const edge of computeEdges(tracks, criteria)) connect(edge.sourceId, edge.targetId)
+  // Manual pairs are roads too (v12 WS9) — only between tracks that exist.
+  const known = new Set(tracks.map((t) => t.id))
+  for (const { a, b } of manualEdges) {
+    if (a !== b && known.has(a) && known.has(b)) connect(a, b)
   }
   return (id) => neighbours.get(id) ?? []
 }
@@ -245,11 +273,15 @@ export function suggestWalk(
     progression = 'any',
     mustIncludeIds = [],
     force = false,
+    manualEdges = [],
   } = options
   if (tracks.length === 0) return { ids: [], forced: 0 }
 
   const byId = new Map(tracks.map((t) => [t.id, t]))
-  const neighbours = buildNeighbours(tracks, criteria)
+  const neighbours = buildNeighbours(tracks, criteria, manualEdges)
+  const manualSet = new Set(manualEdges.map(({ a, b }) => pairKey(a, b)))
+  const manualTerm = (current: Track) => (candidate: Track) =>
+    manualSet.has(pairKey(current.id, candidate.id)) ? MANUAL_EDGE_BONUS : 0
   const genreMatch = makeGenreMatcher(
     tracks.map((t) => t.genre),
     criteria,
@@ -282,7 +314,9 @@ export function suggestWalk(
     while (walk.length < length) {
       const current = byId.get(walk[walk.length - 1])!
       const fitTerm = progressionTerm(current, walk.length - 1, progression)
-      const extra = (candidate: Track) => pendingBonus(candidate) + fitTerm(candidate)
+      const manual = manualTerm(current)
+      const extra = (candidate: Track) =>
+        pendingBonus(candidate) + fitTerm(candidate) + manual(candidate)
       let candidates = rankedCandidates(
         current,
         neighbours,
@@ -329,6 +363,8 @@ export function suggestWalk(
     const towardsA = towards(tipA)
     const fitA = progressionTerm(tipA, startArm.length - 1, progression)
     const fitB = progressionTerm(tipB, endArm.length - 1, invertProgression(progression))
+    const manualA = manualTerm(tipA)
+    const manualB = manualTerm(tipB)
     const fromStart = rankedCandidates(
       tipA,
       neighbours,
@@ -336,7 +372,8 @@ export function suggestWalk(
       visited,
       criteria,
       genreMatch,
-      (candidate) => towardsB(candidate) + pendingBonus(candidate) + fitA(candidate),
+      (candidate) =>
+        towardsB(candidate) + pendingBonus(candidate) + fitA(candidate) + manualA(candidate),
     )
     const fromEnd = rankedCandidates(
       tipB,
@@ -345,7 +382,8 @@ export function suggestWalk(
       visited,
       criteria,
       genreMatch,
-      (candidate) => towardsA(candidate) + pendingBonus(candidate) + fitB(candidate),
+      (candidate) =>
+        towardsA(candidate) + pendingBonus(candidate) + fitB(candidate) + manualB(candidate),
     )
     let breaking = false
     let extendStart: boolean
@@ -360,7 +398,8 @@ export function suggestWalk(
         visited,
         criteria,
         genreMatch,
-        (candidate) => towardsB(candidate) + pendingBonus(candidate) + fitA(candidate),
+        (candidate) =>
+          towardsB(candidate) + pendingBonus(candidate) + fitA(candidate) + manualA(candidate),
       )
       if (pool.length === 0) break
       extendStart = true
@@ -495,11 +534,13 @@ export function suggestNext(
     progression = 'any',
     force = false,
     excludeIds = [],
+    manualEdges = [],
   } = options
   if (tracks.length === 0) return null
 
   const byId = new Map(tracks.map((t) => [t.id, t]))
-  const neighbours = buildNeighbours(tracks, criteria)
+  const neighbours = buildNeighbours(tracks, criteria, manualEdges)
+  const manualSet = new Set(manualEdges.map(({ a, b }) => pairKey(a, b)))
   const genreMatch = makeGenreMatcher(
     tracks.map((t) => t.genre),
     criteria,
@@ -525,6 +566,7 @@ export function suggestNext(
   const used = new Set([...tracklist, ...excludeIds])
   const scoreExtra = (candidate: Track) =>
     (successor !== undefined ? scoreCandidate(candidate, successor, criteria, genreMatch) : 0) +
+    (manualSet.has(pairKey(anchor.id, candidate.id)) ? MANUAL_EDGE_BONUS : 0) +
     (progression === 'any'
       ? 0
       : PROGRESSION_WEIGHT * progressionFit(anchor.bpm, candidate.bpm, anchorIndex, progression))

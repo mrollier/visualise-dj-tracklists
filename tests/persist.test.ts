@@ -7,7 +7,8 @@ import { DEFAULT_SETTINGS } from '../src/core/settings'
 import { SAMPLE_TRACKS } from '../src/data/sample-tracks'
 
 const project: Project = {
-  version: 4,
+  version: 5,
+  manualEdges: [],
   libraryName: 'My crate',
   tracks: SAMPLE_TRACKS,
   criteria: { ...structuredClone(DEFAULT_CRITERIA), threshold: 4 },
@@ -87,7 +88,7 @@ describe('project persistence (v3)', () => {
       colorAxis: 'auto',
     })
     const parsed = parseProject(v2)
-    expect(parsed.version).toBe(4)
+    expect(parsed.version).toBe(5)
     expect(parsed.sets).toHaveLength(1)
     expect(parsed.sets[0]).toMatchObject({
       name: 'First Set',
@@ -371,7 +372,7 @@ describe('project persistence (v3)', () => {
     })
     expect(parsed.filters.playlists).toEqual(['Openers'])
     expect(parsed.filters.keyRing).toBe('minor')
-    expect(parsed.version).toBe(4)
+    expect(parsed.version).toBe(5)
   })
 
   test('garbage property filters are dropped or clamped (v11 issue 1)', () => {
@@ -483,7 +484,7 @@ describe('project persistence (v3)', () => {
       radialAxis: 'bpm',
     })
     const migrated = parseProject(v1)
-    expect(migrated.version).toBe(4)
+    expect(migrated.version).toBe(5)
     expect(migrated.filters).toEqual(EMPTY_FILTERS)
     expect(migrated.settings).toEqual(DEFAULT_SETTINGS)
     expect(migrated.colorAxis).toBe('auto')
@@ -590,5 +591,37 @@ describe('uiMode (v12 WS4)', () => {
     const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
     ;(raw.settings as Record<string, unknown>).uiMode = 'banana'
     expect(parseProject(JSON.stringify(raw)).settings.uiMode).toBe('advanced')
+  })
+})
+
+describe('manual edges (v12 WS9, schema v5)', () => {
+  test('manual edges round-trip with their tag', () => {
+    const withEdges = {
+      ...project,
+      manualEdges: [{ a: SAMPLE_TRACKS[0].id, b: SAMPLE_TRACKS[1].id, tag: 'mashup' }],
+    }
+    const parsed = parseProject(serializeProject(withEdges))
+    expect(parsed.manualEdges).toEqual(withEdges.manualEdges)
+  })
+
+  test('v4 saves parse with no manual edges', () => {
+    const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    raw.version = 4
+    delete raw.manualEdges
+    expect(parseProject(JSON.stringify(raw)).manualEdges).toEqual([])
+  })
+
+  test('unknown ids, self-pairs and duplicate pairs are pruned', () => {
+    const withEdges = {
+      ...project,
+      manualEdges: [
+        { a: SAMPLE_TRACKS[0].id, b: SAMPLE_TRACKS[1].id },
+        { a: SAMPLE_TRACKS[1].id, b: SAMPLE_TRACKS[0].id }, // same pair reversed
+        { a: SAMPLE_TRACKS[0].id, b: SAMPLE_TRACKS[0].id }, // self
+        { a: SAMPLE_TRACKS[0].id, b: 'ghost' }, // unknown
+      ],
+    }
+    const parsed = parseProject(serializeProject(withEdges))
+    expect(parsed.manualEdges).toEqual([{ a: SAMPLE_TRACKS[0].id, b: SAMPLE_TRACKS[1].id }])
   })
 })

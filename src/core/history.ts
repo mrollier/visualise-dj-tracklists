@@ -15,6 +15,8 @@ export interface UndoSnapshot {
   selectedId: string | null
   /** JSON of the behavioural settings + criteria; see undoStore.tuningOf. */
   tuning: string
+  /** JSON of the manual edges (v12 WS9) — a mark toggle is a work edit. */
+  marks: string
 }
 
 export interface UndoStack {
@@ -31,6 +33,7 @@ export function sameWork(a: UndoSnapshot, b: UndoSnapshot): boolean {
   return (
     a.generated === b.generated &&
     a.selectedId === b.selectedId &&
+    a.marks === b.marks &&
     a.trackIds.length === b.trackIds.length &&
     a.trackIds.every((id, i) => id === b.trackIds[i])
   )

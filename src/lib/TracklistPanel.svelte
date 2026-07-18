@@ -21,6 +21,7 @@
     deleteSet,
     genreMatcher,
     libraryName,
+    manualEdges,
     mustInclude,
     pinnedFirst,
     pinnedLast,
@@ -172,6 +173,7 @@
       progression: $settings.bpmProgression,
       mustIncludeIds: $mustInclude,
       force,
+      manualEdges: $manualEdges,
     })
     setGeneratedTracklist(walk.ids)
     bumpWalkReveal(walkRevealPlan(walk.ids).totalMs)
@@ -198,6 +200,9 @@
     if ($pinnedLast !== null && !$trackById.has($pinnedLast)) pinnedLast.set(null)
     if ($mustInclude.some((id) => !$trackById.has(id)))
       mustInclude.update((ids) => ids.filter((id) => $trackById.has(id)))
+    // Manual combos too (v12 WS9): a mark dies with either of its tracks.
+    if ($manualEdges.some((e) => !$trackById.has(e.a) || !$trackById.has(e.b)))
+      manualEdges.update((edges) => edges.filter((e) => $trackById.has(e.a) && $trackById.has(e.b)))
   })
 
   function togglePin(store: typeof pinnedFirst, id: string, pinned: boolean) {

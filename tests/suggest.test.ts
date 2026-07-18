@@ -632,3 +632,41 @@ describe('suggestNext forced mode', () => {
     expect(suggestNext(chain, chainCfg(), ['a', 'b', 'c', 'd'], { force: true })).toBeNull()
   })
 })
+
+describe('manual edges (v12 WS9 — planning annotations)', () => {
+  test('a manual edge lets the walk cross a gap no criteria connect', () => {
+    // e is fully isolated from the a—b—c chain; a manual a↔e edge is a road.
+    const walk = suggestWalk(tracks, config(), {
+      seedId: 'a',
+      length: 2,
+      manualEdges: [{ a: 'a', b: 'e' }],
+    }).ids
+    // With the strong manual bonus the walk takes the marked road first.
+    expect(walk).toEqual(['a', 'e'])
+  })
+
+  test('the bonus outranks ordinary matching neighbours', () => {
+    // b and c both match a via criteria; marking a↔c makes c the pick.
+    const walk = suggestWalk(tracks, config(), {
+      seedId: 'a',
+      length: 2,
+      manualEdges: [{ a: 'c', b: 'a' }],
+    }).ids
+    expect(walk).toEqual(['a', 'c'])
+  })
+
+  test('suggestNext follows a manual edge from an otherwise exhausted anchor', () => {
+    // Set holds the whole chain; only isolated e remains, reachable solely
+    // through the manual edge — the hub should offer it without forcing.
+    const next = suggestNext(tracks, config(), ['b', 'c', 'a'], {
+      manualEdges: [{ a: 'a', b: 'e' }],
+    })
+    expect(next).toEqual({ trackId: 'e', insertIndex: 3 })
+  })
+
+  test('without the option nothing changes (regression pin)', () => {
+    const before = suggestWalk(tracks, config(), { seedId: 'a', length: 5 }).ids
+    const after = suggestWalk(tracks, config(), { seedId: 'a', length: 5, manualEdges: [] }).ids
+    expect(after).toEqual(before)
+  })
+})

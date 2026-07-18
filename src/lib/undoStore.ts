@@ -9,11 +9,13 @@ import {
   type UndoSnapshot,
   type UndoStack,
 } from '../core/history'
+import type { ManualEdge } from '../core/model'
 import type { AppSettings } from '../core/settings'
 import {
   activeSet,
   activeSetId,
   criteria,
+  manualEdges,
   selectedId,
   setGeneratedTracklist,
   settings,
@@ -33,7 +35,13 @@ import {
 
 const TUNING_DEBOUNCE_MS = 350
 
-let stack: UndoStack = initStack({ trackIds: [], generated: false, selectedId: null, tuning: '{}' })
+let stack: UndoStack = initStack({
+  trackIds: [],
+  generated: false,
+  selectedId: null,
+  tuning: '{}',
+  marks: '[]',
+})
 let applying = false
 let pending: UndoSnapshot | null = null
 let pendingTimer: ReturnType<typeof setTimeout> | undefined
@@ -53,6 +61,7 @@ function currentSnapshot(): UndoSnapshot {
     generated: set.generated,
     selectedId: get(selectedId),
     tuning: tuningOf(get(settings), get(criteria)),
+    marks: JSON.stringify(get(manualEdges)),
   }
 }
 
@@ -71,6 +80,7 @@ function applySnapshot(snapshot: UndoSnapshot): void {
       settings.update((s) => ({ ...s, ...parsed.settings }))
     }
     if (parsed.criteria !== undefined) criteria.set(parsed.criteria)
+    manualEdges.set(JSON.parse(snapshot.marks) as ManualEdge[])
   } finally {
     applying = false
   }
@@ -118,13 +128,14 @@ export function startUndo(): void {
     resetUndo()
   })
   const watched = derived(
-    [activeSet, selectedId, settings, criteria],
-    ([$set, $selected, $settings, $criteria]): UndoSnapshot => {
+    [activeSet, selectedId, settings, criteria, manualEdges],
+    ([$set, $selected, $settings, $criteria, $manualEdges]): UndoSnapshot => {
       return {
         trackIds: $set.trackIds,
         generated: $set.generated,
         selectedId: $selected,
         tuning: tuningOf($settings, $criteria),
+        marks: JSON.stringify($manualEdges),
       }
     },
   )

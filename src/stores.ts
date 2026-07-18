@@ -14,7 +14,7 @@ import {
 } from './core/filter'
 import { computeGenreClasses } from './core/genreClasses'
 import { genreFamilyClasses, playlistClasses } from './core/iconClasses'
-import type { ImportReport, Playlist, Track } from './core/model'
+import type { ImportReport, ManualEdge, Playlist, Track } from './core/model'
 import { canAddSet, freshFirstSet, nextSetName, uniqueSetName, type TrackSet } from './core/sets'
 import { DEFAULT_SETTINGS, type AppSettings } from './core/settings'
 import type { TrackSort } from './core/trackSort'
@@ -301,14 +301,37 @@ export const iconClasses = derived(
 
 export const trackById = derived(library, ($library) => new Map($library.map((t) => [t.id, t])))
 
-/** Adjacency: for each track id, the ids it shares a combo edge with. */
-export const neighbours = derived(edges, ($edges) => {
+/**
+ * Manual edges (v12 WS9): user-marked "these mix well" pairs — planning
+ * annotations, persisted with the project, never a play log. Toggled from the
+ * selected-track card's link mode; pruned when a track leaves the library.
+ */
+export const manualEdges = writable<ManualEdge[]>([])
+
+export function toggleManualEdge(a: string, b: string): void {
+  if (a === b) return
+  manualEdges.update(($edges) => {
+    const existing = $edges.findIndex((e) => (e.a === a && e.b === b) || (e.a === b && e.b === a))
+    if (existing !== -1) return $edges.toSpliced(existing, 1)
+    return [...$edges, { a, b }]
+  })
+}
+
+/** Link mode: the selected track is armed; the next wheel click marks/unmarks. */
+export const linkArmed = writable(false)
+
+/** Adjacency: for each track id, the ids it shares a combo edge with —
+ * manual pairs included (v12 WS9), so the hub, retry ring and focus star all
+ * treat a marked combo as a road. */
+export const neighbours = derived([edges, manualEdges], ([$edges, $manualEdges]) => {
   const map = new Map<string, Set<string>>()
-  for (const e of $edges) {
-    if (!map.has(e.sourceId)) map.set(e.sourceId, new Set())
-    if (!map.has(e.targetId)) map.set(e.targetId, new Set())
-    map.get(e.sourceId)!.add(e.targetId)
-    map.get(e.targetId)!.add(e.sourceId)
+  const connect = (x: string, y: string) => {
+    if (!map.has(x)) map.set(x, new Set())
+    if (!map.has(y)) map.set(y, new Set())
+    map.get(x)!.add(y)
+    map.get(y)!.add(x)
   }
+  for (const e of $edges) connect(e.sourceId, e.targetId)
+  for (const e of $manualEdges) connect(e.a, e.b)
   return map
 })

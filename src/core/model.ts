@@ -114,6 +114,17 @@ export interface ImportReport {
   notes?: string[]
 }
 
+/**
+ * A user-marked "these mix well" pair (v12 WS9): a forward-looking planning
+ * annotation, never a record of performed transitions. Unordered; `tag` is a
+ * free short note ("mashup", "tested").
+ */
+export interface ManualEdge {
+  a: string
+  b: string
+  tag?: string
+}
+
 /** A named playlist from the source library: track ids in playlist order. */
 export interface Playlist {
   name: string

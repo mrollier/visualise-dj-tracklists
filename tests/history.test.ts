@@ -2,7 +2,14 @@ import { describe, expect, test } from 'vitest'
 import { initStack, record, redo, sameWork, undo, type UndoSnapshot } from '../src/core/history'
 
 function snap(overrides: Partial<UndoSnapshot> = {}): UndoSnapshot {
-  return { trackIds: [], generated: false, selectedId: null, tuning: '{}', ...overrides }
+  return {
+    trackIds: [],
+    generated: false,
+    selectedId: null,
+    tuning: '{}',
+    marks: '[]',
+    ...overrides,
+  }
 }
 
 describe('undo stack', () => {
@@ -71,5 +78,7 @@ describe('undo stack', () => {
     expect(sameWork(base, snap({ trackIds: ['a'], tuning: 'y' }))).toBe(true)
     expect(sameWork(base, snap({ trackIds: ['a', 'b'], tuning: 'x' }))).toBe(false)
     expect(sameWork(base, snap({ trackIds: ['a'], selectedId: 'a', tuning: 'x' }))).toBe(false)
+    // A manual-edge mark is a work edit, never debounced like tuning.
+    expect(sameWork(base, snap({ trackIds: ['a'], tuning: 'x', marks: '[x]' }))).toBe(false)
   })
 })

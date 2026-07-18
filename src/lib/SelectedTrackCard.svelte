@@ -4,13 +4,34 @@
   // right of the whole app. Since v11 (issue 15) the three marks are one
   // compact icon row (★ ⏮ ⏭) with an ⓘ explaining them, reclaiming the
   // vertical space the labelled buttons ate.
-  import { mustInclude, pinnedFirst, pinnedLast, selectedId, trackById } from '../stores'
+  import {
+    linkArmed,
+    manualEdges,
+    mustInclude,
+    pinnedFirst,
+    pinnedLast,
+    selectedId,
+    trackById,
+  } from '../stores'
   import type { Writable } from 'svelte/store'
   import InfoTooltip from './InfoTooltip.svelte'
 
   const selectedTrack = $derived(
     $selectedId === null ? null : ($trackById.get($selectedId) ?? null),
   )
+
+  // Manual combos (v12 WS9): 🔗 arms link mode — the next wheel click marks
+  // (or unmarks) the pair; the selection stays put so several partners can be
+  // marked in a row. Changing the selection or Escape disarms.
+  const linkedCount = $derived(
+    $selectedId === null
+      ? 0
+      : $manualEdges.filter((e) => e.a === $selectedId || e.b === $selectedId).length,
+  )
+  $effect(() => {
+    void $selectedId
+    linkArmed.set(false)
+  })
   const isMustIncluded = $derived($selectedId !== null && $mustInclude.includes($selectedId))
   const isFirst = $derived($selectedId !== null && $pinnedFirst === $selectedId)
   const isLast = $derived($selectedId !== null && $pinnedLast === $selectedId)
@@ -69,15 +90,35 @@
       >
         ⏭
       </button>
+      <button
+        class="mark-toggle"
+        class:on={$linkArmed}
+        aria-pressed={$linkArmed}
+        aria-label="Mark a combo with another track"
+        title="Mark a combo you know works: click another track on the wheel to link or unlink it"
+        onclick={() => linkArmed.update((v) => !v)}
+      >
+        🔗{linkedCount > 0 ? linkedCount : ''}
+      </button>
       <InfoTooltip label="About these marks" align="right">
         <strong>Marks for suggested sets</strong>
         <span>★ — strongly favour including this track.</span>
         <span>⏮ — open generated sets with it.</span>
         <span>⏭ — close generated sets with it.</span>
+        <span>🔗 — mark a combo you know works: suggestions treat it as a road.</span>
       </InfoTooltip>
     </div>
+    {#if $linkArmed}
+      <p class="link-hint">Click another track on the wheel to mark or unmark the combo.</p>
+    {/if}
   </div>
 {/if}
+
+<svelte:window
+  onkeydown={(e) => {
+    if (e.key === 'Escape') linkArmed.set(false)
+  }}
+/>
 
 <style>
   .selected-card {
@@ -130,5 +171,11 @@
   .mark-toggle.on {
     color: var(--accent);
     border-color: var(--accent);
+  }
+
+  .link-hint {
+    margin: 6px 0 0;
+    color: var(--accent);
+    font-size: 11.5px;
   }
 </style>

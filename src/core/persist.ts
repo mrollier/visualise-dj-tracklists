@@ -2,7 +2,7 @@ import { migrateColumns } from './columns'
 import { DEFAULT_CRITERIA, type CriteriaConfig } from './combos'
 import { migrateFilters, type LibraryFilters } from './filter'
 import { normalizeKey } from './keys'
-import { energyFromComments, type Playlist, type Track } from './model'
+import { energyFromComments, type ManualEdge, type Playlist, type Track } from './model'
 import { DEFAULT_VISIBLE_FILTERS, TRACK_PROPERTIES } from './properties'
 import {
   freshFirstSet,
@@ -20,10 +20,11 @@ import { DEFAULT_SETTINGS, type AppSettings } from './settings'
  * Version history: v1 (no filters/settings, criteria had a rating criterion),
  * v2 (filters + settings + colour axis; rating became a filter),
  * v3 (multiple named sets replace the single tracklist — issue 18),
- * v4 (filters carry a per-property range map — v11 issue 1).
+ * v4 (filters carry a per-property range map — v11 issue 1),
+ * v5 (manual edges — planning annotations, v12 WS9).
  */
 export interface Project {
-  version: 4
+  version: 5
   libraryName: string
   tracks: Track[]
   criteria: CriteriaConfig
@@ -31,6 +32,8 @@ export interface Project {
   settings: AppSettings
   /** Named sets; always at least one. */
   sets: TrackSet[]
+  /** User-marked "these mix well" pairs (v12 WS9) — planning, never a log. */
+  manualEdges: ManualEdge[]
   /** Which set is being edited; always one of `sets`. */
   activeSetId: string
   /** Playlists from the source library (Rekordbox XML); [] elsewhere. */
@@ -151,7 +154,7 @@ export function parseProject(json: string): Project {
   }
   const p = raw as Record<string, unknown> &
     Omit<Partial<Project>, 'version'> & { version?: number; tracklist?: unknown }
-  if (p.version !== 1 && p.version !== 2 && p.version !== 3 && p.version !== 4) {
+  if (p.version !== 1 && p.version !== 2 && p.version !== 3 && p.version !== 4 && p.version !== 5) {
     throw new Error(`Unsupported project version: ${String(p.version)}`)
   }
   const hasSetShape = Array.isArray(p.sets) || Array.isArray(p.tracklist)
@@ -238,8 +241,29 @@ export function parseProject(json: string): Project {
       settings.visibleFilters.push(prop.key)
     }
   }
+  // Manual edges (v12 WS9): unordered unique pairs between known tracks.
+  const manualEdges: ManualEdge[] = []
+  {
+    const seenPairs = new Set<string>()
+    const knownIds = new Set(tracks.map((t) => t.id))
+    for (const raw of Array.isArray(p.manualEdges) ? (p.manualEdges as unknown[]) : []) {
+      if (typeof raw !== 'object' || raw === null) continue
+      const entry = raw as Record<string, unknown>
+      if (typeof entry.a !== 'string' || typeof entry.b !== 'string') continue
+      if (entry.a === entry.b || !knownIds.has(entry.a) || !knownIds.has(entry.b)) continue
+      const key = entry.a < entry.b ? `${entry.a}\n${entry.b}` : `${entry.b}\n${entry.a}`
+      if (seenPairs.has(key)) continue
+      seenPairs.add(key)
+      const tag = typeof entry.tag === 'string' && entry.tag.trim() !== '' ? entry.tag : undefined
+      manualEdges.push(
+        tag === undefined ? { a: entry.a, b: entry.b } : { a: entry.a, b: entry.b, tag },
+      )
+    }
+  }
+
   return {
-    version: 4,
+    version: 5,
+    manualEdges,
     libraryName: typeof p.libraryName === 'string' ? p.libraryName : '',
     tracks,
     criteria: migrateCriteria(p.criteria as unknown as Record<string, unknown>),
