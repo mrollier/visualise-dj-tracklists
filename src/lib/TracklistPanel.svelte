@@ -5,7 +5,7 @@
   import type { Track } from '../core/model'
   import { buildSetPortrait } from '../core/exporters/portrait'
   import { suggestWalk } from '../core/suggest'
-  import { WALK_REVEAL_STEP_MS, walkRevealPlan } from '../core/walkReveal'
+  import { walkRevealPlan } from '../core/walkReveal'
   import { promptExportName } from './exportName'
   import { svgToPngBlob } from './portraitPng'
   import { effectiveTheme } from './theme'
@@ -51,6 +51,7 @@
   // on the tick restarts the animation cleanly per suggestion; once `seen`
   // catches up, re-renders (view switches, undo) replay nothing.
   const revealing = $derived($walkRevealTick > $walkRevealSeen)
+  const revealPlan = $derived(walkRevealPlan($tracklist))
 
   const FIELD_SHORT: Record<CriterionField, string> = {
     key: 'key',
@@ -329,7 +330,7 @@
               class:good={t.isCombo}
               class:rough={!t.isCombo}
               class:reveal={revealing}
-              style:animation-delay="{(i - 0.5) * WALK_REVEAL_STEP_MS}ms"
+              style:animation-delay="{(i - 0.5) * revealPlan.stepMs}ms"
             >
               {#if t.matched.length > 0}
                 {#each t.matched as field (field)}<span class="match">{FIELD_SHORT[field]}</span
@@ -343,7 +344,7 @@
             class="track"
             class:active={track.id === $selectedId}
             class:reveal={revealing}
-            style:animation-delay="{i * WALK_REVEAL_STEP_MS}ms"
+            style:animation-delay="{i * revealPlan.stepMs}ms"
             onmouseenter={() => hoveredId.set(track.id)}
             onmouseleave={() => hoveredId.set(null)}
           >

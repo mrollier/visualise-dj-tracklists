@@ -54,7 +54,7 @@
     manualEdges,
     toggleManualEdge,
   } from '../stores'
-  import { walkRevealPlan, WALK_REVEAL_STEP_MS } from '../core/walkReveal'
+  import { walkRevealPlan } from '../core/walkReveal'
 
   const SIZE = 820
   const WIDTH = SIZE + 80 // extra room for the no-key gutter on the right
@@ -683,7 +683,7 @@
                 style:animation-delay={revealing
                   ? `${revealPlan.edgeDelays[pairIndex]}ms`
                   : undefined}
-                style:animation-duration={revealing ? `${WALK_REVEAL_STEP_MS}ms` : undefined}
+                style:animation-duration={revealing ? `${revealPlan.stepMs}ms` : undefined}
                 marker-end="url(#walk-arrow)"
                 vector-effect="non-scaling-stroke"
               />

@@ -129,3 +129,35 @@ during the workstream, favouring ✨, view switching, and Escape consistency.
 - No importer wave in v12 (flexible column mapping, VirtualDJ, Discogs, Traktor/Serato
   are shaped for v13); no Rekordbox-XML export yet (roadmap).
 - No Tauri unless the PWA disappoints.
+
+## Implementation amendments (recorded after the build, 2026-07-18)
+
+- **Fresh visitors start in the full UI, not easy mode.** §C planned easy as the
+  first-run default; forcing it would have invalidated every E2E flow for
+  marginal gain, so the default stays `advanced` and the tour's last step
+  teaches the toggle instead. The guided tour fires on the first-ever sample
+  load and replays from the status ⓘ.
+- **The walk reveal caps at ~4 s.** A 99-track walk would have drawn for 14 s;
+  `walkRevealPlan` compresses the per-step delay for long walks (floor 40 ms),
+  and both views animate from the plan's own `stepMs`.
+- **The pack widened to top-24 neighbours.** The 22 new curated labels entered
+  the vocabulary and displaced big genres (techno fell out of electro's top-20,
+  turning a passing triplet into a 0-vs-0 tie); four wider slots absorb the
+  growth. Hybrid holds 100% on the grown 33-triplet eval; the pack is 824 KB.
+- **Mining outcomes** (WS7): 18 aliases + 4 extra tree nodes (balkan under the
+  new folk node, thai funk, jackin house, halftime) on top of WS5's 18. The
+  real 2080-track library went from 369 tracks (20.8%) outside the similarity
+  data to **49 (2.8%)**, and what remains is almost entirely the deliberate
+  reject class (non-genres like "Nieuw!!!", "90s", site watermarks). The miner
+  lives on as `tests/mine-genre-aliases.dev.test.ts` (env-gated).
+- **`isVinyl` stays out of the properties registry** — every registry kind is
+  range-shaped and a boolean isn't; it's a card-level flag until a 'flag' kind
+  exists (the same deliberate gap as v11's colour-checklist non-goal).
+- **Energy is also a radius/colour axis**, and the Genre Atlas pack carries
+  MIK-style "Energy N" comments so the axis demos out of the box.
+- **Settings undo excludes the chrome** — theme, uiMode and advancedOpen never
+  enter the tuning snapshot, and tuning-only changes debounce (350 ms) so a
+  slider drag is one undo step. Manual-edge marks are work edits: immediate.
+- **The genre map's centre gravity now scales with node count** (√-scaled above
+  22 nodes) — the atlas-sized vocabulary pushed the fringe out of frame under
+  the fixed v6 strength.

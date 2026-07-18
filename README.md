@@ -18,8 +18,11 @@ Your library never leaves your machine — there is no backend, no account, no u
   (ID3/Vorbis/MP4, read in the browser), or an **M3U8 playlist** — M3U8s become your
   set, matched against the library, and entries that aren't in the library yet pick
   up their metadata when you import the collection XML later. The **Load sample**
-  button loads one **Sample collection**: ten themed fictional crates plus the
-  classic demo, each as a playlist, behaving exactly like an imported collection.
+  button loads one **Sample collection**: eleven themed fictional crates plus the
+  classic demo, each as a playlist, behaving exactly like an imported collection —
+  including a **Genre Atlas** from jazz to gabber that gives the genre views room
+  to shine. The **first sample load opens a five-step guided tour** (the app stays
+  interactive under it; replay it any time from the status ⓘ).
 - **Work per playlist**: any collection with playlists (XML or the sample) starts
   with an **empty wheel** and a Playlists panel on the left — toggle the playlists
   you want (plus a "Not in a playlist" bucket for the rest) instead of drowning in
@@ -98,7 +101,9 @@ Your library never leaves your machine — there is no backend, no account, no u
   numbers just outside the selected playlists' actual extremes, reset to them
   with a ↺ per range (and whenever you toggle playlists), and a min can never
   cross its max. The filter header counts visible tracks against the playlist
-  selection.
+  selection. **Energy** (1–10) joins the filterable properties when your Comments
+  carry Mixed-In-Key-style "Energy N" tags — parsed at import, and available as
+  the wheel's radius and colour axis too.
 - **Tune the criteria**: key / BPM / genre / year each toggleable and ranged (the
   parameters stay editable even while a criterion is switched off); an edge appears
   when at least _N_ of the enabled criteria match, _N_ set with a **row of boxes**
@@ -135,8 +140,19 @@ Your library never leaves your machine — there is no backend, no account, no u
   pick, and once everything has been tried only the ⟲ remains. When no track matches
   your criteria from there, the hub itself pulses into a **force** state — a forced
   pick gently prefers keys a **±2/±7-semitone move** away — and it greys out once
-  every visible track is in the set. **Cmd+Z / Cmd+Shift+Z** undo and redo set edits
-  and selection changes.
+  every visible track is in the set. **Cmd+Z / Cmd+Shift+Z** undo and redo set
+  edits, selection changes **and your settings/criteria tweaks** (a slider drag
+  lands as one step; the theme, easy mode and fold state deliberately stay put).
+  Plain **1/2/3** switch the central view, and **s** presses ✨ for you.
+- **Watch it walk — and mark your own roads**: ✨ **draws the suggested walk
+  node by node across the wheel** — each hop lights up as the tracklist cascades
+  in sync, a shimmer runs down a full-length walk as it completes, and the button
+  throws a little spark burst (long walks compress to ~4 s; everything obeys
+  reduced-motion). The selected-track card carries two hands-on tools: **🔗 link
+  mode** marks a combo _you_ know works — a dashed, always-visible road that the
+  suggester treats like a strong edge and the walk may travel (forward-looking
+  planning marks, never a play log) — and **✎ hand-editing** of key/BPM/genre for
+  **vinyl-only records** (flagged VINYL on the card) or plain metadata fixes.
 - **Keep several sets — they ARE the suggestion browser**: the set panel's header
   shows the **active set's name** over up to **eight named sets** — ＋ counts
   onward from what you have ("Third Set" after two renamed ones), ✎ renames inline
@@ -164,13 +180,21 @@ Your library never leaves your machine — there is no backend, no account, no u
   system preference), and a **Return to default settings** button at the panel's
   foot resets everything the panel owns — after a confirmation (your filters, sets
   and theme survive). Controls that don't affect the current view **dim but stay
-  adjustable**. The top bar stays lean: the imported collection's name plus an ⓘ
-  whose tooltip holds the import details (the sample collection raises one too).
+  adjustable**. One **Easy mode** button reduces the whole surface
+  to wheel + playlists + ✨ + set — visibility only, so **All controls** brings
+  every value back exactly as you left it. The top bar stays lean: the imported
+  collection's name plus an ⓘ whose tooltip holds the import details **and a
+  genre-coverage diagnosis** — how many tracks sit outside the similarity data,
+  and which labels top the list (the sample collection raises one too).
   Every ⓘ in the app also **pins open on click** — links inside stay reachable —
   and positions itself to never clip at a panel edge.
-- **Take it with you**: export the set as M3U8 (Rekordbox re-imports it) or CSV; save
-  the whole project as JSON — every export asks for a filename first. Everything
-  autosaves to the browser; a Reset button (with confirmation) wipes the slate.
+- **Take it with you**: export the set as M3U8 (Rekordbox re-imports it) or CSV —
+  or as a **set portrait**: the walk over the wheel as a standalone SVG/PNG
+  poster, numbered badges on the map and the tracklist down the side, in either
+  theme. Save the whole project as JSON — every export asks for a filename first.
+  Everything autosaves to the browser; a Reset button (with confirmation) wipes
+  the slate. The app is also a **PWA**: install it from the browser and it opens
+  like a double-click application, offline included (from the second visit on).
 
 ![A Rekordbox collection with the playlists panel](docs/screenshots/playlists.png)
 
@@ -179,6 +203,10 @@ Your library never leaves your machine — there is no backend, no account, no u
 ![The advanced settings beside the wheel](docs/screenshots/advanced-filters.png)
 
 ![The light theme](docs/screenshots/light-mode.png)
+
+![The set portrait export — the walk as a poster](docs/screenshots/set-portrait.png)
+
+![The guided tour over the freshly loaded sample](docs/screenshots/guided-tour.png)
 
 ## Where it sits
 

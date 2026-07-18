@@ -40,3 +40,15 @@ describe('walkRevealPlan (v12 WS1)', () => {
     expect(plan.nodeDelays.get('b')).toBe(WALK_REVEAL_STEP_MS)
   })
 })
+
+describe('long-walk cap (v12)', () => {
+  test('a 99-track walk reveals in about four seconds, not fourteen', () => {
+    const plan = walkRevealPlan(Array.from({ length: 99 }, (_, i) => `t${i}`))
+    expect(plan.totalMs).toBeLessThanOrEqual(4500)
+    expect(plan.totalMs).toBeGreaterThan(2000)
+  })
+
+  test('short walks keep the full per-step pace', () => {
+    expect(walkRevealPlan(['a', 'b', 'c']).totalMs).toBe(3 * WALK_REVEAL_STEP_MS)
+  })
+})

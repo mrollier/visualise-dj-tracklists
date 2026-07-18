@@ -45,12 +45,12 @@
 
 {#if step !== null && STEPS[step] !== undefined}
   <div class="tour" role="dialog" aria-label="Guided tour">
-    <header>
+    <div class="tour-head">
       <strong>{STEPS[step].title}</strong>
       <button class="close" aria-label="Close the tour" onclick={close}>✕</button>
-    </header>
+    </div>
     <p>{STEPS[step].body}</p>
-    <footer>
+    <div class="tour-foot">
       <span class="dots" aria-label="Step {step + 1} of {STEPS.length}">
         {#each STEPS.keys() as i (i)}
           <i class:on={i === step}></i>
@@ -64,7 +64,7 @@
           {step >= STEPS.length - 1 ? 'Done' : 'Next'}
         </button>
       </span>
-    </footer>
+    </div>
   </div>
 {/if}
 
@@ -83,13 +83,13 @@
     font-size: 13px;
   }
 
-  header {
+  .tour-head {
     display: flex;
     align-items: baseline;
     gap: 8px;
   }
 
-  header strong {
+  .tour-head strong {
     flex: 1;
   }
 
@@ -105,7 +105,7 @@
     color: var(--ink-secondary);
   }
 
-  footer {
+  .tour-foot {
     display: flex;
     align-items: center;
   }

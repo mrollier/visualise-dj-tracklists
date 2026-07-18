@@ -37,6 +37,11 @@
   const HEIGHT = 820
   /** Gentle centre gravity: contains disconnected components (issue 12). */
   const CONTAIN_STRENGTH = 0.05
+  /** Gravity per node count: 0.05 at ≤22 nodes, √-scaled above (v12) — the
+   * genre-atlas-sized map needs the stronger pull to stay framed. */
+  function containStrength(count: number): number {
+    return CONTAIN_STRENGTH * Math.max(1, Math.sqrt(count / 22))
+  }
 
   // Method overlay colours: first six dark categorical slots of the palette,
   // validated against both surfaces (dark #1a1a19, light #f7f6f2; see
@@ -281,12 +286,17 @@
       // Weak positional gravity instead of forceCenter: forceCenter only
       // recentres the mean, so disconnected components drift apart under
       // the charge with nothing pulling them back (ISSUES.md #12). The
-      // pull must stay gentle or connected layouts visibly compress. The
-      // instances are kept so a drag can TOW the gravity targets (v11
-      // issue 9c) — the whole graph, linked or not, leans after the
-      // grabbed node through empty space.
-      .force('x', (gravityX = forceX<GenreNode>(WIDTH / 2).strength(CONTAIN_STRENGTH)))
-      .force('y', (gravityY = forceY<GenreNode>(HEIGHT / 2).strength(CONTAIN_STRENGTH)))
+      // pull must stay gentle or connected layouts visibly compress — but
+      // it must also GROW with the node count (v12): summed charge scales
+      // with n, so a genre-atlas-sized vocabulary would push the fringe out
+      // of frame under a fixed 0.05. The instances are kept so a drag can
+      // TOW the gravity targets (v11 issue 9c) — the whole graph, linked or
+      // not, leans after the grabbed node through empty space.
+      .force('x', (gravityX = forceX<GenreNode>(WIDTH / 2).strength(containStrength(nodes.length))))
+      .force(
+        'y',
+        (gravityY = forceY<GenreNode>(HEIGHT / 2).strength(containStrength(nodes.length))),
+      )
       // Slow cooling and strong damping: nodes drift into place organically
       // instead of springing (issue 5, pairs with the centre spawn of issue
       // 3). alphaDecay lowered again (v10 issue 9, v11 issue 10) so a

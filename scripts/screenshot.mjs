@@ -41,6 +41,11 @@ await page.screenshot({ path: `${scratch}/01-empty.png` })
 // playlists panel, hint centred on the wheel (design-v6 §D)
 await page.getByRole('button', { name: 'Load sample' }).click()
 await page.getByText('Nothing to show yet.').waitFor()
+// v12 WS12: the first-ever sample load opens the guided tour — capture it,
+// then close it so the flows below run uncluttered (the seen-flag persists).
+await page.getByRole('dialog', { name: 'Guided tour' }).waitFor()
+await page.screenshot({ path: `${scratch}/01b-tour.png` })
+await page.getByRole('button', { name: 'Close the tour' }).click()
 if ((await page.locator('g.node').count()) !== 0) {
   errors.push('the sample collection did not start with an empty wheel')
 }
@@ -214,13 +219,14 @@ const legendBox = await page.locator('.legend').boundingBox()
 if (cardBox && legendBox && cardBox.x < legendBox.x + legendBox.width) {
   errors.push('the selected-track card overlaps the legend')
 }
-// v11 issue 15: the card's marks are a compact icon row (★ ⏮ ⏭ + ⓘ).
+// v11 issue 15 + v12 (WS9/WS13): the card's marks are a compact icon row —
+// ★ ⏮ ⏭ plus the 🔗 link mode and the ✎ hand editor, with the ⓘ at the end.
 await page.locator('.marks .mark-toggle').first().click()
 if ((await page.locator('.marks .mark-toggle[aria-pressed="true"]').count()) !== 1) {
   errors.push('the must-include mark did not switch on')
 }
-if ((await page.locator('.marks .mark-toggle').count()) !== 3) {
-  errors.push('the selected-track card should show exactly three mark icons')
+if ((await page.locator('.marks .mark-toggle').count()) !== 5) {
+  errors.push('the selected-track card should show exactly five mark icons')
 }
 await page.screenshot({ path: `${scratch}/04-selected.png` })
 
@@ -453,9 +459,9 @@ if ((await page.locator('.tracks-view td.rating .stars').count()) === 0) {
 // one row per property with a Column and a Filter checkbox.
 await page.getByRole('button', { name: /Advanced/ }).click()
 await page.locator('.panel details.section > summary', { hasText: 'Track properties' }).click()
-if ((await page.locator('.prop-row').count()) !== 27) {
+if ((await page.locator('.prop-row').count()) !== 28) {
   errors.push(
-    `the Track properties table should list 27 rows, got ${await page.locator('.prop-row').count()}`,
+    `the Track properties table should list 28 rows, got ${await page.locator('.prop-row').count()}`,
   )
 }
 await page.getByRole('checkbox', { name: 'Length column', exact: true }).check()
@@ -833,7 +839,9 @@ if ((await page.locator('.inspector').count()) !== 0) {
 await page.getByRole('button', { name: 'hybrid' }).click()
 await page.getByRole('button', { name: 'taxonomy' }).click()
 await page.getByRole('checkbox', { name: 'show nearby genres' }).check()
-await page.waitForTimeout(2400)
+// The cooling is deliberately slow (v10 issue 9, v11 issue 10) and the
+// atlas pack (v12) roughly doubled the node count — give the layout time.
+await page.waitForTimeout(5200)
 const mapNodes = await page.locator('.genre-node').count()
 const ghostNodes = await page.locator('.genre-node.ghost').count()
 if (mapNodes === 0) errors.push('genre map rendered no nodes')
@@ -1347,6 +1355,85 @@ await page.waitForTimeout(300)
 await page.screenshot({ path: `${scratch}/15-narrow-header.png` })
 await page.setViewportSize({ width: 1440, height: 900 })
 await page.waitForTimeout(300)
+
+// ---- v12: fun & substance ----
+
+// Walk-draw reveal via the s hotkey (WS1 + WS14): mid-flight some edges are
+// still hidden by their stagger; settled, none are.
+await page.locator('h1').click()
+await page.keyboard.press('s')
+await page.waitForTimeout(320)
+{
+  const hidden = await page.evaluate(
+    () =>
+      [...document.querySelectorAll('line.walk-edge')].filter(
+        (e) => Number(getComputedStyle(e).opacity) < 0.5,
+      ).length,
+  )
+  if (hidden === 0) errors.push('walk reveal: no staggered edges mid-flight after s')
+}
+await page.screenshot({ path: `${scratch}/18-walk-reveal.png` })
+await page.waitForTimeout(3600)
+{
+  const hidden = await page.evaluate(
+    () =>
+      [...document.querySelectorAll('line.walk-edge')].filter(
+        (e) => Number(getComputedStyle(e).opacity) < 0.5,
+      ).length,
+  )
+  if (hidden !== 0) errors.push('walk reveal did not settle')
+}
+
+// Manual edges (WS9): 🔗 link mode marks a dashed always-visible road.
+await page.locator('g.node').first().dispatchEvent('click')
+await page.waitForTimeout(200)
+await page.getByRole('button', { name: 'Mark a combo with another track' }).click()
+await page.locator('g.node').nth(60).dispatchEvent('click')
+await page.waitForTimeout(200)
+if ((await page.locator('line.manual-edge').count()) !== 1) {
+  errors.push('the 🔗 link mode did not draw a manual edge')
+}
+await page.screenshot({ path: `${scratch}/19-manual-edge.png` })
+await page.locator('g.node').nth(60).dispatchEvent('click') // unmark again
+if ((await page.locator('line.manual-edge').count()) !== 0) {
+  errors.push('clicking the marked partner again did not unmark it')
+}
+if ((await page.getByRole('button', { name: 'Edit key, BPM and genre by hand' }).count()) !== 1) {
+  errors.push('the ✎ hand-edit affordance is missing from the selected-track card (WS13)')
+}
+await page.keyboard.press('Escape') // deselect
+
+// Energy as the radial axis (WS8): the Genre Atlas pack carries MIK comments.
+await page.locator('header select').first().selectOption('energy')
+await page.waitForTimeout(900)
+await page.screenshot({ path: `${scratch}/20-energy-radius.png` })
+await page.locator('header select').first().selectOption('bpm')
+await page.waitForTimeout(400)
+
+// The set portrait (WS3) downloads as a PNG poster.
+page.once('dialog', (d) => d.accept(d.defaultValue()))
+{
+  const [portrait] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Portrait', exact: true }).click(),
+  ])
+  if (!portrait.suggestedFilename().endsWith('.png')) {
+    errors.push(`portrait download name: ${portrait.suggestedFilename()}`)
+  }
+}
+
+// Easy mode (WS4): the minimal surface, then everything back where it was.
+await page.getByRole('button', { name: 'Easy mode' }).click()
+await page.waitForTimeout(300)
+if ((await page.locator('.view-switch').count()) !== 0) {
+  errors.push('easy mode left the view switch visible')
+}
+await page.screenshot({ path: `${scratch}/21-easy-mode.png` })
+await page.getByRole('button', { name: 'All controls' }).click()
+await page.waitForTimeout(300)
+if ((await page.locator('.view-switch').count()) !== 1) {
+  errors.push('leaving easy mode did not restore the view switch')
+}
 
 // theme switch: from the emulated dark system preference, the first
 // toggle must land on light and stamp data-theme
