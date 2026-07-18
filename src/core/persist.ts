@@ -200,6 +200,11 @@ export function parseProject(json: string): Project {
   if (typeof settings.jitterSeed !== 'number' || !Number.isFinite(settings.jitterSeed)) {
     settings.jitterSeed = DEFAULT_SETTINGS.jitterSeed
   }
+  // v12 (WS4): easy mode — anything but the two literals means an older or
+  // mangled save, which stays in the full UI it was written from.
+  if (settings.uiMode !== 'easy' && settings.uiMode !== 'advanced') {
+    settings.uiMode = DEFAULT_SETTINGS.uiMode
+  }
   Reflect.deleteProperty(settings, 'slotSpreadDeg')
   // v9 (issue 12): trackColumns became the full ordering + a hidden list;
   // older partial lists keep their order and visible set.

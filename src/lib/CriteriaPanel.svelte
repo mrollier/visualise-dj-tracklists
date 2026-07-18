@@ -6,7 +6,11 @@
   import InfoTooltip from './InfoTooltip.svelte'
   import PlaylistsSection from './PlaylistsSection.svelte'
   import RatingBoxes from './RatingBoxes.svelte'
-  import { comboPairCount, criteria, library, visibleLibrary } from '../stores'
+  import { comboPairCount, criteria, library, settings, visibleLibrary } from '../stores'
+
+  // Easy mode (v12 WS4): the panel keeps its stats and Playlists — filters,
+  // genres and the criteria machinery hide behind their current values.
+  const easy = $derived($settings.uiMode === 'easy')
 
   const enabledCount = $derived(
     [$criteria.key, $criteria.bpm, $criteria.genre, $criteria.year].filter((c) => c.enabled).length,
@@ -57,113 +61,115 @@
 
   <PlaylistsSection />
 
-  <FiltersSection />
+  {#if !easy}
+    <FiltersSection />
 
-  <GenresSection />
+    <GenresSection />
 
-  <details open>
-    <summary class="micro-label">Combo criteria</summary>
+    <details open>
+      <summary class="micro-label">Combo criteria</summary>
 
-    <div class="criterion">
-      <label>
-        <input
-          type="checkbox"
-          checked={$criteria.key.enabled}
-          onchange={(e) => setEnabled('key', e)}
-        />
-        Key <span class="hint">adjacent on the wheel</span>
-      </label>
-      <!-- The minor/major ring switch moved to the Filters section (v9
+      <div class="criterion">
+        <label>
+          <input
+            type="checkbox"
+            checked={$criteria.key.enabled}
+            onchange={(e) => setEnabled('key', e)}
+          />
+          Key <span class="hint">adjacent on the wheel</span>
+        </label>
+        <!-- The minor/major ring switch moved to the Filters section (v9
            issue 6) — it always was a visibility filter, not a criterion.
            The advanced key moves are surfaced here as a subtle note (v10
            issue 2), like the BPM ratios below. -->
-      {#if keyMoves.length > 0}
-        <p class="sub-option ratio-note">moves: {keyMoves.join(' · ')}</p>
-      {/if}
-    </div>
+        {#if keyMoves.length > 0}
+          <p class="sub-option ratio-note">moves: {keyMoves.join(' · ')}</p>
+        {/if}
+      </div>
 
-    <div class="criterion">
-      <label>
-        <input
-          type="checkbox"
-          checked={$criteria.bpm.enabled}
-          onchange={(e) => setEnabled('bpm', e)}
-        />
-        BPM within
-        <input type="number" min="0" max="50" bind:value={$criteria.bpm.maxPercent} /> %
-      </label>
-      <!-- The metric-ratio toggles live in advanced → Key & BPM; surface
+      <div class="criterion">
+        <label>
+          <input
+            type="checkbox"
+            checked={$criteria.bpm.enabled}
+            onchange={(e) => setEnabled('bpm', e)}
+          />
+          BPM within
+          <input type="number" min="0" max="50" bind:value={$criteria.bpm.maxPercent} /> %
+        </label>
+        <!-- The metric-ratio toggles live in advanced → Key & BPM; surface
            their effect here so a bare "8%" is never silently misleading. -->
-      {#if !$criteria.bpm.unitTime || $criteria.bpm.halfDouble || $criteria.bpm.twoThirds}
-        <p class="sub-option ratio-note" class:warn={!$criteria.bpm.unitTime}>
-          ratios:
-          {[
-            $criteria.bpm.unitTime ? '×1' : null,
-            $criteria.bpm.halfDouble ? '×2' : null,
-            $criteria.bpm.twoThirds ? '×3∕2' : null,
-          ]
-            .filter((r) => r !== null)
-            .join(' ') || 'none'}
-          {#if !$criteria.bpm.unitTime}— unit time off{/if}
-        </p>
-      {/if}
-    </div>
+        {#if !$criteria.bpm.unitTime || $criteria.bpm.halfDouble || $criteria.bpm.twoThirds}
+          <p class="sub-option ratio-note" class:warn={!$criteria.bpm.unitTime}>
+            ratios:
+            {[
+              $criteria.bpm.unitTime ? '×1' : null,
+              $criteria.bpm.halfDouble ? '×2' : null,
+              $criteria.bpm.twoThirds ? '×3∕2' : null,
+            ]
+              .filter((r) => r !== null)
+              .join(' ') || 'none'}
+            {#if !$criteria.bpm.unitTime}— unit time off{/if}
+          </p>
+        {/if}
+      </div>
 
-    <div class="criterion">
-      <label>
-        <input
-          type="checkbox"
-          checked={$criteria.genre.enabled}
-          onchange={(e) => setEnabled('genre', e)}
-        />
-        Genre
-        <span class="hint">
-          {#if $criteria.genre.method === 'exact'}
-            same genre
-          {:else if $criteria.genre.mode === 'topk'}
-            top-{$criteria.genre.k} mutual
-          {:else}
-            ≥ {$criteria.genre.threshold.toFixed(2)}
-          {/if}
-        </span>
-      </label>
-      <!-- The method + its parameters (mode/k/threshold) and the sourced
+      <div class="criterion">
+        <label>
+          <input
+            type="checkbox"
+            checked={$criteria.genre.enabled}
+            onchange={(e) => setEnabled('genre', e)}
+          />
+          Genre
+          <span class="hint">
+            {#if $criteria.genre.method === 'exact'}
+              same genre
+            {:else if $criteria.genre.mode === 'topk'}
+              top-{$criteria.genre.k} mutual
+            {:else}
+              ≥ {$criteria.genre.threshold.toFixed(2)}
+            {/if}
+          </span>
+        </label>
+        <!-- The method + its parameters (mode/k/threshold) and the sourced
            explainers live in the advanced menu now (v10 issue 2); here only
            a subtle note of which method is active. -->
-      <p class="sub-option ratio-note">method: {METHOD_LABEL[$criteria.genre.method]}</p>
-    </div>
-
-    <div class="criterion">
-      <label>
-        <input
-          type="checkbox"
-          checked={$criteria.year.enabled}
-          onchange={(e) => setEnabled('year', e)}
-        />
-        Year within
-        <input type="number" min="0" max="50" bind:value={$criteria.year.maxYears} /> years
-      </label>
-    </div>
-
-    <div class="criterion threshold">
-      <div class="threshold-head">
-        <span>
-          Require <strong>{Math.min($criteria.threshold, enabledCount)}</strong> of
-          <strong>{enabledCount}</strong> to match
-        </span>
-        <InfoTooltip label="How matching counts">
-          Missing data never blocks a combo: for each pair, only criteria known on both sides count
-          towards the bar.
-        </InfoTooltip>
+        <p class="sub-option ratio-note">method: {METHOD_LABEL[$criteria.genre.method]}</p>
       </div>
-      <RatingBoxes
-        value={Math.min($criteria.threshold, Math.max(enabledCount, 1))}
-        max={Math.max(enabledCount, 1)}
-        onchange={(v) => criteria.update((c) => ({ ...c, threshold: v }))}
-        label="Required matches"
-      />
-    </div>
-  </details>
+
+      <div class="criterion">
+        <label>
+          <input
+            type="checkbox"
+            checked={$criteria.year.enabled}
+            onchange={(e) => setEnabled('year', e)}
+          />
+          Year within
+          <input type="number" min="0" max="50" bind:value={$criteria.year.maxYears} /> years
+        </label>
+      </div>
+
+      <div class="criterion threshold">
+        <div class="threshold-head">
+          <span>
+            Require <strong>{Math.min($criteria.threshold, enabledCount)}</strong> of
+            <strong>{enabledCount}</strong> to match
+          </span>
+          <InfoTooltip label="How matching counts">
+            Missing data never blocks a combo: for each pair, only criteria known on both sides
+            count towards the bar.
+          </InfoTooltip>
+        </div>
+        <RatingBoxes
+          value={Math.min($criteria.threshold, Math.max(enabledCount, 1))}
+          max={Math.max(enabledCount, 1)}
+          onchange={(v) => criteria.update((c) => ({ ...c, threshold: v }))}
+          label="Required matches"
+        />
+      </div>
+    </details>
+  {/if}
 </aside>
 
 <style>

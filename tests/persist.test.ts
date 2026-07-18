@@ -570,3 +570,25 @@ describe('genre method persistence (design-v6 §F)', () => {
     expect(parseProject(saved).criteria.genre.method).toBe('lexical')
   })
 })
+
+describe('uiMode (v12 WS4)', () => {
+  test('saves without uiMode back-fill to advanced', () => {
+    const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    delete (raw.settings as Record<string, unknown>).uiMode
+    expect(parseProject(JSON.stringify(raw)).settings.uiMode).toBe('advanced')
+  })
+
+  test('a stored easy mode survives the round-trip', () => {
+    const easy = {
+      ...project,
+      settings: { ...structuredClone(DEFAULT_SETTINGS), uiMode: 'easy' as const },
+    }
+    expect(parseProject(serializeProject(easy)).settings.uiMode).toBe('easy')
+  })
+
+  test('garbage uiMode values fall back to advanced', () => {
+    const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    ;(raw.settings as Record<string, unknown>).uiMode = 'banana'
+    expect(parseProject(JSON.stringify(raw)).settings.uiMode).toBe('advanced')
+  })
+})

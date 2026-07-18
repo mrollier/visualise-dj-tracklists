@@ -73,6 +73,13 @@ export interface AppSettings {
    * first use — every section starts folded; the menu then remembers.
    */
   advancedOpen: string[]
+  /**
+   * Easy mode (v12 WS4): one hard toggle. Easy shows the wheel, Playlists,
+   * ✨ and the set panel; criteria, filters, genres, advanced settings and
+   * the view/axis controls hide behind their current values. Visibility
+   * only — nothing underneath changes, so toggling back restores everything.
+   */
+  uiMode: 'advanced' | 'easy'
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -91,4 +98,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   hiddenColumns: [...DEFAULT_HIDDEN_COLUMNS],
   visibleFilters: [...DEFAULT_VISIBLE_FILTERS],
   advancedOpen: [],
+  uiMode: 'advanced',
 }

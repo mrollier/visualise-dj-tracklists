@@ -10,7 +10,11 @@
   import TracksView from './lib/TracksView.svelte'
   import { redoOnce, startUndo, undoOnce } from './lib/undoStore'
   import WheelView from './lib/WheelView.svelte'
-  import { library, rightPanel, viewMode } from './stores'
+  import { library, rightPanel, settings, viewMode } from './stores'
+
+  // Easy mode (v12 WS4) is visibility-only: the stored viewMode survives
+  // untouched, the centre just always shows the wheel while easy is on.
+  const effectiveView = $derived($settings.uiMode === 'easy' ? 'wheel' : $viewMode)
 
   restoreAutosave()
   startTheme()
@@ -47,9 +51,9 @@
       </p>
       <p class="privacy">Everything stays in your browser. Nothing is uploaded.</p>
     </div>
-  {:else if $viewMode === 'genres'}
+  {:else if effectiveView === 'genres'}
     <GenreMapView />
-  {:else if $viewMode === 'tracks'}
+  {:else if effectiveView === 'tracks'}
     <TracksView />
   {:else}
     <WheelView />

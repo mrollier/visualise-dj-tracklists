@@ -15,6 +15,7 @@
     radialAxis,
     rightPanel,
     selectedId,
+    settings,
     tracklist,
     viewMode,
   } from '../stores'
@@ -181,57 +182,68 @@
       .map(([field, count]) => `${count}× ${field}`)
     return parts.length > 0 ? `missing: ${parts.join(', ')}` : null
   })
+
+  // Easy mode (v12 WS4): one hard toggle, visibility only. Entering easy also
+  // puts the set panel back — the advanced panel it would orphan is hidden.
+  const easy = $derived($settings.uiMode === 'easy')
+  function toggleUiMode() {
+    const entering = !easy
+    settings.update((s) => ({ ...s, uiMode: entering ? 'easy' : 'advanced' }))
+    if (entering) rightPanel.set('set')
+  }
 </script>
 
 <header>
   <h1>visualise-dj-tracklists</h1>
 
   <div class="controls">
-    <div class="view-switch" role="group" aria-label="Central view">
-      <button
-        class:active={$viewMode === 'wheel'}
-        onclick={() => viewMode.set('wheel')}
-        disabled={$library.length === 0}>Wheel</button
-      >
-      <button
-        class:active={$viewMode === 'genres'}
-        onclick={() => viewMode.set('genres')}
-        disabled={$library.length === 0}>Genres</button
-      >
-      <button
-        class:active={$viewMode === 'tracks'}
-        onclick={() => viewMode.set('tracks')}
-        disabled={$library.length === 0}>Tracks</button
-      >
-    </div>
+    {#if !easy}
+      <div class="view-switch" role="group" aria-label="Central view">
+        <button
+          class:active={$viewMode === 'wheel'}
+          onclick={() => viewMode.set('wheel')}
+          disabled={$library.length === 0}>Wheel</button
+        >
+        <button
+          class:active={$viewMode === 'genres'}
+          onclick={() => viewMode.set('genres')}
+          disabled={$library.length === 0}>Genres</button
+        >
+        <button
+          class:active={$viewMode === 'tracks'}
+          onclick={() => viewMode.set('tracks')}
+          disabled={$library.length === 0}>Tracks</button
+        >
+      </div>
 
-    <!-- Radius/Colour only mean something on the wheel (issue 4): off-wheel
+      <!-- Radius/Colour only mean something on the wheel (issue 4): off-wheel
          they DIM but stay adjustable (v11 issue 13). Without a library they
          act on nothing and disable outright — a different rule that stays. -->
-    <label
-      class:off-view={$viewMode !== 'wheel' || $library.length === 0}
-      title="Only affects the Wheel view"
-    >
-      Radius
-      <select bind:value={$radialAxis} disabled={$library.length === 0}>
-        <option value="bpm">BPM</option>
-        <option value="rating">Rating</option>
-        <option value="year">Year</option>
-      </select>
-    </label>
+      <label
+        class:off-view={$viewMode !== 'wheel' || $library.length === 0}
+        title="Only affects the Wheel view"
+      >
+        Radius
+        <select bind:value={$radialAxis} disabled={$library.length === 0}>
+          <option value="bpm">BPM</option>
+          <option value="rating">Rating</option>
+          <option value="year">Year</option>
+        </select>
+      </label>
 
-    <label
-      class:off-view={$viewMode !== 'wheel' || $library.length === 0}
-      title="Only affects the Wheel view"
-    >
-      Colour
-      <select bind:value={$colorAxis} disabled={$library.length === 0}>
-        <option value="auto">Auto</option>
-        <option value="rating">Rating</option>
-        <option value="bpm">BPM</option>
-        <option value="year">Year</option>
-      </select>
-    </label>
+      <label
+        class:off-view={$viewMode !== 'wheel' || $library.length === 0}
+        title="Only affects the Wheel view"
+      >
+        Colour
+        <select bind:value={$colorAxis} disabled={$library.length === 0}>
+          <option value="auto">Auto</option>
+          <option value="rating">Rating</option>
+          <option value="bpm">BPM</option>
+          <option value="year">Year</option>
+        </select>
+      </label>
+    {/if}
 
     <button onclick={() => fileInput.click()}>Import…</button>
     <input
@@ -248,14 +260,29 @@
       >Load sample</button
     >
     <button onclick={saveProject} disabled={$library.length === 0}>Save project</button>
+    {#if !easy}
+      <button
+        class="advanced-toggle"
+        aria-pressed={$rightPanel === 'advanced'}
+        class:active={$rightPanel === 'advanced'}
+        title="Advanced options"
+        onclick={() => rightPanel.update((p) => (p === 'advanced' ? 'set' : 'advanced'))}
+      >
+        ⚙ Advanced
+      </button>
+    {/if}
+    <!-- Easy mode (v12 WS4): a hard toggle — easy shows the wheel, Playlists,
+         ✨ and the set; everything else hides behind its current values. -->
     <button
-      class="advanced-toggle"
-      aria-pressed={$rightPanel === 'advanced'}
-      class:active={$rightPanel === 'advanced'}
-      title="Advanced options"
-      onclick={() => rightPanel.update((p) => (p === 'advanced' ? 'set' : 'advanced'))}
+      class="mode-toggle"
+      aria-pressed={easy}
+      class:active={easy}
+      title={easy
+        ? 'Back to the full interface — everything is where you left it'
+        : 'Hide the criteria, filters and advanced controls; keep the wheel and your set'}
+      onclick={toggleUiMode}
     >
-      ⚙ Advanced
+      {easy ? 'All controls' : 'Easy mode'}
     </button>
     <button
       class="theme-toggle"
@@ -353,7 +380,8 @@
     min-width: 0;
   }
 
-  .advanced-toggle.active {
+  .advanced-toggle.active,
+  .mode-toggle.active {
     border-color: var(--accent);
     color: var(--accent);
   }
