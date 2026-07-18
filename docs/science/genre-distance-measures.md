@@ -39,7 +39,10 @@ Pipeline constants, all in
 [`scripts/genre-pack-lib.mjs`](../../scripts/genre-pack-lib.mjs):
 co-occurrence pairs below **10** recordings are floored out (rare-pair noise);
 SVD dimension **d = 32**, chosen by `--sweep` over d ∈ {16, 24, 32, 48, 64}
-against the built-in triplet eval; per-label **top-20** neighbour lists;
+against the built-in triplet eval; per-label **top-24** neighbour lists
+(top-20 until v12 — the 17 new curated labels displaced big genres like
+techno from electro's list, turning a passing triplet into a 0-vs-0 tie;
+four wider slots absorb the growth and restored hybrid's 100%);
 umbrella labels (`electronic`, `electronica`, `dance`, `pop`, `rock`, `music`)
 damped **×0.5** and excluded from runtime rankings; retrofit runs **10**
 iterations at α = 1. The runtime matcher defaults to **mutual top-k (k = 5)**
@@ -91,7 +94,7 @@ consumer in the app (undirected edges, clustering, force layout) needs one
 number per pair, so all six methods are symmetric by design. This is a
 deliberate simplification, revisited in §5(c).
 
-**The pack format.** Per-label top-20 neighbour lists rather than raw vectors:
+**The pack format.** Per-label top-24 neighbour lists rather than raw vectors:
 O(vocabulary) space, O(1) lookup, and unknown labels degrade gracefully to the
 lexical fallback instead of failing.
 
@@ -251,6 +254,13 @@ complete genre-space island (behaves like the exact method: matches nothing).
      keep-whole entry would fix it, like "Organic House / Downtempo").
 
 ### Shelved action list, in bang-for-buck order
+
+*(v12 update: items 1 and 2 shipped — 18 tree nodes incl. the free-tekno
+cluster, regional funk and `juke`; `garage → uk garage` and the Discogs
+compound as aliases; all four normalization fixes; pack rebuilt at top-24,
+hybrid triplet eval back at 100% on the grown 33-triplet set. Zouk and
+Balkan were skipped: no honest parent exists in the tree yet. Item 3 ships
+as v12's coverage report.)*
 
 1. **Curated-tree additions** (~15 nodes: the free-tekno cluster, regional
    funk, garage, and the plain gaps above) — cheap, immediately lifts the two

@@ -89,14 +89,27 @@ const ALIASES: Record<string, string> = {
   'organic house downtempo': 'organic house',
   'two step': '2 step',
   'two-step': '2 step',
+  // v12 WS5: a bare "Garage" in a club library means the UK lineage, not
+  // garage rock — the pack knows uk garage / garage house, never "garage".
+  garage: 'uk garage',
+  // Discogs ships one compound umbrella label; keep it whole (the comma stays
+  // through cleanup, so the key carries it) instead of shredding a stray
+  // "& country" component off it.
+  'folk, world, & country': 'folk',
 }
 
 function cleanupGenre(label: string): string {
   let s = label
     .trim()
     .toLowerCase()
-    .replace(/[-_/]+/g, ' ')
+    // v12 WS5 (science doc §6.4): periods vanish ("U.K. Garage" → uk garage)
+    // and en/em dashes separate like hyphens ("Pop – Synthpop").
+    .replace(/\./g, '')
+    .replace(/[-_/–—]+/g, ' ')
   s = s.replace(/\s*&\s*/g, ' & ').replace(/\s+and\s+/g, ' & ')
+  // Known &-units survive inside longer labels: the and→& rewrite above must
+  // not shred "Classic Soul And R&B" into `… r & b` past the alias table.
+  s = s.replace(/\br & b\b/g, 'r&b')
   return s.replace(/\s+/g, ' ').trim()
 }
 
@@ -114,11 +127,12 @@ export function normalizeGenre(label: string): string {
  * alias table knows ("Organic House / Downtempo") stay whole.
  */
 export function genreComponents(raw: string): string[] {
-  if (/[/,;]/.test(raw) && ALIASES[cleanupGenre(raw)] === undefined) {
+  // En/em dashes separate too (v12 WS5) — hyphens never do ("hip-hop").
+  if (/[/,;–—]/.test(raw) && ALIASES[cleanupGenre(raw)] === undefined) {
     const parts = [
       ...new Set(
         raw
-          .split(/[/,;]/)
+          .split(/[/,;–—]/)
           .map(normalizeGenre)
           .filter((s) => s !== ''),
       ),

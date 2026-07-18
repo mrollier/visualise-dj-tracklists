@@ -270,3 +270,59 @@ describe('genreSimilarity: embedding', () => {
     expect(genreSimilarity('Euro Dance', 'Eurodance', 'embedding')).toBe(1)
   })
 })
+
+describe('normalization fixes (v12 WS5, science doc §6.4)', () => {
+  test('periods strip: U.K. Garage reaches uk garage', () => {
+    expect(normalizeGenre('U.K. Garage')).toBe('uk garage')
+  })
+
+  test('bare Garage aliases to uk garage', () => {
+    expect(normalizeGenre('Garage')).toBe('uk garage')
+  })
+
+  test('en/em dashes separate components: Pop – Synthpop splits', () => {
+    expect(genreComponents('Pop – Synthpop')).toEqual(['pop', 'synthpop'])
+    expect(genreComponents('Pop — Synthpop')).toEqual(['pop', 'synthpop'])
+  })
+
+  test('hyphens still bind words: hip-hop stays one label', () => {
+    expect(genreComponents('Hip-Hop')).toEqual(['hip hop'])
+  })
+
+  test('r&b survives inside a longer label', () => {
+    expect(normalizeGenre('Classic Soul And R&B')).toBe('classic soul & r&b')
+  })
+
+  test("Discogs's compound Folk, World, & Country stays whole", () => {
+    expect(genreComponents('Folk, World, & Country')).toEqual(['folk'])
+  })
+})
+
+describe('curated-tree additions (v12 WS5)', () => {
+  test('the free-party cluster is taxonomy-similar to techno', () => {
+    expect(genreSimilarity('tribe', 'tekno', 'taxonomy')).toBeGreaterThan(0.5)
+    expect(genreSimilarity('acidcore', 'acid techno', 'taxonomy')).toBeGreaterThan(0.3)
+    expect(genreSimilarity('raggatek', 'jungle', 'taxonomy')).toBeGreaterThan(0.2)
+    expect(genreSimilarity('tekno', 'techno', 'taxonomy')).toBeGreaterThan(0.2)
+  })
+
+  test('regional funk joins the funk family', () => {
+    expect(genreSimilarity('turkish funk', 'funk', 'taxonomy')).toBeGreaterThan(0.2)
+    // Sibling leaves score lower than parent-child under intrinsic-IC Lin;
+    // what matters is that they beat an unrelated pairing clearly.
+    const siblings = genreSimilarity('turkish funk', 'persian funk', 'taxonomy')
+    expect(siblings).toBeGreaterThan(0.1)
+    expect(siblings).toBeGreaterThan(genreSimilarity('turkish funk', 'trance', 'taxonomy'))
+  })
+
+  test('the plain gaps have lineage now', () => {
+    expect(genreSimilarity('acid trance', 'trance', 'taxonomy')).toBeGreaterThan(0.3)
+    expect(genreSimilarity('future garage', 'uk garage', 'taxonomy')).toBeGreaterThan(0.3)
+    expect(genreSimilarity('minimal house', 'house', 'taxonomy')).toBeGreaterThan(0.3)
+    expect(genreSimilarity('new beat', 'acid house', 'taxonomy')).toBeGreaterThan(0.2)
+    expect(genreSimilarity('jumpstyle', 'hardstyle', 'taxonomy')).toBeGreaterThan(0.3)
+    expect(genreSimilarity('electro swing', 'electronica', 'taxonomy')).toBeGreaterThan(0.2)
+    expect(genreSimilarity('uk hardcore', 'happy hardcore', 'taxonomy')).toBeGreaterThan(0.3)
+    expect(genreSimilarity('juke', 'footwork', 'taxonomy')).toBeGreaterThan(0.2)
+  })
+})

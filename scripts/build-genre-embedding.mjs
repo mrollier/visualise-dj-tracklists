@@ -36,7 +36,7 @@ import {
 
 const OUT = 'src/data/genre-embedding.json'
 const DEFAULT_DIMS = 32
-const TOP_K = 20
+const TOP_K = 24
 
 // Frequent umbrella tags whose co-occurrence with everything would otherwise
 // make them universal neighbours (hubness): damped ×0.5 at build time and

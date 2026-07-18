@@ -111,6 +111,25 @@
     "ambient": ["electronica"],
     "downtempo": ["electronica"],
     "trip hop": ["downtempo", "hip hop"],
-    "chillout": ["downtempo"]
+    "chillout": ["downtempo"],
+
+    "tekno": ["acid techno", "hardcore"],
+    "freetekno": ["tekno"],
+    "mental tekno": ["tekno"],
+    "acidcore": ["tekno", "acid techno"],
+    "acid tribe": ["tekno", "acid techno"],
+    "raggatek": ["tekno", "jungle"],
+    "tribe": ["tekno"],
+    "turkish funk": ["funk"],
+    "persian funk": ["funk"],
+    "acid trance": ["trance", "acid house"],
+    "future garage": ["uk garage", "dubstep"],
+    "minimal house": ["house", "minimal techno"],
+    "new beat": ["acid house", "electro"],
+    "jumpstyle": ["hardstyle"],
+    "electro swing": ["electronica", "jazz"],
+    "uk hardcore": ["happy hardcore"],
+    "juke": ["ghetto house"],
+    "folk": ["music"]
   }
 }
