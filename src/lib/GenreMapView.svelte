@@ -30,7 +30,7 @@
     packNeighbours,
     type GenreMethod,
   } from '../core/genre'
-  import { mapMotion } from '../core/genreMap'
+  import { edgeTier, mapMotion, pairKey, skeletonKeys, skeletonOpacity } from '../core/genreMap'
   import { genreFamilyClasses } from '../core/iconClasses'
   import { criteria, playlistScopedLibrary, settings, visibleLibrary } from '../stores'
 
@@ -449,10 +449,6 @@
     inspectPair = null
   }
 
-  function pairKey(a: string, b: string): string {
-    return a < b ? `${a}\u001f${b}` : `${b}\u001f${a}`
-  }
-
   /** Every map method's score for a pair, plus whether it currently links it. */
   function scoresFor(
     a: string,
@@ -472,12 +468,6 @@
   const inspectedScores = $derived(
     inspectPair === null ? [] : scoresFor(inspectPair[0], inspectPair[1]),
   )
-
-  function edgeInspected(edge: GenreEdge): boolean {
-    return (
-      inspectPair !== null && pairKey(edge.a, edge.b) === pairKey(inspectPair[0], inspectPair[1])
-    )
-  }
 
   // --- hover: a pair's scores under every method -------------------------------
   let hoveredPair = $state<{ a: string; b: string } | null>(null)
@@ -506,10 +496,23 @@
     return `translate(${(-dy / len) * shift},${(dx / len) * shift})`
   }
 
-  function edgeVisible(edge: GenreEdge): boolean {
-    if (hoveredGenre === null) return true
-    return edge.a === hoveredGenre || edge.b === hoveredGenre
-  }
+  // --- v13 issue 3: wheel-style focus — the map rests on a faint skeleton
+  // (each genre's strongest link), a hovered or selected genre lights its
+  // full star, and the compare pair pops its one link. Layout still uses
+  // EVERY edge; only the drawn set shrinks.
+  const skeleton = $derived(
+    skeletonKeys(edges.filter((e) => !ghostLabels.has(e.a) && !ghostLabels.has(e.b))),
+  )
+  const restingEdgeOpacity = $derived(skeletonOpacity(labels.length))
+  const drawnEdges = $derived.by(() => {
+    const state = { hover: hoveredGenre, selected: inspectA, pair: inspectPair }
+    const list: { edge: GenreEdge; tier: 'pair' | 'star' | 'skeleton' }[] = []
+    for (const edge of edges) {
+      const tier = edgeTier(edge, state, skeleton)
+      if (tier !== null) list.push({ edge, tier })
+    }
+    return list
+  })
 </script>
 
 <div
@@ -528,20 +531,28 @@
     aria-label="Genre map of the library"
   >
     <g class="zoom-layer" transform={zoomTransform} bind:this={layerEl}>
-      {#each edges as edge (`${edge.method}→${edge.a}→${edge.b}`)}
+      {#each drawnEdges as { edge, tier } (`${edge.method}→${edge.a}→${edge.b}`)}
         {@const a = nodeById.get(edge.a)}
         {@const b = nodeById.get(edge.b)}
         {#if a && b}
-          <g transform={edgeOffset(edge.method, a, b)} opacity={edgeVisible(edge) ? 1 : 0.06}>
+          <g transform={edgeOffset(edge.method, a, b)}>
             <line
               x1={a.x}
               y1={a.y}
               x2={b.x}
               y2={b.y}
               stroke={METHOD_COLOR[edge.method]}
-              stroke-width={(0.75 + 2 * edge.score) * (edgeInspected(edge) ? 2 : 1)}
+              stroke-width={tier === 'pair'
+                ? (0.75 + 2 * edge.score) * 2
+                : tier === 'star'
+                  ? 0.75 + 2 * edge.score
+                  : 0.75}
               stroke-dasharray={METHOD_DASH[edge.method] ?? 'none'}
-              opacity={edgeInspected(edge) ? 1 : 0.25 + 0.55 * edge.score}
+              opacity={tier === 'pair'
+                ? 1
+                : tier === 'star'
+                  ? 0.25 + 0.55 * edge.score
+                  : restingEdgeOpacity}
               class="edge"
             />
             <line
@@ -649,8 +660,8 @@
       </span>
     {/if}
     <span class="legend-hint">
-      node size: tracks with that genre · distance ≈ similarity under the enabled methods · click
-      two genres to compare them
+      node size: tracks with that genre · faint lines: each genre's strongest link · hover or click
+      a genre for its full connections · click two to compare
     </span>
   </div>
 
