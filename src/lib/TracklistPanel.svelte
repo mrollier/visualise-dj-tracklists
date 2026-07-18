@@ -3,9 +3,12 @@
   import { exportTracklistCsv } from '../core/exporters/csv'
   import { exportM3u } from '../core/exporters/m3u'
   import type { Track } from '../core/model'
+  import { buildSetPortrait } from '../core/exporters/portrait'
   import { suggestWalk } from '../core/suggest'
   import { WALK_REVEAL_STEP_MS, walkRevealPlan } from '../core/walkReveal'
   import { promptExportName } from './exportName'
+  import { svgToPngBlob } from './portraitPng'
+  import { effectiveTheme } from './theme'
   import ConfirmDialog from './ConfirmDialog.svelte'
   import SparkleBurst from './SparkleBurst.svelte'
   import { canAddSet, MAX_SETS } from '../core/sets'
@@ -23,6 +26,7 @@
     pinnedLast,
     renameSet,
     selectedId,
+    radialAxis,
     setGeneratedTracklist,
     sets,
     settings,
@@ -74,12 +78,41 @@
   function download(ext: string, content: () => string, mime: string) {
     const filename = promptExportName(exportBase, ext)
     if (filename === null) return
-    const url = URL.createObjectURL(new Blob([content()], { type: mime }))
+    saveBlob(new Blob([content()], { type: mime }), filename)
+  }
+
+  function saveBlob(blob: Blob, filename: string) {
+    const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
     a.download = filename
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  /**
+   * The set portrait (v12 WS3): the walk over the wheel as a poster. PNG by
+   * default; a name typed with .svg gets the vector original instead (the
+   * prompt's ensureExtension turns that into "….svg.png", undone here).
+   */
+  async function downloadPortrait() {
+    const filename = promptExportName(`${exportBase}-portrait`, '.png')
+    if (filename === null) return
+    const svg = buildSetPortrait({
+      setName: $activeSet.name,
+      libraryName: $libraryName,
+      walk: walkTracks,
+      library: $visibleLibrary,
+      radialAxis: $radialAxis,
+      theme: $effectiveTheme,
+      scheme: $settings.colorScheme,
+    })
+    const wantsSvg = /\.svg\.png$/i.test(filename)
+    if (wantsSvg) {
+      saveBlob(new Blob([svg], { type: 'image/svg+xml' }), filename.replace(/\.png$/i, ''))
+    } else {
+      saveBlob(await svgToPngBlob(svg), filename)
+    }
   }
 
   const exportBase = $derived(($libraryName || 'tracklist').replace(/\.[a-z0-9]+$/i, ''))
@@ -337,6 +370,12 @@
       </button>
       <button onclick={() => download('.csv', () => exportTracklistCsv(walkTracks), 'text/csv')}>
         Export CSV
+      </button>
+      <button
+        onclick={downloadPortrait}
+        title="Save the walk as a poster image (PNG; name it .svg for the vector)"
+      >
+        Portrait
       </button>
       <button
         class="danger"
