@@ -1,12 +1,13 @@
 import { describe, expect, test } from 'vitest'
 import { enrichTrack } from '../src/data/enrich'
+import { genreFamilyOf } from '../src/core/genre'
 import { ALL_SAMPLE_PACKS, SAMPLE_COLLECTION, SAMPLE_PACKS } from '../src/data/samples'
 
 describe('sample packs', () => {
   test('there are ten themed packs plus the classic demo', () => {
-    expect(SAMPLE_PACKS).toHaveLength(10)
-    expect(ALL_SAMPLE_PACKS).toHaveLength(11)
-    expect(new Set(ALL_SAMPLE_PACKS.map((p) => p.id)).size).toBe(11)
+    expect(SAMPLE_PACKS).toHaveLength(11)
+    expect(ALL_SAMPLE_PACKS).toHaveLength(12)
+    expect(new Set(ALL_SAMPLE_PACKS.map((p) => p.id)).size).toBe(12)
   })
 
   test.each(SAMPLE_PACKS.map((p) => [p.name, p] as const))(
@@ -87,5 +88,25 @@ describe('sample metadata enrichment (v9 issue 11)', () => {
     const base = tracks[0]
     const extras = { label: 'Test Label', albums: { [base.artist ?? '']: 'Test LP' } }
     expect(enrichTrack(base, extras)).toEqual(enrichTrack(base, extras))
+  })
+})
+
+describe('the genre-atlas pack (v12 WS10)', () => {
+  const atlas = SAMPLE_PACKS.find((p) => p.id === 'genre-atlas')
+
+  test('exists and spans the genre space', () => {
+    expect(atlas).toBeDefined()
+    expect(atlas!.tracks.length).toBeGreaterThanOrEqual(24)
+    const families = new Set(
+      atlas!.tracks.map((t) => (t.genre === null ? null : genreFamilyOf(t.genre))).filter(Boolean),
+    )
+    // Jazz to gabber: at least ten distinct icon families on one crate.
+    expect(families.size).toBeGreaterThanOrEqual(10)
+  })
+
+  test('carries Mixed-In-Key-style energy for the WS8 demo', () => {
+    const withEnergy = atlas!.tracks.filter((t) => t.energy !== null)
+    expect(withEnergy.length).toBeGreaterThanOrEqual(10)
+    for (const t of withEnergy) expect(t.comments).toMatch(/Energy \d/)
   })
 })

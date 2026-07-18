@@ -427,7 +427,63 @@ export const SAMPLE_PACKS: SamplePack[] = [
       ['Full Torque', 'Vice Grip', '6B', 149, 'Hard Techno', 2023, 3],
     ],
   ),
+  withEnergy(
+    pack(
+      'genre-atlas',
+      'Genre Atlas',
+      'One crate across the whole map — jazz to gabber — so the genre views, icon families and umbrellas have room to shine.',
+      [
+        ['Blue Meridian', 'Kansai Trio', '4B', 126, 'Jazz', 1974, 4],
+        ['Velvet Ladder', 'Odetta Vane', '9B', 100, 'Soul', 1971, 5],
+        ['Copper Groove', 'The Brass Statutes', '10B', 108, 'Funk', 1977, 4],
+        ['Bosphorus Wire', 'Derya Ekim', '1A', 105, 'Turkish Funk', 1975, 4],
+        ['Late Reply', 'Cadence Roy', '6B', 92, 'R&B', 1998, 3],
+        ['Concrete Letters', 'Marrow MC', '2A', 90, 'Hip Hop', 1994, 4],
+        ['Fog Signal', 'Greyline', '11A', 82, 'Trip Hop', 1996, 5],
+        ['Roots Antenna', 'Iron Lantern', '7B', 75, 'Reggae', 1979, 4],
+        ['Echo Chamber', 'Iron Lantern', '7A', 70, 'Dub', 1980, 3],
+        ['Lantern Yard', 'Sundial Crew', '3B', 98, 'Dancehall', 2004, 3],
+        ['Cinnamon City', 'Adaeze Group', '5B', 112, 'Afrobeat', 1982, 4],
+        ['Reeds', 'Still Water', '12A', null, 'Ambient', 2015, 3],
+        ['Slow Orbit', 'Still Water', '12B', 96, 'Downtempo', 2017, 4],
+        ['Pinhole', 'Aperture Logic', '10A', 160, 'IDM', 2001, 4],
+        ['Gravel Youth', 'Motel Wires', '4A', 145, 'Indie Rock', 2006, 3],
+        ['Neon Statues', 'Civic Mirror', '11B', 118, 'New Wave', 1983, 4],
+        ['Mirrorball Law', 'Nova Casino', '2B', 116, 'Disco', 1978, 5],
+        ['Terrace Steps', 'Ines Vela', '8B', 124, 'House', 2019, 4],
+        ['Iron Meridian', 'Voltkraft', '8A', 132, 'Techno', 2021, 4],
+        ['Riverrun', 'Alba Circuit', '9A', 174, 'Drum & Bass', 2018, 5],
+        ['Hollow Mass', 'Vantablack Sound', '6A', 140, 'Dubstep', 2011, 3],
+        ['Sun Temple', 'Goa Prism', '5A', 145, 'Psytrance', 2008, 3],
+        ['Anvil Choir', 'Kernwapen', '3A', 190, 'Gabber', 1996, 2],
+        ['Silk Tekno', 'Frei Klang', '4A', 175, 'Tekno', 2003, 3],
+        ['Half Signal', 'Lowline', '1B', 87, 'Halftime', 2020, 4],
+        ['Sawdust Waltz', 'Manège', '2B', 122, 'Electro Swing', 2012, 2],
+        ['Harbour Hymn', 'Wren Calloway', null, 90, 'Folk', 1969, 3],
+        ['Glass Bouquet', 'Petal Court', '7B', 110, 'Pop', 1987, 3],
+        ['Delta Porch', 'Eli Marsh', '10B', 84, 'Blues', 1965, 4],
+      ],
+    ),
+  ),
 ]
+
+/**
+ * The atlas doubles as the energy demo (v12 WS8): most of its tracks carry a
+ * Mixed-In-Key-style "Energy N" comment, hash-free and deterministic —
+ * roughly rising with BPM so the radius/colour axis reads sensibly.
+ */
+function withEnergy(base: SamplePack): SamplePack {
+  return {
+    ...base,
+    tracks: base.tracks.map((t, i) => {
+      if (i % 4 === 3) return t // realistic gaps
+      const bpm = t.bpm ?? 100
+      const energy = Math.max(1, Math.min(10, Math.round((bpm - 60) / 13)))
+      const comments = t.comments === null ? `Energy ${energy}` : `${t.comments} - Energy ${energy}`
+      return { ...t, comments, energy }
+    }),
+  }
+}
 
 /** The original mixed demo library, kept as one more pack/playlist. */
 export const CLASSIC_PACK: SamplePack = {
