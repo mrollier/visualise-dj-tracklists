@@ -5,6 +5,7 @@
   import { importM3u, rematchAfterImport } from '../core/importers/m3u'
   import { importRekordboxXml } from '../core/importers/rekordbox'
   import { importRekordboxTxt, isRekordboxTxt } from '../core/importers/rekordboxTxt'
+  import { computeGenreCoverage } from '../core/genre'
   import { buildReport, type ImportResult } from '../core/model'
   import { parseProject, serializeProject } from '../core/persist'
   import {
@@ -183,6 +184,18 @@
     return parts.length > 0 ? `missing: ${parts.join(', ')}` : null
   })
 
+  // Genre-coverage diagnosis (v12 WS6 — science doc P1): how much of the
+  // library the similarity data reaches, always current, not just at import.
+  const genreCoverage = $derived($library.length > 0 ? computeGenreCoverage($library) : null)
+  const coverageSummary = $derived.by(() => {
+    const cov = genreCoverage
+    if (cov === null || cov.outside === 0) return null
+    const top = cov.top.map(({ label, count }) => `${label} ×${count}`).join(', ')
+    const invisible =
+      cov.invisible > 0 ? ` (${cov.invisible} of them match nothing at all)` : ''
+    return `${cov.outside} of ${cov.tagged} tagged tracks have genres outside the similarity data${invisible} — top: ${top}`
+  })
+
   // Easy mode (v12 WS4): one hard toggle, visibility only. Entering easy also
   // puts the set panel back — the advanced panel it would orphan is hidden.
   const easy = $derived($settings.uiMode === 'easy')
@@ -326,6 +339,9 @@
         {#each $lastImportReport.notes ?? [] as note (note)}
           <span>{note}</span>
         {/each}
+        {#if coverageSummary}
+          <span>{coverageSummary}</span>
+        {/if}
       </InfoTooltip>
     {/if}
   </div>

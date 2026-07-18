@@ -395,3 +395,82 @@ export function genreSimilarity(rawA: string, rawB: string, method: GenreMethod)
   }
   return best
 }
+
+// --- coverage diagnostics (v12 WS6 — science doc P1, productised) --------------
+// How much of a library the similarity data actually reaches, mirroring the
+// runtime resolution chain: normalize → aliases → components → pack squashed
+// lookup / tree membership, best component per track (max aggregation).
+
+export interface GenreCoverage {
+  total: number
+  /** Tracks with no genre at all — harmless, but only audio analysis reaches them. */
+  blank: number
+  tagged: number
+  /** Tagged tracks whose best component never reaches the pack or the tree. */
+  outside: number
+  /** The subset of `outside` with zero token overlap — genre-invisible. */
+  invisible: number
+  /** Most frequent uncovered normalized labels, by track count, descending. */
+  top: { label: string; count: number }[]
+}
+
+let vocabTokens: Set<string> | null = null
+function knownVocabularyTokens(): Set<string> {
+  if (vocabTokens === null) {
+    vocabTokens = new Set<string>()
+    for (const label of Object.keys(embeddingPack.hybrid)) {
+      for (const token of tokens(label)) vocabTokens.add(token)
+    }
+    for (const label of treeIC.keys()) {
+      for (const token of tokens(label)) vocabTokens.add(token)
+    }
+  }
+  return vocabTokens
+}
+
+export function computeGenreCoverage(tracks: readonly { genre: string | null }[]): GenreCoverage {
+  const vocab = knownVocabularyTokens()
+  let blank = 0
+  let outside = 0
+  let invisible = 0
+  const uncoveredCounts = new Map<string, number>()
+  for (const track of tracks) {
+    const raw = track.genre?.trim() ?? ''
+    if (raw === '') {
+      blank++
+      continue
+    }
+    let bestRank = 0 // 0 = invisible, 1 = lexical overlap, 2 = pack/tree
+    const uncoveredHere: string[] = []
+    for (const component of genreComponents(raw)) {
+      const covered =
+        hybridSection.label(component) !== undefined || treeIC.has(component)
+      if (covered) {
+        bestRank = 2
+        continue
+      }
+      uncoveredHere.push(component)
+      const overlaps = [...tokens(component)].some((token) => vocab.has(token))
+      bestRank = Math.max(bestRank, overlaps ? 1 : 0)
+    }
+    if (bestRank < 2) {
+      outside++
+      if (bestRank === 0) invisible++
+      for (const label of new Set(uncoveredHere)) {
+        uncoveredCounts.set(label, (uncoveredCounts.get(label) ?? 0) + 1)
+      }
+    }
+  }
+  const top = [...uncoveredCounts.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
+    .slice(0, 5)
+  return {
+    total: tracks.length,
+    blank,
+    tagged: tracks.length - blank,
+    outside,
+    invisible,
+    top,
+  }
+}

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import {
+  computeGenreCoverage,
   GENRE_METHODS,
   genreComponents,
   genreSimilarity,
@@ -324,5 +325,45 @@ describe('curated-tree additions (v12 WS5)', () => {
     expect(genreSimilarity('electro swing', 'electronica', 'taxonomy')).toBeGreaterThan(0.2)
     expect(genreSimilarity('uk hardcore', 'happy hardcore', 'taxonomy')).toBeGreaterThan(0.3)
     expect(genreSimilarity('juke', 'footwork', 'taxonomy')).toBeGreaterThan(0.2)
+  })
+})
+
+describe('computeGenreCoverage (v12 WS6 — P1 productised)', () => {
+  const t = (genre: string | null) => ({ genre })
+
+  test('classifies blank, covered, fallback and invisible tracks', () => {
+    const cov = computeGenreCoverage([
+      t(null),
+      t(''),
+      t('Techno'),
+      t('DnB'),
+      t('Techno Melancholic'),
+      t('Xyzzyfoo'),
+    ])
+    expect(cov.total).toBe(6)
+    expect(cov.blank).toBe(2)
+    expect(cov.tagged).toBe(4)
+    expect(cov.outside).toBe(2)
+    expect(cov.invisible).toBe(1)
+  })
+
+  test('the best component decides: one covered component rescues the track', () => {
+    const cov = computeGenreCoverage([t('Xyzzyfoo / Techno')])
+    expect(cov.outside).toBe(0)
+  })
+
+  test('v12 tree additions count as covered now', () => {
+    const cov = computeGenreCoverage([t('Tribe'), t('Turkish Funk')])
+    expect(cov.outside).toBe(0)
+  })
+
+  test('the top list ranks uncovered labels by track count', () => {
+    const cov = computeGenreCoverage([
+      t('Techno Melancholic'),
+      t('Techno Melancholic'),
+      t('House Ethno'),
+    ])
+    expect(cov.top[0]).toEqual({ label: 'techno melancholic', count: 2 })
+    expect(cov.top[1]).toEqual({ label: 'house ethno', count: 1 })
   })
 })
