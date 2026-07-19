@@ -38,12 +38,6 @@ export interface Track {
    * any metadata, but no DJ software writes it as a first-class attribute.
    */
   energy: number | null
-  /**
-   * A record with no digital file (v12 WS13): metadata is hand-entered
-   * rather than analysed, and the flag marks provenance in the UI. A flag,
-   * not a nullable — "not vinyl" is knowledge, not missing data.
-   */
-  isVinyl: boolean
   /** 0 is a real count ("never played"), not "unknown". */
   playCount: number | null
   remixer: string | null
@@ -84,7 +78,6 @@ export const EMPTY_TRACK_FIELDS: Omit<Track, 'id' | 'title'> = {
   sampleRate: null,
   comments: null,
   energy: null,
-  isVinyl: false,
   playCount: null,
   remixer: null,
   label: null,

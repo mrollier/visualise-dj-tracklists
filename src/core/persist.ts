@@ -115,7 +115,6 @@ function sanitizeTrack(raw: unknown): Track | null {
     // Older saves carry Comments but no energy — derive it here (v12 WS8) so
     // an existing project gains the field without a re-import.
     energy: num(entry.energy) ?? energyFromComments(str(entry.comments)),
-    isVinyl: entry.isVinyl === true,
     playCount: num(entry.playCount),
     remixer: str(entry.remixer),
     label: str(entry.label),

@@ -7,14 +7,9 @@ function track(overrides: Partial<Track> & { id: string }): Track {
 }
 
 describe('TRACK_PROPERTIES (v11 issue 1: the one registry)', () => {
-  test('covers exactly every Track field except id and isVinyl, no duplicates', () => {
+  test('covers exactly every Track field except id, no duplicates', () => {
     const keys = TRACK_PROPERTIES.map((p) => p.key)
-    // isVinyl is a boolean flag (v12 WS13): the registry's kinds are all
-    // range-shaped, so it stays a card-level flag until a 'flag' kind exists
-    // (the same deliberate gap as v11's colour-checklist non-goal).
-    const expected = ['title', ...Object.keys(EMPTY_TRACK_FIELDS)]
-      .filter((k) => k !== 'isVinyl')
-      .sort()
+    const expected = ['title', ...Object.keys(EMPTY_TRACK_FIELDS)].sort()
     expect([...keys].sort()).toEqual(expected)
     expect(new Set(keys).size).toBe(keys.length)
     expect(keys).toHaveLength(28)

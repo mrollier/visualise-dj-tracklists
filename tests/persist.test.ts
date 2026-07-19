@@ -626,20 +626,12 @@ describe('manual edges (v12 WS9, schema v5)', () => {
   })
 })
 
-describe('vinyl flag (v12 WS13)', () => {
-  test('isVinyl round-trips and defaults to false', () => {
-    const withVinyl = {
-      ...project,
-      tracks: project.tracks.map((t, i) => (i === 0 ? { ...t, isVinyl: true } : t)),
-    }
-    const parsed = parseProject(serializeProject(withVinyl))
-    expect(parsed.tracks[0].isVinyl).toBe(true)
-    expect(parsed.tracks[1].isVinyl).toBe(false)
-  })
-
-  test('garbage isVinyl values become false', () => {
+describe('vinyl flag removed (v14 WS1)', () => {
+  test('a v5 save carrying isVinyl still parses, and serialized output carries no isVinyl', () => {
     const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
-    ;((raw.tracks as Record<string, unknown>[])[0] as Record<string, unknown>).isVinyl = 'yes'
-    expect(parseProject(JSON.stringify(raw)).tracks[0].isVinyl).toBe(false)
+    ;((raw.tracks as Record<string, unknown>[])[0] as Record<string, unknown>).isVinyl = true
+    const parsed = parseProject(JSON.stringify(raw))
+    expect(parsed.tracks[0]).not.toHaveProperty('isVinyl')
+    expect(serializeProject(parsed)).not.toContain('isVinyl')
   })
 })

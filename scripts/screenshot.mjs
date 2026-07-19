@@ -219,14 +219,15 @@ const legendBox = await page.locator('.legend').boundingBox()
 if (cardBox && legendBox && cardBox.x < legendBox.x + legendBox.width) {
   errors.push('the selected-track card overlaps the legend')
 }
-// v11 issue 15 + v12 (WS9/WS13): the card's marks are a compact icon row —
-// ★ ⏮ ⏭ plus the 🔗 link mode and the ✎ hand editor, with the ⓘ at the end.
+// v11 issue 15 + v12 WS9 (v14 WS1 dropped the ✎ hand editor): the card's
+// marks are a compact icon row — ★ ⏮ ⏭ plus the 🔗 link mode, with the ⓘ at
+// the end.
 await page.locator('.marks .mark-toggle').first().click()
 if ((await page.locator('.marks .mark-toggle[aria-pressed="true"]').count()) !== 1) {
   errors.push('the must-include mark did not switch on')
 }
-if ((await page.locator('.marks .mark-toggle').count()) !== 5) {
-  errors.push('the selected-track card should show exactly five mark icons')
+if ((await page.locator('.marks .mark-toggle').count()) !== 4) {
+  errors.push('the selected-track card should show exactly four mark icons')
 }
 await page.screenshot({ path: `${scratch}/04-selected.png` })
 
@@ -1429,8 +1430,10 @@ await page.locator('g.node').nth(60).dispatchEvent('click') // unmark again
 if ((await page.locator('line.manual-edge').count()) !== 0) {
   errors.push('clicking the marked partner again did not unmark it')
 }
-if ((await page.getByRole('button', { name: 'Edit key, BPM and genre by hand' }).count()) !== 1) {
-  errors.push('the ✎ hand-edit affordance is missing from the selected-track card (WS13)')
+// v14 WS1: the hand-edit affordance (✎) was removed — this app never edits
+// track metadata.
+if ((await page.getByRole('button', { name: 'Edit key, BPM and genre by hand' }).count()) !== 0) {
+  errors.push('the ✎ hand-edit affordance should be gone from the selected-track card (v14 WS1)')
 }
 await page.keyboard.press('Escape') // deselect
 
