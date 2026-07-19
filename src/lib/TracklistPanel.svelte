@@ -73,6 +73,10 @@
   }
 
   function removeAt(index: number) {
+    // v14 W2: a removed row can't stay hovered — drop the shared hover so no
+    // Tracks-view row or wheel node keeps the highlight of a track that left.
+    const removedId = get(tracklist)[index]
+    if (removedId !== undefined && get(hoveredId) === removedId) hoveredId.set(null)
     tracklist.update((ids) => ids.toSpliced(index, 1))
   }
 
@@ -468,7 +472,11 @@
       <button
         class="danger"
         onclick={() => {
-          if ($tracklist.length > 0) clearDialog.open(() => tracklist.set([]))
+          if ($tracklist.length > 0)
+            clearDialog.open(() => {
+              tracklist.set([])
+              hoveredId.set(null)
+            })
         }}>Clear</button
       >
     </div>

@@ -357,7 +357,7 @@
          stays live everywhere. -->
     <label class:off-view={$viewMode !== 'wheel'} title="Only affects the Wheel view">
       Same-key spread <strong>×{$settings.slotSpreadFactor.toFixed(2)}</strong>
-      <input type="range" min="0" max="1" step="0.05" bind:value={$settings.slotSpreadFactor} />
+      <input type="range" min="0" max="2" step="0.05" bind:value={$settings.slotSpreadFactor} />
     </label>
     <!-- Edges are focus-only (v9): these dim unless a wheel track is
          selected, but stay adjustable in advance (v11 issue 13). -->

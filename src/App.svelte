@@ -94,6 +94,9 @@
   }
 
   .right-aside {
+    /* v14 R1: fix the rail at the panels' own 280px so a long selected-track
+       title or link hint can never stretch it wider. */
+    width: 280px;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;

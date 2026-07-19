@@ -115,6 +115,15 @@ export function relaxSlotAngles(
   return out
 }
 
+/** v14 W4: slider 0–2. Piecewise so 1 keeps today's exact look: 0→0°, 1→4°,
+ * 2→ the ±7.5° wedge edge minus the node's angular radius (node EDGE kisses
+ * the boundary; angular radius depends on radial distance r). */
+export function spreadHalfDeg(factor: number, nodeRadius: number, r: number): number {
+  const angular = (Math.asin(Math.min(1, nodeRadius / Math.max(r, nodeRadius))) * 180) / Math.PI
+  const edge = Math.max(4, 7.5 - angular)
+  return factor <= 1 ? 4 * factor : 4 + (factor - 1) * (edge - 4)
+}
+
 /**
  * SVG path of an annular (ring) sector between radii r0..r1 spanning angles
  * a0..a1, in degrees clockwise from 12 o'clock — the wheel's convention.

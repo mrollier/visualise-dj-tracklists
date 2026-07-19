@@ -223,7 +223,9 @@ export function parseProject(json: string): Project {
   if (typeof rawSettings.slotSpreadDeg === 'number' && rawSettings.slotSpreadFactor === undefined) {
     settings.slotSpreadFactor = rawSettings.slotSpreadDeg / 7.5
   }
-  settings.slotSpreadFactor = Math.max(0, Math.min(1, settings.slotSpreadFactor))
+  // v14 (WS7): the slider range widened to 0–2 (1 is still the default look);
+  // a saved factor up to 2 must survive rather than snap back to 1.
+  settings.slotSpreadFactor = Math.max(0, Math.min(2, settings.slotSpreadFactor))
   if (typeof settings.jitterSeed !== 'number' || !Number.isFinite(settings.jitterSeed)) {
     settings.jitterSeed = DEFAULT_SETTINGS.jitterSeed
   }

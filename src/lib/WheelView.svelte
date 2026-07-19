@@ -15,8 +15,8 @@
   } from 'd3-shape'
   import { zoom as d3zoom, zoomIdentity, type D3ZoomEvent } from 'd3-zoom'
   import { classIndexOfTrack } from '../core/iconClasses'
-  import { ALL_CAMELOT_KEYS, wheelSlotAngleDeg, type CamelotKey } from '../core/keys'
-  import { annularSectorPath, relaxSlotAngles } from '../core/layout'
+  import { ALL_CAMELOT_KEYS, camelotNumber, wheelSlotAngleDeg, type CamelotKey } from '../core/keys'
+  import { annularSectorPath, relaxSlotAngles, spreadHalfDeg } from '../core/layout'
   import type { Track } from '../core/model'
   import {
     COLOR_SCHEMES,
@@ -196,18 +196,20 @@
       bySlot.get(track.key)!.push(track)
     }
     const targetScale = scaleLinear().domain(targetDomain).range([R_MIN, R_MAX]).clamp(true)
-    // Cap the fan-out at ±4° (v10 issue 5), not the wedge's full ±7.5°: nodes
-    // then stay well inside their key sector and never brush the next key.
-    const half = 4 * $effectiveSettings.slotSpreadFactor
+    // Fan-out half-window (v14 W4): factor 0→0°, 1→±4° (the historic look),
+    // up to 2→ the ±7.5° wedge edge minus the node's angular radius. The
+    // group's MINIMUM radius is the most constraining (largest angular
+    // radius), so one deterministic half-window keeps relaxSlotAngles
+    // single-valued per group.
+    const factor = $effectiveSettings.slotSpreadFactor
     for (const [key, group] of bySlot) {
-      const offsets = relaxSlotAngles(
-        group.map((track) => {
-          const value = track[$radialAxis]
-          return { id: track.id, r: value === null ? R_FALLBACK : targetScale(value) }
-        }),
-        half,
-        NODE_WORLD_RADIUS,
-      )
+      const slotNodes = group.map((track) => {
+        const value = track[$radialAxis]
+        return { id: track.id, r: value === null ? R_FALLBACK : targetScale(value) }
+      })
+      const minRadius = Math.min(...slotNodes.map((n) => n.r))
+      const half = spreadHalfDeg(factor, NODE_WORLD_RADIUS, minRadius)
+      const offsets = relaxSlotAngles(slotNodes, half, NODE_WORLD_RADIUS)
       const base = wheelSlotAngleDeg(key as CamelotKey)
       for (const [id, offset] of offsets) angles.set(id, base + offset)
     }
@@ -356,6 +358,23 @@
 
   function keyLabelPos(key: CamelotKey) {
     return polar(wheelSlotAngleDeg(key), R_MAX + 26)
+  }
+
+  // v14 W1: a key sector (and its label) fades when its ring is filtered out
+  // (existing keyRing logic) OR its Camelot number falls outside an active
+  // key-range filter — composed, not replaced. The 0.6s .excluded opacity
+  // fade animates either cause for free.
+  function keyExcluded(key: CamelotKey): boolean {
+    const ringExcluded =
+      ($effectiveFilters.keyRing === 'minor' && key.endsWith('B')) ||
+      ($effectiveFilters.keyRing === 'major' && key.endsWith('A'))
+    const range = $effectiveFilters.properties.key
+    const outOfRange =
+      Array.isArray(range) &&
+      typeof range[0] === 'number' &&
+      typeof range[1] === 'number' &&
+      (camelotNumber(key) < range[0] || camelotNumber(key) > range[1])
+    return ringExcluded || outOfRange
   }
 
   function trackSummary(t: Track): string {
@@ -555,8 +574,7 @@
           d={annularSectorPath(CX, CY, centre - 7.5, centre + 7.5, R_MIN - 30, R_MAX + 12)}
           class="sector"
           class:major={key.endsWith('B')}
-          class:excluded={($effectiveFilters.keyRing === 'minor' && key.endsWith('B')) ||
-            ($effectiveFilters.keyRing === 'major' && key.endsWith('A'))}
+          class:excluded={keyExcluded(key)}
         />
       {/each}
 
@@ -584,8 +602,7 @@
           y={pos.y}
           class="key-label"
           class:major={key.endsWith('B')}
-          class:excluded={($effectiveFilters.keyRing === 'minor' && key.endsWith('B')) ||
-            ($effectiveFilters.keyRing === 'major' && key.endsWith('A'))}
+          class:excluded={keyExcluded(key)}
           dominant-baseline="middle"
           text-anchor="middle">{key}</text
         >
@@ -645,6 +662,7 @@
             x2={mb.x}
             y2={mb.y}
             class="manual-edge"
+            class:dim={$selectedId !== null && edge.a !== $selectedId && edge.b !== $selectedId}
             vector-effect="non-scaling-stroke"
           />
         {/if}
@@ -1056,6 +1074,13 @@
     stroke-width: 1.6;
     stroke-dasharray: 6 5;
     opacity: 0.75;
+    /* v14 W3: roads dim away from the focus like the combo edges do — the
+       selection's own combos stay bright, the rest recede. */
+    transition: opacity 0.6s cubic-bezier(0.33, 1, 0.68, 1);
+  }
+
+  .manual-edge.dim {
+    opacity: 0.12;
   }
 
   /* Walk-draw reveal (v12 WS1): each edge dash-draws in turn. pathLength=1

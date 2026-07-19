@@ -116,7 +116,9 @@
         </InfoTooltip>
       </div>
       {#if $linkArmed}
-        <p class="link-hint">Click another track on the wheel to mark or unmark the combo.</p>
+        <p class="link-hint">
+          Click another track on the wheel or in the Tracks view to mark or unmark the combo.
+        </p>
       {/if}
     {/if}
   </div>
@@ -134,6 +136,8 @@
     border-top: 1px solid var(--border);
     padding: 8px 14px 10px;
     font-size: 12px;
+    /* v14 R1: never let the card's contents widen the fixed right rail. */
+    min-width: 0;
   }
 
   .selected-card strong {
@@ -185,5 +189,8 @@
     margin: 6px 0 0;
     color: var(--accent);
     font-size: 11.5px;
+    /* v14 R1: the longer two-line copy wraps within the rail, never stretches
+       it. */
+    overflow-wrap: break-word;
   }
 </style>

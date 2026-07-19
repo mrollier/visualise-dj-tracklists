@@ -16,12 +16,14 @@
     appendToSet,
     comboComplete,
     hoveredId,
+    linkArmed,
     mustInclude,
     neighbours,
     pinnedFirst,
     pinnedLast,
     selectedId,
     settings,
+    toggleManualEdge,
     trackById,
     tracklist,
     trackSort,
@@ -89,6 +91,12 @@
   const mustSet = $derived(new Set($mustInclude))
 
   function selectRow(id: string) {
+    // v14 T1: an armed 🔗 makes the next row click mark/unmark a combo, just
+    // like a wheel click; the selection stays on the source so marks chain.
+    if ($linkArmed && $selectedId !== null) {
+      if (id !== $selectedId) toggleManualEdge($selectedId, id)
+      return
+    }
     selectedId.update((current) => (current === id ? null : id))
   }
 
@@ -258,6 +266,7 @@
             class:selected={track.id === $selectedId}
             class:connected={connectedIds?.has(track.id) === true}
             class:set-hovered={track.id === $hoveredId}
+            class:link-armed={$linkArmed}
             onclick={() => selectRow(track.id)}
           >
             <td class="tags">
@@ -400,6 +409,12 @@
     cursor: pointer;
     /* click selects, ＋ appends — text selection would fight both */
     user-select: none;
+  }
+
+  /* v14 T1: while 🔗 is armed the whole row is a link target, so it reads as
+     a crosshair — the same intent the wheel shows. */
+  tbody tr.link-armed {
+    cursor: crosshair;
   }
 
   th.drop-target {

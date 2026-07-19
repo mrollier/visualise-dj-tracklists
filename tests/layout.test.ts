@@ -3,8 +3,11 @@ import {
   annularSectorPath,
   minAngularGapDeg,
   relaxSlotAngles,
+  spreadHalfDeg,
   type SlotNode,
 } from '../src/core/layout'
+
+const asinDeg = (x: number) => (Math.asin(x) * 180) / Math.PI
 
 describe('minAngularGapDeg (issue 17)', () => {
   const P = 5 // world-unit node radius
@@ -110,6 +113,42 @@ describe('relaxSlotAngles (issue 17)', () => {
     const gaps = angles.slice(1).map((a, i) => a - angles[i])
     expect(Math.max(...gaps)).toBeLessThanOrEqual(1)
     expect(Math.min(...gaps)).toBeGreaterThanOrEqual(0.05)
+  })
+})
+
+describe('spreadHalfDeg (v14 W4: slider 0–2)', () => {
+  const P = 5 // world-unit node radius
+
+  test('factor 0 collapses the fan to the slot centre, whatever the radius', () => {
+    for (const r of [10, 100, 400, 5]) expect(spreadHalfDeg(0, P, r)).toBe(0)
+  })
+
+  test('factor 1 keeps the historic ±4° exactly, whatever the radius', () => {
+    // The default look must be byte-identical to before the slider widened,
+    // i.e. independent of the node radius.
+    for (const r of [10, 100, 400, 5]) expect(spreadHalfDeg(1, P, r)).toBe(4)
+  })
+
+  test('factor 2 at r=100 kisses the wedge edge minus the angular radius', () => {
+    expect(spreadHalfDeg(2, P, 100)).toBeCloseTo(7.5 - asinDeg(5 / 100), 12)
+  })
+
+  test('factor 2 never exceeds 7.5° nor drops below 4°, even for tiny radii', () => {
+    for (const r of [5, 6, 8, 12, 50, 100, 400, 5000]) {
+      const half = spreadHalfDeg(2, P, r)
+      expect(half).toBeGreaterThanOrEqual(4)
+      expect(half).toBeLessThanOrEqual(7.5)
+    }
+    // At the degenerate small radius the node fills the wedge, so the edge
+    // floors at 4°; a huge radius approaches the full ±7.5° window.
+    expect(spreadHalfDeg(2, P, P)).toBe(4)
+    expect(spreadHalfDeg(2, P, 1e9)).toBeCloseTo(7.5, 6)
+  })
+
+  test('rises monotonically from 4° to the edge across factor 1→2', () => {
+    const mid = spreadHalfDeg(1.5, P, 100)
+    expect(mid).toBeGreaterThan(4)
+    expect(mid).toBeLessThan(spreadHalfDeg(2, P, 100))
   })
 })
 

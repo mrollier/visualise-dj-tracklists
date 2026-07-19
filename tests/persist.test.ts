@@ -486,14 +486,24 @@ describe('project persistence (v3)', () => {
     expect('slotSpreadDeg' in parsed.settings).toBe(false)
   })
 
-  test('clamps slotSpreadFactor to [0, 1] (old degree saves allowed up to 20)', () => {
-    const wide = JSON.parse(serializeProject(project)) as { settings: Record<string, unknown> }
-    delete wide.settings.slotSpreadFactor
-    wide.settings.slotSpreadDeg = 20
-    expect(parseProject(JSON.stringify(wide)).settings.slotSpreadFactor).toBe(1)
-    const direct = JSON.parse(serializeProject(project)) as { settings: Record<string, unknown> }
-    direct.settings.slotSpreadFactor = 3
-    expect(parseProject(JSON.stringify(direct)).settings.slotSpreadFactor).toBe(1)
+  test('clamps slotSpreadFactor to [0, 2] (v14 WS7), legacy degree migration unaffected', () => {
+    // A stored factor inside the widened range survives the reload untouched.
+    const stored = JSON.parse(serializeProject(project)) as { settings: Record<string, unknown> }
+    stored.settings.slotSpreadFactor = 1.7
+    expect(parseProject(JSON.stringify(stored)).settings.slotSpreadFactor).toBe(1.7)
+    // Out of range on either side clamps to the [0, 2] bounds.
+    const high = JSON.parse(serializeProject(project)) as { settings: Record<string, unknown> }
+    high.settings.slotSpreadFactor = 3
+    expect(parseProject(JSON.stringify(high)).settings.slotSpreadFactor).toBe(2)
+    const low = JSON.parse(serializeProject(project)) as { settings: Record<string, unknown> }
+    low.settings.slotSpreadFactor = -1
+    expect(parseProject(JSON.stringify(low)).settings.slotSpreadFactor).toBe(0)
+    // A legacy degrees save (window capped at 7.5°) still migrates to ≤1 —
+    // the wider clamp leaves the ordinary migration path untouched.
+    const legacy = JSON.parse(serializeProject(project)) as { settings: Record<string, unknown> }
+    delete legacy.settings.slotSpreadFactor
+    legacy.settings.slotSpreadDeg = 7.5
+    expect(parseProject(JSON.stringify(legacy)).settings.slotSpreadFactor).toBe(1)
   })
 
   test('clamps manualEdgeWeight to a finite 0–10, resetting anything else to 5 (v14 S3)', () => {
