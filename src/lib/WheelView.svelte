@@ -457,6 +457,7 @@
       progression: $effectiveSettings.bpmProgression,
       force: hubExhausted,
       manualEdges: $effectiveManualEdges,
+      manualEdgeWeight: $effectiveSettings.manualEdgeWeight,
     })
     if (suggestion === null) return
     tracklist.update((ids) => ids.toSpliced(suggestion.insertIndex, 0, suggestion.trackId))
@@ -485,6 +486,7 @@
       force: state === 'force-retry',
       excludeIds: exclude,
       manualEdges: $effectiveManualEdges,
+      manualEdgeWeight: $effectiveSettings.manualEdgeWeight,
     })
     if (suggestion === null || suggestion.insertIndex !== pick.insertIndex) {
       lastHubPick = null

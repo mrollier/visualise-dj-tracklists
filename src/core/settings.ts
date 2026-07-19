@@ -20,9 +20,10 @@ export interface AppSettings {
   /** Node colour scheme (per-theme ramps in scales.ts). */
   colorScheme: 'blue' | 'aqua' | 'violet'
   /**
-   * Max angular fan-out of same-key tracks as a 0–1 factor of the half-slot
-   * window (±7.5°) — since v9 (issue 17) the hard bound of the deterministic
-   * slot relaxation, which replaced the seeded fan.
+   * Max angular fan-out of same-key tracks as a 0–2 factor (1 = classic ±4°,
+   * 2 = node edge kisses the ±7.5° wedge boundary) — since v9 (issue 17) the
+   * hard bound of the deterministic slot relaxation, which replaced the
+   * seeded fan.
    */
   slotSpreadFactor: number
   /**
@@ -80,10 +81,13 @@ export interface AppSettings {
    */
   advancedOpen: string[]
   /**
-   * Easy mode (v12 WS4): one hard toggle. Easy shows the wheel, Playlists,
-   * ✨ and the set panel; criteria, filters, genres, advanced settings and
-   * the view/axis controls hide behind their current values. Visibility
-   * only — nothing underneath changes, so toggling back restores everything.
+   * Easy mode (v12 WS4; computation v14 WS6/E1): one hard toggle. Easy shows
+   * the wheel, Playlists, ✨ and the set panel; criteria, filters, genres,
+   * advanced settings and the view/axis controls hide behind their current
+   * values. It is not visibility-only, though: easy also COMPUTES with
+   * sensible defaults via the effective-store layer (stores.ts). The stored
+   * advanced state underneath is never mutated, so toggling back restores it
+   * exactly.
    */
   uiMode: 'advanced' | 'easy'
 }

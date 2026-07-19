@@ -72,7 +72,7 @@
           class:on={isMustIncluded}
           aria-pressed={isMustIncluded}
           aria-label="Must include in suggested sets"
-          title="Suggested sets will strongly favour including this track"
+          title="Guaranteed a place in suggested sets"
           onclick={toggleMustInclude}
         >
           {isMustIncluded ? '★' : '☆'}
@@ -109,7 +109,7 @@
         </button>
         <InfoTooltip label="About these marks" align="right">
           <strong>Marks for suggested sets</strong>
-          <span>★ — strongly favour including this track.</span>
+          <span>★ — guaranteed to appear in suggested sets (forcing a transition if it must).</span>
           <span>⏮ — open generated sets with it.</span>
           <span>⏭ — close generated sets with it.</span>
           <span>🔗 — mark a combo you know works: suggestions treat it as a road.</span>

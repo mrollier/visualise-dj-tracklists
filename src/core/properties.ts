@@ -31,9 +31,9 @@ export interface TrackProperty {
   key: TrackSortField
   label: string
   kind: PropertyKind
-  /** All true today; the flag exists so a future kind (e.g. a colour
-   *  checklist) can opt a property out of range filtering without engine
-   *  special cases. */
+  /** All true today; the colour checklist now exists (the `colour` kind) —
+   *  the flag remains so a future kind can opt a property out of range
+   *  filtering without engine special cases. */
   filterable: boolean
   /** Cell-text override for the Tracks table (duration m:ss, size MB). */
   format?: (value: string | number) => string

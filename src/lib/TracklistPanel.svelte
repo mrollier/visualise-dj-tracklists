@@ -362,7 +362,9 @@
         title="The criteria ran out {shortBy} track{shortBy === 1 ? '' : 's'} early — fill the rest
         with the closest non-matching picks"
       >
-        ⚡ Force to {$effectiveSettings.suggestLength}
+        ⚡ Force to {shortSnapshot !== null
+          ? shortSnapshot.length
+          : $effectiveSettings.suggestLength}
         <SparkleBurst active={bursting} />
       </button>
     {:else}
@@ -382,8 +384,12 @@
     {/if}
   </div>
   {#if forcedSteps !== null && forcedSteps > 0}
+    <!-- The denominator is the ACTUAL rendered walk's transition count, not
+         the suggestLength snapshot (review finding): a live slider change
+         must not make this lie, and essentials growing the walk past
+         suggestLength must not understate it either. -->
     <p class="forced-note">
-      ⚡ {forcedSteps} of {$effectiveSettings.suggestLength - 1} transitions were forced past the criteria.
+      ⚡ {forcedSteps} of {walkTracks.length - 1} transitions were forced past the criteria.
     </p>
   {/if}
 

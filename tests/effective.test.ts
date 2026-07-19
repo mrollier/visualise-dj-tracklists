@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { DEFAULT_CRITERIA } from '../src/core/combos'
 import { EMPTY_FILTERS } from '../src/core/filter'
 import { DEFAULT_SETTINGS } from '../src/core/settings'
+import { SAMPLE_TRACKS } from '../src/data/sample-tracks'
 import {
   criteria,
   effectiveCriteria,
@@ -10,8 +11,10 @@ import {
   effectiveManualEdges,
   effectiveSettings,
   filters,
+  library,
   manualEdges,
   settings,
+  visibleLibrary,
 } from '../src/stores'
 
 // v14 WS6 (E1): easy mode COMPUTES WITH defaults through a derived layer;
@@ -23,12 +26,14 @@ describe('effective stores — easy mode computes with defaults', () => {
     filters.set(structuredClone(EMPTY_FILTERS))
     settings.set(structuredClone(DEFAULT_SETTINGS))
     manualEdges.set([])
+    library.set([])
   })
   afterEach(() => {
     criteria.set(structuredClone(DEFAULT_CRITERIA))
     filters.set(structuredClone(EMPTY_FILTERS))
     settings.set(structuredClone(DEFAULT_SETTINGS))
     manualEdges.set([])
+    library.set([])
   })
 
   test('in advanced, effective stores pass the raw stores through unchanged', () => {
@@ -142,5 +147,33 @@ describe('effective stores — easy mode computes with defaults', () => {
     expect(get(effectiveFilters)).toEqual(storedFilters)
     expect(get(effectiveSettings)).toEqual({ ...storedSettings, uiMode: 'advanced' })
     expect(get(effectiveManualEdges)).toEqual(storedEdges)
+  })
+
+  // Pins the mechanism the ⚡ window-close (TracklistPanel drift guard) relies
+  // on: it treats `$visibleLibrary` getting a fresh array identity as the
+  // signal that a mode flip changed the inputs a force-suggestion was seeded
+  // against. An active advanced filter makes the flip consequential — easy
+  // resets properties/genres/keyRing, so the visible set actually changes,
+  // not just its identity.
+  test('uiMode flip gives visibleLibrary a new array identity both ways (v14 review finding)', () => {
+    library.set(structuredClone(SAMPLE_TRACKS))
+    filters.set({
+      ...structuredClone(EMPTY_FILTERS),
+      properties: { bpm: [120, 125] },
+    })
+    settings.update((s) => ({ ...s, uiMode: 'advanced' }))
+
+    const advancedFirst = get(visibleLibrary)
+    expect(advancedFirst.length).toBeLessThan(SAMPLE_TRACKS.length) // the bpm filter bites
+
+    settings.update((s) => ({ ...s, uiMode: 'easy' }))
+    const easy = get(visibleLibrary)
+    expect(easy).not.toBe(advancedFirst)
+    expect(easy.length).toBe(SAMPLE_TRACKS.length) // easy drops the properties filter
+
+    settings.update((s) => ({ ...s, uiMode: 'advanced' }))
+    const advancedSecond = get(visibleLibrary)
+    expect(advancedSecond).not.toBe(easy)
+    expect(advancedSecond.length).toBe(advancedFirst.length)
   })
 })

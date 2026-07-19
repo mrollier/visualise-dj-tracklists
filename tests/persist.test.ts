@@ -504,6 +504,11 @@ describe('project persistence (v3)', () => {
     delete legacy.settings.slotSpreadFactor
     legacy.settings.slotSpreadDeg = 7.5
     expect(parseProject(JSON.stringify(legacy)).settings.slotSpreadFactor).toBe(1)
+    // A non-number value (typeof guard, matching jitterSeed/manualEdgeWeight)
+    // falls back to the default of 1 rather than clamping garbage through.
+    const garbage = JSON.parse(serializeProject(project)) as { settings: Record<string, unknown> }
+    garbage.settings.slotSpreadFactor = 'nope'
+    expect(parseProject(JSON.stringify(garbage)).settings.slotSpreadFactor).toBe(1)
   })
 
   test('clamps manualEdgeWeight to a finite 0–10, resetting anything else to 5 (v14 S3)', () => {

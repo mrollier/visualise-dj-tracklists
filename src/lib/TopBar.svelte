@@ -204,8 +204,10 @@
     return `${cov.outside} of ${cov.tagged} tagged tracks have genres outside the similarity data${invisible} — top: ${top}`
   })
 
-  // Easy mode (v12 WS4): one hard toggle, visibility only. Entering easy also
-  // puts the set panel back — the advanced panel it would orphan is hidden.
+  // Easy mode (v12 WS4; computation v14 WS6/E1): one hard toggle — entering
+  // easy switches computation onto sensible defaults via the effective-store
+  // layer, not just hiding controls. It also puts the set panel back — the
+  // advanced panel it would orphan is hidden.
   const easy = $derived($settings.uiMode === 'easy')
   function toggleUiMode() {
     const entering = !easy
@@ -299,15 +301,16 @@
         ⚙ Advanced
       </button>
     {/if}
-    <!-- Easy mode (v12 WS4): a hard toggle — easy shows the wheel, Playlists,
-         ✨ and the set; everything else hides behind its current values. -->
+    <!-- Easy mode (v12 WS4; computation v14 WS6/E1): a hard toggle — easy
+         shows the wheel, Playlists, ✨ and the set; everything else hides AND
+         computes on sensible defaults instead of its current values. -->
     <button
       class="mode-toggle"
       aria-pressed={easy}
       class:active={easy}
       title={easy
         ? 'Back to the full interface — everything is where you left it'
-        : 'Hide the criteria, filters and advanced controls; keep the wheel and your set'}
+        : 'Run on sensible defaults; keep the wheel and your set'}
       onclick={toggleUiMode}
     >
       {easy ? 'All controls' : 'Easy mode'}

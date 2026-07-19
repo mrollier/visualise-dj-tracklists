@@ -224,8 +224,18 @@ export function parseProject(json: string): Project {
     settings.slotSpreadFactor = rawSettings.slotSpreadDeg / 7.5
   }
   // v14 (WS7): the slider range widened to 0–2 (1 is still the default look);
-  // a saved factor up to 2 must survive rather than snap back to 1.
-  settings.slotSpreadFactor = Math.max(0, Math.min(2, settings.slotSpreadFactor))
+  // a saved factor up to 2 must survive rather than snap back to 1. Same
+  // typeof/finite guard as jitterSeed/manualEdgeWeight below: a non-number or
+  // non-finite value (e.g. a hand-edited save gone wrong) falls back to the
+  // default rather than clamping garbage like NaN through untouched.
+  if (
+    typeof settings.slotSpreadFactor !== 'number' ||
+    !Number.isFinite(settings.slotSpreadFactor)
+  ) {
+    settings.slotSpreadFactor = DEFAULT_SETTINGS.slotSpreadFactor
+  } else {
+    settings.slotSpreadFactor = Math.max(0, Math.min(2, settings.slotSpreadFactor))
+  }
   if (typeof settings.jitterSeed !== 'number' || !Number.isFinite(settings.jitterSeed)) {
     settings.jitterSeed = DEFAULT_SETTINGS.jitterSeed
   }

@@ -101,7 +101,10 @@ engine.
 
 **S1 — essentials as a hard guarantee** (see the algorithm below). Promoted from
 a scored `MUST_INCLUDE_BONUS` to a reserved/forced placement, immune to the
-`randomness` knob.
+`randomness` knob. The S1 essentials guarantee and the ⚡ force may seat a pair
+that breaks a demanded (🔒) criterion — the forced counter reports it when this
+happens — and this precedence (a hard guarantee or force outranks a demand) is
+deliberate.
 
 **S2 — ⚡ continues the short walk.** `TracklistPanel` stores the exact
 `SuggestSnapshot` (seed, seedId, endId, length, randomness, progression,
