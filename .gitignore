@@ -34,3 +34,4 @@ dist-ssr
 # downloaded papers (heavy, and redistribution would infringe copyright —
 # docs/science/genre-distance-measures.md lists what belongs here and where to get it)
 /docs/articles/
+.superpowers/
