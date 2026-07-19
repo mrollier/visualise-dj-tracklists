@@ -775,7 +775,14 @@ await page.waitForTimeout(400)
 {
   const shortRows = await page.locator('aside ol li.track .names strong').allTextContents()
   const forceBtn = page.locator('.suggest-row .force')
-  if (shortRows.length > 1 && (await forceBtn.count()) === 1) {
+  const forceCount = await forceBtn.count()
+  // The fixture (Classic-demo-only, length 99) is deterministic, so the short
+  // stall MUST manifest — if it doesn't, the walk builder changed, not the test.
+  if (shortRows.length <= 1 || forceCount !== 1) {
+    errors.push(
+      `the short-walk stall scenario did not manifest (${shortRows.length} rows, ${forceCount} ⚡ button) — S2 continue-in-place could not be checked`,
+    )
+  } else {
     await forceBtn.click()
     await page.waitForTimeout(500)
     const forcedRows = await page.locator('aside ol li.track .names strong').allTextContents()
@@ -1556,22 +1563,75 @@ page.once('dialog', (d) => d.accept(d.defaultValue()))
   }
 }
 
-// Easy mode (v14 E1, was WS4): the minimal surface — playlists + wheel + ✨ —
-// runs on defaults, hiding the whole criteria/filters machinery, and everything
-// comes back where it was on "All controls".
+// Easy mode (v14 E1): easy must COMPUTE WITH independent defaults, not merely
+// display whatever the advanced side holds. Prove it against a deliberately
+// DIRTY advanced state — a narrowing filter and a locked (demanded) criterion —
+// so a broken effective-store layer that leaked the stored state through would
+// be caught here (a default-vs-default comparison could not tell them apart).
+const visTracks = async () =>
+  Number.parseInt((await page.locator('.stat .value').first().textContent()) ?? '0', 10)
+const comboStat = async () =>
+  Number.parseInt((await page.locator('.stat .value').nth(1).textContent()) ?? '0', 10)
+// Normalise the one criteria residue this long flow left non-default (half/double
+// was deliberately kept on earlier) so the baseline below IS the default state,
+// and easy's default-computed combo count can be compared to it exactly.
+await page.getByRole('button', { name: /Advanced/ }).click()
+await ensureSectionOpen('Key & BPM')
+await page.getByRole('checkbox', { name: /half\/double/ }).uncheck()
+await page.keyboard.press('Escape')
+await page.waitForTimeout(700)
+const baseTracks = await visTracks()
+const baseCombos = await comboStat()
+// dirty #1: a Rating≥5 filter measurably narrows the visible tracks
+const filtersDetails = page.locator('aside details:has(> summary:has-text("Filters"))')
+await filtersDetails.evaluate((d) => (d.open = true))
+await page.locator('.filter-row', { hasText: 'Rating' }).locator('input').first().fill('5')
+await page.waitForTimeout(700)
+// dirty #2: lock the Key criterion — the demanded gate reshapes the combo count
+const keyLock = page.locator('.criterion', { hasText: 'Key' }).first().locator('.lock')
+await keyLock.click()
+await page.waitForTimeout(800)
+const dirtyTracks = await visTracks()
+const dirtyCombos = await comboStat()
+if (!(dirtyTracks < baseTracks)) {
+  errors.push(
+    `the Rating≥5 filter should narrow the visible tracks (${baseTracks} → ${dirtyTracks})`,
+  )
+}
+if (!(dirtyCombos < baseCombos)) {
+  errors.push(
+    `locking Key (demanded) should reduce the combo count (${baseCombos} → ${dirtyCombos})`,
+  )
+}
+
 await page.getByRole('button', { name: 'Easy mode' }).click()
-await page.waitForTimeout(300)
+await page.waitForTimeout(900)
 if ((await page.locator('.view-switch').count()) !== 0) {
   errors.push('easy mode left the view switch visible')
 }
-// v14 E1: easy computes with default criteria/filters, so their editors vanish.
+// easy computes with default criteria/filters, so their editors vanish…
 if ((await page.locator('.criterion').count()) !== 0) {
   errors.push('easy mode still showed the combo-criteria controls')
 }
 if ((await page.locator('.filter-row').count()) !== 0) {
   errors.push('easy mode still showed the filter rows')
 }
-// v14 E1: ★ / pins / 🔗 are hidden and inert — the selected card drops its marks.
+// …and the ENGINE runs on defaults INDEPENDENT of the dirty advanced state: the
+// filter is bypassed (the full track count returns) and the demanded lock is
+// gone (the combo count returns to its default), NOT the narrowed/locked values.
+const easyTracks = await visTracks()
+const easyCombos = await comboStat()
+if (easyTracks !== baseTracks) {
+  errors.push(
+    `easy mode did not compute filters as defaults (${baseTracks} want, got ${easyTracks})`,
+  )
+}
+if (easyCombos !== baseCombos) {
+  errors.push(
+    `easy mode did not compute criteria as defaults (${baseCombos} want, got ${easyCombos})`,
+  )
+}
+// ★ / pins / 🔗 are hidden and inert — the selected card drops its marks.
 await page.locator('g.node').first().dispatchEvent('click')
 await page.waitForTimeout(200)
 if ((await page.locator('.selected-card .mark-toggle').count()) !== 0) {
@@ -1580,10 +1640,25 @@ if ((await page.locator('.selected-card .mark-toggle').count()) !== 0) {
 await page.keyboard.press('Escape')
 await page.screenshot({ path: `${scratch}/21-easy-mode.png` })
 await page.getByRole('button', { name: 'All controls' }).click()
-await page.waitForTimeout(300)
+await page.waitForTimeout(900)
 if ((await page.locator('.view-switch').count()) !== 1) {
   errors.push('leaving easy mode did not restore the view switch')
 }
+// "exactly as you left it": the dirty advanced state is RESTORED untouched —
+// the filter narrows again and the Key lock is still set (easy never mutated
+// the stored state, it only bypassed it).
+if ((await visTracks()) !== dirtyTracks) {
+  errors.push('returning to All controls did not restore the narrowing filter')
+}
+if ((await keyLock.getAttribute('aria-pressed')) !== 'true') {
+  errors.push('returning to All controls did not restore the Key criterion lock')
+}
+// clean up so downstream steps keep their baseline
+await keyLock.click() // unlock
+await filtersDetails.evaluate((d) => (d.open = true))
+await page.getByRole('button', { name: 'Reset Rating filter' }).click()
+await page.waitForTimeout(600)
+await filtersDetails.evaluate((d) => (d.open = false))
 
 // theme switch: from the emulated dark system preference, the first
 // toggle must land on light and stamp data-theme
