@@ -31,10 +31,10 @@
     appendToSet,
     effectiveCriteria,
     effectiveColorAxis,
+    effectiveFilters,
     effectiveManualEdges,
     effectiveSettings,
     focusEdges,
-    filters,
     hoveredId,
     iconClasses,
     library,
@@ -128,7 +128,7 @@
   // The radial axes are all number-kind properties; narrow the stored range
   // (v11 issue 1: filters carry a per-property map) for the domain maths.
   const radialFilterRange = $derived.by((): [number, number] | null => {
-    const range = $filters.properties[$radialAxis]
+    const range = $effectiveFilters.properties[$radialAxis]
     return Array.isArray(range) && typeof range[0] === 'number' && typeof range[1] === 'number'
       ? [range[0], range[1]]
       : null
@@ -555,8 +555,8 @@
           d={annularSectorPath(CX, CY, centre - 7.5, centre + 7.5, R_MIN - 30, R_MAX + 12)}
           class="sector"
           class:major={key.endsWith('B')}
-          class:excluded={($filters.keyRing === 'minor' && key.endsWith('B')) ||
-            ($filters.keyRing === 'major' && key.endsWith('A'))}
+          class:excluded={($effectiveFilters.keyRing === 'minor' && key.endsWith('B')) ||
+            ($effectiveFilters.keyRing === 'major' && key.endsWith('A'))}
         />
       {/each}
 
@@ -584,8 +584,8 @@
           y={pos.y}
           class="key-label"
           class:major={key.endsWith('B')}
-          class:excluded={($filters.keyRing === 'minor' && key.endsWith('B')) ||
-            ($filters.keyRing === 'major' && key.endsWith('A'))}
+          class:excluded={($effectiveFilters.keyRing === 'minor' && key.endsWith('B')) ||
+            ($effectiveFilters.keyRing === 'major' && key.endsWith('A'))}
           dominant-baseline="middle"
           text-anchor="middle">{key}</text
         >
