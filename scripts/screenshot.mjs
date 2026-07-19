@@ -37,35 +37,25 @@ await page.reload()
 await page.getByText('Your library as a web of combos').waitFor()
 await page.screenshot({ path: `${scratch}/01-empty.png` })
 
-// Load sample: ONE collection, behaving like an XML import — empty wheel,
-// playlists panel, hint centred on the wheel (design-v6 §D)
+// Load sample: ONE collection, behaving like an XML import — except the
+// Classic demo pack starts pre-selected (v14 WS3 D2), so the wheel is
+// populated immediately instead of showing the empty-wheel hint.
 await page.getByRole('button', { name: 'Load sample' }).click()
-await page.getByText('Nothing to show yet.').waitFor()
+await page.locator('g.node').first().waitFor()
 // v12 WS12: the first-ever sample load opens the guided tour — capture it,
 // then close it so the flows below run uncluttered (the seen-flag persists).
 await page.getByRole('dialog', { name: 'Guided tour' }).waitFor()
 await page.screenshot({ path: `${scratch}/01b-tour.png` })
 await page.getByRole('button', { name: 'Close the tour' }).click()
-if ((await page.locator('g.node').count()) !== 0) {
-  errors.push('the sample collection did not start with an empty wheel')
+if ((await page.locator('g.node').count()) === 0) {
+  errors.push('the sample collection did not start with the Classic demo pack populating the wheel')
 }
 const statusName = await page.locator('.status .name').textContent()
 if (statusName !== 'Sample collection') {
   errors.push(`expected status name "Sample collection", got "${statusName}"`)
 }
-// the empty hint sits on the wheel's true centre (CX/WIDTH = 410/900), not
-// the wrap centre (ISSUES.md #8)
-{
-  const hint = await page.locator('.no-visible').boundingBox()
-  const svg = await page.locator('.wheel-wrap > svg').boundingBox()
-  if (hint && svg) {
-    const relX = (hint.x + hint.width / 2 - svg.x) / svg.width
-    if (Math.abs(relX - 410 / 900) > 0.02) {
-      errors.push(`empty hint not centred on the wheel: relX=${relX.toFixed(3)}`)
-    }
-  } else {
-    errors.push('empty hint or svg not found for the centring check')
-  }
+if (!(await page.getByRole('checkbox', { name: 'Classic demo' }).isChecked())) {
+  errors.push('the Classic demo playlist did not start toggled on')
 }
 await page.screenshot({ path: `${scratch}/02a-sample-collection.png` })
 

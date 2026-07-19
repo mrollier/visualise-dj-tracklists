@@ -5,7 +5,7 @@ import { buildReport, type ImportReport, type Playlist, type Track } from '../co
 import { parseProject, serializeProject, type Project } from '../core/persist'
 import { freshFirstSet } from '../core/sets'
 import { DEFAULT_SETTINGS } from '../core/settings'
-import { ALL_SAMPLE_PACKS, SAMPLE_COLLECTION } from '../data/samples'
+import { ALL_SAMPLE_PACKS, CLASSIC_PACK, SAMPLE_COLLECTION } from '../data/samples'
 import {
   activeSetId,
   colorAxis,
@@ -110,7 +110,10 @@ export function replaceLibrary(replacement: {
 
 /**
  * Load the sample collection: every pack as a playlist in one library, which
- * then behaves exactly like an imported collection XML (design-v6 §D).
+ * then behaves exactly like an imported collection XML (design-v6 §D) —
+ * except the demo starts with the Classic pack already toggled on (v14 WS3
+ * D2), so the wheel isn't empty the moment someone loads the sample. A user's
+ * own import still starts at an empty wheel (unchanged, recorded decision).
  */
 export function loadSampleCollection(): void {
   // The sample raises a report like any import, so the status ⓘ next to
@@ -121,6 +124,7 @@ export function loadSampleCollection(): void {
     tracks: SAMPLE_COLLECTION.tracks,
     name: SAMPLE_COLLECTION.name,
     playlists: SAMPLE_COLLECTION.playlists,
+    selectedPlaylists: [CLASSIC_PACK.name],
     report,
   })
 }

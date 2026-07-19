@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'vitest'
 import { enrichTrack } from '../src/data/enrich'
 import { genreFamilyOf } from '../src/core/genre'
+import { audioQuality } from '../src/core/filter'
+import { REKORDBOX_COLOURS, TRACK_PROPERTIES } from '../src/core/properties'
+import type { TrackSortField } from '../src/core/trackSort'
 import { ALL_SAMPLE_PACKS, SAMPLE_COLLECTION, SAMPLE_PACKS } from '../src/data/samples'
 
 describe('sample packs', () => {
@@ -108,5 +111,168 @@ describe('the genre-atlas pack (v12 WS10)', () => {
     const withEnergy = atlas!.tracks.filter((t) => t.energy !== null)
     expect(withEnergy.length).toBeGreaterThanOrEqual(10)
     for (const t of withEnergy) expect(t.comments).toMatch(/Energy \d/)
+  })
+})
+
+describe('sample metadata enrichment (v14 WS3)', () => {
+  const tracks = SAMPLE_COLLECTION.tracks
+
+  // Every field the newer enrichment adds; each must show deliberate gaps
+  // (some null) alongside real coverage (some non-null) so every filter kind
+  // has something to bite on.
+  const NEWLY_GENERATED_FIELDS: TrackSortField[] = [
+    'composer',
+    'grouping',
+    'remixer',
+    'mix',
+    'colour',
+    'kind',
+    'bitRate',
+    'sampleRate',
+    'trackNumber',
+    'discNumber',
+    'dateModified',
+    'lastPlayed',
+    'location',
+    'size',
+  ]
+
+  test('every filterable property has at least one non-null value across the samples', () => {
+    for (const prop of TRACK_PROPERTIES) {
+      if (!prop.filterable) continue
+      const have = tracks.filter((t) => t[prop.key] !== null).length
+      expect(have, `${prop.key} is never non-null across the samples`).toBeGreaterThan(0)
+    }
+  })
+
+  test.each(NEWLY_GENERATED_FIELDS)('%s carries deliberate gaps: at least one null', (field) => {
+    const missing = tracks.filter((t) => t[field] === null).length
+    expect(missing, `${field} is never null across the samples`).toBeGreaterThan(0)
+  })
+
+  test('every non-null kind is a recognised Rekordbox audio quality', () => {
+    const kinds = tracks.filter((t) => t.kind !== null).map((t) => t.kind as string)
+    expect(kinds.length).toBeGreaterThan(0)
+    for (const kind of kinds) expect(audioQuality(kind)).not.toBeNull()
+  })
+
+  test('every non-null colour is one of the 8 standard Rekordbox tags', () => {
+    const colours = tracks.filter((t) => t.colour !== null).map((t) => t.colour as string)
+    expect(colours.length).toBeGreaterThan(0)
+    const known = new Set(Object.keys(REKORDBOX_COLOURS))
+    for (const colour of colours) expect(known.has(colour)).toBe(true)
+  })
+
+  test('size = durationSec * bitRate * 125, and only when both are known', () => {
+    let checked = 0
+    for (const t of tracks) {
+      if (t.durationSec === null || t.bitRate === null) {
+        expect(t.size).toBeNull()
+      } else {
+        expect(t.size).toBe(Math.round(t.durationSec * t.bitRate * 125))
+        checked++
+      }
+    }
+    expect(checked).toBeGreaterThan(0)
+  })
+
+  test('bitRate is correlated with kind: lossless kinds carry the lossless rate', () => {
+    let checked = 0
+    for (const t of tracks) {
+      if (t.kind === null) {
+        expect(t.bitRate).toBeNull()
+        continue
+      }
+      expect(t.bitRate).not.toBeNull()
+      if (audioQuality(t.kind) === 'lossless') {
+        expect(t.bitRate).toBe(1411)
+      } else {
+        expect([320, 256, 192]).toContain(t.bitRate)
+      }
+      checked++
+    }
+    expect(checked).toBeGreaterThan(0)
+  })
+
+  test('sampleRate is 44100 or 48000 Hz when present', () => {
+    const rates = tracks.filter((t) => t.sampleRate !== null).map((t) => t.sampleRate)
+    expect(rates.length).toBeGreaterThan(0)
+    for (const r of rates) expect([44100, 48000]).toContain(r)
+  })
+
+  test('trackNumber is 1-12 when present', () => {
+    const numbers = tracks.filter((t) => t.trackNumber !== null).map((t) => t.trackNumber as number)
+    expect(numbers.length).toBeGreaterThan(0)
+    for (const n of numbers) {
+      expect(n).toBeGreaterThanOrEqual(1)
+      expect(n).toBeLessThanOrEqual(12)
+    }
+  })
+
+  test('discNumber is mostly 1 when present', () => {
+    const numbers = tracks.filter((t) => t.discNumber !== null).map((t) => t.discNumber as number)
+    expect(numbers.length).toBeGreaterThan(0)
+    const ones = numbers.filter((n) => n === 1).length
+    expect(ones / numbers.length).toBeGreaterThan(0.5)
+  })
+
+  test('dateModified is on/after dateAdded when both are known', () => {
+    let checked = 0
+    for (const t of tracks) {
+      if (t.dateAdded !== null && t.dateModified !== null) {
+        expect(t.dateModified >= t.dateAdded).toBe(true)
+        checked++
+      }
+    }
+    expect(checked).toBeGreaterThan(0)
+  })
+
+  test('lastPlayed is present iff playCount > 0', () => {
+    let checkedNonNull = 0
+    let checkedNull = 0
+    for (const t of tracks) {
+      const played = t.playCount !== null && t.playCount > 0
+      expect(t.lastPlayed !== null).toBe(played)
+      if (played) checkedNonNull++
+      else checkedNull++
+    }
+    expect(checkedNonNull).toBeGreaterThan(0)
+    expect(checkedNull).toBeGreaterThan(0)
+  })
+
+  test('location follows the demo convention and matches the kind extension', () => {
+    const withLocation = tracks.filter((t) => t.location !== null)
+    expect(withLocation.length).toBeGreaterThan(0)
+    for (const t of withLocation) {
+      expect(t.location).toMatch(/^\/Users\/dj\/Music\/[^/]+\/.+\.\w+$/)
+      if (t.kind !== null) {
+        if (audioQuality(t.kind) === 'lossless') {
+          expect(t.location).toMatch(/\.(wav|aiff|flac)$/)
+        } else {
+          expect(t.location).toMatch(/\.(mp3|aac)$/)
+        }
+      }
+    }
+  })
+
+  test('authored year survives enrichment untouched (enrichTrack never overwrites track.year)', () => {
+    const withYear = tracks.filter((t) => t.year !== null)
+    expect(withYear.length).toBeGreaterThan(0)
+    // Re-enrichment is a no-op on year: it is never part of enrichTrack's
+    // return overrides, so feeding an already-enriched track back through
+    // must leave year exactly as it is.
+    for (const t of withYear.slice(0, 5)) {
+      const extras = { label: t.label, albums: {} }
+      expect(enrichTrack(t, extras).year).toBe(t.year)
+    }
+  })
+
+  test('enrichment is deterministic across every generated field: two runs identical', () => {
+    const base = tracks[0]
+    const extras = { label: 'Test Label', albums: { [base.artist ?? '']: 'Test LP' } }
+    const a = enrichTrack(base, extras)
+    const b = enrichTrack(base, extras)
+    expect(a).toEqual(b)
+    for (const field of NEWLY_GENERATED_FIELDS) expect(a[field]).toEqual(b[field])
   })
 })

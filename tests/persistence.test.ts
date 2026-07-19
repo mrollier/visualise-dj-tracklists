@@ -2,7 +2,7 @@ import { get } from 'svelte/store'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { EMPTY_FILTERS } from '../src/core/filter'
 import { EMPTY_TRACK_FIELDS, type Track } from '../src/core/model'
-import { ALL_SAMPLE_PACKS, SAMPLE_COLLECTION } from '../src/data/samples'
+import { ALL_SAMPLE_PACKS, CLASSIC_PACK, SAMPLE_COLLECTION } from '../src/data/samples'
 import {
   isSampleLibrary,
   loadSampleCollection,
@@ -84,13 +84,14 @@ describe('replaceLibrary', () => {
 })
 
 describe('loadSampleCollection', () => {
-  test('loads all packs as playlists and behaves like an XML import', () => {
+  test('loads all packs as playlists, Classic demo pre-selected (v14 WS3 D2)', () => {
     loadSampleCollection()
     expect(get(libraryName)).toBe('Sample collection')
     expect(get(library)).toEqual(SAMPLE_COLLECTION.tracks)
     expect(get(playlists)).toEqual(SAMPLE_COLLECTION.playlists)
-    // Nothing selected yet: empty wheel until playlists are toggled on.
-    expect(get(filters).playlists).toEqual([])
+    // The Classic demo pack starts toggled on so the wheel isn't empty the
+    // moment the sample loads; every other pack still starts off.
+    expect(get(filters).playlists).toEqual([CLASSIC_PACK.name])
     expect(get(tracklist)).toEqual([])
     expect(isSampleLibrary(get(library))).toBe(true)
   })
