@@ -29,8 +29,10 @@
   import { nextExhausted, retryState, suggestNext, type NextSuggestion } from '../core/suggest'
   import {
     appendToSet,
-    criteria,
+    effectiveCriteria,
     effectiveColorAxis,
+    effectiveManualEdges,
+    effectiveSettings,
     focusEdges,
     filters,
     hoveredId,
@@ -45,13 +47,11 @@
     radialAxis,
     rightPanel,
     selectedId,
-    settings,
     tracklist,
     visibleLibrary,
     walkRevealSeen,
     walkRevealTick,
     linkArmed,
-    manualEdges,
     toggleManualEdge,
   } from '../stores'
   import { walkRevealPlan } from '../core/walkReveal'
@@ -198,7 +198,7 @@
     const targetScale = scaleLinear().domain(targetDomain).range([R_MIN, R_MAX]).clamp(true)
     // Cap the fan-out at ±4° (v10 issue 5), not the wedge's full ±7.5°: nodes
     // then stay well inside their key sector and never brush the next key.
-    const half = 4 * $settings.slotSpreadFactor
+    const half = 4 * $effectiveSettings.slotSpreadFactor
     for (const [key, group] of bySlot) {
       const offsets = relaxSlotAngles(
         group.map((track) => {
@@ -295,9 +295,14 @@
   )
 
   const nodeColor = $derived(
-    makeNodeColor($effectiveColorAxis, colorDomain, $settings.colorScheme, $effectiveTheme),
+    makeNodeColor(
+      $effectiveColorAxis,
+      colorDomain,
+      $effectiveSettings.colorScheme,
+      $effectiveTheme,
+    ),
   )
-  const ramp = $derived(COLOR_SCHEMES[$effectiveTheme][$settings.colorScheme])
+  const ramp = $derived(COLOR_SCHEMES[$effectiveTheme][$effectiveSettings.colorScheme])
 
   const walkPairs = $derived(
     $tracklist.slice(0, -1).map((id, i) => [id, $tracklist[i + 1]] as const),
@@ -330,7 +335,9 @@
   // brightens, the cluster's interconnections stay at the plain base.
   function edgeOpacity(sourceId: string, targetId: string): number {
     const isStar = sourceId === $selectedId || targetId === $selectedId
-    return isStar ? focusEdgeOpacity($settings.edgeOpacity) : $settings.edgeOpacity
+    return isStar
+      ? focusEdgeOpacity($effectiveSettings.edgeOpacity)
+      : $effectiveSettings.edgeOpacity
   }
 
   function select(node: PlacedNode) {
@@ -424,13 +431,13 @@
 
   function hubSuggest() {
     if (hubAllUsed) return
-    const suggestion = suggestNext($visibleLibrary, $criteria, $tracklist, {
+    const suggestion = suggestNext($visibleLibrary, $effectiveCriteria, $tracklist, {
       selectedId: $selectedId,
-      randomness: $settings.suggestRandomness,
+      randomness: $effectiveSettings.suggestRandomness,
       seed: hubSeed++,
-      progression: $settings.bpmProgression,
+      progression: $effectiveSettings.bpmProgression,
       force: hubExhausted,
-      manualEdges: $manualEdges,
+      manualEdges: $effectiveManualEdges,
     })
     if (suggestion === null) return
     tracklist.update((ids) => ids.toSpliced(suggestion.insertIndex, 0, suggestion.trackId))
@@ -451,14 +458,14 @@
     // track for a mid/end pick, nothing for an empty-set opener.
     const anchorId = pick.insertIndex > 0 ? withoutPick[pick.insertIndex - 1] : null
     const exclude = [...triedIds, pick.trackId]
-    const suggestion = suggestNext($visibleLibrary, $criteria, withoutPick, {
+    const suggestion = suggestNext($visibleLibrary, $effectiveCriteria, withoutPick, {
       selectedId: anchorId,
-      randomness: $settings.suggestRandomness,
+      randomness: $effectiveSettings.suggestRandomness,
       seed: hubSeed++,
-      progression: $settings.bpmProgression,
+      progression: $effectiveSettings.bpmProgression,
       force: state === 'force-retry',
       excludeIds: exclude,
-      manualEdges: $manualEdges,
+      manualEdges: $effectiveManualEdges,
     })
     if (suggestion === null || suggestion.insertIndex !== pick.insertIndex) {
       lastHubPick = null
@@ -628,7 +635,7 @@
 
       <!-- Manual combos (v12 WS9): user-marked roads, always visible —
            deliberate and few, they are exempt from the focus-only rule. -->
-      {#each $manualEdges as edge (edge.a + '\n' + edge.b)}
+      {#each $effectiveManualEdges as edge (edge.a + '\n' + edge.b)}
         {@const ma = nodeById.get(edge.a)}
         {@const mb = nodeById.get(edge.b)}
         {#if ma && mb}
@@ -665,7 +672,7 @@
              full-length walk swells bright once, right as it finishes. -->
         <g
           class="walk-group"
-          class:celebrate={revealing && $tracklist.length >= $settings.suggestLength}
+          class:celebrate={revealing && $tracklist.length >= $effectiveSettings.suggestLength}
           style:--reveal-total="{revealPlan.totalMs}ms"
         >
           {#each walkPairs as [fromId, toId], pairIndex (pairIndex)}

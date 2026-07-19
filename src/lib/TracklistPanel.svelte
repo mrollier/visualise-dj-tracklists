@@ -17,7 +17,9 @@
     activeSet,
     activeSetId,
     addSet,
-    criteria,
+    effectiveCriteria,
+    effectiveManualEdges,
+    effectiveSettings,
     hoveredId,
     deleteSet,
     genreMatcher,
@@ -61,8 +63,13 @@
     year: 'year',
   }
 
+  // Easy mode runs the whole panel on defaults (v14 WS6/E1): the generator,
+  // the transition chips and the ⚡ drift guard all read the effective stores,
+  // and the pins/marks are hidden and forced inert.
+  const easy = $derived($settings.uiMode === 'easy')
+
   function transition(a: Track, b: Track) {
-    return evaluateCombo(a, b, $criteria, $genreMatcher)
+    return evaluateCombo(a, b, $effectiveCriteria, $genreMatcher)
   }
 
   function removeAt(index: number) {
@@ -110,7 +117,7 @@
       library: $visibleLibrary,
       radialAxis: $radialAxis,
       theme: $effectiveTheme,
-      scheme: $settings.colorScheme,
+      scheme: $effectiveSettings.colorScheme,
     })
     const wantsSvg = /\.svg\.png$/i.test(filename)
     if (wantsSvg) {
@@ -176,10 +183,10 @@
   // changed library or criteria — mirroring the retry ring's "any external
   // edit closes it" rule.
   let lastLibrary = $visibleLibrary
-  let lastCriteriaKey = JSON.stringify($criteria)
+  let lastCriteriaKey = JSON.stringify($effectiveCriteria)
   $effect(() => {
     const library = $visibleLibrary
-    const criteriaKey = JSON.stringify($criteria)
+    const criteriaKey = JSON.stringify($effectiveCriteria)
     if (library === lastLibrary && criteriaKey === lastCriteriaKey) return
     lastLibrary = library
     lastCriteriaKey = criteriaKey
@@ -209,7 +216,10 @@
     // two-arm walk. Plain ✨ rolls a fresh seed and, if it stops short,
     // remembers its snapshot so the next ⚡ can pick up where it left off.
     if (force && shortSnapshot !== null) {
-      const walk = suggestWalk($visibleLibrary, $criteria, { ...shortSnapshot, force: true })
+      const walk = suggestWalk($visibleLibrary, $effectiveCriteria, {
+        ...shortSnapshot,
+        force: true,
+      })
       setGeneratedTracklist(walk.ids)
       bumpWalkReveal(walkRevealPlan(walk.ids).totalMs)
       forceForSetId = $activeSet.id
@@ -218,22 +228,25 @@
       forcedSteps = walk.forced > 0 ? walk.forced : null
       return
     }
+    // Easy mode ignores the pins and must-include marks (they are hidden and
+    // inert) and reads the effective settings/edges (v14 WS6/E1); advanced
+    // keeps its stored pins, marks and manual edges.
     const snapshot: SuggestSnapshot = {
       seed: suggestSeed++,
-      seedId: $pinnedFirst ?? $selectedId,
-      endId: $pinnedLast,
-      length: $settings.suggestLength,
-      randomness: $settings.suggestRandomness,
-      progression: $settings.bpmProgression,
-      mustIncludeIds: [...$mustInclude],
-      manualEdges: $manualEdges.map((e) => ({ a: e.a, b: e.b })),
-      manualEdgeWeight: $settings.manualEdgeWeight,
+      seedId: easy ? $selectedId : ($pinnedFirst ?? $selectedId),
+      endId: easy ? null : $pinnedLast,
+      length: $effectiveSettings.suggestLength,
+      randomness: $effectiveSettings.suggestRandomness,
+      progression: $effectiveSettings.bpmProgression,
+      mustIncludeIds: easy ? [] : [...$mustInclude],
+      manualEdges: $effectiveManualEdges.map((e) => ({ a: e.a, b: e.b })),
+      manualEdgeWeight: $effectiveSettings.manualEdgeWeight,
     }
-    const walk = suggestWalk($visibleLibrary, $criteria, { ...snapshot, force })
+    const walk = suggestWalk($visibleLibrary, $effectiveCriteria, { ...snapshot, force })
     setGeneratedTracklist(walk.ids)
     bumpWalkReveal(walkRevealPlan(walk.ids).totalMs)
     forceForSetId = $activeSet.id
-    shortBy = force ? 0 : Math.max(0, $settings.suggestLength - walk.ids.length)
+    shortBy = force ? 0 : Math.max(0, $effectiveSettings.suggestLength - walk.ids.length)
     shortSnapshot = shortBy > 0 ? snapshot : null
     // Honesty tweak (v14 S2): plain ✨ can now force essentials in, so the
     // forced-count chip reports whenever any step broke the criteria.
@@ -345,7 +358,7 @@
         title="The criteria ran out {shortBy} track{shortBy === 1 ? '' : 's'} early — fill the rest
         with the closest non-matching picks"
       >
-        ⚡ Force to {$settings.suggestLength}
+        ⚡ Force to {$effectiveSettings.suggestLength}
         <SparkleBurst active={bursting} />
       </button>
     {:else}
@@ -366,7 +379,7 @@
   </div>
   {#if forcedSteps !== null && forcedSteps > 0}
     <p class="forced-note">
-      ⚡ {forcedSteps} of {$settings.suggestLength - 1} transitions were forced past the criteria.
+      ⚡ {forcedSteps} of {$effectiveSettings.suggestLength - 1} transitions were forced past the criteria.
     </p>
   {/if}
 
@@ -413,7 +426,7 @@
               </span>
               <span class="meta tabular">{track.key ?? '—'} · {track.bpm ?? '—'}</span>
             </button>
-            {#if i === 0 || i === walkTracks.length - 1}
+            {#if !easy && (i === 0 || i === walkTracks.length - 1)}
               {@const isFirst = i === 0}
               {@const pinned = isFirst ? $pinnedFirst === track.id : $pinnedLast === track.id}
               <button

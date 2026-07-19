@@ -23,7 +23,7 @@
     },
     {
       title: 'Easy or everything',
-      body: 'The Easy mode button hides all the machinery when you just want to play; All controls brings it back, exactly as you left it. Cmd+Z undoes nearly anything. Have fun.',
+      body: 'Easy mode runs the whole app on sensible defaults — just pick your playlists and press ✨. Your criteria, filters, pins and marks aren’t changed, only set aside; All controls brings them back exactly as you left them. Cmd+Z undoes nearly anything. Have fun.',
     },
   ]
 

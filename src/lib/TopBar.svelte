@@ -13,6 +13,7 @@
     lastImportReport,
     library,
     libraryName,
+    linkArmed,
     radialAxis,
     rightPanel,
     selectedId,
@@ -209,7 +210,12 @@
   function toggleUiMode() {
     const entering = !easy
     settings.update((s) => ({ ...s, uiMode: entering ? 'easy' : 'advanced' }))
-    if (entering) rightPanel.set('set')
+    if (entering) {
+      rightPanel.set('set')
+      // Link mode is an advanced affordance and its 🔗 button vanishes in easy
+      // (v14 WS6): disarm it so a wheel click can't silently toggle an edge.
+      linkArmed.set(false)
+    }
   }
 </script>
 

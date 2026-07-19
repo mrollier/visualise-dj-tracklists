@@ -195,9 +195,47 @@ export function resetSuggestions(): void {
   mustInclude.set([])
 }
 
+/**
+ * Manual edges (v12 WS9): user-marked "these mix well" pairs — planning
+ * annotations, persisted with the project, never a play log. Toggled from the
+ * selected-track card's link mode; pruned when a track leaves the library.
+ * Declared up here (with the other engine inputs) so the effective layer and
+ * the derivations below can consume it without a TDZ (v14 WS6).
+ */
+export const manualEdges = writable<ManualEdge[]>([])
+
+/**
+ * v14 E1: easy mode COMPUTES WITH defaults — it never mutates the stored
+ * advanced state (which keeps feeding persist + undo). Playlist selection and
+ * the created sets stay SHARED; criteria/filters/settings force to defaults and
+ * manual edges go inactive. These are NEW DERIVED STORES swapped into the
+ * engine-consuming derivations and the component call sites — the writables
+ * themselves are left untouched, so flipping back to All controls returns every
+ * stored value exactly as it was. structuredClone keeps the DEFAULT_* objects
+ * from being aliased and accidentally mutated by a consumer.
+ */
+const easyMode = derived(settings, ($s) => $s.uiMode === 'easy')
+export const effectiveCriteria = derived([criteria, easyMode], ([$c, $e]) =>
+  $e ? structuredClone(DEFAULT_CRITERIA) : $c,
+)
+export const effectiveFilters = derived([filters, easyMode], ([$f, $e]) =>
+  $e ? { ...structuredClone(EMPTY_FILTERS), playlists: $f.playlists } : $f,
+)
+export const effectiveSettings = derived([settings, easyMode], ([$s, $e]) =>
+  $e
+    ? {
+        ...structuredClone(DEFAULT_SETTINGS),
+        theme: $s.theme,
+        uiMode: $s.uiMode,
+        advancedOpen: $s.advancedOpen,
+      }
+    : $s,
+)
+export const effectiveManualEdges = derived([manualEdges, easyMode], ([$m, $e]) => ($e ? [] : $m))
+
 /** The filtered library: what the wheel, edges and suggestions operate on. */
 export const visibleLibrary = derived(
-  [library, filters, playlists],
+  [library, effectiveFilters, playlists],
   ([$library, $filters, $playlists]) => applyFilters($library, $filters, $playlists),
 )
 
@@ -237,8 +275,9 @@ export const scopedGenres = derived(playlistScopedLibrary, ($scoped) => {
  * and the edge list stays empty (v11 issue 2a) — consumers read `complete`
  * and `pairCount` instead of materializing n²/2 edges.
  */
-export const comboView = derived([visibleLibrary, criteria], ([$visibleLibrary, $criteria]) =>
-  computeComboView($visibleLibrary, $criteria),
+export const comboView = derived(
+  [visibleLibrary, effectiveCriteria],
+  ([$visibleLibrary, $criteria]) => computeComboView($visibleLibrary, $criteria),
 )
 
 export const edges = derived(comboView, ($comboView) => $comboView.edges)
@@ -254,7 +293,7 @@ export const comboPairCount = derived(comboView, ($comboView) => $comboView.pair
  * there, since "the cluster" would be every pair on the wheel.
  */
 export const focusEdges = derived(
-  [edges, selectedId, settings, comboComplete, visibleLibrary],
+  [edges, selectedId, effectiveSettings, comboComplete, visibleLibrary],
   ([$edges, $selectedId, $settings, $comboComplete, $visibleLibrary]) => {
     if ($comboComplete) {
       if ($selectedId === null) return []
@@ -267,11 +306,13 @@ export const focusEdges = derived(
 )
 
 /** Library-wide genre matcher, so pairwise UI (set transitions) agrees with the wheel's edges. */
-export const genreMatcher = derived([visibleLibrary, criteria], ([$visibleLibrary, $criteria]) =>
-  makeGenreMatcher(
-    $visibleLibrary.map((t) => t.genre),
-    $criteria,
-  ),
+export const genreMatcher = derived(
+  [visibleLibrary, effectiveCriteria],
+  ([$visibleLibrary, $criteria]) =>
+    makeGenreMatcher(
+      $visibleLibrary.map((t) => t.genre),
+      $criteria,
+    ),
 )
 
 /**
@@ -283,7 +324,7 @@ export const genreMatcher = derived([visibleLibrary, criteria], ([$visibleLibrar
  * filtering never re-classes; playlist toggles deliberately do.
  */
 export const iconClasses = derived(
-  [playlistScopedLibrary, playlists, filters, settings],
+  [playlistScopedLibrary, playlists, effectiveFilters, effectiveSettings],
   ([$scoped, $playlists, $filters, $settings]) => {
     const max = $settings.maxGenreClasses
     if ($settings.iconMode === 'playlists') {
@@ -304,13 +345,6 @@ export const iconClasses = derived(
 
 export const trackById = derived(library, ($library) => new Map($library.map((t) => [t.id, t])))
 
-/**
- * Manual edges (v12 WS9): user-marked "these mix well" pairs — planning
- * annotations, persisted with the project, never a play log. Toggled from the
- * selected-track card's link mode; pruned when a track leaves the library.
- */
-export const manualEdges = writable<ManualEdge[]>([])
-
 export function toggleManualEdge(a: string, b: string): void {
   if (a === b) return
   manualEdges.update(($edges) => {
@@ -326,7 +360,7 @@ export const linkArmed = writable(false)
 /** Adjacency: for each track id, the ids it shares a combo edge with —
  * manual pairs included (v12 WS9), so the hub, retry ring and focus star all
  * treat a marked combo as a road. */
-export const neighbours = derived([edges, manualEdges], ([$edges, $manualEdges]) => {
+export const neighbours = derived([edges, effectiveManualEdges], ([$edges, $manualEdges]) => {
   const map = new Map<string, Set<string>>()
   const connect = (x: string, y: string) => {
     if (!map.has(x)) map.set(x, new Set())

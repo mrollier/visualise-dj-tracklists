@@ -11,6 +11,7 @@
     pinnedFirst,
     pinnedLast,
     selectedId,
+    settings,
     trackById,
   } from '../stores'
   import type { Writable } from 'svelte/store'
@@ -62,57 +63,61 @@
       <dt>Genre</dt>
       <dd>{selectedTrack.genre ?? 'missing'}</dd>
     </dl>
-    <div class="marks">
-      <button
-        class="mark-toggle"
-        class:on={isMustIncluded}
-        aria-pressed={isMustIncluded}
-        aria-label="Must include in suggested sets"
-        title="Suggested sets will strongly favour including this track"
-        onclick={toggleMustInclude}
-      >
-        {isMustIncluded ? '★' : '☆'}
-      </button>
-      <button
-        class="mark-toggle"
-        class:on={isFirst}
-        aria-pressed={isFirst}
-        aria-label="Open suggested sets with this track"
-        title="Open suggested sets with this track"
-        onclick={() => togglePin(pinnedFirst)}
-      >
-        ⏮
-      </button>
-      <button
-        class="mark-toggle"
-        class:on={isLast}
-        aria-pressed={isLast}
-        aria-label="Close suggested sets with this track"
-        title="Close suggested sets with this track"
-        onclick={() => togglePin(pinnedLast)}
-      >
-        ⏭
-      </button>
-      <button
-        class="mark-toggle"
-        class:on={$linkArmed}
-        aria-pressed={$linkArmed}
-        aria-label="Mark a combo with another track"
-        title="Mark a combo you know works: click another track on the wheel to link or unlink it"
-        onclick={() => linkArmed.update((v) => !v)}
-      >
-        🔗{linkedCount > 0 ? linkedCount : ''}
-      </button>
-      <InfoTooltip label="About these marks" align="right">
-        <strong>Marks for suggested sets</strong>
-        <span>★ — strongly favour including this track.</span>
-        <span>⏮ — open generated sets with it.</span>
-        <span>⏭ — close generated sets with it.</span>
-        <span>🔗 — mark a combo you know works: suggestions treat it as a road.</span>
-      </InfoTooltip>
-    </div>
-    {#if $linkArmed}
-      <p class="link-hint">Click another track on the wheel to mark or unmark the combo.</p>
+    <!-- Easy mode hides the suggestion marks entirely (v14 WS6): easy runs on
+         defaults, so ★/pins/🔗 are both out of sight and inert. -->
+    {#if $settings.uiMode !== 'easy'}
+      <div class="marks">
+        <button
+          class="mark-toggle"
+          class:on={isMustIncluded}
+          aria-pressed={isMustIncluded}
+          aria-label="Must include in suggested sets"
+          title="Suggested sets will strongly favour including this track"
+          onclick={toggleMustInclude}
+        >
+          {isMustIncluded ? '★' : '☆'}
+        </button>
+        <button
+          class="mark-toggle"
+          class:on={isFirst}
+          aria-pressed={isFirst}
+          aria-label="Open suggested sets with this track"
+          title="Open suggested sets with this track"
+          onclick={() => togglePin(pinnedFirst)}
+        >
+          ⏮
+        </button>
+        <button
+          class="mark-toggle"
+          class:on={isLast}
+          aria-pressed={isLast}
+          aria-label="Close suggested sets with this track"
+          title="Close suggested sets with this track"
+          onclick={() => togglePin(pinnedLast)}
+        >
+          ⏭
+        </button>
+        <button
+          class="mark-toggle"
+          class:on={$linkArmed}
+          aria-pressed={$linkArmed}
+          aria-label="Mark a combo with another track"
+          title="Mark a combo you know works: click another track on the wheel to link or unlink it"
+          onclick={() => linkArmed.update((v) => !v)}
+        >
+          🔗{linkedCount > 0 ? linkedCount : ''}
+        </button>
+        <InfoTooltip label="About these marks" align="right">
+          <strong>Marks for suggested sets</strong>
+          <span>★ — strongly favour including this track.</span>
+          <span>⏮ — open generated sets with it.</span>
+          <span>⏭ — close generated sets with it.</span>
+          <span>🔗 — mark a combo you know works: suggestions treat it as a road.</span>
+        </InfoTooltip>
+      </div>
+      {#if $linkArmed}
+        <p class="link-hint">Click another track on the wheel to mark or unmark the combo.</p>
+      {/if}
     {/if}
   </div>
 {/if}
