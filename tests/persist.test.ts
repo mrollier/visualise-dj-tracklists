@@ -525,6 +525,7 @@ describe('project persistence (v3)', () => {
       mode: 'topk',
       k: 5,
       threshold: 0.2,
+      demanded: false,
     })
     // v1's single advancedMoves toggle fans out to both split flags.
     expect(migrated.criteria.key).toEqual({
@@ -532,6 +533,7 @@ describe('project persistence (v3)', () => {
       plusTwo: true,
       plusSeven: true,
       vinylMode: false,
+      demanded: false,
     })
     expect('rating' in migrated.criteria).toBe(false)
     expect(migrated.criteria.threshold).toBe(4) // clamped to the 4 criteria left
@@ -566,7 +568,13 @@ describe('project persistence (v3)', () => {
       radialAxis: 'bpm',
     })
     const key = parseProject(saved).criteria.key
-    expect(key).toEqual({ enabled: true, plusTwo: false, plusSeven: false, vinylMode: true })
+    expect(key).toEqual({
+      enabled: true,
+      plusTwo: false,
+      plusSeven: false,
+      vinylMode: true,
+      demanded: false,
+    })
   })
 
   test('projects saved with a genre threshold keep threshold semantics', () => {
@@ -588,13 +596,68 @@ describe('project persistence (v3)', () => {
   })
 })
 
+describe('demanded criteria flags (v14 WS4)', () => {
+  test('the four demanded flags round-trip through serialize → parse', () => {
+    const withLocks: Project = {
+      ...project,
+      criteria: {
+        ...structuredClone(DEFAULT_CRITERIA),
+        key: { ...DEFAULT_CRITERIA.key, demanded: true },
+        genre: { ...DEFAULT_CRITERIA.genre, demanded: true },
+        threshold: 2,
+      },
+    }
+    const parsed = parseProject(serializeProject(withLocks))
+    expect(parsed.criteria.key.demanded).toBe(true)
+    expect(parsed.criteria.bpm.demanded).toBe(false)
+    expect(parsed.criteria.genre.demanded).toBe(true)
+    expect(parsed.criteria.year.demanded).toBe(false)
+  })
+
+  test('old saves without demanded flags default all four to false', () => {
+    const raw = JSON.parse(serializeProject(project)) as { criteria: Record<string, unknown> }
+    for (const field of ['key', 'bpm', 'genre', 'year']) {
+      Reflect.deleteProperty(raw.criteria[field] as Record<string, unknown>, 'demanded')
+    }
+    const parsed = parseProject(JSON.stringify(raw))
+    expect(parsed.criteria.key.demanded).toBe(false)
+    expect(parsed.criteria.bpm.demanded).toBe(false)
+    expect(parsed.criteria.genre.demanded).toBe(false)
+    expect(parsed.criteria.year.demanded).toBe(false)
+  })
+
+  test('non-boolean demanded garbage coerces to false (whitelist coercion)', () => {
+    const raw = JSON.parse(serializeProject(project)) as { criteria: Record<string, unknown> }
+    ;(raw.criteria.key as Record<string, unknown>).demanded = 'yes'
+    ;(raw.criteria.bpm as Record<string, unknown>).demanded = 1
+    expect(parseProject(JSON.stringify(raw)).criteria.key.demanded).toBe(false)
+    expect(parseProject(JSON.stringify(raw)).criteria.bpm.demanded).toBe(false)
+  })
+
+  test('a migrated threshold is floored to the demanded count on load', () => {
+    // Two locked criteria but a saved require-1 (or 0) must rise to 2.
+    const raw = JSON.parse(serializeProject(project)) as { criteria: Record<string, unknown> }
+    ;(raw.criteria.key as Record<string, unknown>).demanded = true
+    ;(raw.criteria.genre as Record<string, unknown>).demanded = true
+    raw.criteria.threshold = 1
+    expect(parseProject(JSON.stringify(raw)).criteria.threshold).toBe(2)
+  })
+})
+
 describe('genre method persistence (design-v6 §F)', () => {
   test("a save that stored 'lexical' explicitly keeps it — no forced upgrade", () => {
     const saved = serializeProject({
       ...project,
       criteria: {
         ...structuredClone(DEFAULT_CRITERIA),
-        genre: { enabled: true, method: 'lexical', mode: 'topk', k: 5, threshold: 0.2 },
+        genre: {
+          enabled: true,
+          method: 'lexical',
+          mode: 'topk',
+          k: 5,
+          threshold: 0.2,
+          demanded: false,
+        },
       },
     })
     expect(parseProject(saved).criteria.genre.method).toBe('lexical')

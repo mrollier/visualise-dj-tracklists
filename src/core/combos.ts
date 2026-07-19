@@ -19,7 +19,13 @@ import type { Track } from './model'
  * A pair with no evaluable criteria never forms an edge.
  */
 export interface CriteriaConfig {
-  key: { enabled: boolean; plusTwo: boolean; plusSeven: boolean; vinylMode: boolean }
+  key: {
+    enabled: boolean
+    plusTwo: boolean
+    plusSeven: boolean
+    vinylMode: boolean
+    demanded: boolean
+  }
   /**
    * BPM matching happens at every enabled metric ratio: unit time (1:1, the
    * normal case — disable it to isolate the exotic combos), half/double time
@@ -32,6 +38,7 @@ export interface CriteriaConfig {
     unitTime: boolean
     halfDouble: boolean
     twoThirds: boolean
+    demanded: boolean
   }
   genre: {
     enabled: boolean
@@ -45,9 +52,14 @@ export interface CriteriaConfig {
     mode: 'topk' | 'threshold'
     k: number
     threshold: number
+    demanded: boolean
   }
-  year: { enabled: boolean; maxYears: number }
-  /** Minimum number of matching criteria for an edge (clamped to #evaluable). */
+  year: { enabled: boolean; maxYears: number; demanded: boolean }
+  /**
+   * Minimum number of matching criteria for an edge (clamped to #evaluable).
+   * A `demanded` (locked) criterion is mandatory regardless of this bar and
+   * floors it: threshold ≥ demandedCount (v14 C2).
+   */
   threshold: number
 }
 
@@ -55,11 +67,18 @@ export interface CriteriaConfig {
 // filter instead (see filter.ts): you exclude tracks you wouldn't play,
 // rather than requiring neighbours to be similarly rated.
 export const DEFAULT_CRITERIA: CriteriaConfig = {
-  key: { enabled: true, plusTwo: false, plusSeven: false, vinylMode: false },
+  key: { enabled: true, plusTwo: false, plusSeven: false, vinylMode: false, demanded: false },
   // ±8% mirrors the pitch-bend range of a classic Technics 1210 fader
-  bpm: { enabled: true, maxPercent: 8, unitTime: true, halfDouble: false, twoThirds: false },
-  genre: { enabled: true, method: 'hybrid', mode: 'topk', k: 5, threshold: 0.2 },
-  year: { enabled: true, maxYears: 5 },
+  bpm: {
+    enabled: true,
+    maxPercent: 8,
+    unitTime: true,
+    halfDouble: false,
+    twoThirds: false,
+    demanded: false,
+  },
+  genre: { enabled: true, method: 'hybrid', mode: 'topk', k: 5, threshold: 0.2, demanded: false },
+  year: { enabled: true, maxYears: 5, demanded: false },
   threshold: 3,
 }
 
@@ -197,6 +216,15 @@ const PREDICATES: Record<CriterionField, Predicate> = {
 const FIELDS = Object.keys(PREDICATES) as CriterionField[]
 
 /**
+ * How many criteria are locked as mandatory (v14 C2): enabled AND demanded.
+ * A demanded criterion must match on both sides for any edge, and floors the
+ * N-of-M threshold (threshold ≥ demandedCount).
+ */
+export function demandedCount(cfg: CriteriaConfig): number {
+  return FIELDS.filter((f) => cfg[f].enabled && cfg[f].demanded).length
+}
+
+/**
  * The key criterion under relaxed opts — +2 and +7-semitone moves allowed
  * regardless of the user's toggles (vinyl mode still respected). The forced
  * picker uses this as a gentle preference when no harmonious transition is
@@ -222,19 +250,30 @@ export function evaluateCombo(
 ): ComboEvaluation {
   const evaluable: CriterionField[] = []
   const matched: CriterionField[] = []
+  // A demanded (locked) criterion is mandatory: missing on either side, or a
+  // failing predicate, vetoes the edge (v14 C2). We record the veto in a flag
+  // rather than returning early, so `matched` stays fully populated — the
+  // forced picker scores pairs off it even when they never form an edge.
+  let demandedFailed = false
   for (const field of FIELDS) {
     if (!config[field].enabled) continue
-    if (a[field] === null || b[field] === null) continue
+    if (a[field] === null || b[field] === null) {
+      if (config[field].demanded) demandedFailed = true
+      continue
+    }
     evaluable.push(field)
+    let fieldMatched: boolean
     if (field === 'genre') {
       genreMatch ??= makeGenreMatcher([a.genre, b.genre], config)
-      if (genreMatch(a.genre!, b.genre!)) matched.push(field)
-    } else if (PREDICATES[field](a, b, config)) {
-      matched.push(field)
+      fieldMatched = genreMatch(a.genre!, b.genre!)
+    } else {
+      fieldMatched = PREDICATES[field](a, b, config)
     }
+    if (fieldMatched) matched.push(field)
+    else if (config[field].demanded) demandedFailed = true
   }
   const effectiveThreshold = Math.min(config.threshold, evaluable.length)
-  const isCombo = evaluable.length > 0 && matched.length >= effectiveThreshold
+  const isCombo = !demandedFailed && evaluable.length > 0 && matched.length >= effectiveThreshold
   return { evaluable, matched, isCombo }
 }
 
@@ -282,7 +321,10 @@ export interface ComboView {
 }
 
 export function computeComboView(tracks: Track[], config: CriteriaConfig): ComboView {
-  if (config.threshold === 0) {
+  // The symbolic complete graph only holds when nothing is required AND
+  // nothing is demanded (v14 C2): a locked criterion still filters every pair,
+  // so those edges must be materialized, not assumed.
+  if (config.threshold === 0 && demandedCount(config) === 0) {
     const n = tracks.length
     return { edges: [], complete: true, pairCount: n < 2 ? 0 : (n * (n - 1)) / 2 }
   }
@@ -291,10 +333,11 @@ export function computeComboView(tracks: Track[], config: CriteriaConfig): Combo
 }
 
 /**
- * Flip one criterion on/off, keeping the N-of-M threshold honest (v11 issue
- * 2b): enabling while the threshold demanded ALL enabled criteria keeps
- * demanding all (2-of-2 becomes 3-of-3); a partial or deliberate zero
- * requirement is left alone; disabling clamps to the remaining count.
+ * Flip one criterion on/off, keeping the N-of-M threshold honest. Enabling a
+ * criterion ALWAYS requires it (v14 C1): threshold rises by one, capped at the
+ * enabled count — including up from a previous deliberate zero. Disabling
+ * clamps to the remaining count. A demanded (locked) criterion floors the
+ * threshold at all times (v14 C2): threshold ≥ demandedCount.
  */
 export function toggleCriterion(
   config: CriteriaConfig,
@@ -303,13 +346,29 @@ export function toggleCriterion(
 ): CriteriaConfig {
   const enabledCount = (cfg: CriteriaConfig): number =>
     [cfg.key, cfg.bpm, cfg.genre, cfg.year].filter((c) => c.enabled).length
-  const before = enabledCount(config)
   const next: CriteriaConfig = { ...config, [field]: { ...config[field], enabled } }
   const after = enabledCount(next)
   let threshold = config.threshold
-  if (enabled && !config[field].enabled && before > 0 && threshold === before) threshold = after
+  // v14 C1: enabling ALWAYS requires the newly-enabled criterion — including up
+  // from a previous deliberate 0 (design change per ISSUES.md C1).
+  if (enabled && !config[field].enabled) threshold = Math.min(threshold + 1, after)
   if (after > 0 && threshold > after) threshold = after
+  threshold = Math.max(threshold, demandedCount(next)) // v14 C2 floor
   return { ...next, threshold }
+}
+
+/**
+ * Lock or unlock a criterion as mandatory (v14 C2). A locked criterion floors
+ * the threshold at the demanded count; unlocking leaves the threshold where it
+ * is (the desired bar is unaffected by removing a floor).
+ */
+export function toggleDemanded(
+  config: CriteriaConfig,
+  field: CriterionField,
+  demanded: boolean,
+): CriteriaConfig {
+  const next: CriteriaConfig = { ...config, [field]: { ...config[field], demanded } }
+  return { ...next, threshold: Math.max(next.threshold, demandedCount(next)) }
 }
 
 /** All undirected combo edges for a track set, each pair reported once. */

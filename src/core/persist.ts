@@ -1,5 +1,5 @@
 import { migrateColumns } from './columns'
-import { DEFAULT_CRITERIA, type CriteriaConfig } from './combos'
+import { DEFAULT_CRITERIA, demandedCount, type CriteriaConfig } from './combos'
 import { migrateFilters, type LibraryFilters } from './filter'
 import { normalizeKey } from './keys'
 import { energyFromComments, type ManualEdge, type Playlist, type Track } from './model'
@@ -57,14 +57,20 @@ function migrateCriteria(raw: Record<string, unknown>): CriteriaConfig {
   // Saves from before the split carried a single advancedMoves toggle
   // covering both the +2 and +7-semitone moves — fan it out to both flags.
   const key = (raw.key ?? {}) as Partial<CriteriaConfig['key']> & { advancedMoves?: boolean }
+  // v14 (WS4): `demanded` locks a criterion as mandatory. The whitelist reads
+  // it explicitly with `=== true` coercion so a non-boolean in a hand-edited
+  // save (or its absence in an old one) becomes a clean false, never leaks.
+  const bpm = (raw.bpm ?? {}) as Partial<CriteriaConfig['bpm']>
+  const year = (raw.year ?? {}) as Partial<CriteriaConfig['year']>
   const criteria: CriteriaConfig = {
     key: {
       enabled: key.enabled ?? defaults.key.enabled,
       plusTwo: key.plusTwo ?? key.advancedMoves ?? defaults.key.plusTwo,
       plusSeven: key.plusSeven ?? key.advancedMoves ?? defaults.key.plusSeven,
       vinylMode: key.vinylMode ?? defaults.key.vinylMode,
+      demanded: key.demanded === true,
     },
-    bpm: { ...defaults.bpm, ...(raw.bpm as object) },
+    bpm: { ...defaults.bpm, ...(raw.bpm as object), demanded: bpm.demanded === true },
     genre: {
       enabled: genre.enabled ?? defaults.genre.enabled,
       method: genre.method ?? defaults.genre.method,
@@ -73,12 +79,16 @@ function migrateCriteria(raw: Record<string, unknown>): CriteriaConfig {
       mode: genre.mode ?? (genre.threshold !== undefined ? 'threshold' : defaults.genre.mode),
       k: genre.k ?? defaults.genre.k,
       threshold: genre.threshold ?? defaults.genre.threshold,
+      demanded: genre.demanded === true,
     },
-    year: { ...defaults.year, ...(raw.year as object) },
+    year: { ...defaults.year, ...(raw.year as object), demanded: year.demanded === true },
     threshold: typeof raw.threshold === 'number' ? raw.threshold : defaults.threshold,
   }
   // 0 is a deliberate "require nothing" since v11 (issue 2a).
   criteria.threshold = Math.max(0, Math.min(4, criteria.threshold))
+  // v14 C2: a demanded criterion is mandatory, so the threshold can never sit
+  // below the demanded count — floor it after the clamp.
+  criteria.threshold = Math.max(criteria.threshold, demandedCount(criteria))
   return criteria
 }
 

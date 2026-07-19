@@ -1,5 +1,10 @@
 <script lang="ts">
-  import { toggleCriterion, type CriterionField } from '../core/combos'
+  import {
+    demandedCount,
+    toggleCriterion,
+    toggleDemanded,
+    type CriterionField,
+  } from '../core/combos'
   import { METHOD_LABEL } from '../core/genre'
   import FiltersSection from './FiltersSection.svelte'
   import GenresSection from './GenresSection.svelte'
@@ -15,6 +20,15 @@
   const enabledCount = $derived(
     [$criteria.key, $criteria.bpm, $criteria.genre, $criteria.year].filter((c) => c.enabled).length,
   )
+
+  // Demanded (locked) criteria are mandatory and floor the threshold (v14 C2).
+  const floor = $derived(demandedCount($criteria))
+
+  // Lock/unlock a criterion as mandatory. Hidden while the criterion is
+  // disabled, so this only fires on an enabled row.
+  function toggleLock(field: CriterionField): void {
+    criteria.update((c) => toggleDemanded(c, field, !c[field].demanded))
+  }
 
   const keyMoves = $derived(
     [
@@ -32,10 +46,13 @@
   }
 
   // Keep the threshold valid when criteria get disabled elsewhere (e.g. a
-  // loaded project); a deliberate 0 stays 0.
+  // loaded project); a deliberate 0 stays 0. A demanded criterion floors it
+  // (v14 C2): the bar can never sit below the locked count.
   $effect(() => {
     if ($criteria.threshold > enabledCount && enabledCount > 0) {
       criteria.update((c) => ({ ...c, threshold: enabledCount }))
+    } else if ($criteria.threshold < floor) {
+      criteria.update((c) => ({ ...c, threshold: floor }))
     }
   })
 </script>
@@ -78,6 +95,16 @@
           />
           Key <span class="hint">adjacent on the wheel</span>
         </label>
+        {#if $criteria.key.enabled}
+          <button
+            type="button"
+            class="lock"
+            class:on={$criteria.key.demanded}
+            aria-pressed={$criteria.key.demanded}
+            title="Must match"
+            onclick={() => toggleLock('key')}>{$criteria.key.demanded ? '🔒' : '🔓'}</button
+          >
+        {/if}
         <!-- The minor/major ring switch moved to the Filters section (v9
            issue 6) — it always was a visibility filter, not a criterion.
            The advanced key moves are surfaced here as a subtle note (v10
@@ -97,6 +124,16 @@
           BPM within
           <input type="number" min="0" max="50" bind:value={$criteria.bpm.maxPercent} /> %
         </label>
+        {#if $criteria.bpm.enabled}
+          <button
+            type="button"
+            class="lock"
+            class:on={$criteria.bpm.demanded}
+            aria-pressed={$criteria.bpm.demanded}
+            title="Must match"
+            onclick={() => toggleLock('bpm')}>{$criteria.bpm.demanded ? '🔒' : '🔓'}</button
+          >
+        {/if}
         <!-- The metric-ratio toggles live in advanced → Key & BPM; surface
            their effect here so a bare "8%" is never silently misleading. -->
         {#if !$criteria.bpm.unitTime || $criteria.bpm.halfDouble || $criteria.bpm.twoThirds}
@@ -132,6 +169,16 @@
             {/if}
           </span>
         </label>
+        {#if $criteria.genre.enabled}
+          <button
+            type="button"
+            class="lock"
+            class:on={$criteria.genre.demanded}
+            aria-pressed={$criteria.genre.demanded}
+            title="Must match"
+            onclick={() => toggleLock('genre')}>{$criteria.genre.demanded ? '🔒' : '🔓'}</button
+          >
+        {/if}
         <!-- The method + its parameters (mode/k/threshold) and the sourced
            explainers live in the advanced menu now (v10 issue 2); here only
            a subtle note of which method is active. -->
@@ -148,6 +195,16 @@
           Year within
           <input type="number" min="0" max="50" bind:value={$criteria.year.maxYears} /> years
         </label>
+        {#if $criteria.year.enabled}
+          <button
+            type="button"
+            class="lock"
+            class:on={$criteria.year.demanded}
+            aria-pressed={$criteria.year.demanded}
+            title="Must match"
+            onclick={() => toggleLock('year')}>{$criteria.year.demanded ? '🔒' : '🔓'}</button
+          >
+        {/if}
       </div>
 
       <div class="criterion threshold">
@@ -164,6 +221,7 @@
         <RatingBoxes
           value={Math.min($criteria.threshold, Math.max(enabledCount, 1))}
           max={Math.max(enabledCount, 1)}
+          floor={Math.min(floor, Math.max(enabledCount, 1))}
           onchange={(v) => criteria.update((c) => ({ ...c, threshold: v }))}
           label="Required matches"
         />
@@ -217,8 +275,41 @@
   }
 
   .criterion {
+    position: relative;
     padding: 7px 0;
     border-top: 1px solid var(--grid);
+  }
+
+  /* The lock affordance: a small toggle at the row's right edge that pins the
+     criterion as mandatory (v14 C2). Muted when open, accent when locked — so
+     a demanded criterion reads at a glance. */
+  .lock {
+    position: absolute;
+    top: 6px;
+    right: 0;
+    padding: 1px 4px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.45;
+    filter: grayscale(1);
+    transition:
+      opacity 0.12s ease,
+      border-color 0.12s ease;
+  }
+
+  .lock:hover {
+    opacity: 0.8;
+  }
+
+  .lock.on {
+    opacity: 1;
+    filter: none;
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
   }
 
   .criterion label {
@@ -226,6 +317,7 @@
     align-items: center;
     gap: 6px;
     flex-wrap: wrap;
+    padding-right: 26px;
   }
 
   .criterion .sub-option {

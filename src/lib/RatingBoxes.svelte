@@ -9,23 +9,33 @@
     max: number
     onchange: (value: number) => void
     label?: string
+    /**
+     * Boxes at or below `floor` are locked ON — mandatory (demanded) criteria
+     * pin the count there (v14 C2). The step-down never drops below the floor,
+     * and locked boxes read as non-declinable.
+     */
+    floor?: number
   }
-  let { value, max, onchange, label = 'Required matches' }: Props = $props()
+  let { value, max, onchange, label = 'Required matches', floor = 0 }: Props = $props()
 
   function pick(k: number): void {
-    onchange(k === value ? k - 1 : k)
+    if (k <= floor) return // locked: mandatory, cannot be declined
+    onchange(k === value ? Math.max(k - 1, floor) : k)
   }
 </script>
 
 <div class="boxes" role="group" aria-label={label}>
   {#each [...Array(Math.max(1, max)).keys()] as i (i)}
     {@const k = i + 1}
+    {@const locked = k <= floor}
     <button
       type="button"
       class="box"
       class:filled={k <= value}
+      class:locked
       aria-pressed={k <= value}
-      title={`require ${k}`}
+      disabled={locked}
+      title={locked ? `required (locked): ${k}` : `require ${k}`}
       onclick={() => pick(k)}
     ></button>
   {/each}
@@ -56,6 +66,19 @@
 
   .box.filled {
     background: var(--accent);
+    border-color: var(--accent);
+  }
+
+  /* A locked box is a mandatory (demanded) match: filled, accent-tinted, and
+     non-declinable — the lock lives on the criterion row, not here. */
+  .box.locked {
+    background: color-mix(in srgb, var(--accent) 55%, transparent);
+    border-color: var(--accent);
+    cursor: not-allowed;
+    opacity: 0.85;
+  }
+
+  .box.locked:hover {
     border-color: var(--accent);
   }
 </style>

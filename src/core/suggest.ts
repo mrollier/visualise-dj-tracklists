@@ -1,5 +1,6 @@
 import {
   computeEdges,
+  demandedCount,
   evaluateCombo,
   keysNearlyMatch,
   makeGenreMatcher,
@@ -173,8 +174,10 @@ function buildNeighbours(
   criteria: CriteriaConfig,
   manualEdges: readonly ManualPair[] = [],
 ): NeighboursOf {
-  if (criteria.threshold === 0) {
-    // Complete graph subsumes every manual pair.
+  if (criteria.threshold === 0 && demandedCount(criteria) === 0) {
+    // Complete graph subsumes every manual pair — but only when nothing is
+    // demanded (v14 C2): a locked criterion still filters every pair, so the
+    // adjacency must be computed from real edges instead.
     const ids = tracks.map((t) => t.id)
     return (id) => ids.filter((other) => other !== id)
   }

@@ -3,11 +3,13 @@ import {
   computeComboView,
   computeEdges,
   DEFAULT_CRITERIA,
+  demandedCount,
   focusEdges,
   evaluateCombo,
   makeGenreMatcher,
   matchedGenrePairs,
   toggleCriterion,
+  toggleDemanded,
 } from '../src/core/combos'
 import type { ComboEdge, CriteriaConfig } from '../src/core/combos'
 import { EMPTY_TRACK_FIELDS, type Track } from '../src/core/model'
@@ -447,9 +449,18 @@ describe('computeComboView (v11 issue 2a: threshold 0 goes symbolic)', () => {
     expect(view.pairCount).toBe(0)
     expect(view.edges).toEqual([])
   })
+
+  test('threshold 0 with a demanded criterion is NOT the complete graph (v14 C2)', () => {
+    // A locked criterion still filters every pair, so the symbolic shortcut
+    // must not fire — the view materializes real edges instead.
+    const cfg = config({ threshold: 0, year: { ...DEFAULT_CRITERIA.year, demanded: true } })
+    const view = computeComboView(tracks, cfg)
+    expect(view.complete).toBe(false)
+    expect(view.edges).toEqual(computeEdges(tracks, cfg))
+  })
 })
 
-describe('toggleCriterion (v11 issue 2b: enabling keeps "require all")', () => {
+describe('toggleCriterion (v14 C1: enabling ALWAYS requires the new criterion)', () => {
   test('enabling a criterion bumps a require-all threshold', () => {
     // key + bpm enabled, require 2 of 2 → enabling year reads 3 of 3.
     const cfg = config({
@@ -462,15 +473,38 @@ describe('toggleCriterion (v11 issue 2b: enabling keeps "require all")', () => {
     expect(next.threshold).toBe(3)
   })
 
-  test('a partial requirement is left alone when enabling', () => {
+  test('enabling always requires the new criterion: a partial bumps by one (C1)', () => {
+    // 3 enabled, require 2 → enabling the 4th now reads require 3, not 2.
     const cfg = config({ year: { ...DEFAULT_CRITERIA.year, enabled: false }, threshold: 2 })
-    // 3 enabled, require 2 → enabling the 4th keeps require 2.
-    expect(toggleCriterion(cfg, 'year', true).threshold).toBe(2)
+    expect(toggleCriterion(cfg, 'year', true).threshold).toBe(3)
   })
 
-  test('a deliberate require-zero stays zero when enabling', () => {
+  test('C1 round-trip: 2-of-4 → disable genre → re-enable reads 3-of-4', () => {
+    const cfg = config({ threshold: 2 }) // all four enabled, require 2
+    const dropped = toggleCriterion(cfg, 'genre', false) // 2 of 3
+    expect(dropped.threshold).toBe(2)
+    const restored = toggleCriterion(dropped, 'genre', true) // requires the new one
+    expect(restored.threshold).toBe(3)
+  })
+
+  test('enabling up from a deliberate zero now requires the new criterion (C1)', () => {
     const cfg = config({ year: { ...DEFAULT_CRITERIA.year, enabled: false }, threshold: 0 })
-    expect(toggleCriterion(cfg, 'year', true).threshold).toBe(0)
+    expect(toggleCriterion(cfg, 'year', true).threshold).toBe(1)
+  })
+
+  test('require-all survives a disable/re-enable round-trip unchanged (C1)', () => {
+    // 3-of-3 → disable → 2-of-2 → re-enable → 3-of-3.
+    const cfg = config({ year: { ...DEFAULT_CRITERIA.year, enabled: false }, threshold: 3 })
+    const dropped = toggleCriterion(cfg, 'genre', false) // 2 of 2
+    expect(dropped.threshold).toBe(2)
+    const restored = toggleCriterion(dropped, 'genre', true) // 3 of 3
+    expect(restored.threshold).toBe(3)
+  })
+
+  test('the bumped threshold is capped at the enabled count (C1)', () => {
+    // Already require-all 3-of-3 → enabling the 4th caps at 4, never 5.
+    const cfg = config({ year: { ...DEFAULT_CRITERIA.year, enabled: false }, threshold: 3 })
+    expect(toggleCriterion(cfg, 'year', true).threshold).toBe(4)
   })
 
   test('disabling clamps the threshold to the remaining count', () => {
@@ -496,6 +530,125 @@ describe('toggleCriterion (v11 issue 2b: enabling keeps "require all")', () => {
     toggleCriterion(cfg, 'genre', false)
     expect(cfg.genre.enabled).toBe(true)
     expect(cfg.threshold).toBe(4)
+  })
+})
+
+describe('demanded criteria (v14 C2: a locked criterion is mandatory)', () => {
+  const base = track({ id: 'a' })
+
+  test('DEFAULT_CRITERIA demands nothing', () => {
+    expect(demandedCount(DEFAULT_CRITERIA)).toBe(0)
+    expect(DEFAULT_CRITERIA.key.demanded).toBe(false)
+    expect(DEFAULT_CRITERIA.bpm.demanded).toBe(false)
+    expect(DEFAULT_CRITERIA.genre.demanded).toBe(false)
+    expect(DEFAULT_CRITERIA.year.demanded).toBe(false)
+  })
+
+  test('demandedCount counts only enabled AND demanded criteria', () => {
+    const cfg = config({
+      key: { ...DEFAULT_CRITERIA.key, demanded: true },
+      bpm: { ...DEFAULT_CRITERIA.bpm, enabled: false, demanded: true },
+      genre: { ...DEFAULT_CRITERIA.genre, demanded: true },
+    })
+    expect(demandedCount(cfg)).toBe(2) // key + genre; disabled bpm does not count
+  })
+
+  test('a demanded criterion that fails blocks the edge even above threshold', () => {
+    // key + bpm + genre match, year fails; threshold 1 would normally pass.
+    const other = track({ id: 'b', year: 1990 })
+    const relaxed = config({ threshold: 1 })
+    expect(evaluateCombo(base, other, relaxed).isCombo).toBe(true)
+    // Now demand year: the failing demanded criterion vetoes the edge.
+    const strict = config({ threshold: 1, year: { ...DEFAULT_CRITERIA.year, demanded: true } })
+    expect(evaluateCombo(base, other, strict).isCombo).toBe(false)
+  })
+
+  test('a demanded criterion missing on either side blocks the edge (decision 3)', () => {
+    const noYear = track({ id: 'b', year: null })
+    const strict = config({ threshold: 1, year: { ...DEFAULT_CRITERIA.year, demanded: true } })
+    expect(evaluateCombo(base, noYear, strict).isCombo).toBe(false)
+    // …and symmetrically, missing on the base side.
+    const baseNoYear = track({ id: 'a2', year: null })
+    expect(evaluateCombo(baseNoYear, base, strict).isCombo).toBe(false)
+  })
+
+  test('a demanded criterion that matches still lets a satisfied edge form', () => {
+    const other = track({ id: 'b', year: 2022 })
+    const strict = config({ threshold: 1, year: { ...DEFAULT_CRITERIA.year, demanded: true } })
+    expect(evaluateCombo(base, other, strict).isCombo).toBe(true)
+  })
+
+  test('demanded-fail keeps `matched` fully populated for scoring (no early return)', () => {
+    // year fails (demanded) but key/bpm/genre still match — matched must list them.
+    const other = track({ id: 'b', year: 1990 })
+    const strict = config({ threshold: 1, year: { ...DEFAULT_CRITERIA.year, demanded: true } })
+    const result = evaluateCombo(base, other, strict)
+    expect(result.isCombo).toBe(false)
+    expect(result.matched).toEqual(expect.arrayContaining(['key', 'bpm', 'genre']))
+    expect(result.matched).not.toContain('year')
+  })
+
+  test('desired (non-demanded) criteria keep shrink-the-denominator semantics', () => {
+    // Only key + bpm evaluable, both match, neither demanded → combo at threshold 4.
+    const sparse = track({ id: 'b', genre: null, year: null })
+    expect(evaluateCombo(base, sparse, config({ threshold: 4 })).isCombo).toBe(true)
+  })
+})
+
+describe('toggleDemanded (v14 C2)', () => {
+  test('locking a criterion floors the threshold to the demanded count', () => {
+    const cfg = config({ threshold: 1 }) // all four enabled, require 1
+    const next = toggleDemanded(cfg, 'key', true)
+    expect(next.key.demanded).toBe(true)
+    expect(next.threshold).toBe(1) // one demanded, floor is 1
+    const two = toggleDemanded(next, 'bpm', true)
+    expect(two.threshold).toBe(2) // two demanded → floor raised
+  })
+
+  test('unlocking a criterion drops the floor but never below the others', () => {
+    const cfg = toggleDemanded(toggleDemanded(config({ threshold: 1 }), 'key', true), 'bpm', true) // require 2, both demanded
+    expect(cfg.threshold).toBe(2)
+    const next = toggleDemanded(cfg, 'bpm', false)
+    expect(next.bpm.demanded).toBe(false)
+    // still one demanded (key); threshold may relax down to the floor of 1.
+    expect(demandedCount(next)).toBe(1)
+  })
+
+  test('does not mutate its input', () => {
+    const cfg = config({ threshold: 1 })
+    toggleDemanded(cfg, 'key', true)
+    expect(cfg.key.demanded).toBe(false)
+    expect(cfg.threshold).toBe(1)
+  })
+})
+
+describe('toggleCriterion maintains the demanded floor (v14 C2)', () => {
+  test('threshold never drops below the demanded count after a flip', () => {
+    // key + genre demanded, all four enabled, require 2.
+    const cfg = config({
+      key: { ...DEFAULT_CRITERIA.key, demanded: true },
+      genre: { ...DEFAULT_CRITERIA.genre, demanded: true },
+      threshold: 2,
+    })
+    // Disabling year leaves 3 enabled; the two demanded still floor it at 2.
+    const next = toggleCriterion(cfg, 'year', false)
+    expect(next.threshold).toBe(2)
+  })
+
+  test('disabling a demanded criterion drops its floor but keeps the flag', () => {
+    const cfg = config({
+      key: { ...DEFAULT_CRITERIA.key, demanded: true },
+      genre: { ...DEFAULT_CRITERIA.genre, demanded: true },
+      threshold: 2,
+    })
+    const dropped = toggleCriterion(cfg, 'genre', false)
+    expect(dropped.genre.enabled).toBe(false)
+    expect(dropped.genre.demanded).toBe(true) // flag survives
+    expect(demandedCount(dropped)).toBe(1) // only key counts while genre disabled
+    // Re-enabling restores the lock's floor.
+    const restored = toggleCriterion(dropped, 'genre', true)
+    expect(demandedCount(restored)).toBe(2)
+    expect(restored.threshold).toBeGreaterThanOrEqual(2)
   })
 })
 
