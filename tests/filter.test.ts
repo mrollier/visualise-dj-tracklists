@@ -1,9 +1,14 @@
 import { describe, expect, test } from 'vitest'
 import {
+  ALPHA_CATCH_ALL,
+  alphaBucket,
+  alphaBucketLabel,
   applyFilters,
   applyPlaylistFilter,
+  audioQuality,
   clampRange,
   EMPTY_FILTERS,
+  migrateFilters,
   NOT_IN_PLAYLIST,
   propertyExtents,
   wholeExtent,
@@ -83,41 +88,148 @@ describe('applyFilters (v11 issue 1: per-property ranges)', () => {
   })
 })
 
-describe('text prefix-ranges (v11 issue 1)', () => {
+describe('alphaBucket / alphaBucketLabel (v14 WS2)', () => {
+  test('first letter maps to 0–25, case-insensitive, ignoring leading space', () => {
+    expect(alphaBucket('Kraftwerk')).toBe(10)
+    expect(alphaBucket('aphex twin')).toBe(0)
+    expect(alphaBucket('  ZZ Top')).toBe(25)
+  })
+
+  test('non-letters, empties and diacritics land in the # catch-all (26, after Z)', () => {
+    expect(ALPHA_CATCH_ALL).toBe(26)
+    expect(alphaBucket('808 State')).toBe(26)
+    expect(alphaBucket('')).toBe(26)
+    // Diacritics fall through to the catch-all — documented as intended.
+    expect(alphaBucket('Éclair')).toBe(26)
+  })
+
+  test('labels run A…Z then #', () => {
+    expect(alphaBucketLabel(0)).toBe('A')
+    expect(alphaBucketLabel(10)).toBe('K')
+    expect(alphaBucketLabel(25)).toBe('Z')
+    expect(alphaBucketLabel(ALPHA_CATCH_ALL)).toBe('#')
+  })
+})
+
+describe('alpha bucket ranges (v14 WS2)', () => {
   const artists = [
-    track({ id: 'a', artist: 'Aphex Twin' }),
-    track({ id: 'b', artist: 'Bicep' }),
-    track({ id: 'k', artist: 'Kraftwerk' }),
-    track({ id: 'l', artist: 'Laurent Garnier' }),
+    track({ id: 'aphex', artist: 'aphex twin' }),
+    track({ id: 'kraftwerk', artist: 'Kraftwerk' }),
+    track({ id: 'zz', artist: 'ZZ Top' }),
+    track({ id: '808', artist: '808 State' }),
     track({ id: 'none', artist: null }),
   ]
 
-  test('keeps names starting between the bounds, upper bound prefix-inclusive', () => {
-    const out = applyFilters(artists, filters({ properties: { artist: ['b', 'k'] } }))
-    // "kraftwerk" starts with "k" → in; "laurent…" > "k…" → out
-    expect(out.map((t) => t.id)).toEqual(['b', 'k', 'none'])
+  test('A–M keeps Kraftwerk, drops ZZ Top; null artist passes', () => {
+    const out = applyFilters(artists, filters({ properties: { artist: [0, 12] } }))
+    expect(out.map((t) => t.id)).toEqual(['aphex', 'kraftwerk', 'none'])
   })
 
-  test('compares case-insensitively', () => {
-    const out = applyFilters(artists, filters({ properties: { artist: ['B', 'K'] } }))
-    expect(out.map((t) => t.id)).toEqual(['b', 'k', 'none'])
+  test('[25,26] keeps ZZ Top and the # bucket (808 State); null passes', () => {
+    const out = applyFilters(artists, filters({ properties: { artist: [25, 26] } }))
+    expect(out.map((t) => t.id)).toEqual(['zz', '808', 'none'])
+  })
+})
+
+describe('contains filters (v14 WS2)', () => {
+  const noted = [
+    track({ id: 'live', comments: 'Recorded LIVE at Berghain' }),
+    track({ id: 'studio', comments: 'studio take' }),
+    track({ id: 'none', comments: null }),
+  ]
+
+  test('case-insensitive substring on comments; null passes', () => {
+    const out = applyFilters(noted, filters({ properties: { comments: { contains: 'live' } } }))
+    expect(out.map((t) => t.id)).toEqual(['live', 'none'])
   })
 
-  test('an empty side is open', () => {
-    expect(
-      applyFilters(artists, filters({ properties: { artist: ['', 'b'] } })).map((t) => t.id),
-    ).toEqual(['a', 'b', 'none'])
-    expect(
-      applyFilters(artists, filters({ properties: { artist: ['k', ''] } })).map((t) => t.id),
-    ).toEqual(['k', 'l', 'none'])
+  test('works on location, case-insensitively', () => {
+    const paths = [
+      track({ id: 'wav', location: '/Music/track.WAV' }),
+      track({ id: 'mp3', location: '/Music/track.mp3' }),
+    ]
+    const out = applyFilters(paths, filters({ properties: { location: { contains: '.wav' } } }))
+    expect(out.map((t) => t.id)).toEqual(['wav'])
   })
+})
 
-  test('missing text passes; genre text-range ANDs with the genre checklist', () => {
+describe('colour allow-list (v14 WS2)', () => {
+  const coloured = [
+    track({ id: 'pink', colour: '0xFF007F' }),
+    track({ id: 'blue', colour: '0x0000FF' }),
+    track({ id: 'none', colour: null }),
+  ]
+
+  test('keeps allowed colours case-insensitively; null-colour tracks pass (genre precedent)', () => {
     const out = applyFilters(
-      tracks,
-      filters({ properties: { genre: ['t', 't'] }, genres: ['Techno', 'Trance', 'Drum & Bass'] }),
+      coloured,
+      filters({ properties: { colour: { colours: ['0xff007f'] } } }),
     )
-    expect(out.map((t) => t.id)).toEqual(['a', 'b', 'd'])
+    expect(out.map((t) => t.id)).toEqual(['pink', 'none'])
+  })
+})
+
+describe('quality filter (v14 WS2)', () => {
+  const files = [
+    track({ id: 'wav', kind: 'WAV File' }),
+    track({ id: 'flac', kind: 'FLAC' }),
+    track({ id: 'mp3', kind: 'MP3 File' }),
+    track({ id: 'weird', kind: 'Some Format' }),
+    track({ id: 'none', kind: null }),
+  ]
+
+  test('audioQuality classifies formats; unknowns → null', () => {
+    expect(audioQuality('WAV File')).toBe('lossless')
+    expect(audioQuality('flac')).toBe('lossless')
+    expect(audioQuality('AIFF')).toBe('lossless')
+    expect(audioQuality('MP3 File')).toBe('lossy')
+    expect(audioQuality('AAC audio file')).toBe('lossy')
+    expect(audioQuality('Some Format')).toBeNull()
+  })
+
+  test('lossless keeps lossless; unknown and null pass', () => {
+    const out = applyFilters(files, filters({ properties: { kind: { quality: 'lossless' } } }))
+    expect(out.map((t) => t.id)).toEqual(['wav', 'flac', 'weird', 'none'])
+  })
+
+  test('lossy keeps lossy; unknown and null pass', () => {
+    const out = applyFilters(files, filters({ properties: { kind: { quality: 'lossy' } } }))
+    expect(out.map((t) => t.id)).toEqual(['mp3', 'weird', 'none'])
+  })
+})
+
+describe('sanitizeRange migration through migrateFilters (v14 WS2)', () => {
+  test('old v5 text tuples on the new kinds are dropped', () => {
+    const migrated = migrateFilters({ properties: { artist: ['b', 'k'], comments: ['x', 'y'] } })
+    expect(migrated.properties).toEqual({})
+  })
+
+  test('new object shapes round-trip; alpha clamps rounded ints into 0–26', () => {
+    const migrated = migrateFilters({
+      properties: {
+        artist: [-3, 40.6],
+        comments: { contains: 'live' },
+        colour: { colours: ['0xFF0000'] },
+        kind: { quality: 'lossy' },
+      },
+    })
+    expect(migrated.properties).toEqual({
+      artist: [0, 26],
+      comments: { contains: 'live' },
+      colour: { colours: ['0xFF0000'] },
+      kind: { quality: 'lossy' },
+    })
+  })
+
+  test('malformed object shapes drop (empty contains, empty colours, bad quality)', () => {
+    const migrated = migrateFilters({
+      properties: {
+        comments: { contains: '' },
+        colour: { colours: [] },
+        kind: { quality: 'nonsense' },
+      },
+    })
+    expect(migrated.properties).toEqual({})
   })
 })
 

@@ -34,7 +34,8 @@
   const columns = $derived(visibleColumns($settings.trackColumns, $settings.hiddenColumns))
   // Kind and formatting come from the property registry (v11 issue 1).
   function isTextColumn(field: TrackSortField): boolean {
-    return PROPERTY_BY_KEY.get(field)?.kind === 'text'
+    const kind = PROPERTY_BY_KEY.get(field)?.kind
+    return kind === 'alpha' || kind === 'contains' || kind === 'colour' || kind === 'quality'
   }
 
   function toggleSort(field: TrackSortField) {

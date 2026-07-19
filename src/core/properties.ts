@@ -10,7 +10,22 @@ import type { TrackSortField } from './trackSort'
  */
 
 /** How a property's values compare, filter and render. */
-export type PropertyKind = 'text' | 'number' | 'date' | 'key'
+export type PropertyKind = 'alpha' | 'number' | 'date' | 'key' | 'contains' | 'colour' | 'quality'
+
+/**
+ * Rekordbox colour tags (raw `0xRRGGBB` values as they appear on `track.colour`)
+ * mapped to their palette names. Used to label the colour-filter chips.
+ */
+export const REKORDBOX_COLOURS: Record<string, string> = {
+  '0xFF007F': 'Pink',
+  '0xFF0000': 'Red',
+  '0xFFA500': 'Orange',
+  '0xFFFF00': 'Yellow',
+  '0x00FF00': 'Green',
+  '0x25FDE9': 'Aqua',
+  '0x0000FF': 'Blue',
+  '0x660099': 'Purple',
+}
 
 export interface TrackProperty {
   key: TrackSortField
@@ -44,34 +59,34 @@ function prop(
 
 /** Canonical order: the classic seven, the rest of the metadata, location last. */
 export const TRACK_PROPERTIES: readonly TrackProperty[] = [
-  prop('artist', 'Artist', 'text'),
-  prop('title', 'Title', 'text'),
+  prop('artist', 'Artist', 'alpha'),
+  prop('title', 'Title', 'alpha'),
   prop('key', 'Key', 'key'),
   prop('bpm', 'BPM', 'number'),
-  prop('genre', 'Genre', 'text'),
+  prop('genre', 'Genre', 'alpha'),
   prop('year', 'Year', 'number'),
   prop('rating', 'Rating', 'number'),
   prop('energy', 'Energy', 'number'),
-  prop('album', 'Album', 'text'),
+  prop('album', 'Album', 'alpha'),
   prop('dateAdded', 'Date added', 'date'),
   prop('durationSec', 'Length', 'number', formatDuration),
-  prop('composer', 'Composer', 'text'),
-  prop('grouping', 'Grouping', 'text'),
-  prop('remixer', 'Remixer', 'text'),
-  prop('label', 'Label', 'text'),
-  prop('mix', 'Mix', 'text'),
-  prop('comments', 'Comments', 'text'),
+  prop('composer', 'Composer', 'alpha'),
+  prop('grouping', 'Grouping', 'alpha'),
+  prop('remixer', 'Remixer', 'alpha'),
+  prop('label', 'Label', 'alpha'),
+  prop('mix', 'Mix', 'alpha'),
+  prop('comments', 'Comments', 'contains'),
   prop('playCount', 'Play count', 'number'),
   prop('lastPlayed', 'Last played', 'date'),
-  prop('colour', 'Colour', 'text'),
+  prop('colour', 'Colour', 'colour'),
   prop('trackNumber', 'Track #', 'number'),
   prop('discNumber', 'Disc #', 'number'),
   prop('bitRate', 'Bit rate', 'number'),
   prop('sampleRate', 'Sample rate', 'number'),
-  prop('kind', 'Kind', 'text'),
+  prop('kind', 'Kind', 'quality'),
   prop('size', 'Size', 'number', formatSize),
   prop('dateModified', 'Date modified', 'date'),
-  prop('location', 'Location', 'text'),
+  prop('location', 'Location', 'contains'),
 ]
 
 export const PROPERTY_BY_KEY: ReadonlyMap<TrackSortField, TrackProperty> = new Map(

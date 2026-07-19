@@ -7,7 +7,7 @@ import { DEFAULT_SETTINGS } from '../src/core/settings'
 import { SAMPLE_TRACKS } from '../src/data/sample-tracks'
 
 const project: Project = {
-  version: 5,
+  version: 6,
   manualEdges: [],
   libraryName: 'My crate',
   tracks: SAMPLE_TRACKS,
@@ -88,7 +88,7 @@ describe('project persistence (v3)', () => {
       colorAxis: 'auto',
     })
     const parsed = parseProject(v2)
-    expect(parsed.version).toBe(5)
+    expect(parsed.version).toBe(6)
     expect(parsed.sets).toHaveLength(1)
     expect(parsed.sets[0]).toMatchObject({
       name: 'First Set',
@@ -372,38 +372,67 @@ describe('project persistence (v3)', () => {
     })
     expect(parsed.filters.playlists).toEqual(['Openers'])
     expect(parsed.filters.keyRing).toBe('minor')
-    expect(parsed.version).toBe(5)
+    expect(parsed.version).toBe(6)
   })
 
-  test('garbage property filters are dropped or clamped (v11 issue 1)', () => {
+  test('garbage property filters are dropped or clamped (v14 WS2 kinds)', () => {
     const raw = JSON.parse(serializeProject(project)) as { filters: Record<string, unknown> }
     raw.filters.properties = {
-      bpm: [120, 130], // fine
+      bpm: [120, 130], // fine — number tuple
       nonsense: [1, 2], // unknown property
-      artist: [3, 4], // numbers on a text property
-      year: ['a', 'b'], // strings on a number property
-      rating: [3], // not a pair
+      artist: ['b', 'k'], // old v5 text tuple → dropped (alpha needs bucket indices)
+      year: ['a', 'b'], // strings on a number property → dropped
+      rating: [3], // not a pair → dropped
       key: [0, 99], // clamps into 1–12
-      genre: ['a', 'm'], // fine — text
+      genre: [3, 8], // alpha bucket range → survives
+      comments: { contains: 'live' }, // contains object → survives
+      location: { contains: '' }, // empty contains → dropped
+      colour: { colours: ['0xFF0000'] }, // colour allow-list → survives
+      kind: { quality: 'lossless' }, // quality → survives
     }
     const parsed = parseProject(JSON.stringify(raw))
     expect(parsed.filters.properties).toEqual({
       bpm: [120, 130],
       key: [1, 12],
-      genre: ['a', 'm'],
+      genre: [3, 8],
+      comments: { contains: 'live' },
+      colour: { colours: ['0xFF0000'] },
+      kind: { quality: 'lossless' },
     })
   })
 
-  test('an active text filter round-trips through serialize → parse (v11 issue 1)', () => {
-    const withText: Project = {
+  test('the new filter-kind object ranges round-trip through serialize → parse (v14 WS2)', () => {
+    const withKinds: Project = {
       ...project,
       filters: {
         ...structuredClone(EMPTY_FILTERS),
-        properties: { artist: ['b', 'k'], key: [8, 12] },
+        properties: {
+          genre: [0, 12],
+          key: [8, 12],
+          comments: { contains: 'peak' },
+          colour: { colours: ['0xFF007F', '0x0000FF'] },
+          kind: { quality: 'lossy' },
+        },
       },
     }
-    const parsed = parseProject(serializeProject(withText))
-    expect(parsed.filters.properties).toEqual({ artist: ['b', 'k'], key: [8, 12] })
+    const parsed = parseProject(serializeProject(withKinds))
+    expect(parsed.filters.properties).toEqual(withKinds.filters.properties)
+  })
+
+  test('a v5 save with an old text range drops it, no phantom filter row (v14 WS2)', () => {
+    const raw = JSON.parse(serializeProject(project)) as {
+      version: number
+      filters: Record<string, unknown>
+      settings: Record<string, unknown>
+    }
+    raw.version = 5
+    raw.filters.properties = { artist: ['b', 'k'] }
+    raw.settings.visibleFilters = ['bpm']
+    const parsed = parseProject(JSON.stringify(raw))
+    // The old text range fails the new alpha number-checks and drops.
+    expect(parsed.filters.properties).toEqual({})
+    // Nothing filters, so the reconciliation never force-adds an artist row.
+    expect(parsed.settings.visibleFilters).toEqual(['bpm'])
   })
 
   test('old saves without location in hiddenColumns keep it hidden (v11 issue 1)', () => {
@@ -484,7 +513,7 @@ describe('project persistence (v3)', () => {
       radialAxis: 'bpm',
     })
     const migrated = parseProject(v1)
-    expect(migrated.version).toBe(5)
+    expect(migrated.version).toBe(6)
     expect(migrated.filters).toEqual(EMPTY_FILTERS)
     expect(migrated.settings).toEqual(DEFAULT_SETTINGS)
     expect(migrated.colorAxis).toBe('auto')

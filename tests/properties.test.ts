@@ -34,9 +34,12 @@ describe('TRACK_PROPERTIES (v11 issue 1: the one registry)', () => {
     expect(PROPERTY_BY_KEY.get('lastPlayed')?.kind).toBe('date')
     expect(PROPERTY_BY_KEY.get('dateAdded')?.kind).toBe('date')
     expect(PROPERTY_BY_KEY.get('key')?.kind).toBe('key')
-    expect(PROPERTY_BY_KEY.get('colour')?.kind).toBe('text')
-    expect(PROPERTY_BY_KEY.get('genre')?.kind).toBe('text')
-    expect(PROPERTY_BY_KEY.get('location')?.kind).toBe('text')
+    expect(PROPERTY_BY_KEY.get('colour')?.kind).toBe('colour')
+    expect(PROPERTY_BY_KEY.get('genre')?.kind).toBe('alpha')
+    expect(PROPERTY_BY_KEY.get('location')?.kind).toBe('contains')
+    expect(PROPERTY_BY_KEY.get('comments')?.kind).toBe('contains')
+    expect(PROPERTY_BY_KEY.get('kind')?.kind).toBe('quality')
+    expect(PROPERTY_BY_KEY.get('artist')?.kind).toBe('alpha')
   })
 
   test('every property is filterable (genre included, per the v11 decision)', () => {

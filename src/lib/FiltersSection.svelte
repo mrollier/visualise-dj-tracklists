@@ -1,17 +1,26 @@
 <script lang="ts">
   import { get } from 'svelte/store'
   import {
+    ALPHA_CATCH_ALL,
+    alphaBucketLabel,
     clampRange,
     propertyExtents,
     wholeExtent,
     type LibraryFilters,
     type PropertyRange,
+    type QualityChoice,
   } from '../core/filter'
-  import { PROPERTY_BY_KEY, type TrackProperty } from '../core/properties'
+  import { PROPERTY_BY_KEY, REKORDBOX_COLOURS, type TrackProperty } from '../core/properties'
   import type { TrackSortField } from '../core/trackSort'
   import { filters, library, playlistScopedLibrary, settings, visibleLibrary } from '../stores'
 
   type RangeSide = 'min' | 'max'
+
+  // Alpha buckets A…Z then '#' (v14 WS2): options for the min/max selects.
+  const ALPHA_OPTIONS = Array.from({ length: ALPHA_CATCH_ALL + 1 }, (_, i) => ({
+    value: i,
+    label: alphaBucketLabel(i),
+  }))
 
   // The rows on show: the user's visibleFilters selection (advanced "Track
   // properties" table), resolved through the registry (v11 issue 1).
@@ -45,19 +54,32 @@
     if (prop.kind === 'number' || prop.kind === 'key') {
       const seeded = range ?? whole(scopedExtents[prop.key] ?? null)
       inputs[prop.key] =
-        seeded === undefined || seeded === null
+        seeded === undefined || seeded === null || !Array.isArray(seeded)
           ? { min: '', max: '' }
           : { min: String(seeded[0]), max: String(seeded[1]) }
+    } else if (prop.kind === 'alpha') {
+      // Absent range = the full A…# span (filter off).
+      inputs[prop.key] = Array.isArray(range)
+        ? { min: String(range[0]), max: String(range[1]) }
+        : { min: '0', max: String(ALPHA_CATCH_ALL) }
     } else if (prop.kind === 'date') {
+      inputs[prop.key] =
+        range === undefined || !Array.isArray(range)
+          ? { min: '', max: '' }
+          : {
+              min: range[0] === DATE_OPEN_MIN ? '' : String(range[0]),
+              max: range[1] === DATE_OPEN_MAX ? '' : String(range[1]),
+            }
+    } else if (prop.kind === 'contains') {
       inputs[prop.key] = {
-        min: range === undefined || range[0] === DATE_OPEN_MIN ? '' : String(range[0]),
-        max: range === undefined || range[1] === DATE_OPEN_MAX ? '' : String(range[1]),
+        min:
+          range !== undefined && !Array.isArray(range) && 'contains' in range ? range.contains : '',
+        max: '',
       }
     } else {
-      inputs[prop.key] =
-        range === undefined
-          ? { min: '', max: '' }
-          : { min: String(range[0]), max: String(range[1]) }
+      // colour / quality read the store directly; this placeholder keeps the
+      // lazy-seed guard satisfied.
+      inputs[prop.key] = { min: '', max: '' }
     }
   }
 
@@ -147,27 +169,69 @@
       writeProperty(prop.key, range)
     } else if (prop.kind === 'date') {
       writeProperty(prop.key, [min === '' ? DATE_OPEN_MIN : min, max === '' ? DATE_OPEN_MAX : max])
-    } else {
-      // Text: lowercased prefix bounds; an empty side stays open, so only
-      // clamp when both sides are present.
-      let low = min.trim().toLowerCase()
-      let high = max.trim().toLowerCase()
-      if (low !== '' && high !== '') {
-        ;[low, high] = clampRange([low, high], edited)
-        if (reflect) inputs[prop.key] = { min: low, max: high }
-      }
-      writeProperty(prop.key, low === '' && high === '' ? null : [low, high])
     }
+    // alpha/contains/colour/quality use their own handlers, never setBox/commit.
   }
 
-  /** Reset: numeric ranges to the selection's whole-number extremes; text
-   *  and date rows to blank (off). */
+  // --- alpha (v14 WS2): two bucket selects; the full A…# span writes null. ---
+  function setAlpha(prop: TrackProperty, side: RangeSide, value: string): void {
+    const next = { ...boxes(prop.key), [side]: value }
+    const [min, max] = clampRange([Number(next.min), Number(next.max)], side)
+    inputs[prop.key] = { min: String(min), max: String(max) }
+    writeProperty(prop.key, min === 0 && max === ALPHA_CATCH_ALL ? null : [min, max])
+  }
+
+  // --- contains (v14 WS2): one text box; blank writes null. ---
+  function setContains(prop: TrackProperty, value: string): void {
+    inputs[prop.key] = { min: value, max: '' }
+    const text = value.trim()
+    writeProperty(prop.key, text === '' ? null : { contains: text })
+  }
+
+  // --- colour (v14 WS2): chip toggles; empty selection writes null. ---
+  const scopedColours = $derived([
+    ...new Set($playlistScopedLibrary.map((t) => t.colour).filter((c): c is string => c !== null)),
+  ])
+  function selectedColours(key: TrackSortField): string[] {
+    const range = $filters.properties[key]
+    return range !== undefined && !Array.isArray(range) && 'colours' in range ? range.colours : []
+  }
+  function toggleColour(prop: TrackProperty, colour: string): void {
+    const current = selectedColours(prop.key)
+    const next = current.includes(colour)
+      ? current.filter((c) => c !== colour)
+      : [...current, colour]
+    writeProperty(prop.key, next.length === 0 ? null : { colours: next })
+  }
+  function swatch(colour: string): string {
+    return colour.startsWith('0x') ? `#${colour.slice(2)}` : colour
+  }
+
+  // --- quality (v14 WS2): lossy / lossless / both; "both" writes null. ---
+  const QUALITY_CHOICES = [
+    { value: 'lossy', label: 'lossy' },
+    { value: 'lossless', label: 'lossless' },
+    { value: null, label: 'both' },
+  ] as const
+  function currentQuality(key: TrackSortField): QualityChoice | null {
+    const range = $filters.properties[key]
+    return range !== undefined && !Array.isArray(range) && 'quality' in range ? range.quality : null
+  }
+  function setQuality(prop: TrackProperty, choice: QualityChoice | null): void {
+    writeProperty(prop.key, choice === null ? null : { quality: choice })
+  }
+
+  /** Reset: numeric ranges to the selection's whole-number extremes; alpha to
+   *  the full span; contains/colour/quality/date rows to blank (off). */
   function resetRange(prop: TrackProperty): void {
     if (prop.kind === 'number' || prop.kind === 'key') {
       const range = whole(scopedExtents[prop.key] ?? null)
       inputs[prop.key] =
         range === null ? { min: '', max: '' } : { min: String(range[0]), max: String(range[1]) }
       writeProperty(prop.key, range)
+    } else if (prop.kind === 'alpha') {
+      inputs[prop.key] = { min: '0', max: String(ALPHA_CATCH_ALL) }
+      writeProperty(prop.key, null)
     } else {
       inputs[prop.key] = { min: '', max: '' }
       writeProperty(prop.key, null)
@@ -236,22 +300,63 @@
           value={boxes(prop.key).max}
           onchange={(e) => setBox(prop, 'max', e.currentTarget.value)}
         />
-      {:else}
-        <input
-          type="text"
-          placeholder="from"
+      {:else if prop.kind === 'alpha'}
+        <select
+          class="alpha-select"
           aria-label="{prop.label} from"
           value={boxes(prop.key).min}
-          onchange={(e) => setBox(prop, 'min', e.currentTarget.value, true)}
-        />
+          onchange={(e) => setAlpha(prop, 'min', e.currentTarget.value)}
+        >
+          {#each ALPHA_OPTIONS as opt (opt.value)}
+            <option value={String(opt.value)}>{opt.label}</option>
+          {/each}
+        </select>
         <span class="dash">–</span>
-        <input
-          type="text"
-          placeholder="to"
+        <select
+          class="alpha-select"
           aria-label="{prop.label} to"
           value={boxes(prop.key).max}
-          onchange={(e) => setBox(prop, 'max', e.currentTarget.value, true)}
+          onchange={(e) => setAlpha(prop, 'max', e.currentTarget.value)}
+        >
+          {#each ALPHA_OPTIONS as opt (opt.value)}
+            <option value={String(opt.value)}>{opt.label}</option>
+          {/each}
+        </select>
+      {:else if prop.kind === 'contains'}
+        <input
+          type="text"
+          placeholder="contains…"
+          aria-label="{prop.label} contains"
+          value={boxes(prop.key).min}
+          onchange={(e) => setContains(prop, e.currentTarget.value)}
         />
+      {:else if prop.kind === 'colour'}
+        <div class="colour-chips" role="group" aria-label="{prop.label} filter">
+          {#each scopedColours as colour (colour)}
+            <button
+              class="colour-chip"
+              class:on={selectedColours(prop.key).includes(colour)}
+              aria-pressed={selectedColours(prop.key).includes(colour)}
+              title={REKORDBOX_COLOURS[colour] ?? colour}
+              onclick={() => toggleColour(prop, colour)}
+            >
+              <span class="colour-swatch" style="background:{swatch(colour)}"></span>
+              {REKORDBOX_COLOURS[colour] ?? colour}
+            </button>
+          {/each}
+        </div>
+      {:else}
+        <div class="ring-switch" role="group" aria-label="{prop.label} filter">
+          {#each QUALITY_CHOICES as choice (choice.label)}
+            <button
+              class:on={currentQuality(prop.key) === choice.value}
+              aria-pressed={currentQuality(prop.key) === choice.value}
+              onclick={() => setQuality(prop, choice.value)}
+            >
+              {choice.label}
+            </button>
+          {/each}
+        </div>
       {/if}
       <button
         class="range-reset"
@@ -298,12 +403,12 @@
   .filter-row {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     padding: 4px 0;
   }
 
   .filter-label {
-    width: 64px;
+    width: 52px;
     flex-shrink: 0;
     color: var(--ink-secondary);
     overflow: hidden;
@@ -317,6 +422,16 @@
     padding: 2px 6px;
   }
 
+  /* F1: give number boxes room so 4-digit years / 3-digit BPM stay legible
+     with the spinner visible on hover (macOS Chrome + Safari). */
+  .filter-row input[type='number'] {
+    width: auto;
+    flex: 1 1 68px;
+    min-width: 68px;
+    padding: 2px 2px 2px 6px;
+    font-variant-numeric: tabular-nums;
+  }
+
   .filter-row input[type='date'] {
     width: auto;
     flex: 1;
@@ -327,12 +442,49 @@
     flex: 1;
   }
 
+  .alpha-select {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 2px 2px;
+  }
+
+  .colour-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    flex: 1;
+  }
+
+  .colour-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 6px;
+    font-size: 11.5px;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--ink-muted);
+  }
+
+  .colour-chip.on {
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    color: var(--ink);
+  }
+
+  .colour-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    border: 1px solid color-mix(in srgb, var(--ink) 25%, transparent);
+  }
+
   .dash {
     color: var(--ink-muted);
   }
 
   .range-reset {
-    padding: 1px 6px;
+    padding: 1px 4px;
     font-size: 12px;
     line-height: 1.4;
     color: var(--ink-muted);

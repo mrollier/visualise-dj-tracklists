@@ -129,7 +129,7 @@
   // (v11 issue 1: filters carry a per-property map) for the domain maths.
   const radialFilterRange = $derived.by((): [number, number] | null => {
     const range = $filters.properties[$radialAxis]
-    return range !== undefined && typeof range[0] === 'number' && typeof range[1] === 'number'
+    return Array.isArray(range) && typeof range[0] === 'number' && typeof range[1] === 'number'
       ? [range[0], range[1]]
       : null
   })

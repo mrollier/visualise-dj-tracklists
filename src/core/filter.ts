@@ -6,14 +6,18 @@ import type { TrackSortField } from './trackSort'
 /**
  * Library-level filters (remarks 2, 6, 8): they decide which tracks are
  * visible at all — on the wheel, in the combo graph, and for suggestions.
- * Since v11 (issue 1) every track property can carry a range filter; the
- * property's kind (registry, `properties.ts`) decides the semantics:
+ * Since v11 (issue 1) every track property can carry a filter; the property's
+ * kind (registry, `properties.ts`) decides the semantics:
  *
  * - number: inclusive [min, max]; a missing value never fails (consistent
  *   with the combo engine's missing-data policy).
- * - text: case-insensitive lexical range with a prefix-inclusive upper bound
- *   (artist "b"–"k" keeps "Kraftwerk"); an empty side is open; missing
- *   passes.
+ * - alpha (v14 WS2): inclusive range over the value's first-letter bucket
+ *   (A=0…Z=25, everything else '#'=26); missing passes.
+ * - contains (v14 WS2): case-insensitive substring match; missing passes.
+ * - colour (v14 WS2): allow-list of raw colour tags (case-insensitive);
+ *   missing passes (genre allow-list precedent).
+ * - quality (v14 WS2): lossy/lossless, derived from the file `kind` string;
+ *   an unknown or missing format passes.
  * - date: inclusive 'YYYY-MM-DD' lexical bounds. Unlike the other kinds, a
  *   missing date is EXCLUDED while the filter is active (v10 issue 4b,
  *   generalized) — "between these dates" has no sensible answer for an
@@ -21,7 +25,47 @@ import type { TrackSortField } from './trackSort'
  * - key: inclusive range over the Camelot NUMBER (1–12), both rings — the
  *   ring is filtered separately by `keyRing`, so the two compose.
  */
-export type PropertyRange = [number, number] | [string, string]
+export type QualityChoice = 'lossy' | 'lossless'
+export type PropertyRange =
+  | [number, number] // number, key — and alpha: bucket indices 0–26
+  | [string, string] // date
+  | { contains: string } // contains kind (case-insensitive substring)
+  | { colours: string[] } // colour kind: allow-list of raw tag values
+  | { quality: QualityChoice } // quality kind; "both" = entry absent
+
+// --- alpha buckets (v14 WS2) ---
+/** The '#' bucket for non-letter / diacritic starts, ordered AFTER Z. */
+export const ALPHA_CATCH_ALL = 26
+export function alphaBucket(value: string): number {
+  const c = value.trimStart().charAt(0).toLowerCase()
+  return c >= 'a' && c <= 'z' ? c.charCodeAt(0) - 97 : ALPHA_CATCH_ALL
+}
+export function alphaBucketLabel(b: number): string {
+  return b === ALPHA_CATCH_ALL ? '#' : String.fromCharCode(65 + b)
+}
+
+// --- audio quality (v14 WS2) ---
+const LOSSLESS = /\b(wav|aiff?|flac|alac|apple lossless|pcm)\b/i
+const LOSSY = /\b(mp3|aac|m4a|mp4|ogg|opus|wma)\b/i
+export function audioQuality(kind: string): QualityChoice | null {
+  if (LOSSLESS.test(kind)) return 'lossless'
+  if (LOSSY.test(kind)) return 'lossy'
+  return null // unknown format — passes the filter
+}
+
+// --- PropertyRange shape guards (v14 WS2) ---
+function isTuple(range: PropertyRange): range is [number, number] | [string, string] {
+  return Array.isArray(range)
+}
+function isContains(range: PropertyRange): range is { contains: string } {
+  return !Array.isArray(range) && 'contains' in range
+}
+function isColours(range: PropertyRange): range is { colours: string[] } {
+  return !Array.isArray(range) && 'colours' in range
+}
+function isQuality(range: PropertyRange): range is { quality: QualityChoice } {
+  return !Array.isArray(range) && 'quality' in range
+}
 
 export interface LibraryFilters {
   /** Active per-property ranges; an absent key means "not filtering". */
@@ -52,25 +96,59 @@ export const EMPTY_FILTERS: LibraryFilters = {
   keyRing: 'both',
 }
 
-/** One saved range, checked against its property's kind; null = drop it. */
-function sanitizeRange(prop: TrackProperty, entry: unknown): PropertyRange | null {
+/** A saved entry that must be a two-number tuple; null otherwise. */
+function twoNumbers(entry: unknown): [number, number] | null {
   if (!Array.isArray(entry) || entry.length !== 2) return null
   const [a, b] = entry as [unknown, unknown]
+  if (typeof a !== 'number' || !Number.isFinite(a)) return null
+  if (typeof b !== 'number' || !Number.isFinite(b)) return null
+  return [a, b]
+}
+
+/**
+ * One saved range, checked against its property's kind; null = drop it. Since
+ * v14 WS2 the array guard lives *inside* the tuple kinds, so v5 text tuples
+ * (e.g. `artist: ["b","k"]`) fail the alpha number-checks and drop — the
+ * recorded "drop old stored text ranges" migration.
+ */
+function sanitizeRange(prop: TrackProperty, entry: unknown): PropertyRange | null {
   switch (prop.kind) {
-    case 'number': {
-      if (typeof a !== 'number' || !Number.isFinite(a)) return null
-      if (typeof b !== 'number' || !Number.isFinite(b)) return null
-      return [a, b]
-    }
+    case 'number':
+      return twoNumbers(entry)
     case 'key': {
-      if (typeof a !== 'number' || !Number.isFinite(a)) return null
-      if (typeof b !== 'number' || !Number.isFinite(b)) return null
+      const pair = twoNumbers(entry)
+      if (pair === null) return null
       const clamp = (v: number): number => Math.max(1, Math.min(12, Math.round(v)))
-      return [clamp(a), clamp(b)]
+      return [clamp(pair[0]), clamp(pair[1])]
     }
-    case 'date':
-    case 'text':
+    case 'alpha': {
+      const pair = twoNumbers(entry)
+      if (pair === null) return null
+      const clamp = (v: number): number => Math.max(0, Math.min(ALPHA_CATCH_ALL, Math.round(v)))
+      return [clamp(pair[0]), clamp(pair[1])]
+    }
+    case 'date': {
+      if (!Array.isArray(entry) || entry.length !== 2) return null
+      const [a, b] = entry as [unknown, unknown]
       return typeof a === 'string' && typeof b === 'string' ? [a, b] : null
+    }
+    case 'contains': {
+      if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return null
+      const value = (entry as Record<string, unknown>).contains
+      return typeof value === 'string' && value !== '' ? { contains: value } : null
+    }
+    case 'colour': {
+      if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return null
+      const value = (entry as Record<string, unknown>).colours
+      if (!Array.isArray(value)) return null
+      const colours = value.filter((v): v is string => typeof v === 'string')
+      return colours.length > 0 ? { colours } : null
+    }
+    case 'quality': {
+      if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return null
+      const value = (entry as Record<string, unknown>).quality
+      return value === 'lossy' || value === 'lossless' ? { quality: value } : null
+    }
   }
 }
 
@@ -167,30 +245,52 @@ function passesProperty(track: Track, prop: TrackProperty, range: PropertyRange)
   const raw = track[prop.key]
   switch (prop.kind) {
     case 'number': {
-      if (typeof range[0] !== 'number' || typeof range[1] !== 'number') return true
+      if (!isTuple(range) || typeof range[0] !== 'number' || typeof range[1] !== 'number') {
+        return true
+      }
       if (raw === null) return true
       const value = Number(raw)
       return value >= range[0] && value <= range[1]
     }
     case 'key': {
-      if (typeof range[0] !== 'number' || typeof range[1] !== 'number') return true
+      if (!isTuple(range) || typeof range[0] !== 'number' || typeof range[1] !== 'number') {
+        return true
+      }
       if (track.key === null) return true
       const value = camelotNumber(track.key)
       return value >= range[0] && value <= range[1]
     }
+    case 'alpha': {
+      if (!isTuple(range) || typeof range[0] !== 'number' || typeof range[1] !== 'number') {
+        return true
+      }
+      if (raw === null) return true
+      const bucket = alphaBucket(String(raw))
+      return bucket >= range[0] && bucket <= range[1]
+    }
     case 'date': {
-      if (typeof range[0] !== 'string' || typeof range[1] !== 'string') return true
+      if (!isTuple(range) || typeof range[0] !== 'string' || typeof range[1] !== 'string') {
+        return true
+      }
       if (raw === null) return false // missing dates hide while active
       return raw >= range[0] && raw <= range[1]
     }
-    case 'text': {
-      if (typeof range[0] !== 'string' || typeof range[1] !== 'string') return true
+    case 'contains': {
+      if (!isContains(range)) return true
       if (raw === null) return true
+      return String(raw).toLowerCase().includes(range.contains.toLowerCase())
+    }
+    case 'colour': {
+      if (!isColours(range)) return true
+      if (raw === null) return true // missing colour passes (genre precedent)
       const value = String(raw).toLowerCase()
-      const min = range[0].toLowerCase()
-      const max = range[1].toLowerCase()
-      // Upper bound is prefix-inclusive: "kraftwerk" passes max "k".
-      return value >= min && (max === '' || value.slice(0, max.length) <= max)
+      return range.colours.some((c) => c.toLowerCase() === value)
+    }
+    case 'quality': {
+      if (!isQuality(range)) return true
+      if (raw === null) return true
+      const quality = audioQuality(String(raw))
+      return quality === null || quality === range.quality
     }
   }
 }

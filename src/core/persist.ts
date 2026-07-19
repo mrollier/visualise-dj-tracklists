@@ -21,10 +21,14 @@ import { DEFAULT_SETTINGS, type AppSettings } from './settings'
  * v2 (filters + settings + colour axis; rating became a filter),
  * v3 (multiple named sets replace the single tracklist — issue 18),
  * v4 (filters carry a per-property range map — v11 issue 1),
- * v5 (manual edges — planning annotations, v12 WS9).
+ * v5 (manual edges — planning annotations, v12 WS9),
+ * v6 (v14: text filter kind split into alpha/contains/colour/quality, so old
+ *  stored text ranges are dropped on load — WS2; per-criterion `demanded`
+ *  flags — WS4; per-track `isVinyl` dropped — WS1; `slotSpreadFactor` clamp
+ *  widened to 0–2 — WS7; `manualEdgeWeight` setting — WS5).
  */
 export interface Project {
-  version: 5
+  version: 6
   libraryName: string
   tracks: Track[]
   criteria: CriteriaConfig
@@ -154,7 +158,14 @@ export function parseProject(json: string): Project {
   }
   const p = raw as Record<string, unknown> &
     Omit<Partial<Project>, 'version'> & { version?: number; tracklist?: unknown }
-  if (p.version !== 1 && p.version !== 2 && p.version !== 3 && p.version !== 4 && p.version !== 5) {
+  if (
+    p.version !== 1 &&
+    p.version !== 2 &&
+    p.version !== 3 &&
+    p.version !== 4 &&
+    p.version !== 5 &&
+    p.version !== 6
+  ) {
     throw new Error(`Unsupported project version: ${String(p.version)}`)
   }
   const hasSetShape = Array.isArray(p.sets) || Array.isArray(p.tracklist)
@@ -262,7 +273,7 @@ export function parseProject(json: string): Project {
   }
 
   return {
-    version: 5,
+    version: 6,
     manualEdges,
     libraryName: typeof p.libraryName === 'string' ? p.libraryName : '',
     tracks,
