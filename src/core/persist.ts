@@ -227,6 +227,16 @@ export function parseProject(json: string): Project {
   if (typeof settings.jitterSeed !== 'number' || !Number.isFinite(settings.jitterSeed)) {
     settings.jitterSeed = DEFAULT_SETTINGS.jitterSeed
   }
+  // v14 (WS5): the manual-combo pull is a 0–10 knob; a non-finite or
+  // out-of-range value in a hand-edited save falls back to the default.
+  if (
+    typeof settings.manualEdgeWeight !== 'number' ||
+    !Number.isFinite(settings.manualEdgeWeight) ||
+    settings.manualEdgeWeight < 0 ||
+    settings.manualEdgeWeight > 10
+  ) {
+    settings.manualEdgeWeight = DEFAULT_SETTINGS.manualEdgeWeight
+  }
   // v12 (WS4): easy mode — anything but the two literals means an older or
   // mangled save, which stays in the full UI it was written from.
   if (settings.uiMode !== 'easy' && settings.uiMode !== 'advanced') {

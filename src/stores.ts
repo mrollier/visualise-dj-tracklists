@@ -183,7 +183,8 @@ export const pinnedLast = writable<string | null>(null)
 
 /**
  * Tracks the user marked "must include" for generated sets (session-only,
- * like the pins): a strong bias, not a guarantee — see design-v6 §C.
+ * like the pins): a hard guarantee since v14 S1 — the suggester reserves
+ * slots and forces edges if needed so every marked track lands in the walk.
  */
 export const mustInclude = writable<string[]>([])
 

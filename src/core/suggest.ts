@@ -36,7 +36,12 @@ export interface SuggestOptions {
   seed?: number
   /** Preferred BPM trajectory; 'any' (the default) adds no term at all. */
   progression?: BpmProgression
-  /** Tracks to bias into the walk (a strong bonus until each is placed). */
+  /**
+   * Tracks that MUST appear in the walk (v14 S1). Slots are reserved so every
+   * one is placed — harmonious neighbours preferred, a forced edge as a last
+   * resort, even in plain (non-`force`) mode. Fillers may reorder under
+   * randomness; an essential is never dropped.
+   */
   mustIncludeIds?: readonly string[]
   /**
    * When a tip runs out of combo candidates, fill the step with the best
@@ -50,6 +55,12 @@ export interface SuggestOptions {
    * walk may traverse them) and carry a strong bonus, like must-include.
    */
   manualEdges?: readonly ManualPair[]
+  /**
+   * How strongly a user-marked combo pulls the walk (v14 S3). Defaults to
+   * MANUAL_EDGE_BONUS (5); 0 removes the preference (the edge still exists),
+   * 10 lets it dominate every ordinary match. The Advanced menu tunes it.
+   */
+  manualEdgeWeight?: number
 }
 
 /** An unordered user-marked pair; the store's ManualEdge extends it with a tag. */
@@ -277,6 +288,7 @@ export function suggestWalk(
     mustIncludeIds = [],
     force = false,
     manualEdges = [],
+    manualEdgeWeight = MANUAL_EDGE_BONUS,
   } = options
   if (tracks.length === 0) return { ids: [], forced: 0 }
 
@@ -284,7 +296,7 @@ export function suggestWalk(
   const neighbours = buildNeighbours(tracks, criteria, manualEdges)
   const manualSet = new Set(manualEdges.map(({ a, b }) => pairKey(a, b)))
   const manualTerm = (current: Track) => (candidate: Track) =>
-    manualSet.has(pairKey(current.id, candidate.id)) ? MANUAL_EDGE_BONUS : 0
+    manualSet.has(pairKey(current.id, candidate.id)) ? manualEdgeWeight : 0
   const genreMatch = makeGenreMatcher(
     tracks.map((t) => t.genre),
     criteria,
@@ -296,13 +308,22 @@ export function suggestWalk(
     seedId !== null && byId.has(seedId) ? seedId : randomStart(tracks, neighbours, pinnedEnd, rand)
   const end = pinnedEnd !== null && pinnedEnd !== start ? pinnedEnd : null
 
-  // Must-include bias: a strong bonus until each marked track is placed.
-  // Biased, not guaranteed — a track that never neighbours the walk's tip
-  // (or a walk that fills up first) skips it (design-v6 §C).
+  // Must-include: a strong bonus keeps essentials near the front of the
+  // ranking, but placement is a hard GUARANTEE (v14 S1), not a bias.
   const pending = new Set(mustIncludeIds.filter((id) => byId.has(id)))
   pending.delete(start)
   if (end !== null) pending.delete(end)
   const pendingBonus = (candidate: Track) => (pending.has(candidate.id) ? MUST_INCLUDE_BONUS : 0)
+
+  // v14 S1: essentials are guaranteed. Slots are RESERVED — the target length
+  // grows to fit every pending essential (plus the pinned anchors); once the
+  // remaining slots equal the pending count only essentials may take a slot,
+  // harmonious (neighbour) placements first and a forced edge as a last
+  // resort, even in plain ✨ mode. Randomness may reorder fillers, never cost
+  // an essential. The plain and force runs consume the PRNG identically up to
+  // the plain run's stopping point (S2's prefix property depends on it).
+  const anchors = end === null ? 1 : 2
+  const targetLength = Math.max(length, anchors + pending.size)
   const progressionTerm = (current: Track, step: number, arm: BpmProgression) =>
     arm === 'any'
       ? () => 0
@@ -314,12 +335,14 @@ export function suggestWalk(
   if (end === null) {
     const walk = [start]
     const visited = new Set([start])
-    while (walk.length < length) {
+    while (walk.length < targetLength) {
       const current = byId.get(walk[walk.length - 1])!
       const fitTerm = progressionTerm(current, walk.length - 1, progression)
       const manual = manualTerm(current)
       const extra = (candidate: Track) =>
         pendingBonus(candidate) + fitTerm(candidate) + manual(candidate)
+      const slotsLeft = targetLength - walk.length
+      const mustPlaceEssential = pending.size >= slotsLeft
       let candidates = rankedCandidates(
         current,
         neighbours,
@@ -330,11 +353,43 @@ export function suggestWalk(
         extra,
       )
       let breaking = false
-      if (candidates.length === 0) {
-        if (!force) break
-        candidates = forcedCandidates(current, tracks, visited, criteria, genreMatch, extra)
-        if (candidates.length === 0) break // every track is already in
-        breaking = true
+      if (mustPlaceEssential) {
+        // Every remaining slot is spoken for: seat an essential this step. A
+        // real neighbour is harmonious; otherwise force an edge to one.
+        const harmonious = candidates.filter((c) => pending.has(c.item))
+        if (harmonious.length > 0) {
+          candidates = harmonious
+        } else {
+          candidates = forcedCandidates(
+            current,
+            tracks,
+            visited,
+            criteria,
+            genreMatch,
+            extra,
+          ).filter((c) => pending.has(c.item))
+          breaking = true
+        }
+      } else if (candidates.length === 0) {
+        // Essentials may break the criteria even without the force flag — a
+        // disconnected must-include is still guaranteed (v14 S1).
+        if (pending.size > 0) {
+          candidates = forcedCandidates(
+            current,
+            tracks,
+            visited,
+            criteria,
+            genreMatch,
+            extra,
+          ).filter((c) => pending.has(c.item))
+          breaking = candidates.length > 0
+        }
+        if (candidates.length === 0) {
+          if (!force) break
+          candidates = forcedCandidates(current, tracks, visited, criteria, genreMatch, extra)
+          if (candidates.length === 0) break // every track is already in
+          breaking = true
+        }
       }
       const next = pick(candidates, randomness, rand)
       if (breaking) forced++
@@ -359,7 +414,7 @@ export function suggestWalk(
     other.genre !== null && candidate.genre !== null
       ? 0.3 * genreSimilarity(candidate.genre, other.genre, criteria.genre.method)
       : 0
-  while (startArm.length + endArm.length < length) {
+  while (startArm.length + endArm.length < targetLength) {
     const tipA = byId.get(startArm[startArm.length - 1])!
     const tipB = byId.get(endArm[endArm.length - 1])!
     const towardsB = towards(tipB)
@@ -368,6 +423,10 @@ export function suggestWalk(
     const fitB = progressionTerm(tipB, endArm.length - 1, invertProgression(progression))
     const manualA = manualTerm(tipA)
     const manualB = manualTerm(tipB)
+    const startExtra = (candidate: Track) =>
+      towardsB(candidate) + pendingBonus(candidate) + fitA(candidate) + manualA(candidate)
+    const endExtra = (candidate: Track) =>
+      towardsA(candidate) + pendingBonus(candidate) + fitB(candidate) + manualB(candidate)
     const fromStart = rankedCandidates(
       tipA,
       neighbours,
@@ -375,8 +434,7 @@ export function suggestWalk(
       visited,
       criteria,
       genreMatch,
-      (candidate) =>
-        towardsB(candidate) + pendingBonus(candidate) + fitA(candidate) + manualA(candidate),
+      startExtra,
     )
     const fromEnd = rankedCandidates(
       tipB,
@@ -385,31 +443,55 @@ export function suggestWalk(
       visited,
       criteria,
       genreMatch,
-      (candidate) =>
-        towardsA(candidate) + pendingBonus(candidate) + fitB(candidate) + manualB(candidate),
+      endExtra,
     )
+    const slotsLeft = targetLength - (startArm.length + endArm.length)
+    const mustPlaceEssential = pending.size >= slotsLeft
+    // Prefer the higher-scoring arm; the pinned end always seats its essential
+    // by forcing from the START arm so the closer stays put.
+    const chooseStart = (a: typeof fromStart, b: typeof fromEnd) =>
+      b.length === 0 || (a.length > 0 && a[0].score >= b[0].score)
     let breaking = false
     let extendStart: boolean
     let pool: { item: string; score: number }[]
-    if (fromStart.length === 0 && fromEnd.length === 0) {
-      // Both arms stalled: force through the broken middle from the start
-      // arm (v11 issue 16b), or stop short as before.
-      if (!force) break
-      pool = forcedCandidates(
-        tipA,
-        tracks,
-        visited,
-        criteria,
-        genreMatch,
-        (candidate) =>
-          towardsB(candidate) + pendingBonus(candidate) + fitA(candidate) + manualA(candidate),
-      )
-      if (pool.length === 0) break
-      extendStart = true
-      breaking = true
+    if (mustPlaceEssential) {
+      // Every remaining slot is reserved for an essential (v14 S1). Seat one
+      // this step: harmonious on either tip first, a forced edge otherwise.
+      const startPending = fromStart.filter((c) => pending.has(c.item))
+      const endPending = fromEnd.filter((c) => pending.has(c.item))
+      if (startPending.length === 0 && endPending.length === 0) {
+        pool = forcedCandidates(tipA, tracks, visited, criteria, genreMatch, startExtra).filter(
+          (c) => pending.has(c.item),
+        )
+        extendStart = true
+        breaking = true
+      } else {
+        extendStart = chooseStart(startPending, endPending)
+        pool = extendStart ? startPending : endPending
+      }
+    } else if (fromStart.length === 0 && fromEnd.length === 0) {
+      // Both arms stalled. A disconnected essential is still guaranteed even
+      // without the force flag; otherwise force through the broken middle
+      // (v11 issue 16b) from the start arm, or stop short as before.
+      const stalledPending =
+        pending.size > 0
+          ? forcedCandidates(tipA, tracks, visited, criteria, genreMatch, startExtra).filter((c) =>
+              pending.has(c.item),
+            )
+          : []
+      if (stalledPending.length > 0) {
+        pool = stalledPending
+        extendStart = true
+        breaking = true
+      } else {
+        if (!force) break
+        pool = forcedCandidates(tipA, tracks, visited, criteria, genreMatch, startExtra)
+        if (pool.length === 0) break
+        extendStart = true
+        breaking = true
+      }
     } else {
-      extendStart =
-        fromEnd.length === 0 || (fromStart.length > 0 && fromStart[0].score >= fromEnd[0].score)
+      extendStart = chooseStart(fromStart, fromEnd)
       pool = extendStart ? fromStart : fromEnd
     }
     const next = pick(pool, randomness, rand)
@@ -538,6 +620,7 @@ export function suggestNext(
     force = false,
     excludeIds = [],
     manualEdges = [],
+    manualEdgeWeight = MANUAL_EDGE_BONUS,
   } = options
   if (tracks.length === 0) return null
 
@@ -569,7 +652,7 @@ export function suggestNext(
   const used = new Set([...tracklist, ...excludeIds])
   const scoreExtra = (candidate: Track) =>
     (successor !== undefined ? scoreCandidate(candidate, successor, criteria, genreMatch) : 0) +
-    (manualSet.has(pairKey(anchor.id, candidate.id)) ? MANUAL_EDGE_BONUS : 0) +
+    (manualSet.has(pairKey(anchor.id, candidate.id)) ? manualEdgeWeight : 0) +
     (progression === 'any'
       ? 0
       : PROGRESSION_WEIGHT * progressionFit(anchor.bpm, candidate.bpm, anchorIndex, progression))

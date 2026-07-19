@@ -4,7 +4,8 @@
   import { exportM3u } from '../core/exporters/m3u'
   import type { Track } from '../core/model'
   import { buildSetPortrait } from '../core/exporters/portrait'
-  import { suggestWalk } from '../core/suggest'
+  import { suggestWalk, type ManualPair } from '../core/suggest'
+  import type { BpmProgression } from '../core/settings'
   import { walkRevealPlan } from '../core/walkReveal'
   import { promptExportName } from './exportName'
   import { svgToPngBlob } from './portraitPng'
@@ -140,14 +141,46 @@
   // tied to the set the suggestion wrote (a suggest may itself CREATE a set
   // via addSet, so a bare on-id-change reset would wipe it immediately);
   // navigating to any other set closes it.
+  // The exact options the last plain ✨ ran with (v14 S2): ⚡ replays this
+  // snapshot with force so it CONTINUES the short walk in place instead of
+  // rolling a fresh seed. The prefix property (forced.ids extend short.ids)
+  // holds only while the same seed meets the same inputs.
+  type SuggestSnapshot = {
+    seed: number
+    seedId: string | null
+    endId: string | null
+    length: number
+    randomness: number
+    progression: BpmProgression
+    mustIncludeIds: string[]
+    manualEdges: ManualPair[]
+    manualEdgeWeight: number
+  }
   let shortBy = $state(0)
   let forcedSteps = $state<number | null>(null)
   let forceForSetId = $state<string | null>(null)
+  let shortSnapshot = $state<SuggestSnapshot | null>(null)
   $effect(() => {
     if ($activeSet.id !== forceForSetId) {
       shortBy = 0
       forcedSteps = null
+      shortSnapshot = null
     }
+  })
+  // The ⚡ window also closes when the inputs it was seeded against drift
+  // (v14 S2, review finding): a force must never replay a stale seed against a
+  // changed library or criteria — mirroring the retry ring's "any external
+  // edit closes it" rule.
+  let lastLibrary = $visibleLibrary
+  let lastCriteriaKey = JSON.stringify($criteria)
+  $effect(() => {
+    const library = $visibleLibrary
+    const criteriaKey = JSON.stringify($criteria)
+    if (library === lastLibrary && criteriaKey === lastCriteriaKey) return
+    lastLibrary = library
+    lastCriteriaKey = criteriaKey
+    shortBy = 0
+    shortSnapshot = null
   })
 
   // The ✨/⚡ press throws a short spark burst (v12 WS2) — pure celebration,
@@ -165,22 +198,40 @@
     if (suggestDisabled) return
     burst()
     if (!canRegenerateInPlace) addSet() // a fresh set, activated
-    const walk = suggestWalk($visibleLibrary, $criteria, {
+    // ⚡ continues the short walk (v14 S2): replay the exact snapshot with
+    // force, so the forced walk EXTENDS the short one (prefix property).
+    // Plain ✨ rolls a fresh seed and, if it stops short, remembers its
+    // snapshot so the next ⚡ can pick up where it left off.
+    if (force && shortSnapshot !== null) {
+      const walk = suggestWalk($visibleLibrary, $criteria, { ...shortSnapshot, force: true })
+      setGeneratedTracklist(walk.ids)
+      bumpWalkReveal(walkRevealPlan(walk.ids).totalMs)
+      forceForSetId = $activeSet.id
+      shortBy = 0
+      shortSnapshot = null
+      forcedSteps = walk.forced > 0 ? walk.forced : null
+      return
+    }
+    const snapshot: SuggestSnapshot = {
+      seed: suggestSeed++,
       seedId: $pinnedFirst ?? $selectedId,
       endId: $pinnedLast,
       length: $settings.suggestLength,
       randomness: $settings.suggestRandomness,
-      seed: suggestSeed++,
       progression: $settings.bpmProgression,
-      mustIncludeIds: $mustInclude,
-      force,
-      manualEdges: $manualEdges,
-    })
+      mustIncludeIds: [...$mustInclude],
+      manualEdges: $manualEdges.map((e) => ({ a: e.a, b: e.b })),
+      manualEdgeWeight: $settings.manualEdgeWeight,
+    }
+    const walk = suggestWalk($visibleLibrary, $criteria, { ...snapshot, force })
     setGeneratedTracklist(walk.ids)
     bumpWalkReveal(walkRevealPlan(walk.ids).totalMs)
     forceForSetId = $activeSet.id
     shortBy = force ? 0 : Math.max(0, $settings.suggestLength - walk.ids.length)
-    forcedSteps = force ? walk.forced : null
+    shortSnapshot = shortBy > 0 ? snapshot : null
+    // Honesty tweak (v14 S2): plain ✨ can now force essentials in, so the
+    // forced-count chip reports whenever any step broke the criteria.
+    forcedSteps = walk.forced > 0 ? walk.forced : null
   }
 
   // The s hotkey (v12 WS14) presses whichever suggest button is showing —

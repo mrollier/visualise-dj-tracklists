@@ -496,6 +496,24 @@ describe('project persistence (v3)', () => {
     expect(parseProject(JSON.stringify(direct)).settings.slotSpreadFactor).toBe(1)
   })
 
+  test('clamps manualEdgeWeight to a finite 0–10, resetting anything else to 5 (v14 S3)', () => {
+    const parse = (v: unknown) => {
+      const s = JSON.parse(serializeProject(project)) as { settings: Record<string, unknown> }
+      s.settings.manualEdgeWeight = v
+      return parseProject(JSON.stringify(s)).settings.manualEdgeWeight
+    }
+    expect(parse(0)).toBe(0)
+    expect(parse(7.5)).toBe(7.5)
+    expect(parse(10)).toBe(10)
+    expect(parse(-1)).toBe(5)
+    expect(parse(100)).toBe(5)
+    expect(parse('nope')).toBe(5)
+    // older saves without the field back-fill to the default
+    const old = JSON.parse(serializeProject(project)) as { settings: Record<string, unknown> }
+    delete old.settings.manualEdgeWeight
+    expect(parseProject(JSON.stringify(old)).settings.manualEdgeWeight).toBe(5)
+  })
+
   test('migrates v1 projects: defaults for filters/settings, criteria upgraded', () => {
     const v1 = JSON.stringify({
       version: 1,

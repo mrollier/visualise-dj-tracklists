@@ -12,6 +12,7 @@ describe('reset to defaults (v9 issue 3)', () => {
       edgeOpacity: 0.8,
       focusClusterEdges: true,
       maxGenreClasses: 6,
+      manualEdgeWeight: 9,
       hiddenColumns: [],
       advancedOpen: ['display', 'tracks'],
     }
@@ -20,6 +21,7 @@ describe('reset to defaults (v9 issue 3)', () => {
     expect(reset.edgeOpacity).toBe(DEFAULT_SETTINGS.edgeOpacity)
     expect(reset.focusClusterEdges).toBe(false)
     expect(reset.maxGenreClasses).toBe(DEFAULT_SETTINGS.maxGenreClasses)
+    expect(reset.manualEdgeWeight).toBe(DEFAULT_SETTINGS.manualEdgeWeight)
     expect(reset.hiddenColumns).toEqual(DEFAULT_SETTINGS.hiddenColumns)
     // The theme lives in the top bar and the fold memory is UI chrome —
     // neither is an "advanced setting value".

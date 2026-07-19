@@ -476,6 +476,14 @@
     <p class="hint">
       Nudges each next pick toward the preferred tempo trajectory — combo criteria still come first.
     </p>
+    <label>
+      Manual-combo pull <strong>{$settings.manualEdgeWeight.toFixed(1)}</strong>
+      <input type="range" min="0" max="10" step="0.5" bind:value={$settings.manualEdgeWeight} />
+    </label>
+    <p class="hint">
+      How hard a track pair you marked "mix well" pulls suggested walks. 0 ignores the mark (it
+      still counts as an edge); 5 ranks it like an essential; 10 lets it dominate.
+    </p>
     <!-- Read-only listing (issue 10): the choices themselves are made in the
          Tracks view (or via the 📌 pins on the set's first/last rows). -->
     <div class="must-block">

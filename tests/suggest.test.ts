@@ -560,13 +560,16 @@ describe('suggestWalk with must-include tracks', () => {
     expect(walk.filter((id) => id === 'b')).toHaveLength(1)
   })
 
-  test('an unreachable must-include track is silently skipped', () => {
-    const walk = suggestWalk(tracks, config(), {
+  test('a criteria-disconnected must-include track is forced in (v14 S1 guarantee)', () => {
+    // 'e' neighbours nothing under the default criteria — before v14 it was
+    // silently skipped; now it is a hard guarantee, forced in even in plain ✨.
+    const result = suggestWalk(tracks, config(), {
       seedId: 'a',
       length: 10,
       mustIncludeIds: ['e'],
-    }).ids
-    expect(walk).not.toContain('e')
+    })
+    expect(result.ids).toContain('e')
+    expect(result.forced).toBeGreaterThan(0)
   })
 
   test('unknown ids and an empty list are no-ops', () => {
@@ -577,6 +580,106 @@ describe('suggestWalk with must-include tracks', () => {
     expect(
       suggestWalk(tracks, config(), { seedId: 'a', length: 10, mustIncludeIds: ['nope'] }).ids,
     ).toEqual(plain)
+  })
+})
+
+describe('must-include is a hard guarantee (v14 S1)', () => {
+  const clique = Array.from({ length: 10 }, (_, i) => track({ id: `t${i}` }))
+
+  test('every essential appears, across seeds 0–19, at full randomness', () => {
+    for (let seed = 0; seed < 20; seed++) {
+      const walk = suggestWalk(clique, config(), {
+        seedId: 't0',
+        length: 5,
+        randomness: 1,
+        seed,
+        mustIncludeIds: ['t3', 't6', 't9'],
+      }).ids
+      for (const id of ['t3', 't6', 't9']) expect(walk).toContain(id)
+    }
+  })
+
+  test('essentials beyond the target length grow the walk to fit them all', () => {
+    // length 3 but five essentials (the opener among them): all five in,
+    // walk length five (essentials-over-filler, resolved decision 4).
+    const walk = suggestWalk(clique, config(), {
+      seedId: 't0',
+      length: 3,
+      mustIncludeIds: ['t0', 't1', 't2', 't3', 't4'],
+    }).ids
+    expect([...walk].sort()).toEqual(['t0', 't1', 't2', 't3', 't4'])
+  })
+
+  test('reservation keeps fillers from crowding out essentials', () => {
+    for (let seed = 0; seed < 20; seed++) {
+      const walk = suggestWalk(clique, config(), {
+        seedId: 't0',
+        length: 5,
+        randomness: 1,
+        seed,
+        mustIncludeIds: ['t7', 't8', 't9'],
+      }).ids
+      expect(walk).toHaveLength(5)
+      for (const id of ['t7', 't8', 't9']) expect(walk).toContain(id)
+    }
+  })
+
+  test('a harmonious essential is placed without a forced step', () => {
+    // 'b' neighbours 'a' under the default criteria — no rule-break needed.
+    const result = suggestWalk(tracks, config(), {
+      seedId: 'a',
+      length: 5,
+      mustIncludeIds: ['b'],
+    })
+    expect(result.ids).toContain('b')
+    expect(result.forced).toBe(0)
+  })
+
+  test('a pinned start+end two-arm walk still seats every essential', () => {
+    for (let seed = 0; seed < 20; seed++) {
+      const walk = suggestWalk(clique, config(), {
+        seedId: 't0',
+        endId: 't9',
+        length: 5,
+        randomness: 1,
+        seed,
+        mustIncludeIds: ['t3', 't5', 't7'],
+      }).ids
+      expect(walk[0]).toBe('t0')
+      expect(walk.at(-1)).toBe('t9')
+      for (const id of ['t3', 't5', 't7']) expect(walk).toContain(id)
+    }
+  })
+
+  test('a disconnected essential is forced into a pinned two-arm walk (plain mode)', () => {
+    // Year chain at threshold 4 (only adjacent years connect); 'iso' hangs off.
+    const chain = [
+      track({ id: 'a', year: 2000 }),
+      track({ id: 'b', year: 2003 }),
+      track({ id: 'c', year: 2006 }),
+      track({ id: 'iso', year: 1900, key: '3B', genre: 'Ambient' }),
+    ]
+    const result = suggestWalk(chain, config({ threshold: 4 }), {
+      seedId: 'a',
+      endId: 'c',
+      length: 3,
+      mustIncludeIds: ['iso'],
+    })
+    expect(result.ids[0]).toBe('a')
+    expect(result.ids.at(-1)).toBe('c')
+    expect(result.ids).toContain('iso')
+    expect(result.forced).toBeGreaterThan(0)
+  })
+})
+
+describe('force continues the short walk (v14 S2 prefix property)', () => {
+  test('a same-options force run extends the short walk exactly', () => {
+    const opts = { seedId: 'a', length: 5, randomness: 1, seed: 5 }
+    const short = suggestWalk(tracks, config(), opts)
+    expect(short.ids.length).toBeLessThan(5) // 'e' unreachable — stops short
+    const forced = suggestWalk(tracks, config(), { ...opts, force: true })
+    expect(forced.ids).toHaveLength(5)
+    expect(forced.ids.slice(0, short.ids.length)).toEqual(short.ids)
   })
 })
 
@@ -675,5 +778,52 @@ describe('manual edges (v12 WS9 — planning annotations)', () => {
     const before = suggestWalk(tracks, config(), { seedId: 'a', length: 5 }).ids
     const after = suggestWalk(tracks, config(), { seedId: 'a', length: 5, manualEdges: [] }).ids
     expect(after).toEqual(before)
+  })
+
+  describe('manualEdgeWeight (v14 S3 — tunable pull)', () => {
+    test('weight 0 removes the manual preference', () => {
+      // The marked road still exists, but with no bonus a real neighbour wins.
+      const walk = suggestWalk(tracks, config(), {
+        seedId: 'a',
+        length: 2,
+        manualEdges: [{ a: 'a', b: 'e' }],
+        manualEdgeWeight: 0,
+      }).ids
+      expect(walk[1]).not.toBe('e')
+    })
+
+    test('weight 10 makes the marked road dominate', () => {
+      const walk = suggestWalk(tracks, config(), {
+        seedId: 'a',
+        length: 2,
+        manualEdges: [{ a: 'a', b: 'e' }],
+        manualEdgeWeight: 10,
+      }).ids
+      expect(walk).toEqual(['a', 'e'])
+    })
+
+    test('omitting the weight keeps the default bonus (regression pin)', () => {
+      const walk = suggestWalk(tracks, config(), {
+        seedId: 'a',
+        length: 2,
+        manualEdges: [{ a: 'a', b: 'e' }],
+      }).ids
+      expect(walk).toEqual(['a', 'e'])
+    })
+
+    test('suggestNext honours the manual weight too', () => {
+      // 'a' has real neighbours plus a marked road to isolated 'e'. At weight 0
+      // the marked road carries no bonus, so a real neighbour wins; at 10 'e'.
+      const zero = suggestNext(tracks, config(), ['a'], {
+        manualEdges: [{ a: 'a', b: 'e' }],
+        manualEdgeWeight: 0,
+      })
+      expect(zero?.trackId).not.toBe('e')
+      const dominant = suggestNext(tracks, config(), ['a'], {
+        manualEdges: [{ a: 'a', b: 'e' }],
+        manualEdgeWeight: 10,
+      })
+      expect(dominant).toEqual({ trackId: 'e', insertIndex: 1 })
+    })
   })
 })

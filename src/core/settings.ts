@@ -56,6 +56,12 @@ export interface AppSettings {
   /** Preferred BPM trajectory for generated sets. */
   bpmProgression: BpmProgression
   /**
+   * How strongly a user-marked combo pulls suggested walks (v14 S3): 0–10,
+   * default 5. 0 removes the preference (the marked pair still counts as an
+   * edge), 10 lets it dominate every ordinary match.
+   */
+  manualEdgeWeight: number
+  /**
    * The Tracks table's column ORDER — always every column (v9 issue 12);
    * header drag reorders this list. Visibility lives in hiddenColumns, so a
    * column keeps its position while hidden.
@@ -94,6 +100,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   iconMode: 'families',
   maxGenreClasses: 4,
   bpmProgression: 'any',
+  manualEdgeWeight: 5,
   trackColumns: [...ALL_TRACK_COLUMNS],
   hiddenColumns: [...DEFAULT_HIDDEN_COLUMNS],
   visibleFilters: [...DEFAULT_VISIBLE_FILTERS],
