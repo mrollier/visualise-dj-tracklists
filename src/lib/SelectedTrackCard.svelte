@@ -102,7 +102,7 @@
           class:on={$linkArmed}
           aria-pressed={$linkArmed}
           aria-label="Mark a combo with another track"
-          title="Mark a combo you know works: click another track on the wheel to link or unlink it"
+          title="Mark a combo you know works: click another track on the wheel or in the Tracks view to link or unlink it"
           onclick={() => linkArmed.update((v) => !v)}
         >
           🔗{linkedCount > 0 ? linkedCount : ''}

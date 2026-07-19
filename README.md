@@ -50,8 +50,10 @@ Your library never leaves your machine — there is no backend, no account, no u
   slot's arc** — a deterministic relaxation that only separates nodes that would
   actually overlap (radius stays pinned to the value it encodes), squeezes evenly
   when a slot is genuinely full, stays **centred on the key's angle** so a slot's
-  weight sits on its line, and is bounded by the spread setting (0 to 1 of a ±4°
-  fan kept well inside the key's sector, so neighbouring keys never touch). No
+  weight sits on its line, and is bounded by the spread setting (**0 to 2**:
+  0 collapses the fan, 1 is the default ±4° kept well inside the key's sector, and
+  2 pushes to the limit — the node's edge just kissing the key's ±7.5° wedge
+  boundary, deliberately a little messy). No
   randomness anywhere: the same library always draws the same
   wheel. The one deliberate exception is the **radial axis**:
   tighten the min/max of the value shown as radius and the rings, ticks and radii
@@ -94,11 +96,21 @@ Your library never leaves your machine — there is no backend, no account, no u
   empty, and the sort triangle hides while set order rules).
 - **Filter on anything**: BPM / year / rating ranges show by default; **any other
   property** joins them via the Track-properties table (hiding a filter also
-  clears it). Text properties filter by **prefix range** — artists from "b" to
-  "k" keeps Kraftwerk — dates by range (undated tracks hide while a date filter
-  is active), and the key by **Camelot number** (8–12 hits both rings), composing
-  with the **both/minor/major** ring switch (the excluded ring's sector tint
-  fades out so the wheel visibly answers). A **Genres section** of its own — a
+  clears it). Each control matches the **nature** of its field: numeric ranges
+  step through their values with the spinner arrows sitting clear of the digits;
+  name-like text (artist, title, genre, …) filters by a **first-letter A–Z
+  range** — a bounded, ordered domain with a single `#` catch-all bucket for
+  non-letter starts, stepped just like BPM, so A–M keeps Kraftwerk and drops ZZ
+  Top; free-form fields (**Location**, **Comments**) take a **"contains"**
+  substring search; **Colour** is a **chip multi-select** offering only the
+  Rekordbox tags present in the selected playlists; and **Kind** collapses to a
+  **lossy / lossless / both** quality selector (choose "lossless" to keep only
+  the tracks you have a lossless file for). Dates filter by range (undated tracks
+  hide while a date filter is active), and the key by **Camelot number** (8–12
+  hits both rings), composing with the **both/minor/major** ring switch — the
+  excluded ring's sector tint fades out, and narrowing the key range fades away
+  the whole angular wedge of each dropped key, so the wheel visibly answers. A
+  **Genres section** of its own — a
   checklist **scoped to the selected playlists** with a live count — decides what
   participates in the graph at all. Numeric ranges pre-fill with the whole
   numbers just outside the selected playlists' actual extremes, reset to them
@@ -110,9 +122,16 @@ Your library never leaves your machine — there is no backend, no account, no u
 - **Tune the criteria**: key / BPM / genre / year each toggleable and ranged (the
   parameters stay editable even while a criterion is switched off); an edge appears
   when at least _N_ of the enabled criteria match, _N_ set with a **row of boxes**
-  (fill as many as you require — down to **zero**, where everything connects;
-  enabling another criterion keeps a "require all" bar at "require all"). Missing
-  metadata never blocks a combo. The BPM
+  (fill as many as you require — down to **zero**, where everything connects).
+  **Enabling a criterion always requires it** — the bar ticks up by one so the
+  thing you just switched on actually counts. Any enabled criterion can also be
+  **locked** with a small 🔒: a locked criterion is **demanded** — a hard
+  must-match that every combo pair has to satisfy, and it **floors** the require
+  count (you can't require fewer matches than the number of things that all must
+  match, and a locked box can't be unchecked). For a plain (desired) criterion
+  missing metadata never blocks a combo — it just shrinks that pair's denominator
+  — but a **demanded** criterion that can't be confirmed on either side forms no
+  edge at all. The BPM
   tolerance defaults to **±8%** — the pitch range of a classic
   Technics fader — and goes down to **0% for exact matches**. BPM matches at every
   enabled **metric ratio**: unit time (1:1, on by default — switch it off to isolate
@@ -151,11 +170,13 @@ Your library never leaves your machine — there is no backend, no account, no u
   node by node across the wheel** — each hop lights up as the tracklist cascades
   in sync, a shimmer runs down a full-length walk as it completes, and the button
   throws a little spark burst (long walks compress to ~4 s; everything obeys
-  reduced-motion). The selected-track card carries two hands-on tools: **🔗 link
+  reduced-motion). The selected-track card carries a hands-on tool: **🔗 link
   mode** marks a combo _you_ know works — a dashed, always-visible road that the
   suggester treats like a strong edge and the walk may travel (forward-looking
-  planning marks, never a play log) — and **✎ hand-editing** of key/BPM/genre for
-  **vinyl-only records** (flagged VINYL on the card) or plain metadata fixes.
+  planning marks, never a play log). Link mode works from the **wheel and the
+  Tracks view** alike, and in focus mode a manual road not touching your
+  selection dims with everything else. The app never edits track metadata — key,
+  BPM and genre come from Rekordbox and stay read-only here.
 - **Keep several sets — they ARE the suggestion browser**: the set panel's header
   shows the **active set's name** over up to **eight named sets** — ＋ counts
   onward from what you have ("Third Set" after two renamed ones), ✎ renames inline
@@ -164,16 +185,25 @@ Your library never leaves your machine — there is no backend, no account, no u
   a set **in place** (Cmd+Z steps back through the previous suggestions) and
   starts a **new set** when the current one is hand-edited — your work is never
   overwritten. When the criteria run out before the target length, the button
-  morphs into **⚡ Force to N** — like the hub's force, it fills the remaining
-  steps with the closest rule-breaking picks (still weighted by adventurousness)
-  and reports how many transitions were forced. All sets persist with the project.
+  morphs into **⚡ Force to N** — it **continues the short walk in place** (keeping
+  the tracks already found, not restarting from a new opener), filling the
+  remaining steps with the closest rule-breaking picks (still weighted by
+  adventurousness) and reporting how many transitions were forced. All sets
+  persist with the project.
 - **Shape the generated order**: pick the opening/closing track and the essential
-  (must-include) tracks in the **Tracks view** — the same pins as 📌 on the set's
-  first/last rows; with both ends set, the walk grows from both ends inward. The
-  advanced menu's **Set & suggestions** section lists those choices (with ✕ to
-  remove), and sets the **BPM progression** — steady, rising, falling, or a sawtooth
-  that builds and drops in cycles — plus an **adventurousness** setting for how much
-  dissonance the generator embraces.
+  (must-include ★) tracks in the **Tracks view** — the same pins as 📌 on the set's
+  first/last rows; with both ends set, the walk grows from both ends inward. An
+  essential track is a **hard guarantee**: the generated set _will_ contain it,
+  reserving a slot so filler can't crowd it out, trying a harmonious route first
+  and **forcing a criteria-breaking edge only as a last resort** — and it never
+  loses its place to the adventurousness knob (if you star more essentials than
+  the set length, they all still go in). The advanced menu's **Set & suggestions**
+  section lists those choices (with ✕ to remove), and sets the **BPM progression**
+  — steady, rising, falling, or a sawtooth that builds and drops in cycles — an
+  **adventurousness** setting for how much dissonance the generator embraces, and
+  a **manual-combo pull** weight that dials how hard the set-builder routes
+  through the 🔗 roads you marked (at its default it ranks a marked combo like an
+  essential-strength edge).
 - **Make it yours**: the advanced settings live in the right panel (swapping with
   the set) as collapsible sections that start folded and **remember what you keep
   open**, so the wheel reacts live while you tune without a wall of controls. The
@@ -183,9 +213,14 @@ Your library never leaves your machine — there is no backend, no account, no u
   system preference), and a **Return to default settings** button at the panel's
   foot resets everything the panel owns — after a confirmation (your filters, sets
   and theme survive). Controls that don't affect the current view **dim but stay
-  adjustable**. One **Easy mode** button reduces the whole surface
-  to wheel + playlists + ✨ + set — visibility only, so **All controls** brings
-  every value back exactly as you left it. The top bar stays lean: the imported
+  adjustable**. One **Easy mode** button reduces the whole surface to wheel +
+  playlists + ✨ + set, and runs it on **defaults for everything** — default combo
+  criteria, no filters, default settings, and no ★/pins/🔗 machinery — completely
+  **independent** of your full setup, so easy always looks pristine no matter what
+  you tweaked. Your advanced criteria, filters and settings are preserved
+  untouched (never mutated, only bypassed), so **All controls** brings every value
+  back exactly as you left it; the playlist and the created set stay shared across
+  both modes. The top bar stays lean: the imported
   collection's name plus an ⓘ whose tooltip holds the import details **and a
   genre-coverage diagnosis** — how many tracks sit outside the similarity data,
   and which labels top the list (the sample collection raises one too).

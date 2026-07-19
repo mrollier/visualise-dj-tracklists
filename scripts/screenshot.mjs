@@ -59,6 +59,17 @@ if (!(await page.getByRole('checkbox', { name: 'Classic demo' }).isChecked())) {
 }
 await page.screenshot({ path: `${scratch}/02a-sample-collection.png` })
 
+// v14 WS3 (re-homed empty-state check): D2 auto-selects the Classic demo, so
+// the genuine empty state now only appears when the user deselects it — the
+// "Nothing to show yet" hint returns and the wheel empties. Re-select after.
+await page.getByRole('checkbox', { name: 'Classic demo' }).uncheck()
+await page.getByText('Nothing to show yet.').waitFor()
+if ((await page.locator('g.node').count()) !== 0) {
+  errors.push('deselecting the only active playlist did not empty the wheel')
+}
+await page.getByRole('checkbox', { name: 'Classic demo' }).check()
+await page.locator('g.node').first().waitFor()
+
 // toggle every sample playlist on and work from the full collection
 await page.locator('aside').first().getByRole('button', { name: 'All' }).first().click()
 await page.getByText('combo suggestions').waitFor()
@@ -109,6 +120,81 @@ await page.screenshot({ path: `${scratch}/02-wheel.png` })
     errors.push(`threshold 0 should count ${completePairs} combos (complete), got ${comboStat}`)
   }
   await page.locator('.boxes .box').nth(2).click() // restore require 3
+}
+
+// ---- v14: demanded locks (C2) + the new filter kinds (WS2) ----
+{
+  const visibleCount = async () =>
+    Number.parseInt((await page.locator('.stat .value').first().textContent()) ?? '0', 10)
+
+  // C2: locking a criterion (🔒) makes it demanded and FLOORS the require row —
+  // the boxes can never drop below the count of locked criteria.
+  const keyCriterion = page.locator('.criterion', { hasText: 'Key' }).first()
+  await keyCriterion.locator('.lock').click()
+  await page.waitForTimeout(150)
+  if ((await page.locator('.criterion.threshold .box.locked').count()) !== 1) {
+    errors.push('locking a criterion did not floor the require row with one locked box')
+  }
+  // step the requirement all the way down: it stops at the locked floor (1)
+  await page.locator('.criterion.threshold .box').nth(1).click() // require 3 → 2
+  await page.locator('.criterion.threshold .box').nth(1).click() // require 2 → floor 1
+  const flooredText = (await page.locator('.threshold-head').textContent())?.replace(/\s+/g, ' ')
+  if (!flooredText?.includes('1 of 4')) {
+    errors.push(`a demanded criterion should floor the require row at 1, got "${flooredText}"`)
+  }
+  await keyCriterion.locator('.lock').click() // unlock (floor back to 0)
+  await page.waitForTimeout(150)
+  await page.locator('.criterion.threshold .box').nth(2).click() // restore require 3
+
+  // WS2: surface the Artist (alpha) and Kind (quality) filters via the
+  // Track-properties table, then exercise the new controls.
+  await page.getByRole('button', { name: /Advanced/ }).click()
+  await page.locator('.panel details.section > summary', { hasText: 'Track properties' }).click()
+  await page.getByRole('checkbox', { name: 'Artist filter', exact: true }).check()
+  await page.getByRole('checkbox', { name: 'Kind filter', exact: true }).check()
+  await page.locator('.panel details.section > summary', { hasText: 'Track properties' }).click()
+  await page.keyboard.press('Escape')
+  await page.locator('summary', { hasText: 'Filters' }).click()
+
+  const beforeNarrow = await visibleCount()
+
+  // alpha range (F2): narrowing the Artist first-letter buckets to A–C prunes
+  // every artist outside that range; the ↺ reset restores the full set.
+  const artistRow = page.locator('.filter-row', { hasText: 'Artist' })
+  await artistRow.locator('.alpha-select').nth(1).selectOption({ label: 'C' })
+  await page.waitForTimeout(400)
+  const afterAlpha = await visibleCount()
+  if (!(afterAlpha < beforeNarrow)) {
+    errors.push(`an A–C artist range should narrow the set (${beforeNarrow} → ${afterAlpha})`)
+  }
+  await page.getByRole('button', { name: 'Reset Artist filter' }).click()
+  await page.waitForTimeout(400)
+  if ((await visibleCount()) !== beforeNarrow) {
+    errors.push('resetting the artist range did not restore the full set')
+  }
+
+  // quality tri-state (F3): choosing "lossy" hides every lossless-file track.
+  const kindRow = page.locator('.filter-row', { hasText: 'Kind' })
+  await kindRow.locator('.ring-switch button', { hasText: 'lossy' }).click()
+  await page.waitForTimeout(400)
+  const afterLossy = await visibleCount()
+  if (!(afterLossy < beforeNarrow)) {
+    errors.push(
+      `the lossy quality filter should hide lossless tracks (${beforeNarrow} → ${afterLossy})`,
+    )
+  }
+  await kindRow.locator('.ring-switch button', { hasText: 'both' }).click()
+  await page.waitForTimeout(300)
+  await page.screenshot({ path: `${scratch}/02b-filter-kinds.png` })
+
+  // restore the default filter set (hiding a filter also clears it)
+  await page.getByRole('button', { name: /Advanced/ }).click()
+  await page.locator('.panel details.section > summary', { hasText: 'Track properties' }).click()
+  await page.getByRole('checkbox', { name: 'Artist filter', exact: true }).uncheck()
+  await page.getByRole('checkbox', { name: 'Kind filter', exact: true }).uncheck()
+  await page.locator('.panel details.section > summary', { hasText: 'Track properties' }).click()
+  await page.keyboard.press('Escape')
+  await page.locator('summary', { hasText: 'Filters' }).click()
 }
 
 // genre-class shapes: the legend must carry shape chips for the collection
@@ -255,10 +341,11 @@ if ((await page.getByRole('spinbutton', { name: 'Suggested set length' }).inputV
 await page.keyboard.press('Escape')
 await page.getByRole('button', { name: /Suggest a set/ }).click()
 await page.waitForTimeout(300)
-// the suggested walk must include the must-include track
+// v14 S1: a starred essential (★) is now a HARD guarantee — ✨ must place it,
+// forcing an edge if that is the only way in (no longer a soft bias).
 const setTitles = await page.locator('aside ol li.track .names strong').allTextContents()
 if (!setTitles.includes('Seven Bridges')) {
-  errors.push('the suggested set skipped the must-include track')
+  errors.push('the suggested set skipped the ★ essential track (v14 S1 guarantee)')
 }
 await page.keyboard.press('Escape') // clear the selection
 await page.screenshot({ path: `${scratch}/05-suggested-set.png` })
@@ -681,6 +768,29 @@ await page.getByRole('spinbutton', { name: 'Suggested set length' }).fill('99')
 await page.keyboard.press('Escape')
 await page.locator('.suggest-row .primary').click()
 await page.waitForTimeout(400)
+// v14 S2: ⚡ Force CONTINUES the short walk in place rather than restarting it
+// (single-arm strict prefix — nothing is pinned here). Capture the short walk,
+// force it, and confirm the leading rows are preserved; then roll a fresh short
+// walk so the exhausted-hub checks below still have one to work with.
+{
+  const shortRows = await page.locator('aside ol li.track .names strong').allTextContents()
+  const forceBtn = page.locator('.suggest-row .force')
+  if (shortRows.length > 1 && (await forceBtn.count()) === 1) {
+    await forceBtn.click()
+    await page.waitForTimeout(500)
+    const forcedRows = await page.locator('aside ol li.track .names strong').allTextContents()
+    if (forcedRows.length <= shortRows.length) {
+      errors.push(
+        `⚡ Force did not extend the short walk (${shortRows.length} → ${forcedRows.length})`,
+      )
+    }
+    if (forcedRows.slice(0, shortRows.length).join() !== shortRows.join()) {
+      errors.push('⚡ Force restarted the walk instead of continuing it (leading rows changed)')
+    }
+    await page.locator('.suggest-row .primary').click() // fresh short walk
+    await page.waitForTimeout(400)
+  }
+}
 if ((await page.locator('g.hub.warning').count()) !== 1) {
   errors.push('an exhausted anchor did not switch the hub to its warning state')
 } else {
@@ -1446,12 +1556,28 @@ page.once('dialog', (d) => d.accept(d.defaultValue()))
   }
 }
 
-// Easy mode (WS4): the minimal surface, then everything back where it was.
+// Easy mode (v14 E1, was WS4): the minimal surface — playlists + wheel + ✨ —
+// runs on defaults, hiding the whole criteria/filters machinery, and everything
+// comes back where it was on "All controls".
 await page.getByRole('button', { name: 'Easy mode' }).click()
 await page.waitForTimeout(300)
 if ((await page.locator('.view-switch').count()) !== 0) {
   errors.push('easy mode left the view switch visible')
 }
+// v14 E1: easy computes with default criteria/filters, so their editors vanish.
+if ((await page.locator('.criterion').count()) !== 0) {
+  errors.push('easy mode still showed the combo-criteria controls')
+}
+if ((await page.locator('.filter-row').count()) !== 0) {
+  errors.push('easy mode still showed the filter rows')
+}
+// v14 E1: ★ / pins / 🔗 are hidden and inert — the selected card drops its marks.
+await page.locator('g.node').first().dispatchEvent('click')
+await page.waitForTimeout(200)
+if ((await page.locator('.selected-card .mark-toggle').count()) !== 0) {
+  errors.push('easy mode still showed the ★/pins/🔗 marks on the selected-track card')
+}
+await page.keyboard.press('Escape')
 await page.screenshot({ path: `${scratch}/21-easy-mode.png` })
 await page.getByRole('button', { name: 'All controls' }).click()
 await page.waitForTimeout(300)
