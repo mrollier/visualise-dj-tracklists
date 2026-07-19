@@ -143,8 +143,12 @@
   // navigating to any other set closes it.
   // The exact options the last plain ✨ ran with (v14 S2): ⚡ replays this
   // snapshot with force so it CONTINUES the short walk in place instead of
-  // rolling a fresh seed. The prefix property (forced.ids extend short.ids)
-  // holds only while the same seed meets the same inputs.
+  // rolling a fresh seed. Continue-in-place holds only while the same seed
+  // meets the same inputs — and it takes two shapes: a single-arm walk is a
+  // STRICT PREFIX (forced.ids extend short.ids), while a pinned-end two-arm
+  // walk is ARM-STABLE (forced keeps the plain start-arm prefix AND end-arm
+  // suffix, filling only the broken seam between them, since the output is
+  // startArm ++ reverse(endArm)).
   type SuggestSnapshot = {
     seed: number
     seedId: string | null
@@ -180,6 +184,7 @@
     lastLibrary = library
     lastCriteriaKey = criteriaKey
     shortBy = 0
+    forcedSteps = null
     shortSnapshot = null
   })
 
@@ -199,9 +204,10 @@
     burst()
     if (!canRegenerateInPlace) addSet() // a fresh set, activated
     // ⚡ continues the short walk (v14 S2): replay the exact snapshot with
-    // force, so the forced walk EXTENDS the short one (prefix property).
-    // Plain ✨ rolls a fresh seed and, if it stops short, remembers its
-    // snapshot so the next ⚡ can pick up where it left off.
+    // force, so the forced walk continues the short one in place — a strict
+    // extension for a single-arm walk, arm-stable seam-fill for a pinned-end
+    // two-arm walk. Plain ✨ rolls a fresh seed and, if it stops short,
+    // remembers its snapshot so the next ⚡ can pick up where it left off.
     if (force && shortSnapshot !== null) {
       const walk = suggestWalk($visibleLibrary, $criteria, { ...shortSnapshot, force: true })
       setGeneratedTracklist(walk.ids)

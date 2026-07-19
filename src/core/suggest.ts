@@ -321,7 +321,11 @@ export function suggestWalk(
   // harmonious (neighbour) placements first and a forced edge as a last
   // resort, even in plain ✨ mode. Randomness may reorder fillers, never cost
   // an essential. The plain and force runs consume the PRNG identically up to
-  // the plain run's stopping point (S2's prefix property depends on it).
+  // the plain run's stopping point — the only branch that reads `force` is the
+  // final "stop short vs. force through" gate — so a force re-run CONTINUES a
+  // short walk in place (v14 S2): strictly extending it for a single-arm walk,
+  // and (since a two-arm walk emits startArm ++ reverse(endArm) and forcing
+  // only ever appends to an arm) keeping both arms while it fills the seam.
   const anchors = end === null ? 1 : 2
   const targetLength = Math.max(length, anchors + pending.size)
   const progressionTerm = (current: Track, step: number, arm: BpmProgression) =>

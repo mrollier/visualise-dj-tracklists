@@ -672,14 +672,57 @@ describe('must-include is a hard guarantee (v14 S1)', () => {
   })
 })
 
-describe('force continues the short walk (v14 S2 prefix property)', () => {
-  test('a same-options force run extends the short walk exactly', () => {
+describe('force continues the short walk (v14 S2)', () => {
+  test('single-arm: a same-options force run extends the short walk exactly (strict prefix)', () => {
     const opts = { seedId: 'a', length: 5, randomness: 1, seed: 5 }
     const short = suggestWalk(tracks, config(), opts)
     expect(short.ids.length).toBeLessThan(5) // 'e' unreachable — stops short
     const forced = suggestWalk(tracks, config(), { ...opts, force: true })
     expect(forced.ids).toHaveLength(5)
     expect(forced.ids.slice(0, short.ids.length)).toEqual(short.ids)
+  })
+
+  test('two-arm (pinned end): force keeps both arms, filling only the seam (arm stability)', () => {
+    // Two connected pairs and an isolated filler at threshold 4: s—m1 match,
+    // e—m2 match, nothing crosses; `mid` matches nothing (force-only). The
+    // pinned-end walk grows one track per arm, then stalls short — and the
+    // output is startArm ++ reverse(endArm), so a strict prefix would be
+    // WRONG. The honest property is: the forced walk keeps the plain walk's
+    // start-arm prefix AND its end-arm suffix, inserting forced picks between.
+    const islands = [
+      track({ id: 's', key: '8A', bpm: 128 }),
+      track({ id: 'm1', key: '8A', bpm: 128 }),
+      track({ id: 'e', key: '5A', bpm: 100 }),
+      track({ id: 'm2', key: '5A', bpm: 100 }),
+      track({ id: 'mid', key: '11B', bpm: 200, genre: 'Jazz', year: 1980 }),
+    ]
+    const opts = { seedId: 's', endId: 'e', length: 5, randomness: 1, seed: 4 }
+    const short = suggestWalk(islands, config({ threshold: 4 }), opts).ids
+    expect(short[0]).toBe('s')
+    expect(short.at(-1)).toBe('e')
+    expect(short.length).toBeLessThan(5) // seam broken — stops short
+    expect(short).not.toContain('mid')
+
+    const forced = suggestWalk(islands, config({ threshold: 4 }), { ...opts, force: true }).ids
+    expect(forced.length).toBeGreaterThan(short.length)
+    expect(forced[0]).toBe('s')
+    expect(forced.at(-1)).toBe('e')
+    expect(forced).toContain('mid')
+
+    // Arm stability: the maximal shared prefix (start arm) and maximal shared
+    // suffix (reversed end arm) together account for EVERY track of the short
+    // walk — the forced picks land strictly in the seam between them.
+    let prefix = 0
+    while (prefix < short.length && short[prefix] === forced[prefix]) prefix++
+    let suffix = 0
+    while (
+      suffix < short.length - prefix &&
+      short[short.length - 1 - suffix] === forced[forced.length - 1 - suffix]
+    )
+      suffix++
+    expect(prefix + suffix).toBe(short.length)
+    expect(prefix).toBeGreaterThan(0) // a real start-arm segment survives
+    expect(suffix).toBeGreaterThan(0) // a real end-arm segment survives
   })
 })
 
