@@ -1,19 +1,15 @@
 # Issues — open
 
-Nothing open right now. Everything from Michiel's v14 UI review shipped this
-session; the two lists below record it. Before that — all nineteen items from
-the v13 review — resolved in **v14**
+Nothing open right now. Everything from Michiel's v14 UI review resolved in
+**v15** below (branch `v15-open-issues`), on top of all nineteen items from
+the v13 review resolved in **v14**
 ([designs/design-v14.md](designs/design-v14.md) has the per-issue design
 notes, the S1 reservation algorithm, the effective-store layer and the
 schema-v6 change list). Each "Resolved" list records what actually shipped —
 including the few places the implementation deviated from the original plan,
 kept honest so nothing is silently reopened.
 
-## Resolved this session — planned (F5, N1, S4, S5)
-
-The four items that went through the proper brainstorm → plan → implement
-flow (plan at `~/.claude/plans/merry-chasing-snail.md`), one green,
-independently-verified commit each on the `v15-open-issues` branch.
+## Resolved in v15
 
 1. **F5** — The Kind and Keys filters became **two independent toggle
    buttons** each (`lossy`+`lossless`, `minor`+`major`), replacing the 3-way
@@ -28,15 +24,13 @@ independently-verified commit each on the `v15-open-issues` branch.
    including all-off (verified live: both-off leaves only the 2 keyless
    sample tracks). Files: `core/filter.ts`, `core/persist.ts`,
    `lib/persistence.ts`, `lib/FiltersSection.svelte`, `lib/WheelView.svelte`.
-
 2. **N1** — The Playlists sidebar header matched the darker `.micro-label`
    `--ink-muted` because — unlike Filters/Genres/Criteria — its scoped
    `summary` rule never set `color: var(--ink-secondary); font-weight: 600`
-   (the original note guessed "browser default ink"; it was actually
-   `.micro-label` showing through, since the sibling sections' Svelte-scoped
-   `summary` rule out-specifies the global class). Added the two declarations;
-   all four headers now match. File: `lib/PlaylistsSection.svelte`.
-
+   (`.micro-label` was showing through, since the sibling sections'
+   Svelte-scoped `summary` rule out-specifies the global class). Added the
+   two declarations; all four headers now match. File:
+   `lib/PlaylistsSection.svelte`.
 3. **S4** — ⚡ Force to N now **resumes the reveal from the forced seam**
    instead of redrawing the on-screen prefix. `walkRevealPlan` gained an
    optional `{from,to}` animated node range (nodes/edges outside it render
@@ -49,7 +43,6 @@ independently-verified commit each on the `v15-open-issues` branch.
    live: fresh ✨ animates all edges; ⚡ animates only the new tail (5 static
    prefix + 9 tail edges of 14). Files: `core/walkReveal.ts`, `stores.ts`,
    `lib/TracklistPanel.svelte`, `lib/WheelView.svelte`.
-
 4. **S5** — Adding a track now **inserts after the selected in-set track**.
    New `addTrackToSet(newId)` (`stores.ts`): when the selected track is in the
    active set, splice the new one right after its first occurrence; otherwise
@@ -60,37 +53,28 @@ independently-verified commit each on the `v15-open-issues` branch.
    non-generated, covering the wheel/Tracks paths that bypass `removeAt`/
    `move` (also closes a pre-existing wheel-append gap). Verified live:
    selecting the 2nd set track then ＋-ing a new one splices it at index 2.
-
-## Resolved this session — done ad hoc (before the plan-first switch)
-
-Implemented and verified (tests, typecheck, and a live browser pass) before
-Michiel flagged that this whole review should have stayed log-only until a
-plan phase. Left in place rather than reverted — working, tested code isn't
-worth discarding — committed together as the `v15-open-issues` branch
-baseline since none of them went through a plan.
-
-- **Criterion lock doesn't survive a disable/re-enable.** Unchecking a combo
-  criterion left its 🔒 `demanded` flag set; re-enabling it came back locked
-  without a fresh 🔒 press. `toggleCriterion` (`core/combos.ts:345`) now
-  clears `demanded` whenever a criterion is disabled.
-- **Tracks-view manual-combo column.** A third narrow column next to ★/＋:
-  unselected shows a per-row manual-combo count, selecting a track swaps that
-  for clickable 🔗 icons on its actual partners (hover-reveal to add a new
-  one), plus a header "clear all" with a confirmation dialog.
-  `TracksView.svelte`.
-- **"Replay the guided tour" button in Advanced settings.** The only prior
-  path was a link inside the header's import-details tooltip, which needs a
-  live `$lastImportReport` to render at all — gone after any reload.
-  `AdvancedMenu.svelte`.
-- **Easy mode's fixed criteria tightened to key + BPM, both required** (was
-  3-of-4 across key/bpm/genre/year — too loose per Michiel's review). New
-  `EASY_CRITERIA` constant (`core/combos.ts`), wired into `effectiveCriteria`
-  (`stores.ts`). Confirmed on the sample library: 147 → 75 combo suggestions.
-- **Save/load discoverability + a real gap.** "Import…" relabeled to "Import
-  / load project…" (it already auto-detects `.json`) and moved next to Save.
-  Also found and fixed: loading a `.json` project silently overwrote the
-  current library with no confirmation, unlike loading the sample collection
-  — now gated behind the same in-app confirm dialog. `TopBar.svelte`.
+5. **Criterion lock survives a disable/re-enable, fixed.** Unchecking a combo
+   criterion left its 🔒 `demanded` flag set; re-enabling it came back locked
+   without a fresh 🔒 press. `toggleCriterion` (`core/combos.ts:345`) now
+   clears `demanded` whenever a criterion is disabled.
+6. **Tracks-view manual-combo column.** A third narrow column next to ★/＋:
+   unselected shows a per-row manual-combo count, selecting a track swaps that
+   for clickable 🔗 icons on its actual partners (hover-reveal to add a new
+   one), plus a header "clear all" with a confirmation dialog.
+   `TracksView.svelte`.
+7. **"Replay the guided tour" button in Advanced settings.** The only prior
+   path was a link inside the header's import-details tooltip, which needs a
+   live `$lastImportReport` to render at all — gone after any reload.
+   `AdvancedMenu.svelte`.
+8. **Easy mode's fixed criteria tightened to key + BPM, both required** (was
+   3-of-4 across key/bpm/genre/year — too loose per Michiel's review). New
+   `EASY_CRITERIA` constant (`core/combos.ts`), wired into `effectiveCriteria`
+   (`stores.ts`). Confirmed on the sample library: 147 → 75 combo suggestions.
+9. **Save/load discoverability + a real gap.** "Import…" relabeled to "Import
+   / load project…" (it already auto-detects `.json`) and moved next to Save.
+   Also found and fixed: loading a `.json` project silently overwrote the
+   current library with no confirmation, unlike loading the sample collection
+   — now gated behind the same in-app confirm dialog. `TopBar.svelte`.
 
 ## Resolved in v14
 
@@ -214,3 +198,9 @@ threshold re-floored to the locked count), the WS1 `isVinyl` drop, the WS7
 `slotSpreadFactor` clamp widening to 0–2, and the WS5 `manualEdgeWeight`
 (clamped finite 0–10, else the default 5). Details in
 [designs/design-v14.md](designs/design-v14.md).
+
+**v7** (F5, v15) — `filters.keyRing` (string `'both'|'minor'|'major'`) became
+`keyRings {minor,major}` (both booleans); the Kind quality range's `{quality}`
+became `{qualities: []}`, where an empty array is a real both-off state and is
+preserved on load, not dropped. `migrateFilters` maps both old shapes;
+`parseProject` accepts v1–v7.
