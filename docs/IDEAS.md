@@ -80,11 +80,18 @@ lives in [designs/design-v12.md](designs/design-v12.md). Statuses: **done** ·
 
 ## Naming ideas
 
-- **Project name: "Zodiac Constellation"** — **done** (2026-07-20): the Wheel
-  view's radial layout reads as a star map, and its 120-fold structure echoes
-  the zodiac belt; "constellation" replaces "tracker" to describe a mix's
-  tracks as linked stars rather than a logged set, keeping the Mixlog boundary
-  from POSITIONING.md intact.
+- **Project name: "Zodiac Tracker"** — **done** (2026-07-20, superseding the
+  same-day "Zodiac Constellation" note below): the Wheel view's radial layout
+  reads as a star map, and its 120-fold structure echoes the zodiac belt. A
+  **set is called a "constellation"** in-app — tracks as linked stars — kept
+  distinct from the app name itself. _Worth a conscious note, not a
+  blocker:_ the original same-day entry deliberately dropped "tracker" from
+  the name specifically because it reads as logging/tracking behaviour,
+  which is the Mixlog boundary from POSITIONING.md ("this app will never
+  log the transitions you actually played... a map is complete on day one
+  and never knows where you've been"). Confirmed with Michiel this is a
+  deliberate reversal, not a slip — but if "Tracker" ever reads as
+  logbook-flavoured in copy or a tagline, that tension is why.
 
 ## Integration
 
