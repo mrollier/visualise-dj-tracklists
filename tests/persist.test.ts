@@ -2,8 +2,9 @@ import { describe, expect, test } from 'vitest'
 import { ALL_TRACK_COLUMNS, visibleColumns } from '../src/core/columns'
 import { DEFAULT_CRITERIA } from '../src/core/combos'
 import { EMPTY_FILTERS } from '../src/core/filter'
+import type { Track } from '../src/core/model'
 import { parseProject, serializeProject, type Project } from '../src/core/persist'
-import { DEFAULT_SETTINGS } from '../src/core/settings'
+import { DEFAULT_SETTINGS, type AppSettings } from '../src/core/settings'
 import { SAMPLE_TRACKS } from '../src/data/sample-tracks'
 
 const project: Project = {
@@ -748,6 +749,183 @@ describe('manual edges (v12 WS9, schema v5)', () => {
     }
     const parsed = parseProject(serializeProject(withEdges))
     expect(parsed.manualEdges).toEqual([{ a: SAMPLE_TRACKS[0].id, b: SAMPLE_TRACKS[1].id }])
+  })
+})
+
+describe('WS6 sanitize round-trip pins (v14.1)', () => {
+  // Tracks built in sanitizeTrack's exact emit order (id, title, …) so the pin
+  // isolates the settings/criteria/playlists round-trip — SAMPLE_TRACKS store
+  // id/title last, which sanitizeTrack always normalizes to first, and that
+  // pre-existing reorder is not what these pins are asserting on.
+  const canonTrack = (over: Partial<Track> & { id: string; title: string }): Track => ({
+    id: over.id,
+    title: over.title,
+    artist: over.artist ?? null,
+    key: over.key ?? null,
+    bpm: over.bpm ?? null,
+    genre: over.genre ?? null,
+    year: over.year ?? null,
+    rating: over.rating ?? null,
+    durationSec: over.durationSec ?? null,
+    album: over.album ?? null,
+    dateAdded: over.dateAdded ?? null,
+    location: over.location ?? null,
+    composer: over.composer ?? null,
+    grouping: over.grouping ?? null,
+    kind: over.kind ?? null,
+    size: over.size ?? null,
+    discNumber: over.discNumber ?? null,
+    trackNumber: over.trackNumber ?? null,
+    bitRate: over.bitRate ?? null,
+    sampleRate: over.sampleRate ?? null,
+    comments: over.comments ?? null,
+    energy: over.energy ?? null,
+    playCount: over.playCount ?? null,
+    remixer: over.remixer ?? null,
+    label: over.label ?? null,
+    mix: over.mix ?? null,
+    colour: over.colour ?? null,
+    dateModified: over.dateModified ?? null,
+    lastPlayed: over.lastPlayed ?? null,
+  })
+  const pinTracks: Track[] = [
+    canonTrack({
+      id: 't1',
+      title: 'A',
+      artist: 'X',
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      year: 2019,
+      rating: 4,
+    }),
+    canonTrack({
+      id: 't2',
+      title: 'B',
+      artist: 'Y',
+      key: '8A',
+      bpm: 130,
+      genre: 'Techno',
+      year: 2021,
+      rating: 5,
+    }),
+    canonTrack({
+      id: 't3',
+      title: 'C',
+      artist: 'Z',
+      key: '9A',
+      bpm: 126,
+      genre: 'House',
+      year: 2020,
+      rating: 3,
+    }),
+  ]
+  const buildValid = (settings: AppSettings): Project => ({
+    version: 6,
+    manualEdges: [{ a: 't1', b: 't2', tag: 'mashup' }],
+    libraryName: 'Pin crate',
+    tracks: pinTracks,
+    criteria: { ...structuredClone(DEFAULT_CRITERIA), threshold: 4 },
+    filters: {
+      ...structuredClone(EMPTY_FILTERS),
+      properties: { bpm: [120, 140] },
+      playlists: ['Openers'],
+    },
+    settings,
+    sets: [
+      { id: 'set-1', name: 'First Set', trackIds: ['t1', 't3'], generated: false },
+      { id: 'set-2', name: 'Peak time', trackIds: ['t2'], generated: true },
+    ],
+    activeSetId: 'set-2',
+    playlists: [{ name: 'Openers', trackIds: ['t1'] }],
+    radialAxis: 'year',
+    colorAxis: 'bpm',
+  })
+
+  // Every settings field carries a NON-default-but-valid value: proof that a
+  // valid save survives the per-field sanitize byte-for-byte.
+  const settingsA: AppSettings = {
+    ...structuredClone(DEFAULT_SETTINGS),
+    theme: 'dark',
+    colorScheme: 'violet',
+    slotSpreadFactor: 1.7,
+    jitterSeed: 3,
+    edgeOpacity: 0.9,
+    focusClusterEdges: true,
+    suggestLength: 99,
+    suggestRandomness: 0.8,
+    iconMode: 'clusters',
+    maxGenreClasses: 8,
+    bpmProgression: 'sawtooth',
+    manualEdgeWeight: 7.5,
+    advancedOpen: ['genres', 'display'],
+    uiMode: 'easy',
+  }
+
+  // A second fixture with a DIFFERENT valid value on every field.
+  const settingsB: AppSettings = {
+    ...structuredClone(DEFAULT_SETTINGS),
+    theme: 'light',
+    colorScheme: 'aqua',
+    slotSpreadFactor: 0.5,
+    jitterSeed: 0,
+    edgeOpacity: 0.1,
+    focusClusterEdges: false,
+    suggestLength: 2,
+    suggestRandomness: 0,
+    iconMode: 'playlists',
+    maxGenreClasses: 1,
+    bpmProgression: 'rising',
+    manualEdgeWeight: 0,
+    visibleFilters: ['bpm', 'year'],
+    advancedOpen: [],
+    uiMode: 'advanced',
+  }
+
+  test('fixture A (every settings field non-default) round-trips byte-identically', () => {
+    const s = serializeProject(buildValid(settingsA))
+    expect(serializeProject(parseProject(s))).toBe(s)
+  })
+
+  test('fixture B (a different valid value on every field) round-trips byte-identically', () => {
+    const s = serializeProject(buildValid(settingsB))
+    expect(serializeProject(parseProject(s))).toBe(s)
+  })
+})
+
+describe('WS6 garbage inputs resolve to defaults (v14.1)', () => {
+  test('garbage settings fields each fall back to their default', () => {
+    const raw = JSON.parse(serializeProject(project)) as { settings: Record<string, unknown> }
+    raw.settings.theme = 'purple'
+    raw.settings.edgeOpacity = 'high'
+    raw.settings.suggestLength = NaN
+    raw.settings.bpmProgression = 7
+    raw.settings.advancedOpen = 'yes'
+    const s = parseProject(JSON.stringify(raw)).settings
+    expect(s.theme).toBe(null)
+    expect(s.edgeOpacity).toBe(DEFAULT_SETTINGS.edgeOpacity)
+    expect(s.suggestLength).toBe(DEFAULT_SETTINGS.suggestLength)
+    expect(s.bpmProgression).toBe('any')
+    expect(s.advancedOpen).toEqual([])
+  })
+
+  test('unknown criteria bpm keys never reach the output', () => {
+    const raw = JSON.parse(serializeProject(project)) as { criteria: Record<string, unknown> }
+    raw.criteria.bpm = { enabled: true, evil: 'x', maxPercent: 'lots' }
+    const parsed = parseProject(JSON.stringify(raw))
+    expect('evil' in parsed.criteria.bpm).toBe(false)
+  })
+
+  test('malformed playlist entries are dropped, valid ones kept (ids not pruned)', () => {
+    const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    raw.playlists = [null, { name: 42 }, { name: 'ok', trackIds: ['a', 3] }]
+    expect(parseProject(JSON.stringify(raw)).playlists).toEqual([{ name: 'ok', trackIds: ['a'] }])
+  })
+
+  test('a non-array playlists collapses to []', () => {
+    const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    raw.playlists = 'nope'
+    expect(parseProject(JSON.stringify(raw)).playlists).toEqual([])
   })
 })
 

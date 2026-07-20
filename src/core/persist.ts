@@ -50,6 +50,32 @@ export function serializeProject(project: Project): string {
   return JSON.stringify(project, null, 2)
 }
 
+/** A non-null, non-array object — the shape every hand-edited sub-record must have. */
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
+/**
+ * Coerce a stored value to a finite number, else fall back to `fallback`. The
+ * optional bounds pick one of the two out-of-range policies the persisted
+ * knobs need:
+ * - `mode: 'clamp'` — an in-range-or-clampable value survives, pulled to the
+ *   nearest bound (slotSpreadFactor, edgeOpacity, suggestRandomness, …).
+ * - `mode: 'reject'` — only an already-in-range value survives; anything
+ *   outside resets to `fallback`, never clamped (manualEdgeWeight).
+ * With no bounds it is a plain finite-or-default guard (jitterSeed).
+ */
+function finiteOr(
+  value: unknown,
+  fallback: number,
+  bounds?: { min: number; max: number; mode: 'clamp' | 'reject' },
+): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
+  if (bounds === undefined) return value
+  if (bounds.mode === 'clamp') return Math.max(bounds.min, Math.min(bounds.max, value))
+  return value < bounds.min || value > bounds.max ? fallback : value
+}
+
 /** Upgrade a v1 criteria object: drop rating, add genre method/threshold. */
 function migrateCriteria(raw: Record<string, unknown>): CriteriaConfig {
   const defaults = structuredClone(DEFAULT_CRITERIA)
@@ -70,7 +96,14 @@ function migrateCriteria(raw: Record<string, unknown>): CriteriaConfig {
       vinylMode: key.vinylMode ?? defaults.key.vinylMode,
       demanded: key.demanded === true,
     },
-    bpm: { ...defaults.bpm, ...(raw.bpm as object), demanded: bpm.demanded === true },
+    bpm: {
+      enabled: bpm.enabled ?? defaults.bpm.enabled,
+      maxPercent: bpm.maxPercent ?? defaults.bpm.maxPercent,
+      unitTime: bpm.unitTime ?? defaults.bpm.unitTime,
+      halfDouble: bpm.halfDouble ?? defaults.bpm.halfDouble,
+      twoThirds: bpm.twoThirds ?? defaults.bpm.twoThirds,
+      demanded: bpm.demanded === true,
+    },
     genre: {
       enabled: genre.enabled ?? defaults.genre.enabled,
       method: genre.method ?? defaults.genre.method,
@@ -81,7 +114,11 @@ function migrateCriteria(raw: Record<string, unknown>): CriteriaConfig {
       threshold: genre.threshold ?? defaults.genre.threshold,
       demanded: genre.demanded === true,
     },
-    year: { ...defaults.year, ...(raw.year as object), demanded: year.demanded === true },
+    year: {
+      enabled: year.enabled ?? defaults.year.enabled,
+      maxYears: year.maxYears ?? defaults.year.maxYears,
+      demanded: year.demanded === true,
+    },
     threshold: typeof raw.threshold === 'number' ? raw.threshold : defaults.threshold,
   }
   // 0 is a deliberate "require nothing" since v11 (issue 2a).
@@ -159,6 +196,21 @@ function sanitizeSet(raw: unknown, knownIds: Set<string>, index: number): TrackS
   }
 }
 
+/**
+ * Guard one stored playlist: playlists mirror the source library (Rekordbox
+ * XML), so a valid entry needs a non-empty name and a string-only id list.
+ * Unknown ids are left intact — they are inert here and pruning them would
+ * alter a valid save; only structurally malformed entries are dropped.
+ */
+function sanitizePlaylist(raw: unknown): Playlist | null {
+  if (!isRecord(raw)) return null
+  if (typeof raw.name !== 'string' || raw.name === '') return null
+  const trackIds = Array.isArray(raw.trackIds)
+    ? raw.trackIds.filter((id): id is string => typeof id === 'string')
+    : []
+  return { name: raw.name, trackIds }
+}
+
 export function parseProject(json: string): Project {
   let raw: unknown
   try {
@@ -166,8 +218,7 @@ export function parseProject(json: string): Project {
   } catch {
     throw new Error('Not a valid project file: could not parse JSON')
   }
-  const p = raw as Record<string, unknown> &
-    Omit<Partial<Project>, 'version'> & { version?: number; tracklist?: unknown }
+  const p = raw as Record<string, unknown> & { version?: number; tracklist?: unknown }
   if (
     p.version !== 1 &&
     p.version !== 2 &&
@@ -179,7 +230,7 @@ export function parseProject(json: string): Project {
     throw new Error(`Unsupported project version: ${String(p.version)}`)
   }
   const hasSetShape = Array.isArray(p.sets) || Array.isArray(p.tracklist)
-  if (!Array.isArray(p.tracks) || !hasSetShape || typeof p.criteria !== 'object') {
+  if (!Array.isArray(p.tracks) || !hasSetShape || !isRecord(p.criteria)) {
     throw new Error('Not a valid project file: missing tracks, sets or criteria')
   }
   const tracks = (p.tracks as unknown[]).map(sanitizeTrack).filter((t): t is Track => t !== null)
@@ -214,52 +265,114 @@ export function parseProject(json: string): Project {
       ? p.activeSetId
       : sets[0].id
   const rawSettings = (p.settings ?? {}) as Partial<AppSettings> & { slotSpreadDeg?: number }
-  const settings: AppSettings = {
-    ...structuredClone(DEFAULT_SETTINGS),
-    ...rawSettings,
-  }
-  // v7: the same-key spread became a 0–1 factor of the ±7.5° half-slot
-  // window. Older saves stored degrees (capped at 7.5; pre-v5 allowed 15/20).
-  if (typeof rawSettings.slotSpreadDeg === 'number' && rawSettings.slotSpreadFactor === undefined) {
-    settings.slotSpreadFactor = rawSettings.slotSpreadDeg / 7.5
-  }
-  // v14 (WS7): the slider range widened to 0–2 (1 is still the default look);
-  // a saved factor up to 2 must survive rather than snap back to 1. Same
-  // typeof/finite guard as jitterSeed/manualEdgeWeight below: a non-number or
-  // non-finite value (e.g. a hand-edited save gone wrong) falls back to the
-  // default rather than clamping garbage like NaN through untouched.
-  if (
-    typeof settings.slotSpreadFactor !== 'number' ||
-    !Number.isFinite(settings.slotSpreadFactor)
-  ) {
-    settings.slotSpreadFactor = DEFAULT_SETTINGS.slotSpreadFactor
-  } else {
-    settings.slotSpreadFactor = Math.max(0, Math.min(2, settings.slotSpreadFactor))
-  }
-  if (typeof settings.jitterSeed !== 'number' || !Number.isFinite(settings.jitterSeed)) {
-    settings.jitterSeed = DEFAULT_SETTINGS.jitterSeed
-  }
-  // v14 (WS5): the manual-combo pull is a 0–10 knob; a non-finite or
-  // out-of-range value in a hand-edited save falls back to the default.
-  if (
-    typeof settings.manualEdgeWeight !== 'number' ||
-    !Number.isFinite(settings.manualEdgeWeight) ||
-    settings.manualEdgeWeight < 0 ||
-    settings.manualEdgeWeight > 10
-  ) {
-    settings.manualEdgeWeight = DEFAULT_SETTINGS.manualEdgeWeight
-  }
-  // v12 (WS4): easy mode — anything but the two literals means an older or
-  // mangled save, which stays in the full UI it was written from.
-  if (settings.uiMode !== 'easy' && settings.uiMode !== 'advanced') {
-    settings.uiMode = DEFAULT_SETTINGS.uiMode
-  }
-  Reflect.deleteProperty(settings, 'slotSpreadDeg')
   // v9 (issue 12): trackColumns became the full ordering + a hidden list;
   // older partial lists keep their order and visible set.
   const columns = migrateColumns(rawSettings.trackColumns, rawSettings.hiddenColumns)
-  settings.trackColumns = columns.trackColumns
-  settings.hiddenColumns = columns.hiddenColumns
+  // v7: the same-key spread became a 0–1 factor of the ±7.5° half-slot window;
+  // older saves stored degrees (capped at 7.5; pre-v5 allowed 15/20). v14
+  // (WS7): the factor slider widened to 0–2. Either source clamps into [0, 2],
+  // a non-finite value falling back to the default (never NaN through).
+  const slotSpreadDeg = rawSettings.slotSpreadDeg
+  const slotSpreadFactor =
+    typeof slotSpreadDeg === 'number' && rawSettings.slotSpreadFactor === undefined
+      ? finiteOr(slotSpreadDeg / 7.5, DEFAULT_SETTINGS.slotSpreadFactor, {
+          min: 0,
+          max: 2,
+          mode: 'clamp',
+        })
+      : finiteOr(rawSettings.slotSpreadFactor, DEFAULT_SETTINGS.slotSpreadFactor, {
+          min: 0,
+          max: 2,
+          mode: 'clamp',
+        })
+  // Every field is rebuilt explicitly from the untrusted save: a value that
+  // fails its type/range check resolves to the default rather than leaking
+  // through. Because only known keys are ever copied, no stray property can
+  // enter — the old spread needed a Reflect.deleteProperty to undo the
+  // slotSpreadDeg leak; that is gone. Field order mirrors AppSettings so a
+  // valid save still serializes byte-identically.
+  const settings: AppSettings = {
+    theme:
+      rawSettings.theme === 'light' || rawSettings.theme === 'dark' || rawSettings.theme === null
+        ? rawSettings.theme
+        : DEFAULT_SETTINGS.theme,
+    colorScheme:
+      rawSettings.colorScheme === 'blue' ||
+      rawSettings.colorScheme === 'aqua' ||
+      rawSettings.colorScheme === 'violet'
+        ? rawSettings.colorScheme
+        : DEFAULT_SETTINGS.colorScheme,
+    slotSpreadFactor,
+    // Dead knob since v9 but persisted: keep any finite stored value.
+    jitterSeed: finiteOr(rawSettings.jitterSeed, DEFAULT_SETTINGS.jitterSeed),
+    // Slider range 0–0.9 (AdvancedMenu.svelte).
+    edgeOpacity: finiteOr(rawSettings.edgeOpacity, DEFAULT_SETTINGS.edgeOpacity, {
+      min: 0,
+      max: 0.9,
+      mode: 'clamp',
+    }),
+    focusClusterEdges:
+      typeof rawSettings.focusClusterEdges === 'boolean'
+        ? rawSettings.focusClusterEdges
+        : DEFAULT_SETTINGS.focusClusterEdges,
+    // Number input 2–99 (AdvancedMenu.svelte); a fractional entry rounds.
+    suggestLength: Math.round(
+      finiteOr(rawSettings.suggestLength, DEFAULT_SETTINGS.suggestLength, {
+        min: 2,
+        max: 99,
+        mode: 'clamp',
+      }),
+    ),
+    // Slider range 0–1 (AdvancedMenu.svelte).
+    suggestRandomness: finiteOr(rawSettings.suggestRandomness, DEFAULT_SETTINGS.suggestRandomness, {
+      min: 0,
+      max: 1,
+      mode: 'clamp',
+    }),
+    iconMode:
+      rawSettings.iconMode === 'families' ||
+      rawSettings.iconMode === 'playlists' ||
+      rawSettings.iconMode === 'clusters'
+        ? rawSettings.iconMode
+        : DEFAULT_SETTINGS.iconMode,
+    // Number input 1–8 (AdvancedMenu.svelte); a fractional entry rounds.
+    maxGenreClasses: Math.round(
+      finiteOr(rawSettings.maxGenreClasses, DEFAULT_SETTINGS.maxGenreClasses, {
+        min: 1,
+        max: 8,
+        mode: 'clamp',
+      }),
+    ),
+    bpmProgression:
+      rawSettings.bpmProgression === 'any' ||
+      rawSettings.bpmProgression === 'steady' ||
+      rawSettings.bpmProgression === 'rising' ||
+      rawSettings.bpmProgression === 'falling' ||
+      rawSettings.bpmProgression === 'sawtooth'
+        ? rawSettings.bpmProgression
+        : DEFAULT_SETTINGS.bpmProgression,
+    // v14 (WS5): the manual-combo pull is a 0–10 knob; out-of-range resets to
+    // the default rather than clamping (reject mode).
+    manualEdgeWeight: finiteOr(rawSettings.manualEdgeWeight, DEFAULT_SETTINGS.manualEdgeWeight, {
+      min: 0,
+      max: 10,
+      mode: 'reject',
+    }),
+    trackColumns: columns.trackColumns,
+    hiddenColumns: columns.hiddenColumns,
+    // Reconciled against the active filters just below; the placeholder holds
+    // the key in its AppSettings-order slot for byte-identical round-trips.
+    visibleFilters: [],
+    advancedOpen: Array.isArray(rawSettings.advancedOpen)
+      ? (rawSettings.advancedOpen as unknown[]).filter((s): s is string => typeof s === 'string')
+      : [...DEFAULT_SETTINGS.advancedOpen],
+    // v12 (WS4): easy mode — anything but the two literals means an older or
+    // mangled save, which stays in the full UI it was written from.
+    uiMode:
+      rawSettings.uiMode === 'easy' || rawSettings.uiMode === 'advanced'
+        ? rawSettings.uiMode
+        : DEFAULT_SETTINGS.uiMode,
+  }
   // v11 (issue 1): filters normalize into the per-property map, whatever
   // their vintage; migrateFilters lifts v3 top-level ranges and drops
   // garbage entries.
@@ -309,12 +422,14 @@ export function parseProject(json: string): Project {
     manualEdges,
     libraryName: typeof p.libraryName === 'string' ? p.libraryName : '',
     tracks,
-    criteria: migrateCriteria(p.criteria as unknown as Record<string, unknown>),
+    criteria: migrateCriteria(p.criteria),
     filters,
     settings,
     sets,
     activeSetId,
-    playlists: Array.isArray(p.playlists) ? p.playlists : [],
+    playlists: Array.isArray(p.playlists)
+      ? p.playlists.map(sanitizePlaylist).filter((pl): pl is Playlist => pl !== null)
+      : [],
     radialAxis:
       p.radialAxis === 'rating' || p.radialAxis === 'year' || p.radialAxis === 'energy'
         ? p.radialAxis
