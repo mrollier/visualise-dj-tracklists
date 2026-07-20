@@ -24,11 +24,14 @@ export function minAngularGapDeg(r1: number, r2: number, nodeRadius: number): nu
 /**
  * Place same-slot nodes at angular offsets that minimise overlap (issue 17):
  * every node keeps its exact radius, offsets stay within ±halfSpreadDeg.
- * Deterministic by construction — nodes sort by radius (ties by id), start
- * evenly spread, then a fixed number of passes push actually-overlapping
- * pairs (per minAngularGapDeg) symmetrically apart, clamping to the window.
- * When a slot genuinely cannot fit its tracks, the pushes cancel into an
- * even squeeze; nothing special happens at saturation.
+ * Deterministic by construction — nodes sort by radius (ties by id).
+ *
+ * Only nodes that actually risk overlapping are moved (issue #6): the slot is
+ * split into connected components of the overlap graph (two nodes are linked
+ * when `minAngularGapDeg` > 0), and each component is relaxed on its own,
+ * centred on the slot line. A node that overlaps nobody is a one-member
+ * component pinned to 0 — a radially isolated track stays dead-centre in its
+ * wedge no matter how many (non-overlapping) neighbours share the slot.
  */
 export function relaxSlotAngles(
   nodes: readonly SlotNode[],
@@ -44,7 +47,59 @@ export function relaxSlotAngles(
     for (const { id } of order) out.set(id, 0)
     return out
   }
-  const angles = order.map((_, i) => -halfSpreadDeg + (i * 2 * halfSpreadDeg) / (n - 1))
+
+  // Union-find over the overlap graph: link every pair that genuinely needs a
+  // gap. Components are then the groups that must be spread apart together.
+  const parent = Array.from({ length: n }, (_, i) => i)
+  const find = (x: number): number => {
+    while (parent[x] !== x) {
+      parent[x] = parent[parent[x]]
+      x = parent[x]
+    }
+    return x
+  }
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      if (minAngularGapDeg(order[i].r, order[j].r, nodeRadius) > 0) {
+        parent[find(i)] = find(j)
+      }
+    }
+  }
+  const groups = new Map<number, number[]>()
+  for (let i = 0; i < n; i++) {
+    const root = find(i)
+    const group = groups.get(root)
+    if (group) group.push(i)
+    else groups.set(root, [i])
+  }
+
+  for (const indices of groups.values()) {
+    if (indices.length === 1) {
+      out.set(order[indices[0]].id, 0)
+      continue
+    }
+    const members = indices.map((i) => order[i])
+    const angles = relaxComponentAngles(members, halfSpreadDeg, nodeRadius, iterations)
+    members.forEach((m, k) => out.set(m.id, angles[k]))
+  }
+  return out
+}
+
+/**
+ * Relax a single overlap component (≥2 members, already sorted): start evenly
+ * spread across the window, push actually-overlapping pairs symmetrically
+ * apart over a fixed number of passes, then re-centre the cloud on 0. Returns
+ * angles aligned with `members`. Components never collide across each other
+ * (no cross-component overlap edge exists), so each may centre on 0 freely.
+ */
+function relaxComponentAngles(
+  members: readonly SlotNode[],
+  halfSpreadDeg: number,
+  nodeRadius: number,
+  iterations: number,
+): number[] {
+  const n = members.length
+  const angles = members.map((_, i) => -halfSpreadDeg + (i * 2 * halfSpreadDeg) / (n - 1))
   interface Pair {
     i: number
     j: number
@@ -53,7 +108,7 @@ export function relaxSlotAngles(
   const pairs: Pair[] = []
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
-      const gap = minAngularGapDeg(order[i].r, order[j].r, nodeRadius)
+      const gap = minAngularGapDeg(members[i].r, members[j].r, nodeRadius)
       if (gap > 0) pairs.push({ i, j, gap })
     }
   }
@@ -91,7 +146,7 @@ export function relaxSlotAngles(
   for (let m = 1; m < n; m++) {
     const prev = sorted[m - 1]
     const cur = sorted[m]
-    const gap = Math.min(minAngularGapDeg(order[prev].r, order[cur].r, nodeRadius), uniformShare)
+    const gap = Math.min(minAngularGapDeg(members[prev].r, members[cur].r, nodeRadius), uniformShare)
     if (angles[cur] - angles[prev] < gap) angles[cur] = angles[prev] + gap
   }
   // Re-centre on the slot line (v10 issue 5): the one-directional sweep above
@@ -111,8 +166,7 @@ export function relaxSlotAngles(
     const scale = halfSpreadDeg / maxAbs
     for (let k = 0; k < n; k++) angles[k] *= scale
   }
-  order.forEach(({ id }, k) => out.set(id, angles[k]))
-  return out
+  return angles
 }
 
 /** v14 W4: slider 0–2. Piecewise so 1 keeps today's exact look: 0→0°, 1→4°,

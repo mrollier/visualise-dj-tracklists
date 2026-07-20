@@ -77,10 +77,31 @@ describe('relaxSlotAngles (issue 17)', () => {
     }
   })
 
-  test('non-interacting nodes keep the even initial spread', () => {
+  test('non-interacting nodes stay centred, not spread (issue #6)', () => {
+    // 150 and 300 are far more than a node diameter apart, so they can never
+    // overlap — neither should be nudged off the slot centre.
     const out = relaxSlotAngles([node('low', 150), node('high', 300)], 6, P)
     const values = [...out.values()].sort((x, y) => x - y)
-    expect(values).toEqual([-6, 6])
+    expect(values).toEqual([0, 0])
+  })
+
+  test('several mutually non-interacting nodes all stay centred (issue #6)', () => {
+    const out = relaxSlotAngles([node('a', 120), node('b', 200), node('c', 320)], 6, P)
+    expect([...out.values()]).toEqual([0, 0, 0])
+  })
+
+  test('an isolated node stays centred while its slot-mates spread (issue #6)', () => {
+    // near1/near2 share a radius (they overlap); far is well clear of both.
+    const out = relaxSlotAngles(
+      [node('near1', 200), node('near2', 200), node('far', 260)],
+      6,
+      P,
+    )
+    expect(out.get('far')).toBe(0)
+    const gap = Math.abs((out.get('near1') ?? 0) - (out.get('near2') ?? 0))
+    expect(gap).toBeGreaterThanOrEqual(minAngularGapDeg(200, 200, P) - 0.05)
+    // the overlapping pair stays symmetric about the slot centre
+    expect((out.get('near1') ?? 0) + (out.get('near2') ?? 0)).toBeCloseTo(0, 6)
   })
 
   const mean = (out: Map<string, number>): number =>
