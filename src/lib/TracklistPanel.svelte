@@ -6,7 +6,7 @@
   import { buildSetPortrait } from '../core/exporters/portrait'
   import { suggestWalk, type ManualPair } from '../core/suggest'
   import type { BpmProgression } from '../core/settings'
-  import { walkRevealPlan } from '../core/walkReveal'
+  import { revealRange, walkRevealPlan } from '../core/walkReveal'
   import { promptExportName } from './exportName'
   import { svgToPngBlob } from './portraitPng'
   import { effectiveTheme } from './theme'
@@ -39,6 +39,7 @@
     tracklist,
     visibleLibrary,
     bumpWalkReveal,
+    walkRevealRange,
     walkRevealSeen,
     walkRevealTick,
   } from '../stores'
@@ -54,7 +55,7 @@
   // on the tick restarts the animation cleanly per suggestion; once `seen`
   // catches up, re-renders (view switches, undo) replay nothing.
   const revealing = $derived($walkRevealTick > $walkRevealSeen)
-  const revealPlan = $derived(walkRevealPlan($tracklist))
+  const revealPlan = $derived(walkRevealPlan($tracklist, $walkRevealRange ?? undefined))
 
   const FIELD_SHORT: Record<CriterionField, string> = {
     key: 'key',
@@ -239,12 +240,17 @@
     // two-arm walk. Plain ✨ rolls a fresh seed and, if it stops short,
     // remembers its snapshot so the next ⚡ can pick up where it left off.
     if (force && shortSnapshot !== null) {
+      const oldIds = get(tracklist)
       const walk = suggestWalk($visibleLibrary, $effectiveCriteria, {
         ...shortSnapshot,
         force: true,
       })
+      // S4: only the newly-forced tail animates in — the already-drawn prefix
+      // (and, for a pinned-end walk, suffix) stays put instead of redrawing.
+      const range = revealRange(oldIds, walk.ids)
       setGeneratedTracklist(walk.ids)
-      bumpWalkReveal(walkRevealPlan(walk.ids).totalMs)
+      walkRevealRange.set(range)
+      bumpWalkReveal(walkRevealPlan(walk.ids, { from: range.from, to: range.to }).totalMs)
       forceForSetId = $activeSet.id
       shortBy = 0
       shortSnapshot = null
@@ -267,6 +273,7 @@
     }
     const walk = suggestWalk($visibleLibrary, $effectiveCriteria, { ...snapshot, force })
     setGeneratedTracklist(walk.ids)
+    walkRevealRange.set(null) // S4: a fresh ✨ always animates the whole walk
     bumpWalkReveal(walkRevealPlan(walk.ids).totalMs)
     forceForSetId = $activeSet.id
     shortBy = force ? 0 : Math.max(0, $effectiveSettings.suggestLength - walk.ids.length)
@@ -428,8 +435,8 @@
               class="transition"
               class:good={t.isCombo}
               class:rough={!t.isCombo}
-              class:reveal={revealing}
-              style:animation-delay="{(i - 0.5) * revealPlan.stepMs}ms"
+              class:reveal={revealing && i >= revealPlan.from}
+              style:animation-delay="{(i - 0.5 - revealPlan.origin) * revealPlan.stepMs}ms"
             >
               {#if t.matched.length > 0}
                 {#each t.matched as field (field)}<span class="match">{FIELD_SHORT[field]}</span
@@ -442,8 +449,8 @@
           <li
             class="track"
             class:active={track.id === $selectedId}
-            class:reveal={revealing}
-            style:animation-delay="{i * revealPlan.stepMs}ms"
+            class:reveal={revealing && i >= revealPlan.from}
+            style:animation-delay="{(i - revealPlan.origin) * revealPlan.stepMs}ms"
             onmouseenter={() => hoveredId.set(track.id)}
             onmouseleave={() => hoveredId.set(null)}
           >

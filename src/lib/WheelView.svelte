@@ -39,6 +39,7 @@
     selectedId,
     tracklist,
     visibleLibrary,
+    walkRevealRange,
     walkRevealSeen,
     walkRevealTick,
     selectOrLink,
@@ -280,7 +281,7 @@
   // the tick restarts cleanly per ✨/⚡; after `seen` catches up a re-mounted
   // wheel renders the walk plainly.
   const revealing = $derived($walkRevealTick > $walkRevealSeen)
-  const revealPlan = $derived(walkRevealPlan($tracklist))
+  const revealPlan = $derived(walkRevealPlan($tracklist, $walkRevealRange ?? undefined))
 
   const focusSet = $derived.by(() => {
     if ($selectedId === null) return null
@@ -667,12 +668,14 @@
                 x2={b.x}
                 y2={b.y}
                 class="walk-edge"
-                class:reveal={revealing}
-                pathLength={revealing ? 1 : undefined}
-                style:animation-delay={revealing
+                class:reveal={revealing && revealPlan.edgeDelays[pairIndex] !== null}
+                pathLength={revealing && revealPlan.edgeDelays[pairIndex] !== null ? 1 : undefined}
+                style:animation-delay={revealing && revealPlan.edgeDelays[pairIndex] !== null
                   ? `${revealPlan.edgeDelays[pairIndex]}ms`
                   : undefined}
-                style:animation-duration={revealing ? `${revealPlan.stepMs}ms` : undefined}
+                style:animation-duration={revealing && revealPlan.edgeDelays[pairIndex] !== null
+                  ? `${revealPlan.stepMs}ms`
+                  : undefined}
                 marker-end="url(#walk-arrow)"
                 vector-effect="non-scaling-stroke"
               />

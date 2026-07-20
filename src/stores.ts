@@ -56,6 +56,10 @@ export const hoveredId = writable<string | null>(null)
  */
 export const walkRevealTick = writable(0)
 export const walkRevealSeen = writable(0)
+/** S4: which node index range the next reveal should ANIMATE (null = full,
+ * fresh ✨). ⚡ continue-in-place sets this so only the forced tail draws in,
+ * leaving the already-drawn prefix/suffix static. */
+export const walkRevealRange = writable<{ from: number; to: number } | null>(null)
 /** The `s` hotkey (v12 WS14) asks whichever set panel is mounted to run ✨. */
 export const suggestHotkeyTick = writable(0)
 /** Guided-tour position (v12 WS12): null = closed; session-only. */

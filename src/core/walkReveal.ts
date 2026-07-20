@@ -13,26 +13,72 @@ const MAX_REVEAL_TOTAL_MS = 4000
 const MIN_STEP_MS = 40
 
 interface WalkRevealPlan {
-  /** Delay per track id, first occurrence — a duplicate lights its dot once. */
+  /** Delay per track id, first occurrence in the animated window — a duplicate
+   * lights its dot once; prefix/suffix (already-drawn) nodes are absent. */
   nodeDelays: Map<string, number>
-  /** Delay per walk edge, indexed like the walk's consecutive pairs. */
-  edgeDelays: number[]
+  /** Delay per walk edge, indexed like the walk's consecutive pairs; `null` =
+   * an already-drawn edge that must NOT re-animate (S4). */
+  edgeDelays: (number | null)[]
   /** The step actually used (capped for long walks) — views animate with
    * THIS, never the raw constant, or their stagger drifts off the plan. */
   stepMs: number
   /** Total reveal duration; 0 for an empty walk. */
   totalMs: number
+  /** First animated node index (0 for a fresh, full reveal). Consumers gate
+   * their per-row reveal on `index >= from` (S4). */
+  from: number
+  /** Delay anchor = max(0, from-1): the already-drawn seam node the animated
+   * tail chains from, so its first new node lands one step in. */
+  origin: number
 }
 
-export function walkRevealPlan(ids: readonly string[], stepMs?: number): WalkRevealPlan {
-  stepMs ??= Math.min(
-    WALK_REVEAL_STEP_MS,
-    Math.max(MIN_STEP_MS, MAX_REVEAL_TOTAL_MS / Math.max(1, ids.length)),
-  )
+/**
+ * Plan the reveal over `ids`. With no `from`/`to` the whole walk animates from
+ * index 0 (fresh ✨, unchanged from v12). ⚡ continue-in-place (S4) passes the
+ * `[from, to)` range of newly-added nodes — from a prefix+suffix diff of the
+ * old vs new walk (`revealRange`) — so only that middle animates and the
+ * already-drawn prefix/suffix stay put. `origin = max(0, from-1)` chains the
+ * tail off the last drawn node.
+ */
+export function walkRevealPlan(
+  ids: readonly string[],
+  opts?: { stepMs?: number; from?: number; to?: number },
+): WalkRevealPlan {
+  const from = Math.max(0, Math.min(opts?.from ?? 0, ids.length))
+  const to = Math.max(from, Math.min(opts?.to ?? ids.length, ids.length))
+  const origin = Math.max(0, from - 1)
+  const animated = to - from
+  const stepMs =
+    opts?.stepMs ??
+    Math.min(WALK_REVEAL_STEP_MS, Math.max(MIN_STEP_MS, MAX_REVEAL_TOTAL_MS / Math.max(1, animated)))
+
   const nodeDelays = new Map<string, number>()
-  ids.forEach((id, i) => {
-    if (!nodeDelays.has(id)) nodeDelays.set(id, i * stepMs)
-  })
-  const edgeDelays = ids.slice(1).map((_, i) => i * stepMs)
-  return { nodeDelays, edgeDelays, stepMs, totalMs: ids.length * stepMs }
+  for (let i = from; i < to; i++) {
+    const id = ids[i]
+    if (!nodeDelays.has(id)) nodeDelays.set(id, (i - origin) * stepMs)
+  }
+  // Edge i (node i → i+1) animates when i is in [origin, to-1]; the seam edge
+  // (i = origin) draws first at delay 0, edges outside the window are null.
+  const edgeDelays = ids.slice(1).map((_, i) => (i >= origin && i <= to - 1 ? (i - origin) * stepMs : null))
+  return { nodeDelays, edgeDelays, stepMs, totalMs: (to - origin) * stepMs, from, origin }
+}
+
+/**
+ * Longest common prefix + suffix diff of the old vs new walk: the animated
+ * node range is `[from, to)`. Handles both S2 force shapes — a single-arm
+ * strict-prefix extension (suffix empty → tail animates) and a pinned-end
+ * two-arm seam-fill (stable start-arm prefix AND end-arm suffix → only the
+ * middle animates).
+ */
+export function revealRange(
+  oldIds: readonly string[],
+  newIds: readonly string[],
+): { from: number; to: number } {
+  const m = oldIds.length
+  const n = newIds.length
+  let p = 0
+  while (p < m && p < n && oldIds[p] === newIds[p]) p++
+  let s = 0
+  while (s < m - p && s < n - p && oldIds[m - 1 - s] === newIds[n - 1 - s]) s++
+  return { from: p, to: Math.max(p, n - s) }
 }
