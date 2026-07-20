@@ -11,7 +11,7 @@
   import InfoTooltip from './InfoTooltip.svelte'
   import PlaylistsSection from './PlaylistsSection.svelte'
   import RatingBoxes from './RatingBoxes.svelte'
-  import { comboPairCount, criteria, library, settings, visibleLibrary } from '../stores'
+  import { comboPairCount, criteria, library, selectedId, settings, visibleLibrary } from '../stores'
 
   // Easy mode (v12 WS4): the panel keeps its stats and Playlists — filters,
   // genres and the criteria machinery hide behind their current values.
@@ -59,8 +59,19 @@
 
 <!-- With no library loaded, the criteria/filters act on nothing — make the
      whole panel inert and muted so only Import / Load sample invite a click
-     (v10 additional issue). -->
-<aside class:empty={$library.length === 0} inert={$library.length === 0}>
+     (v10 additional issue). Clicking empty panel space (not a control) clears
+     the track selection, mirroring the wheel's background-click deselect
+     (ISSUES.md #4) — mouse convenience only, keyboard uses Escape/Tab. -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<aside
+  class:empty={$library.length === 0}
+  inert={$library.length === 0}
+  onclick={(e) => {
+    if (e.target === e.currentTarget) selectedId.set(null)
+  }}
+>
   <div class="stats">
     <div class="stat">
       <span class="value">
