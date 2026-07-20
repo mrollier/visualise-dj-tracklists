@@ -2,6 +2,13 @@
   import { NOT_IN_PLAYLIST } from '../core/filter'
   import { filters, library, playlists } from '../stores'
 
+  // `fill`: grow to claim the sidebar's free height and scroll internally,
+  // used in easy mode where Playlists is the only section (ISSUES.md #5).
+  interface Props {
+    fill?: boolean
+  }
+  let { fill = false }: Props = $props()
+
   // Only tracks that actually exist in the collection count.
   const libraryIds = $derived(new Set($library.map((t) => t.id)))
   const counts = $derived(
@@ -42,7 +49,7 @@
 </script>
 
 {#if $playlists.length > 0}
-  <details open>
+  <details open class:fill>
     <summary class="micro-label">
       Playlists
       <span class="summary-count">{summary}</span>
@@ -112,6 +119,20 @@
     padding: 0;
     max-height: 200px;
     overflow-y: auto;
+  }
+
+  /* Fill mode (easy sidebar): the section grows to the panel's full height
+     and the list absorbs the slack, scrolling only when it overflows. */
+  details.fill {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+
+  details.fill ul {
+    flex: 1;
+    max-height: none;
   }
 
   li label {

@@ -63,10 +63,10 @@
      the track selection, mirroring the wheel's background-click deselect
      (ISSUES.md #4) — mouse convenience only, keyboard uses Escape/Tab. -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<!-- svelte-ignore a11y_no_static_element_interactions -->
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <aside
   class:empty={$library.length === 0}
+  class:easy
   inert={$library.length === 0}
   onclick={(e) => {
     if (e.target === e.currentTarget) selectedId.set(null)
@@ -87,7 +87,9 @@
     </div>
   </div>
 
-  <PlaylistsSection />
+  <!-- In easy mode Playlists is the only section, so let it grow into the
+       freed vertical space instead of stranding a short list (ISSUES.md #5). -->
+  <PlaylistsSection fill={easy} />
 
   {#if !easy}
     <FiltersSection />
@@ -258,6 +260,15 @@
     background: var(--page);
     border-right: 1px solid var(--border);
     overflow-y: auto;
+  }
+
+  /* Easy mode: only stats + Playlists remain, so lay the panel out as a
+     column and let PlaylistsSection (fill) claim the freed height, scrolling
+     internally rather than leaving dead space (ISSUES.md #5). Advanced mode
+     keeps the default block flow + panel scroll. */
+  aside.easy {
+    display: flex;
+    flex-direction: column;
   }
 
   aside.empty {

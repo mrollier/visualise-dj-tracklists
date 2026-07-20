@@ -232,55 +232,58 @@
   <h1>visualise-dj-tracklists</h1>
 
   <div class="controls">
-    {#if !easy}
-      <div class="view-switch" role="group" aria-label="Central view">
-        <button
-          class:active={$viewMode === 'wheel'}
-          onclick={() => viewMode.set('wheel')}
-          disabled={$library.length === 0}>Wheel</button
-        >
-        <button
-          class:active={$viewMode === 'genres'}
-          onclick={() => viewMode.set('genres')}
-          disabled={$library.length === 0}>Genres</button
-        >
-        <button
-          class:active={$viewMode === 'tracks'}
-          onclick={() => viewMode.set('tracks')}
-          disabled={$library.length === 0}>Tracks</button
-        >
-      </div>
-
-      <!-- Radius/Colour only mean something on the wheel (issue 4): off-wheel
-         they DIM but stay adjustable (v11 issue 13). Without a library they
-         act on nothing and disable outright — a different rule that stays. -->
-      <label
-        class:off-view={$viewMode !== 'wheel' || $library.length === 0}
-        title="Only affects the Wheel view"
+    <!-- Easy mode hides these wheel-only controls but KEEPS their layout box
+         (visibility, not removal) so the surviving buttons never slide — the
+         empty gap signals "options fell away" (ISSUES.md #5). -->
+    <div class="view-switch" class:easy-hidden={easy} role="group" aria-label="Central view">
+      <button
+        class:active={$viewMode === 'wheel'}
+        onclick={() => viewMode.set('wheel')}
+        disabled={$library.length === 0}>Wheel</button
       >
-        Radius
-        <select bind:value={$radialAxis} disabled={$library.length === 0}>
-          <option value="bpm">BPM</option>
-          <option value="rating">Rating</option>
-          <option value="year">Year</option>
-          <option value="energy">Energy</option>
-        </select>
-      </label>
-
-      <label
-        class:off-view={$viewMode !== 'wheel' || $library.length === 0}
-        title="Only affects the Wheel view"
+      <button
+        class:active={$viewMode === 'genres'}
+        onclick={() => viewMode.set('genres')}
+        disabled={$library.length === 0}>Genres</button
       >
-        Colour
-        <select bind:value={$colorAxis} disabled={$library.length === 0}>
-          <option value="auto">Auto</option>
-          <option value="rating">Rating</option>
-          <option value="bpm">BPM</option>
-          <option value="year">Year</option>
-          <option value="energy">Energy</option>
-        </select>
-      </label>
-    {/if}
+      <button
+        class:active={$viewMode === 'tracks'}
+        onclick={() => viewMode.set('tracks')}
+        disabled={$library.length === 0}>Tracks</button
+      >
+    </div>
+
+    <!-- Radius/Colour only mean something on the wheel (issue 4): off-wheel
+       they DIM but stay adjustable (v11 issue 13). Without a library they
+       act on nothing and disable outright — a different rule that stays. -->
+    <label
+      class:off-view={$viewMode !== 'wheel' || $library.length === 0}
+      class:easy-hidden={easy}
+      title="Only affects the Wheel view"
+    >
+      Radius
+      <select bind:value={$radialAxis} disabled={$library.length === 0}>
+        <option value="bpm">BPM</option>
+        <option value="rating">Rating</option>
+        <option value="year">Year</option>
+        <option value="energy">Energy</option>
+      </select>
+    </label>
+
+    <label
+      class:off-view={$viewMode !== 'wheel' || $library.length === 0}
+      class:easy-hidden={easy}
+      title="Only affects the Wheel view"
+    >
+      Colour
+      <select bind:value={$colorAxis} disabled={$library.length === 0}>
+        <option value="auto">Auto</option>
+        <option value="rating">Rating</option>
+        <option value="bpm">BPM</option>
+        <option value="year">Year</option>
+        <option value="energy">Energy</option>
+      </select>
+    </label>
 
     <!-- The sample's own info icon moved to the status ⓘ (v11 issue 4):
          loading raises an import report like any other import. -->
@@ -304,17 +307,16 @@
       onchange={onFileChosen}
     />
     <button onclick={saveProject} disabled={$library.length === 0}>Save project</button>
-    {#if !easy}
-      <button
-        class="advanced-toggle"
-        aria-pressed={$rightPanel === 'advanced'}
-        class:active={$rightPanel === 'advanced'}
-        title="Advanced options"
-        onclick={() => rightPanel.update((p) => (p === 'advanced' ? 'set' : 'advanced'))}
-      >
-        ⚙ Advanced
-      </button>
-    {/if}
+    <button
+      class="advanced-toggle"
+      class:easy-hidden={easy}
+      aria-pressed={$rightPanel === 'advanced'}
+      class:active={$rightPanel === 'advanced'}
+      title="Advanced options"
+      onclick={() => rightPanel.update((p) => (p === 'advanced' ? 'set' : 'advanced'))}
+    >
+      ⚙ Advanced
+    </button>
     <!-- Easy mode (v12 WS4; computation v14 WS6/E1): a hard toggle — easy
          shows the wheel, Playlists, ✨ and the set; everything else hides AND
          computes on sensible defaults instead of its current values. -->
@@ -434,6 +436,22 @@
     flex-wrap: wrap;
     gap: 8px;
     min-width: 0;
+  }
+
+  /* Easy mode hides the wheel-only controls but keeps their layout box, so
+     the surviving buttons hold their position (ISSUES.md #5). visibility
+     already removes them from tab order and the a11y tree. */
+  .easy-hidden {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  /* The mode toggle's label flips between "Easy mode" (83px) and "All
+     controls" (85px); a fixed min-width keeps the theme + Reset buttons after
+     it from shifting when it changes (ISSUES.md #5). */
+  .mode-toggle {
+    min-width: 92px;
+    text-align: center;
   }
 
   .advanced-toggle.active,
