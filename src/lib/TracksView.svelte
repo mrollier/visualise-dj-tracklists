@@ -256,12 +256,15 @@
                  that for a lit/clickable icon on the actual partners. -->
             <th class="manual-col">
               <button
-                class="pos-toggle"
+                class="pos-toggle manual-clear"
                 disabled={$manualEdges.length === 0}
                 title="Clear every manual combo"
                 aria-label="Clear all manual combos"
-                onclick={() => manualClearConfirm.open(clearAllManualEdges)}>🗑</button
+                onclick={() => manualClearConfirm.open(clearAllManualEdges)}
               >
+                <span class="link-ico">🔗</span>
+                <span class="clear-x" aria-hidden="true">✕</span>
+              </button>
             </th>
           {/if}
           {#each columns as field (field)}
@@ -517,7 +520,7 @@
   }
 
   .pos-col {
-    width: 44px;
+    width: 34px;
   }
 
   .pos {
@@ -525,12 +528,46 @@
   }
 
   .manual-col {
-    width: 30px;
+    width: 26px;
     text-align: center;
   }
 
+  /* Pin the cell width to the header's so the column never resizes when a
+     selection swaps the count text for the 🔗 icon (ISSUES.md #3). */
   .manual {
+    width: 26px;
     text-align: center;
+  }
+
+  /* The leading icon columns (★ / ☰ / 🔗) don't need the 10px text padding —
+     trim it so they stop eating horizontal space (ISSUES.md #3). */
+  .tags,
+  .pos,
+  .manual {
+    padding-left: 2px;
+    padding-right: 2px;
+  }
+
+  /* Header clear-all: a 🔗 (matching the row cells) that reveals a small ✕ on
+     hover/focus to signal it removes every manual combo (ISSUES.md #3). */
+  .manual-clear {
+    position: relative;
+  }
+
+  .manual-clear .clear-x {
+    position: absolute;
+    top: -3px;
+    right: -1px;
+    font-size: 8px;
+    line-height: 1;
+    color: var(--walk-bright);
+    opacity: 0;
+    transition: opacity 0.12s ease;
+  }
+
+  .manual-clear:hover:not(:disabled) .clear-x,
+  .manual-clear:focus-visible:not(:disabled) .clear-x {
+    opacity: 1;
   }
 
   .manual-count {
@@ -619,7 +656,7 @@
   /* Header and body icons share a centred column (v11 issue 11): the ★ in
      the header sits exactly over the row stars, the ☰ over the ＋/numbers. */
   .tags-col {
-    width: 30px;
+    width: 26px;
     text-align: center;
   }
 
