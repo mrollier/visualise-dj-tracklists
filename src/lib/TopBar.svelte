@@ -229,7 +229,7 @@
 </script>
 
 <header>
-  <h1>visualise-dj-tracklists</h1>
+  <h1>Zodiac Tracker</h1>
 
   <div class="controls">
     <!-- Easy mode hides these wheel-only controls but KEEPS their layout box
@@ -326,7 +326,7 @@
       class:active={easy}
       title={easy
         ? 'Back to the full interface — everything is where you left it'
-        : 'Run on sensible defaults; keep the wheel and your set'}
+        : 'Run on sensible defaults; keep the wheel and your constellation'}
       onclick={toggleUiMode}
     >
       {easy ? 'All controls' : 'Easy mode'}
@@ -346,14 +346,14 @@
     <ConfirmDialog
       bind:this={replaceDialog}
       title="Replace your library?"
-      body="Loading the sample collection replaces the current library and set. Save the project first if you want to keep them."
+      body="Loading the sample collection replaces the current library and constellation. Save the project first if you want to keep them."
       confirmLabel="Replace and load"
       danger
     />
     <ConfirmDialog
       bind:this={loadProjectDialog}
       title="Load this project?"
-      body="Loading a saved project replaces your current library, sets, filters, criteria and manual combos. Save the current project first if you want to keep it."
+      body="Loading a saved project replaces your current library, constellations, filters, criteria and manual combos. Save the current project first if you want to keep it."
       confirmLabel="Load and replace"
       danger
     />

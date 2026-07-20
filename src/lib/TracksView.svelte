@@ -152,8 +152,8 @@
   const STAR_TITLE: Record<StarState, string> = {
     none: 'Click to mark essential (must-include)',
     must: 'Essential — click to make the opener',
-    first: 'Opens generated sets — click to make the closer',
-    last: 'Closes generated sets — click to clear',
+    first: 'Opens generated constellations — click to make the closer',
+    last: 'Closes generated constellations — click to clear',
   }
   function cycleStar(id: string) {
     const next = nextStarState(
@@ -247,11 +247,11 @@
               class:on={inSetOnly}
               disabled={$tracklist.length === 0}
               title={$tracklist.length === 0
-                ? 'Add tracks to the set first'
+                ? 'Add tracks to the constellation first'
                 : inSetOnly
                   ? 'Show all tracks'
-                  : 'Show only this set, in order'}
-              aria-label="Toggle the set-only view"
+                  : 'Show only this constellation, in order'}
+              aria-label="Toggle the constellation-only view"
               aria-pressed={inSetOnly}
               onclick={() => (inSetOnly = !inSetOnly)}>☰</button
             >
@@ -349,10 +349,10 @@
               <button
                 class="pos-btn"
                 class:in-set={positions !== undefined}
-                title={positions === undefined ? 'Add to set' : 'In the set — click to remove'}
+                title={positions === undefined ? 'Add to constellation' : 'In the constellation — click to remove'}
                 aria-label={positions === undefined
-                  ? `Add ${track.title} to the set`
-                  : `Remove ${track.title} from the set`}
+                  ? `Add ${track.title} to the constellation`
+                  : `Remove ${track.title} from the constellation`}
                 onclick={(e) => {
                   e.stopPropagation()
                   if (positions === undefined) addTrackToSet(track.id)

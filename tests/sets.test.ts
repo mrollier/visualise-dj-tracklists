@@ -21,39 +21,39 @@ describe('the set cap (v8 issue 18)', () => {
 
 describe('ordinalSetName', () => {
   test('names the first twelve sets with ordinal words', () => {
-    expect(ordinalSetName(0)).toBe('First Set')
-    expect(ordinalSetName(1)).toBe('Second Set')
-    expect(ordinalSetName(2)).toBe('Third Set')
-    expect(ordinalSetName(11)).toBe('Twelfth Set')
+    expect(ordinalSetName(0)).toBe('First Constellation')
+    expect(ordinalSetName(1)).toBe('Second Constellation')
+    expect(ordinalSetName(2)).toBe('Third Constellation')
+    expect(ordinalSetName(11)).toBe('Twelfth Constellation')
   })
 
   test('falls back to numbers beyond the twelfth', () => {
-    expect(ordinalSetName(12)).toBe('Set 13')
-    expect(ordinalSetName(99)).toBe('Set 100')
+    expect(ordinalSetName(12)).toBe('Constellation 13')
+    expect(ordinalSetName(99)).toBe('Constellation 100')
   })
 })
 
 describe('nextSetName', () => {
   test('advances past the names already taken', () => {
-    expect(nextSetName([])).toBe('First Set')
-    expect(nextSetName(['First Set'])).toBe('Second Set')
-    expect(nextSetName(['First Set', 'Second Set'])).toBe('Third Set')
+    expect(nextSetName([])).toBe('First Constellation')
+    expect(nextSetName(['First Constellation'])).toBe('Second Constellation')
+    expect(nextSetName(['First Constellation', 'Second Constellation'])).toBe('Third Constellation')
   })
 
   test('counts the EXISTING sets, custom names included (v9 issue 18)', () => {
-    // The reported bug: two renamed sets, add a third → it said "First Set".
-    expect(nextSetName(['warm-up', 'peak time bangers'])).toBe('Third Set')
-    expect(nextSetName(['Second Set', 'peak time bangers'])).toBe('Third Set')
+    // The reported bug: two renamed sets, add a third → it said "First Constellation".
+    expect(nextSetName(['warm-up', 'peak time bangers'])).toBe('Third Constellation')
+    expect(nextSetName(['Second Constellation', 'peak time bangers'])).toBe('Third Constellation')
   })
 
   test('scans past taken ordinals beyond the count', () => {
-    expect(nextSetName(['First Set', 'Third Set'])).toBe('Fourth Set')
+    expect(nextSetName(['First Constellation', 'Third Constellation'])).toBe('Fourth Constellation')
   })
 })
 
 describe('uniqueSetName (v9 issue 18)', () => {
   test('a free name passes through untouched', () => {
-    expect(uniqueSetName('Peak time', ['First Set'])).toBe('Peak time')
+    expect(uniqueSetName('Peak time', ['First Constellation'])).toBe('Peak time')
   })
 
   test('clashes get a file-manager suffix, counting past taken ones', () => {
@@ -68,9 +68,9 @@ describe('newSetId / freshFirstSet', () => {
     expect(ids.size).toBe(100)
   })
 
-  test('freshFirstSet builds an un-generated First Set around the given tracks', () => {
+  test('freshFirstSet builds an un-generated First Constellation around the given tracks', () => {
     const set = freshFirstSet(['a', 'b'])
-    expect(set.name).toBe('First Set')
+    expect(set.name).toBe('First Constellation')
     expect(set.trackIds).toEqual(['a', 'b'])
     expect(set.generated).toBe(false)
     expect(set.id.length).toBeGreaterThan(0)

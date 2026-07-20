@@ -11,6 +11,7 @@
   import { svgToPngBlob } from './portraitPng'
   import { effectiveTheme } from './theme'
   import ConfirmDialog from './ConfirmDialog.svelte'
+  import InfoTooltip from './InfoTooltip.svelte'
   import SparkleBurst, { SPARKLE_BURST_MS } from './SparkleBurst.svelte'
   import { canAddSet, MAX_SETS } from '../core/sets'
   import {
@@ -342,7 +343,7 @@
     {#if renaming}
       <input
         class="rename"
-        aria-label="Set name"
+        aria-label="Constellation name"
         use:focusAndSelect
         bind:value={renameValue}
         onblur={commitRename}
@@ -356,7 +357,7 @@
            switching) — the name gets the room and a bigger face instead. -->
       <select
         class="set-switch"
-        aria-label="Active set"
+        aria-label="Active constellation"
         value={$activeSetId}
         onchange={(e) => activeSetId.set(e.currentTarget.value)}
       >
@@ -365,19 +366,21 @@
         {/each}
       </select>
       {#if $activeSet.generated}
-        <span class="badge" title="Untouched generated set">✨</span>
+        <span class="badge" title="Untouched generated constellation">✨</span>
       {/if}
       <span class="set-actions">
-        <button title="Rename this set" aria-label="Rename set" onclick={startRename}>✎</button>
+        <button title="Rename this constellation" aria-label="Rename constellation" onclick={startRename}
+          >✎</button
+        >
         <button
-          title={canAddSet($sets) ? 'Start a new set' : `${MAX_SETS} sets at most`}
-          aria-label="New set"
+          title={canAddSet($sets) ? 'Start a new constellation' : `${MAX_SETS} constellations at most`}
+          aria-label="New constellation"
           onclick={addSet}
           disabled={!canAddSet($sets)}>＋</button
         >
         <button
-          title="Delete this set"
-          aria-label="Delete set"
+          title="Delete this constellation"
+          aria-label="Delete constellation"
           onclick={() => deleteSet($activeSetId)}
           disabled={$sets.length <= 1}>🗑</button
         >
@@ -408,15 +411,20 @@
         onclick={() => suggest()}
         disabled={suggestDisabled}
         title={suggestDisabled && $visibleLibrary.length > 0
-          ? `All ${MAX_SETS} sets are hand-edited — clear or delete one first`
+          ? `All ${MAX_SETS} constellations are hand-edited — clear or delete one first`
           : canRegenerateInPlace
-            ? 'Generate a set (replaces this untouched one — Cmd+Z steps back)'
-            : 'Generate a new set alongside this hand-edited one'}
+            ? 'Generate a constellation (replaces this untouched one — Cmd+Z steps back)'
+            : 'Generate a new constellation alongside this hand-edited one'}
       >
-        ✨ Suggest a set from the wheel
+        ✨ Suggest a constellation from the wheel
         <SparkleBurst active={bursting} />
       </button>
     {/if}
+    <InfoTooltip label="What's a constellation?" align="right">
+      A <strong>constellation</strong> is this app's name for a set — a mix drawn as a walk
+      through your library, star to star across the wheel. Build one here, or by double-clicking
+      tracks on the wheel.
+    </InfoTooltip>
   </div>
   {#if forcedSteps !== null && forcedSteps > 0}
     <!-- The denominator is the ACTUAL rendered walk's transition count, not
@@ -430,7 +438,7 @@
 
   {#if walkTracks.length === 0}
     <p class="hint">
-      Double-click a track on the wheel to start your set. Each next double-click appends;
+      Double-click a track on the wheel to start your constellation. Each next double-click appends;
       transitions are checked against your combo criteria. Or let the app suggest a walk and edit
       from there.
     </p>
@@ -478,8 +486,8 @@
                 class="pin"
                 class:pinned
                 title={isFirst
-                  ? 'Keep as the opening track of suggested sets'
-                  : 'Keep as the closing track of suggested sets'}
+                  ? 'Keep as the opening track of suggested constellations'
+                  : 'Keep as the closing track of suggested constellations'}
                 aria-label={isFirst ? 'Pin as first track' : 'Pin as last track'}
                 aria-pressed={pinned}
                 onclick={() => togglePin(isFirst ? pinnedFirst : pinnedLast, track.id, pinned)}
@@ -527,9 +535,9 @@
 
 <ConfirmDialog
   bind:this={clearDialog}
-  title="Clear this set?"
-  body="Every track will be removed from the current set."
-  confirmLabel="Clear set"
+  title="Clear this constellation?"
+  body="Every track will be removed from the current constellation."
+  confirmLabel="Clear constellation"
   danger
 />
 

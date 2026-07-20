@@ -75,7 +75,7 @@ describe('project persistence (v3)', () => {
     expect(parseProject(withGhost).sets[0].trackIds).toEqual([SAMPLE_TRACKS[0].id])
   })
 
-  test('a v2 save migrates its tracklist into one un-generated First Set', () => {
+  test('a v2 save migrates its tracklist into one un-generated First Constellation', () => {
     const v2 = JSON.stringify({
       version: 2,
       libraryName: 'Old save',
@@ -92,7 +92,7 @@ describe('project persistence (v3)', () => {
     expect(parsed.version).toBe(7)
     expect(parsed.sets).toHaveLength(1)
     expect(parsed.sets[0]).toMatchObject({
-      name: 'First Set',
+      name: 'First Constellation',
       trackIds: [SAMPLE_TRACKS[0].id], // unknown ids pruned
       generated: false,
     })
@@ -122,12 +122,12 @@ describe('project persistence (v3)', () => {
     expect(parseProject(JSON.stringify(bad)).activeSetId).toBe('set-1')
   })
 
-  test('zero or garbage sets collapse to one empty First Set', () => {
+  test('zero or garbage sets collapse to one empty First Constellation', () => {
     const none = JSON.parse(serializeProject(project)) as Record<string, unknown>
     none.sets = []
     const parsedNone = parseProject(JSON.stringify(none))
     expect(parsedNone.sets).toHaveLength(1)
-    expect(parsedNone.sets[0]).toMatchObject({ name: 'First Set', trackIds: [], generated: false })
+    expect(parsedNone.sets[0]).toMatchObject({ name: 'First Constellation', trackIds: [], generated: false })
     expect(parsedNone.activeSetId).toBe(parsedNone.sets[0].id)
 
     const junk = JSON.parse(serializeProject(project)) as Record<string, unknown>

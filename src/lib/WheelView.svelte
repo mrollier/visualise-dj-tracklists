@@ -816,7 +816,7 @@
           tabindex={hubAllUsed ? -1 : 0}
           aria-disabled={hubAllUsed}
           aria-label={hubAllUsed
-            ? 'Every track is already in the set'
+            ? 'Every track is already in the constellation'
             : hubExhausted
               ? 'No exact match left — force the closest track'
               : 'Suggest next track'}
@@ -827,7 +827,7 @@
         >
           <title
             >{hubAllUsed
-              ? 'Every visible track is already in the set'
+              ? 'Every visible track is already in the constellation'
               : hubExhausted
                 ? 'No track matches your criteria from here — clicking forces the closest one anyway'
                 : 'Suggest the next track'}</title
@@ -886,8 +886,8 @@
         </span>
       {/each}
     {/if}
-    <span class="chip walk-chip"><i class="walk-line"></i>your set</span>
-    <span class="legend-hint">click: focus · double-click: add to set</span>
+    <span class="chip walk-chip"><i class="walk-line"></i>your constellation</span>
+    <span class="legend-hint">click: focus · double-click: add to constellation</span>
   </div>
 
   <!-- The selected-track card lives at the foot of the right aside since v9

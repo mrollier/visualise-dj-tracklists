@@ -71,8 +71,8 @@
           class="mark-toggle"
           class:on={isMustIncluded}
           aria-pressed={isMustIncluded}
-          aria-label="Must include in suggested sets"
-          title="Guaranteed a place in suggested sets"
+          aria-label="Must include in suggested constellations"
+          title="Guaranteed a place in suggested constellations"
           onclick={toggleMustInclude}
         >
           {isMustIncluded ? '★' : '☆'}
@@ -81,8 +81,8 @@
           class="mark-toggle"
           class:on={isFirst}
           aria-pressed={isFirst}
-          aria-label="Open suggested sets with this track"
-          title="Open suggested sets with this track"
+          aria-label="Open suggested constellations with this track"
+          title="Open suggested constellations with this track"
           onclick={() => togglePin(pinnedFirst)}
         >
           ⏮
@@ -91,8 +91,8 @@
           class="mark-toggle"
           class:on={isLast}
           aria-pressed={isLast}
-          aria-label="Close suggested sets with this track"
-          title="Close suggested sets with this track"
+          aria-label="Close suggested constellations with this track"
+          title="Close suggested constellations with this track"
           onclick={() => togglePin(pinnedLast)}
         >
           ⏭
@@ -108,10 +108,10 @@
           🔗{linkedCount > 0 ? linkedCount : ''}
         </button>
         <InfoTooltip label="About these marks" align="right">
-          <strong>Marks for suggested sets</strong>
-          <span>★ — guaranteed to appear in suggested sets (forcing a transition if it must).</span>
-          <span>⏮ — open generated sets with it.</span>
-          <span>⏭ — close generated sets with it.</span>
+          <strong>Marks for suggested constellations</strong>
+          <span>★ — guaranteed to appear in suggested constellations (forcing a transition if it must).</span>
+          <span>⏮ — open generated constellations with it.</span>
+          <span>⏭ — close generated constellations with it.</span>
           <span>🔗 — mark a combo you know works: suggestions treat it as a road.</span>
         </InfoTooltip>
       </div>

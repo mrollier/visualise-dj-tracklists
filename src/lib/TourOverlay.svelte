@@ -15,10 +15,10 @@
     },
     {
       title: 'Let it walk',
-      body: 'Press ✨ Suggest a set and watch the walk draw itself, key to key, through your library. (The s key does it too.)',
+      body: 'Press ✨ Suggest a constellation and watch the walk draw itself, key to key, through your library. (The s key does it too.)',
     },
     {
-      title: 'Your set lives on the right',
+      title: 'Your constellation lives on the right',
       body: 'Reorder it, pin an opener or closer, mark must-plays with ★ — then export it, or save a Portrait poster of the walk.',
     },
     {

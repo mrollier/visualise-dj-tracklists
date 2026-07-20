@@ -214,7 +214,7 @@
     <button
       class="close"
       aria-label="Close advanced settings"
-      title="Back to your set"
+      title="Back to your constellation"
       onclick={close}
     >
       ✕
@@ -474,7 +474,7 @@
   </details>
 
   <details class="section" bind:open={sectionState.set} ontoggle={(e) => persistToggle('set', e)}>
-    <summary>Set & suggestions</summary>
+    <summary>Constellation & suggestions</summary>
     <label>
       Suggested set length
       <input type="number" min="2" max="99" bind:value={$settings.suggestLength} />
@@ -517,7 +517,7 @@
     <!-- Read-only listing (issue 10): the choices themselves are made in the
          Tracks view (or via the 📌 pins on the set's first/last rows). -->
     <div class="must-block">
-      <span class="must-title">Set order</span>
+      <span class="must-title">Constellation order</span>
       {#if pinnedFirstTrack === null && pinnedLastTrack === null && mustIncludeTracks.length === 0}
         <p class="hint">
           Pick the opening and closing track, and mark essential tracks, in the Tracks view —

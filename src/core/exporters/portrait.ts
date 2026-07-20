@@ -307,7 +307,7 @@ export function buildSetPortrait(o: PortraitOptions): string {
     )
   }
   parts.push(
-    `<text x="${PANEL_X}" y="775" font-size="11" fill="${S.inkMuted}">visualise-dj-tracklists — a set is a walk through your library</text>`,
+    `<text x="${PANEL_X}" y="775" font-size="11" fill="${S.inkMuted}">Zodiac Tracker — a constellation is a walk through your library</text>`,
   )
 
   return (

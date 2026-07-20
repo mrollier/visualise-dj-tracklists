@@ -25,9 +25,9 @@ const ORDINALS = [
   'Twelfth',
 ]
 
-/** "First Set", "Second Set", …, "Set 13" beyond the twelfth. */
+/** "First Constellation", "Second Constellation", …, "Constellation 13". */
 export function ordinalSetName(index: number): string {
-  return index < ORDINALS.length ? `${ORDINALS[index]} Set` : `Set ${index + 1}`
+  return index < ORDINALS.length ? `${ORDINALS[index]} Constellation` : `Constellation ${index + 1}`
 }
 
 /**
@@ -80,7 +80,7 @@ export function removeAllOccurrences(ids: readonly string[], id: string): string
   return ids.filter((x) => x !== id)
 }
 
-/** A fresh un-generated "First Set", optionally seeded with tracks. */
+/** A fresh un-generated "First Constellation", optionally seeded with tracks. */
 export function freshFirstSet(trackIds: string[] = []): TrackSet {
   return { id: newSetId(), name: ordinalSetName(0), trackIds, generated: false }
 }
