@@ -1,19 +1,7 @@
 <script lang="ts">
   import { scaleLinear } from 'd3-scale'
-  import { select as d3select } from 'd3-selection'
   import { cubicOut } from 'svelte/easing'
   import { Tween } from 'svelte/motion'
-  import {
-    symbol,
-    symbolCircle,
-    symbolDiamond,
-    symbolSquare,
-    symbolStar,
-    symbolTriangle,
-    symbolWye,
-    type SymbolType,
-  } from 'd3-shape'
-  import { zoom as d3zoom, zoomIdentity, type D3ZoomEvent } from 'd3-zoom'
   import { classIndexOfTrack } from '../core/iconClasses'
   import { ALL_CAMELOT_KEYS, camelotNumber, wheelSlotAngleDeg, type CamelotKey } from '../core/keys'
   import { annularSectorPath, relaxSlotAngles, spreadHalfDeg } from '../core/layout'
@@ -25,6 +13,8 @@
     MISSING_COLORS,
     radialDomain,
   } from '../core/scales'
+  import { createShapePathCache } from './shapeSymbols'
+  import { createViewZoom } from './viewZoom'
   import { effectiveTheme } from './theme'
   import { nextExhausted, retryState, suggestNext, type NextSuggestion } from '../core/suggest'
   import {
@@ -51,8 +41,7 @@
     visibleLibrary,
     walkRevealSeen,
     walkRevealTick,
-    linkArmed,
-    toggleManualEdge,
+    selectOrLink,
   } from '../stores'
   import { walkRevealPlan } from '../core/walkReveal'
 
@@ -68,34 +57,10 @@
 
   const AXIS_LABEL = { bpm: 'BPM', rating: 'rating', year: 'year', energy: 'energy' } as const
 
-  // Genre-class node shapes (docs/designs/design-v4.md §E): class 0 (largest) keeps
-  // the circle; further classes get increasingly angular symbols.
-  const CLASS_SYMBOLS: SymbolType[] = [
-    symbolCircle,
-    symbolSquare,
-    symbolTriangle,
-    symbolDiamond,
-    symbolStar,
-    symbolWye,
-  ]
-  // Plain Map on purpose: a render-time memo of static path strings, never
-  // a reactive source (writing a SvelteMap during render would be a bug).
-  // eslint-disable-next-line svelte/prefer-svelte-reactivity
-  const shapeCache = new Map<string, string>()
-  function shapePath(classIndex: number | null, r: number): string {
-    const type =
-      classIndex === null ? symbolCircle : CLASS_SYMBOLS[classIndex % CLASS_SYMBOLS.length]
-    const key = `${classIndex === null ? -1 : classIndex % CLASS_SYMBOLS.length}:${r}`
-    let path = shapeCache.get(key)
-    if (path === undefined) {
-      path =
-        symbol()
-          .type(type)
-          .size(Math.PI * r * r)() ?? ''
-      shapeCache.set(key, path)
-    }
-    return path
-  }
+  // Genre-class node shapes (docs/designs/design-v4.md §E): class 0 (largest)
+  // keeps the circle; further classes get increasingly angular symbols. The
+  // symbol list + path cache are shared with the genre map (src/lib/shapeSymbols).
+  const shapePath = createShapePathCache()
   function classIndexOf(track: Track): number | null {
     return classIndexOfTrack($iconClasses, track)
   }
@@ -345,11 +310,8 @@
   function select(node: PlacedNode) {
     // Link mode (v12 WS9): an armed 🔗 turns the next click into a combo
     // mark/unmark; the selection stays on the source so marks can chain.
-    if ($linkArmed && $selectedId !== null) {
-      if (node.track.id !== $selectedId) toggleManualEdge($selectedId, node.track.id)
-      return
-    }
-    selectedId.update((current) => (current === node.track.id ? null : node.track.id))
+    // Shared with the tracks table via selectOrLink (v14 WS10).
+    selectOrLink(node.track.id)
   }
 
   function appendToTracklist(node: PlacedNode) {
@@ -385,31 +347,31 @@
   const hasMissingRadial = $derived(visibleNodes.some((n) => !n.unkeyed && n.missingRadial))
 
   // --- zoom & pan (remark 10) ---
-  let svgEl: SVGSVGElement
-  let zoomTransform = $state('translate(0,0) scale(1)')
+  // The zoom behaviour + attached selection live inside createViewZoom (plain
+  // closure vars — d3 owns them, a $state proxy would swallow their writes).
+  // The component keeps only these primitives in $state, written from onZoom.
   // Node disks keep a constant screen size while zooming (their radii are
   // divided by k): zooming exists to resolve detail, not to inflate markers.
+  let svgEl: SVGSVGElement
+  let zoomTransform = $state('translate(0,0) scale(1)')
   let zoomK = $state(1)
-  const zoomBehavior = d3zoom<SVGSVGElement, unknown>()
-    .scaleExtent([0.5, 8])
-    .on('zoom', (e: D3ZoomEvent<SVGSVGElement, unknown>) => {
-      zoomTransform = e.transform.toString()
-      zoomK = e.transform.k
-    })
-
-  $effect(() => {
-    const selection = d3select(svgEl)
-    selection.call(zoomBehavior)
-    selection.on('dblclick.zoom', null) // double-click appends to the set instead
-    return () => selection.on('.zoom', null)
+  const viewZoom = createViewZoom({
+    scaleExtent: [0.5, 8],
+    disableDblClick: true, // double-click appends to the set instead
+    onZoom: (transform) => {
+      zoomTransform = transform.toString()
+      zoomK = transform.k
+    },
   })
 
+  $effect(() => viewZoom.attach(svgEl))
+
   function zoomBy(factor: number) {
-    zoomBehavior.scaleBy(d3select(svgEl), factor)
+    viewZoom.zoomBy(factor)
   }
 
   function zoomReset() {
-    zoomBehavior.transform(d3select(svgEl), zoomIdentity)
+    viewZoom.zoomReset()
   }
 
   // --- hub button: suggest the next track (remark 7) ---

@@ -10,18 +10,6 @@
     type SimulationLinkDatum,
     type SimulationNodeDatum,
   } from 'd3-force'
-  import { select as d3select } from 'd3-selection'
-  import {
-    symbol,
-    symbolCircle,
-    symbolDiamond,
-    symbolSquare,
-    symbolStar,
-    symbolTriangle,
-    symbolWye,
-    type SymbolType,
-  } from 'd3-shape'
-  import { zoom as d3zoom, zoomIdentity, type D3ZoomEvent } from 'd3-zoom'
   import { matchedGenrePairs } from '../core/combos'
   import { genreComponents, GENRE_METHODS, labelSimilarity, type GenreMethod } from '../core/genre'
   import {
@@ -34,6 +22,8 @@
   } from '../core/genreMap'
   import { genreFamilyClasses } from '../core/iconClasses'
   import { criteria, playlistScopedLibrary, settings, visibleLibrary } from '../stores'
+  import { createShapePathCache } from './shapeSymbols'
+  import { createViewZoom } from './viewZoom'
 
   const WIDTH = 900
   const HEIGHT = 820
@@ -62,15 +52,6 @@
   /** Edges thinner than this score are noise, not links. */
   const SCORE_FLOOR = 0.15
   const GHOSTS_PER_GENRE = 3
-
-  const CLASS_SYMBOLS: SymbolType[] = [
-    symbolCircle,
-    symbolSquare,
-    symbolTriangle,
-    symbolDiamond,
-    symbolStar,
-    symbolWye,
-  ]
 
   let showNeighbours = $state(false)
   // The map's methods: everything but 'exact' — one node per normalized
@@ -223,24 +204,10 @@
       .filter((cls) => present.has(cls.index))
   })
 
-  // Plain Map on purpose: a render-time memo of static path strings, never
-  // a reactive source (writing a SvelteMap during render would be a bug).
-  // eslint-disable-next-line svelte/prefer-svelte-reactivity
-  const shapeCache = new Map<string, string>()
-  function shapePath(classIndex: number | null, r: number): string {
-    const idx = classIndex === null ? -1 : classIndex % CLASS_SYMBOLS.length
-    const key = `${idx}:${r}`
-    let path = shapeCache.get(key)
-    if (path === undefined) {
-      const type = idx === -1 ? symbolCircle : CLASS_SYMBOLS[idx]
-      path =
-        symbol()
-          .type(type)
-          .size(Math.PI * r * r)() ?? ''
-      shapeCache.set(key, path)
-    }
-    return path
-  }
+  // Symbol list + path cache shared with the wheel (src/lib/shapeSymbols): a
+  // render-time memo of static path strings closing over a plain (non-reactive)
+  // Map.
+  const shapePath = createShapePathCache()
 
   function nodeRadius(node: GenreNode): number {
     return node.ghost ? 5 : 6 + 3.5 * Math.sqrt(node.count)
@@ -338,17 +305,23 @@
   }
 
   // --- zoom (same pattern as the wheel) ---------------------------------------
+  // The zoom behaviour + attached selection live inside createViewZoom (plain
+  // closure vars — d3 owns them, a $state proxy would swallow their writes).
+  // The component keeps only the transform string in $state, written from onZoom.
   let svgEl: SVGSVGElement
   let zoomTransform = $state('translate(0,0) scale(1)')
-  const zoomBehavior = d3zoom<SVGSVGElement, unknown>()
-    .scaleExtent([0.4, 6])
+  const viewZoom = createViewZoom({
+    scaleExtent: [0.4, 6],
+    onZoom: (transform) => {
+      zoomTransform = transform.toString()
+    },
     // Why a filter (v9 issue 5): d3-zoom binds a NATIVE mousedown listener on
     // the <svg>, while Svelte 5 delegates the nodes' handlers to the app
     // root — their stopPropagation runs long after d3 already started a pan,
     // so node drags always lost. Rejecting drag-starts that originate on a
     // node hands the gesture to the pointer-capture drag below; wheel events
     // stay accepted so zooming works with the cursor over a node.
-    .filter((event: MouseEvent | WheelEvent | TouchEvent) => {
+    filter: (event) => {
       if (event.type !== 'wheel') {
         const target = event.target
         if (target instanceof Element && target.closest('.genre-node') !== null) return false
@@ -356,22 +329,16 @@
       if ('ctrlKey' in event && event.ctrlKey && event.type !== 'wheel') return false
       if ('button' in event && event.button !== 0) return false
       return true
-    })
-    .on('zoom', (e: D3ZoomEvent<SVGSVGElement, unknown>) => {
-      zoomTransform = e.transform.toString()
-    })
-
-  $effect(() => {
-    const selection = d3select(svgEl)
-    selection.call(zoomBehavior)
-    return () => selection.on('.zoom', null)
+    },
   })
 
+  $effect(() => viewZoom.attach(svgEl))
+
   function zoomBy(factor: number) {
-    zoomBehavior.scaleBy(d3select(svgEl), factor)
+    viewZoom.zoomBy(factor)
   }
   function zoomReset() {
-    zoomBehavior.transform(d3select(svgEl), zoomIdentity)
+    viewZoom.zoomReset()
   }
 
   // --- node dragging (v8 issue 11, reworked v13 issue 1): grab ONE node --------

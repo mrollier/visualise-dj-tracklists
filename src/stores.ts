@@ -356,6 +356,21 @@ export function toggleManualEdge(a: string, b: string): void {
   })
 }
 
+/**
+ * A click in link mode (v14 WS10, shared by the wheel and the tracks table): an
+ * armed 🔗 with a different source selected turns the click into a combo
+ * mark/unmark, keeping the selection on the source so marks chain; otherwise it
+ * falls through to the plain select/deselect toggle. `get()` reads are correct
+ * here — this runs in an event handler, not a reactive context.
+ */
+export function selectOrLink(id: string): void {
+  if (get(linkArmed) && get(selectedId) !== null) {
+    if (id !== get(selectedId)) toggleManualEdge(get(selectedId)!, id)
+    return
+  }
+  selectedId.update((current) => (current === id ? null : id))
+}
+
 /** Link mode: the selected track is armed; the next wheel click marks/unmarks. */
 export const linkArmed = writable(false)
 

@@ -22,8 +22,8 @@
     pinnedFirst,
     pinnedLast,
     selectedId,
+    selectOrLink,
     settings,
-    toggleManualEdge,
     trackById,
     tracklist,
     trackSort,
@@ -91,13 +91,10 @@
   const mustSet = $derived(new Set($mustInclude))
 
   function selectRow(id: string) {
-    // v14 T1: an armed 🔗 makes the next row click mark/unmark a combo, just
-    // like a wheel click; the selection stays on the source so marks chain.
-    if ($linkArmed && $selectedId !== null) {
-      if (id !== $selectedId) toggleManualEdge($selectedId, id)
-      return
-    }
-    selectedId.update((current) => (current === id ? null : id))
+    // v14 T1 / v14 WS10: an armed 🔗 makes the next row click mark/unmark a
+    // combo, just like a wheel click; the selection stays on the source so
+    // marks chain. Shared with the wheel via selectOrLink.
+    selectOrLink(id)
   }
 
   // One click-cycle star per row (v10 issue 13): none → must → first → last →
