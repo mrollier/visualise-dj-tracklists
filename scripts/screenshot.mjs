@@ -1672,6 +1672,46 @@ await page.screenshot({ path: `${scratch}/15c-theme-light.png` })
 await page.locator('button.theme-toggle').click()
 await page.waitForTimeout(200)
 
+// v14.1 WS8: a hand-edit of the active set closes the ⚡ force window — the
+// forced-count banner and the ⚡ button must never keep describing a set the
+// user has since altered by hand (removeAt / move / Clear all funnel through
+// closeForceWindow). Proven here, right before the reset, because rolling a
+// deliberate short walk perturbs the shared suggest seed and the selection
+// chain; every selection-sensitive check above has already run, and the reset
+// below wipes all of this regardless. Reproduce the force section's
+// deterministic stall: Classic-demo-only pool, suggest length 99.
+{
+  // A clean shelf keeps the eighth-set cap out of the way when ✨ needs to
+  // spawn a set to roll on (the active set here may be hand-edited).
+  while ((await page.locator('aside .head select option').count()) > 1) {
+    await page.getByRole('button', { name: 'Delete set' }).click()
+    await page.waitForTimeout(100)
+  }
+  await page.locator('aside').first().getByRole('button', { name: 'None' }).first().click()
+  await page.getByRole('checkbox', { name: 'Classic demo' }).check()
+  await page.waitForTimeout(400)
+  await page.getByRole('button', { name: /Advanced/ }).click()
+  await page.getByRole('spinbutton', { name: 'Suggested set length' }).fill('99')
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(200)
+  await page.locator('.suggest-row .primary').click() // roll a short walk → ⚡ appears
+  await page.waitForTimeout(400)
+  if ((await page.locator('.suggest-row .force').count()) !== 1) {
+    errors.push('WS8: the deterministic short walk did not surface the ⚡ force button to close')
+  } else {
+    // Hand-edit the SAME active set: remove a transition row's ✕ control.
+    await page.locator('aside ol li.track').last().hover()
+    await page.locator('aside ol li.track').last().getByRole('button', { name: 'Remove' }).click()
+    await page.waitForTimeout(200)
+    if ((await page.locator('.suggest-row .force').count()) !== 0) {
+      errors.push('WS8: a hand-edit (remove row) did not close the ⚡ force button')
+    }
+    if ((await page.locator('.forced-note').count()) !== 0) {
+      errors.push('WS8: a hand-edit (remove row) did not clear the forced-transitions banner')
+    }
+  }
+}
+
 // reset with confirmation dialog
 await page.getByRole('button', { name: 'Reset', exact: true }).click()
 await page.getByText('Reset everything?').waitFor()

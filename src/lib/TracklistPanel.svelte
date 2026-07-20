@@ -78,16 +78,24 @@
     const removedId = get(tracklist)[index]
     if (removedId !== undefined && get(hoveredId) === removedId) hoveredId.set(null)
     tracklist.update((ids) => ids.toSpliced(index, 1))
+    // A hand-edit of the same set closes the ⚡ window (v14.1): the forced-count
+    // banner and force button must never describe a set the user has altered.
+    closeForceWindow()
   }
 
   function move(index: number, delta: -1 | 1) {
+    let moved = false
     tracklist.update((ids) => {
       const target = index + delta
       if (target < 0 || target >= ids.length) return ids
       const next = [...ids]
       ;[next[index], next[target]] = [next[target], next[index]]
+      moved = true
       return next
     })
+    // Only a move that actually happened is a hand-edit; a no-op at the ends
+    // leaves the ⚡ window intact.
+    if (moved) closeForceWindow()
   }
 
   /** Ask for a name first (ISSUES.md #15); cancelling aborts the export. */
@@ -175,12 +183,17 @@
   let forcedSteps = $state<number | null>(null)
   let forceForSetId = $state<string | null>(null)
   let shortSnapshot = $state<SuggestSnapshot | null>(null)
+  // Close the ⚡ window: drop the short-walk snapshot and the forced-count chip
+  // (forceForSetId is left alone — it only re-arms when the next suggest writes
+  // it). Every reset path — set-id change, input drift, or a hand-edit of the
+  // same set — funnels through here.
+  function closeForceWindow() {
+    shortBy = 0
+    forcedSteps = null
+    shortSnapshot = null
+  }
   $effect(() => {
-    if ($activeSet.id !== forceForSetId) {
-      shortBy = 0
-      forcedSteps = null
-      shortSnapshot = null
-    }
+    if ($activeSet.id !== forceForSetId) closeForceWindow()
   })
   // The ⚡ window also closes when the inputs it was seeded against drift
   // (v14 S2, review finding): a force must never replay a stale seed against a
@@ -194,9 +207,7 @@
     if (library === lastLibrary && criteriaKey === lastCriteriaKey) return
     lastLibrary = library
     lastCriteriaKey = criteriaKey
-    shortBy = 0
-    forcedSteps = null
-    shortSnapshot = null
+    closeForceWindow()
   })
 
   // The ✨/⚡ press throws a short spark burst (v12 WS2) — pure celebration,
@@ -482,6 +493,7 @@
             clearDialog.open(() => {
               tracklist.set([])
               hoveredId.set(null)
+              closeForceWindow()
             })
         }}>Clear</button
       >
