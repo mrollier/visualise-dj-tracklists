@@ -87,14 +87,27 @@
       <summary class="micro-label">Combo criteria</summary>
 
       <div class="criterion">
-        <label>
-          <input
-            type="checkbox"
-            checked={$criteria.key.enabled}
-            onchange={(e) => setEnabled('key', e)}
-          />
-          Key <span class="hint">adjacent on the wheel</span>
-        </label>
+        <!-- One line per criterion (ISSUES.md #2): the explanatory hint and
+             the advanced-move note fold into an info icon so the row never
+             wraps. The minor/major ring switch lives in Filters (v9 issue 6). -->
+        <div class="criterion-head">
+          <label>
+            <input
+              type="checkbox"
+              checked={$criteria.key.enabled}
+              onchange={(e) => setEnabled('key', e)}
+            />
+            Key
+          </label>
+          <InfoTooltip label="How key matching works">
+            A combo needs harmonically adjacent keys — the same key, its
+            relative major/minor, or a ±1 step around the Camelot wheel.
+            {#if keyMoves.length > 0}
+              Extra moves on: {keyMoves.join(' · ')}.
+            {/if}
+            Change key moves in advanced settings → Key &amp; BPM.
+          </InfoTooltip>
+        </div>
         {#if $criteria.key.enabled}
           <button
             type="button"
@@ -104,13 +117,6 @@
             title="Must match"
             onclick={() => toggleLock('key')}>{$criteria.key.demanded ? '🔒' : '🔓'}</button
           >
-        {/if}
-        <!-- The minor/major ring switch moved to the Filters section (v9
-           issue 6) — it always was a visibility filter, not a criterion.
-           The advanced key moves are surfaced here as a subtle note (v10
-           issue 2), like the BPM ratios below. -->
-        {#if keyMoves.length > 0}
-          <p class="sub-option ratio-note">moves: {keyMoves.join(' · ')}</p>
         {/if}
       </div>
 
@@ -152,23 +158,30 @@
       </div>
 
       <div class="criterion">
-        <label>
-          <input
-            type="checkbox"
-            checked={$criteria.genre.enabled}
-            onchange={(e) => setEnabled('genre', e)}
-          />
-          Genre
-          <span class="hint">
+        <!-- The active method + its parameters fold into the info icon (they
+             already lived in advanced settings, v10 issue 2) so the row is
+             one line (ISSUES.md #2). -->
+        <div class="criterion-head">
+          <label>
+            <input
+              type="checkbox"
+              checked={$criteria.genre.enabled}
+              onchange={(e) => setEnabled('genre', e)}
+            />
+            Genre
+          </label>
+          <InfoTooltip label="How genre matching works">
+            Method: {METHOD_LABEL[$criteria.genre.method]} —
             {#if $criteria.genre.method === 'exact'}
-              same genre
+              only exactly the same genre combos.
             {:else if $criteria.genre.mode === 'topk'}
-              top-{$criteria.genre.k} mutual
+              each genre links to its top {$criteria.genre.k} mutual neighbours.
             {:else}
-              ≥ {$criteria.genre.threshold.toFixed(2)}
+              genres combo when their similarity is ≥ {$criteria.genre.threshold.toFixed(2)}.
             {/if}
-          </span>
-        </label>
+            Change the method and cutoff in advanced settings → Genre distance.
+          </InfoTooltip>
+        </div>
         {#if $criteria.genre.enabled}
           <button
             type="button"
@@ -179,10 +192,6 @@
             onclick={() => toggleLock('genre')}>{$criteria.genre.demanded ? '🔒' : '🔓'}</button
           >
         {/if}
-        <!-- The method + its parameters (mode/k/threshold) and the sourced
-           explainers live in the advanced menu now (v10 issue 2); here only
-           a subtle note of which method is active. -->
-        <p class="sub-option ratio-note">method: {METHOD_LABEL[$criteria.genre.method]}</p>
       </div>
 
       <div class="criterion">
@@ -193,7 +202,7 @@
             onchange={(e) => setEnabled('year', e)}
           />
           Year within
-          <input type="number" min="0" max="50" bind:value={$criteria.year.maxYears} /> years
+          <input type="number" min="0" max="50" bind:value={$criteria.year.maxYears} /> y
         </label>
         {#if $criteria.year.enabled}
           <button
@@ -324,6 +333,20 @@
     user-select: none;
   }
 
+  /* Key/Genre rows: the label + its info icon share one line, the head owns
+     the clearance for the absolute lock (ISSUES.md #2). */
+  .criterion-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-right: 26px;
+  }
+
+  .criterion-head label {
+    padding-right: 0;
+    flex-wrap: nowrap;
+  }
+
   .criterion .sub-option {
     margin: 4px 0 0 22px;
   }
@@ -340,11 +363,6 @@
   input[type='number'] {
     width: 58px;
     padding: 2px 6px;
-  }
-
-  .hint {
-    color: var(--ink-muted);
-    font-size: 12px;
   }
 
   .threshold-head {
