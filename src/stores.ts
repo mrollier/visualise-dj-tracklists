@@ -295,14 +295,14 @@ export const comboPairCount = derived(comboView, ($comboView) => $comboView.pair
  */
 export const focusEdges = derived(
   [edges, selectedId, effectiveSettings, comboComplete, visibleLibrary],
-  ([$edges, $selectedId, $settings, $comboComplete, $visibleLibrary]) => {
+  ([$edges, $selectedId, $effectiveSettings, $comboComplete, $visibleLibrary]) => {
     if ($comboComplete) {
       if ($selectedId === null) return []
       return $visibleLibrary
         .filter((t) => t.id !== $selectedId)
         .map((t) => ({ sourceId: $selectedId, targetId: t.id, matched: [] }))
     }
-    return computeFocusEdges($edges, $selectedId, $settings.focusClusterEdges)
+    return computeFocusEdges($edges, $selectedId, $effectiveSettings.focusClusterEdges)
   },
 )
 
