@@ -314,7 +314,7 @@ export function parseProject(json: string): Project {
     settings,
     sets,
     activeSetId,
-    playlists: Array.isArray(p.playlists) ? (p.playlists as Playlist[]) : [],
+    playlists: Array.isArray(p.playlists) ? p.playlists : [],
     radialAxis:
       p.radialAxis === 'rating' || p.radialAxis === 'year' || p.radialAxis === 'energy'
         ? p.radialAxis

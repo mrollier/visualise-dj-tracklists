@@ -4,11 +4,11 @@ import { importRekordboxTxt, isRekordboxTxt } from '../src/core/importers/rekord
 
 function fixtureBuffer(): ArrayBuffer {
   const buf = readFileSync('tests/fixtures/playlist-utf16.txt')
-  return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer
+  return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
 }
 
 function toBuffer(text: string): ArrayBuffer {
-  return new TextEncoder().encode(text).buffer as ArrayBuffer
+  return new TextEncoder().encode(text).buffer
 }
 
 describe('Rekordbox TXT playlist import', () => {

@@ -12,6 +12,10 @@ export type CamelotKey = `${number}${CamelotRing}`
 
 export const ALL_CAMELOT_KEYS: readonly CamelotKey[] = Array.from(
   { length: 24 },
+  // Rule misfire: it checks the callback's own return type in isolation, but dropping
+  // this cast widens Array.from's inferred U to plain `string`, which tsc then rejects
+  // against the `readonly CamelotKey[]` annotation above.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- see above
   (_, i) => `${(i % 12) + 1}${i < 12 ? 'A' : 'B'}` as CamelotKey,
 )
 
@@ -45,6 +49,8 @@ export function normalizeKey(raw: string | null | undefined): CamelotKey | null 
   if (camelot) {
     const n = parseInt(camelot[1], 10)
     if (n < 1 || n > 12) return null
+    // `.toUpperCase()` widens to plain `string`, so this cast is load-bearing: without
+    // it tsc rejects the return against the declared `CamelotKey | null` return type.
     return `${n}${camelot[2].toUpperCase()}` as CamelotKey
   }
 
@@ -53,7 +59,7 @@ export function normalizeKey(raw: string | null | undefined): CamelotKey | null 
     const n = parseInt(openKey[1], 10)
     if (n < 1 || n > 12) return null
     const camelotNumber = ((n + 7 - 1) % 12) + 1 // Open Key 1 = Camelot 8
-    return `${camelotNumber}${openKey[2] === 'd' ? 'B' : 'A'}` as CamelotKey
+    return `${camelotNumber}${openKey[2] === 'd' ? 'B' : 'A'}`
   }
 
   const classical = CLASSICAL_RE.exec(input)
@@ -64,7 +70,7 @@ export function normalizeKey(raw: string | null | undefined): CamelotKey | null 
     if (accidental === 'b') pc = (pc + 11) % 12
     const isMinor = mode === 'm' || mode?.startsWith('min')
     const n = (isMinor ? MINOR_PC_TO_NUMBER : MAJOR_PC_TO_NUMBER).get(pc)
-    return n === undefined ? null : (`${n}${isMinor ? 'A' : 'B'}` as CamelotKey)
+    return n === undefined ? null : `${n}${isMinor ? 'A' : 'B'}`
   }
 
   return null
@@ -110,7 +116,7 @@ export function wheelStepDistance(a: CamelotKey, b: CamelotKey): number {
 export function transposeCamelot(key: CamelotKey, semitones: number): CamelotKey {
   const n = camelotNumber(key)
   const shifted = ((((n - 1 + 7 * semitones) % 12) + 12) % 12) + 1
-  return `${shifted}${camelotRing(key)}` as CamelotKey
+  return `${shifted}${camelotRing(key)}`
 }
 
 interface KeyMatchOptions {
