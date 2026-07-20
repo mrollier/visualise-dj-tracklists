@@ -92,5 +92,9 @@
     gap: 6px;
     padding: 2px 0;
     font-size: 13px;
+    /* The whole row toggles the box; the genre name isn't drag-selectable, so
+       clicking never accidentally highlights the text (ISSUES.md #1). */
+    -webkit-user-select: none;
+    user-select: none;
   }
 </style>

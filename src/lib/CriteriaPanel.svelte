@@ -318,6 +318,10 @@
     gap: 6px;
     flex-wrap: wrap;
     padding-right: 26px;
+    /* Clicking the row toggles the criterion; its label text isn't
+       drag-selectable, so reading it never highlights letters (ISSUES.md #1). */
+    -webkit-user-select: none;
+    user-select: none;
   }
 
   .criterion .sub-option {

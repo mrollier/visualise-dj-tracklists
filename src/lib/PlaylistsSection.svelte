@@ -120,6 +120,11 @@
     gap: 6px;
     padding: 2px 0;
     font-size: 13px;
+    /* Clicking the row toggles the box (the whole label is the target); the
+       name is a label, not selectable text — so dragging to read never
+       accidentally highlights it (ISSUES.md #1). */
+    -webkit-user-select: none;
+    user-select: none;
   }
 
   .name {
