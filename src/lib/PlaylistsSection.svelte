@@ -83,6 +83,8 @@
 <style>
   summary {
     cursor: pointer;
+    color: var(--ink-secondary);
+    font-weight: 600;
     margin-bottom: 8px;
   }
 
