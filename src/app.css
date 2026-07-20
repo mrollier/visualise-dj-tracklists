@@ -39,6 +39,10 @@
   --on-accent: #08222a;
   --danger: #d03b3b;
 
+  /* Springy press (v12 WS2): squash on :active, overshoot on release —
+     shared by every element that uses this bounce (v14.1 WS11). */
+  --bounce-transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+
   font-family:
     system-ui,
     -apple-system,

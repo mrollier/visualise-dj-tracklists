@@ -1,3 +1,9 @@
+<script module lang="ts">
+  // Matches the .burst i animation duration below (v14.1 WS11) — TracklistPanel
+  // clears `active` at this + 50ms slack so the burst never gets cut mid-flight.
+  export const SPARKLE_BURST_MS = 550
+</script>
+
 <script lang="ts">
   // Six tiny sparks flying out radially from the parent's centre (v12 WS2).
   // The parent needs position: relative; mount with `active` for ~600ms.
@@ -6,7 +12,7 @@
 </script>
 
 {#if active}
-  <span class="burst" aria-hidden="true">
+  <span class="burst" aria-hidden="true" style:--spark-ms="{SPARKLE_BURST_MS}ms">
     {#each SPARKS as angle, i (angle)}
       <i style:--angle="{angle}deg" style:--dist="{i % 2 === 0 ? 24 : 17}px"></i>
     {/each}
@@ -29,7 +35,7 @@
     height: 5px;
     border-radius: 50%;
     background: var(--accent);
-    animation: spark 550ms ease-out forwards;
+    animation: spark var(--spark-ms) ease-out forwards;
   }
 
   @keyframes spark {

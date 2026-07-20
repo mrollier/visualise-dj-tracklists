@@ -11,7 +11,7 @@
   import { svgToPngBlob } from './portraitPng'
   import { effectiveTheme } from './theme'
   import ConfirmDialog from './ConfirmDialog.svelte'
-  import SparkleBurst from './SparkleBurst.svelte'
+  import SparkleBurst, { SPARKLE_BURST_MS } from './SparkleBurst.svelte'
   import { canAddSet, MAX_SETS } from '../core/sets'
   import {
     activeSet,
@@ -218,7 +218,7 @@
     clearTimeout(burstTimer)
     bursting = false
     requestAnimationFrame(() => (bursting = true))
-    burstTimer = setTimeout(() => (bursting = false), 600)
+    burstTimer = setTimeout(() => (bursting = false), SPARKLE_BURST_MS + 50)
   }
 
   function suggest(force = false) {
@@ -710,7 +710,7 @@
     filter: grayscale(1);
     opacity: 0.5;
     /* Springy press (v12 WS2): squash on :active, overshoot on release. */
-    transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    transition: var(--bounce-transition);
   }
 
   .pin:active {

@@ -435,7 +435,7 @@
     border-radius: 999px;
     color: var(--ink-muted);
     opacity: 0;
-    transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    transition: var(--bounce-transition);
   }
 
   .pos-btn:active {
@@ -561,7 +561,7 @@
     color: var(--ink-muted);
     opacity: 0;
     /* Springy press (v12 WS2): squash on :active, overshoot on release. */
-    transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    transition: var(--bounce-transition);
   }
 
   .tag:active {

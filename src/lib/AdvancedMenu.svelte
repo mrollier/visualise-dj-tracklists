@@ -10,6 +10,7 @@
   import type { TrackSortField } from '../core/trackSort'
   import ConfirmDialog from './ConfirmDialog.svelte'
   import InfoTooltip from './InfoTooltip.svelte'
+  import SliderRow from './SliderRow.svelte'
   import {
     criteria,
     filters,
@@ -266,10 +267,14 @@
             bind:value={$criteria.genre.k}
           />
         </label>
-        <label>
-          Minimum score <strong>{$criteria.genre.threshold.toFixed(2)}</strong>
-          <input type="range" min="0" max="1" step="0.05" bind:value={$criteria.genre.threshold} />
-        </label>
+        <SliderRow
+          label="Minimum score"
+          bind:value={$criteria.genre.threshold}
+          min={0}
+          max={1}
+          step={0.05}
+          display={(v) => v.toFixed(2)}
+        />
         <p class="hint">
           Genres link when each is in the other's top-k — self-calibrating where genre space is
           dense (electronic) or sparse; umbrella tags never count as neighbours.
@@ -278,10 +283,14 @@
           >
         </p>
       {:else}
-        <label>
-          Similarity ≥ <strong>{$criteria.genre.threshold.toFixed(2)}</strong>
-          <input type="range" min="0" max="1" step="0.05" bind:value={$criteria.genre.threshold} />
-        </label>
+        <SliderRow
+          label="Similarity ≥"
+          bind:value={$criteria.genre.threshold}
+          min={0}
+          max={1}
+          step={0.05}
+          display={(v) => v.toFixed(2)}
+        />
         <p class="hint">
           Lower = looser matching. With the graph method, 0.6 accepts direct relatives, 0.36 two
           steps apart.
@@ -355,19 +364,28 @@
          visible in the CURRENT view dims (with a title saying where it
          acts) but stays adjustable — never disabled. The colour scheme
          stays live everywhere. -->
-    <label class:off-view={$viewMode !== 'wheel'} title="Only affects the Wheel view">
-      Same-key spread <strong>×{$settings.slotSpreadFactor.toFixed(2)}</strong>
-      <input type="range" min="0" max="2" step="0.05" bind:value={$settings.slotSpreadFactor} />
-    </label>
+    <SliderRow
+      label="Same-key spread"
+      bind:value={$settings.slotSpreadFactor}
+      min={0}
+      max={2}
+      step={0.05}
+      display={(v) => `×${v.toFixed(2)}`}
+      dimmed={$viewMode !== 'wheel'}
+      title="Only affects the Wheel view"
+    />
     <!-- Edges are focus-only (v9): these dim unless a wheel track is
          selected, but stay adjustable in advance (v11 issue 13). -->
-    <label
-      class:off-view={$viewMode !== 'wheel' || $selectedId === null}
+    <SliderRow
+      label="Edge opacity"
+      bind:value={$settings.edgeOpacity}
+      min={0}
+      max={0.9}
+      step={0.05}
+      display={(v) => v.toFixed(2)}
+      dimmed={$viewMode !== 'wheel' || $selectedId === null}
       title="Only visible around a selected track on the Wheel"
-    >
-      Edge opacity <strong>{$settings.edgeOpacity.toFixed(2)}</strong>
-      <input type="range" min="0" max="0.9" step="0.05" bind:value={$settings.edgeOpacity} />
-    </label>
+    />
     <label
       class="row"
       class:off-view={$viewMode !== 'wheel' || $selectedId === null}
@@ -457,10 +475,14 @@
       Suggested set length
       <input type="number" min="2" max="99" bind:value={$settings.suggestLength} />
     </label>
-    <label>
-      Adventurousness <strong>{$settings.suggestRandomness.toFixed(2)}</strong>
-      <input type="range" min="0" max="1" step="0.05" bind:value={$settings.suggestRandomness} />
-    </label>
+    <SliderRow
+      label="Adventurousness"
+      bind:value={$settings.suggestRandomness}
+      min={0}
+      max={1}
+      step={0.05}
+      display={(v) => v.toFixed(2)}
+    />
     <p class="hint">
       0 always picks the safest transition; higher values embrace dissonance. Genre closeness always
       counts in the ranking.
@@ -476,10 +498,14 @@
     <p class="hint">
       Nudges each next pick toward the preferred tempo trajectory — combo criteria still come first.
     </p>
-    <label>
-      Manual-combo pull <strong>{$settings.manualEdgeWeight.toFixed(1)}</strong>
-      <input type="range" min="0" max="10" step="0.5" bind:value={$settings.manualEdgeWeight} />
-    </label>
+    <SliderRow
+      label="Manual-combo pull"
+      bind:value={$settings.manualEdgeWeight}
+      min={0}
+      max={10}
+      step={0.5}
+      display={(v) => v.toFixed(1)}
+    />
     <p class="hint">
       How hard a track pair you marked "mix well" pulls suggested walks. 0 ignores the mark (it
       still counts as an edge); 5 ranks it like an essential; 10 lets it dominate.
@@ -777,11 +803,6 @@
   .mode-row label {
     flex-wrap: nowrap;
     white-space: nowrap;
-  }
-
-  input[type='range'] {
-    width: 100%;
-    padding: 0;
   }
 
   input[type='number'] {
