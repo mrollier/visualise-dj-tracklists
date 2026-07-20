@@ -85,7 +85,7 @@ export const DEFAULT_CRITERIA: CriteriaConfig = {
 /** The metadata fields that act as pairwise combo criteria. */
 export type CriterionField = 'key' | 'bpm' | 'genre' | 'year'
 
-export interface ComboEvaluation {
+interface ComboEvaluation {
   /** Criteria that were enabled and had values on both sides. */
   evaluable: CriterionField[]
   /** Subset of `evaluable` that matched. */
@@ -177,7 +177,7 @@ export function matchedGenrePairs(
  * tolerance, or null if none of the enabled ratios (unit, half/double, 2/3
  * time) fits. Ratios are tried unit-first so the plain match always wins.
  */
-export function bpmCompatibleRatio(a: Track, b: Track, cfg: CriteriaConfig): number | null {
+function bpmCompatibleRatio(a: Track, b: Track, cfg: CriteriaConfig): number | null {
   if (a.bpm === null || b.bpm === null) return null
   const ratios: number[] = []
   if (cfg.bpm.unitTime) ratios.push(1)
@@ -314,7 +314,7 @@ export function focusEdges(
  * the symbolic graph includes pairs with no shared metadata, which
  * evaluateCombo would exclude — at "require 0" nothing is required.
  */
-export interface ComboView {
+interface ComboView {
   edges: ComboEdge[]
   complete: boolean
   pairCount: number

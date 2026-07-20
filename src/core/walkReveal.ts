@@ -12,7 +12,7 @@ export const WALK_REVEAL_STEP_MS = 140
 const MAX_REVEAL_TOTAL_MS = 4000
 const MIN_STEP_MS = 40
 
-export interface WalkRevealPlan {
+interface WalkRevealPlan {
   /** Delay per track id, first occurrence — a duplicate lights its dot once. */
   nodeDelays: Map<string, number>
   /** Delay per walk edge, indexed like the walk's consecutive pairs. */

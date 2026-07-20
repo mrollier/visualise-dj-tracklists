@@ -7,7 +7,7 @@
 
 import { packNeighbours } from './genre'
 
-export interface MapEdge {
+interface MapEdge {
   a: string
   b: string
   score: number
@@ -50,7 +50,7 @@ export function skeletonOpacity(nodeCount: number): number {
   return Math.min(0.42, Math.max(0.16, raw))
 }
 
-export interface MapMotion {
+interface MapMotion {
   velocityDecay: number
   dragAlphaTarget: number
 }
@@ -95,14 +95,14 @@ export function ghostAnchors(
   return anchors
 }
 
-export interface MapFocusState {
+interface MapFocusState {
   hover: string | null
   /** The single inspected genre (first click of the compare flow). */
   selected: string | null
   pair: readonly [string, string] | null
 }
 
-export type EdgeTier = 'pair' | 'star' | 'skeleton' | null
+type EdgeTier = 'pair' | 'star' | 'skeleton' | null
 
 /**
  * The focus state machine (v13 issue 3, mirroring the wheel's focus-only

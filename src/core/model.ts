@@ -102,9 +102,9 @@ export function energyFromComments(comments: string | null): number | null {
  * The import report deliberately counts only the five wheel/combo axes —
  * a library without remixers or labels is not "missing metadata".
  */
-export type MetadataField = 'key' | 'bpm' | 'genre' | 'year' | 'rating'
+type MetadataField = 'key' | 'bpm' | 'genre' | 'year' | 'rating'
 
-export const METADATA_FIELDS: readonly MetadataField[] = ['key', 'bpm', 'genre', 'year', 'rating']
+const METADATA_FIELDS: readonly MetadataField[] = ['key', 'bpm', 'genre', 'year', 'rating']
 
 export interface ImportReport {
   total: number

@@ -24,7 +24,7 @@ import type { BpmProgression } from './settings'
  * lets "dissonant" picks through. Every suggestion is reproducible via its
  * seed.
  */
-export interface SuggestOptions {
+interface SuggestOptions {
   /** Pin the walk's opening track. Without it the opener is random. */
   seedId?: string | null
   /** Pin the walk's closing track: the walk grows from both ends inward. */
@@ -73,7 +73,7 @@ function pairKey(x: string, y: string): string {
   return x < y ? `${x}\n${y}` : `${y}\n${x}`
 }
 
-export interface SuggestedWalk {
+interface SuggestedWalk {
   ids: string[]
   /** How many steps had to break the criteria (0 without `force`). */
   forced: number
@@ -565,7 +565,7 @@ export function nextExhausted(
  * Takes the stores' adjacency-map shape so the view derives it without
  * re-running edge computation.
  */
-export type RetryState = 'retry' | 'force-retry' | 'reset-only' | 'none'
+type RetryState = 'retry' | 'force-retry' | 'reset-only' | 'none'
 
 export function retryState(
   neighbours: ReadonlyMap<string, ReadonlySet<string>>,

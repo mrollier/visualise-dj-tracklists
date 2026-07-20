@@ -7,7 +7,7 @@ import type { Playlist, Track } from './model'
  * track id (playlist mode) — resolve through classIndexOfTrack so the views
  * never care. Class 0 is always the largest class (it keeps the circle).
  */
-export interface IconClassification {
+interface IconClassification {
   classOf: Map<string, number>
   /** Per class: a display label and its track count. */
   classes: { label: string; size: number }[]

@@ -11,7 +11,7 @@ import { SAMPLE_TRACKS } from './sample-tracks'
  * carries a playlist per pack — exactly like a Rekordbox XML import
  * (design-v6 §D).
  */
-export interface SamplePack {
+interface SamplePack {
   id: string
   name: string
   description: string
@@ -496,7 +496,7 @@ export const CLASSIC_PACK: SamplePack = {
 /** Every sample pack: the classic demo first, then the themed packs. */
 export const ALL_SAMPLE_PACKS: SamplePack[] = [CLASSIC_PACK, ...SAMPLE_PACKS]
 
-export interface SampleCollection {
+interface SampleCollection {
   name: string
   tracks: Track[]
   playlists: Playlist[]

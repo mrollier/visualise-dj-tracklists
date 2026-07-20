@@ -7,7 +7,7 @@
  * that canonical form.
  */
 
-export type CamelotRing = 'A' | 'B' // A = minor (inner), B = major (outer)
+type CamelotRing = 'A' | 'B' // A = minor (inner), B = major (outer)
 export type CamelotKey = `${number}${CamelotRing}`
 
 export const ALL_CAMELOT_KEYS: readonly CamelotKey[] = Array.from(
@@ -113,7 +113,7 @@ export function transposeCamelot(key: CamelotKey, semitones: number): CamelotKey
   return `${shifted}${camelotRing(key)}` as CamelotKey
 }
 
-export interface KeyMatchOptions {
+interface KeyMatchOptions {
   /** Also accept the +2 (two wheel steps) same-ring move. */
   plusTwo?: boolean
   /** Also accept the +7-semitone (five wheel steps) same-ring move. */

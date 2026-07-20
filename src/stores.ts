@@ -19,9 +19,9 @@ import { canAddSet, freshFirstSet, nextSetName, uniqueSetName, type TrackSet } f
 import { DEFAULT_SETTINGS, type AppSettings } from './core/settings'
 import type { TrackSort } from './core/trackSort'
 
-export type RadialAxis = 'bpm' | 'rating' | 'year' | 'energy'
-export type ColorAxis = 'auto' | RadialAxis
-export type ViewMode = 'wheel' | 'genres' | 'tracks'
+type RadialAxis = 'bpm' | 'rating' | 'year' | 'energy'
+type ColorAxis = 'auto' | RadialAxis
+type ViewMode = 'wheel' | 'genres' | 'tracks'
 
 export const library = writable<Track[]>([])
 /** Playlists imported with the library (Rekordbox XML); [] otherwise. */
@@ -275,9 +275,8 @@ export const scopedGenres = derived(playlistScopedLibrary, ($scoped) => {
  * and the edge list stays empty (v11 issue 2a) — consumers read `complete`
  * and `pairCount` instead of materializing n²/2 edges.
  */
-export const comboView = derived(
-  [visibleLibrary, effectiveCriteria],
-  ([$visibleLibrary, $criteria]) => computeComboView($visibleLibrary, $criteria),
+const comboView = derived([visibleLibrary, effectiveCriteria], ([$visibleLibrary, $criteria]) =>
+  computeComboView($visibleLibrary, $criteria),
 )
 
 export const edges = derived(comboView, ($comboView) => $comboView.edges)

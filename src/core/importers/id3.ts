@@ -2,7 +2,7 @@ import { normalizeKey } from '../keys'
 import { EMPTY_TRACK_FIELDS, type Track } from '../model'
 
 /** The subset of audio tags we care about, already flattened by the caller. */
-export interface FlatTags {
+interface FlatTags {
   title?: string
   artist?: string
   key?: string

@@ -9,7 +9,7 @@ import { genreComponents, labelSimilarity, type GenreMethod } from './genre'
  * If everything collapses into one family there is nothing to distinguish —
  * the result is null and every node stays a circle.
  */
-export interface GenreClassification {
+interface GenreClassification {
   /** Normalized primary genre label → class index (0 = largest class). */
   classOf: Map<string, number>
   /** Per class: the label of its most common genre, and its track count. */

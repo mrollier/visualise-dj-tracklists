@@ -9,7 +9,7 @@ import { buildReport, EMPTY_TRACK_FIELDS, type ImportReport, type Track } from '
  * match nothing become minimal new tracks (metadata-poor, flagged in the
  * report) so the set stays complete.
  */
-export interface M3uImportResult {
+interface M3uImportResult {
   /** Track ids in playlist order: library ids where matched, new ids otherwise. */
   tracklist: string[]
   /** Minimal tracks created for unmatched entries; add these to the library. */
@@ -113,7 +113,7 @@ export function importM3u(m3u: string, library: Track[]): M3uImportResult {
 /** True for the metadata-poor placeholder tracks created by importM3u. */
 const isBareM3uTrack = (t: Track) => t.id.startsWith('m3u-')
 
-export interface RematchResult {
+interface RematchResult {
   /** The imported collection plus any still-unmatched bare playlist tracks. */
   library: Track[]
   /** The previous set with bare-track ids re-pointed at their collection twins. */

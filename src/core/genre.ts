@@ -425,7 +425,7 @@ export function genreSimilarity(rawA: string, rawB: string, method: GenreMethod)
 // runtime resolution chain: normalize → aliases → components → pack squashed
 // lookup / tree membership, best component per track (max aggregation).
 
-export interface GenreCoverage {
+interface GenreCoverage {
   total: number
   /** Tracks with no genre at all — harmless, but only audio analysis reaches them. */
   blank: number

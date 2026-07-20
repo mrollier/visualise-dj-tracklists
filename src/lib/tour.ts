@@ -7,7 +7,7 @@ import { tourStep } from '../stores'
  * watching. Seen-state persists outside the project autosave so a Reset
  * never re-triggers it.
  */
-export const TOUR_SEEN_KEY = 'visualise-dj-tracklists:tour-seen'
+const TOUR_SEEN_KEY = 'visualise-dj-tracklists:tour-seen'
 
 export function startTour(): void {
   tourStep.set(0)

@@ -10,7 +10,7 @@ import type { TrackSortField } from './trackSort'
  */
 
 /** How a property's values compare, filter and render. */
-export type PropertyKind = 'alpha' | 'number' | 'date' | 'key' | 'contains' | 'colour' | 'quality'
+type PropertyKind = 'alpha' | 'number' | 'date' | 'key' | 'contains' | 'colour' | 'quality'
 
 /**
  * Rekordbox colour tags (raw `0xRRGGBB` values as they appear on `track.colour`)
