@@ -236,7 +236,8 @@ export const effectiveManualEdges = derived([manualEdges, easyMode], ([$m, $e]) 
 /** The filtered library: what the wheel, edges and suggestions operate on. */
 export const visibleLibrary = derived(
   [library, effectiveFilters, playlists],
-  ([$library, $filters, $playlists]) => applyFilters($library, $filters, $playlists),
+  ([$library, $effectiveFilters, $playlists]) =>
+    applyFilters($library, $effectiveFilters, $playlists),
 )
 
 /**
@@ -275,8 +276,9 @@ export const scopedGenres = derived(playlistScopedLibrary, ($scoped) => {
  * and the edge list stays empty (v11 issue 2a) — consumers read `complete`
  * and `pairCount` instead of materializing n²/2 edges.
  */
-const comboView = derived([visibleLibrary, effectiveCriteria], ([$visibleLibrary, $criteria]) =>
-  computeComboView($visibleLibrary, $criteria),
+const comboView = derived(
+  [visibleLibrary, effectiveCriteria],
+  ([$visibleLibrary, $effectiveCriteria]) => computeComboView($visibleLibrary, $effectiveCriteria),
 )
 
 export const edges = derived(comboView, ($comboView) => $comboView.edges)
@@ -307,10 +309,10 @@ export const focusEdges = derived(
 /** Library-wide genre matcher, so pairwise UI (set transitions) agrees with the wheel's edges. */
 export const genreMatcher = derived(
   [visibleLibrary, effectiveCriteria],
-  ([$visibleLibrary, $criteria]) =>
+  ([$visibleLibrary, $effectiveCriteria]) =>
     makeGenreMatcher(
       $visibleLibrary.map((t) => t.genre),
-      $criteria,
+      $effectiveCriteria,
     ),
 )
 
@@ -324,17 +326,18 @@ export const genreMatcher = derived(
  */
 export const iconClasses = derived(
   [playlistScopedLibrary, playlists, effectiveFilters, effectiveSettings],
-  ([$scoped, $playlists, $filters, $settings]) => {
-    const max = $settings.maxGenreClasses
-    if ($settings.iconMode === 'playlists') {
+  ([$scoped, $playlists, $effectiveFilters, $effectiveSettings]) => {
+    const max = $effectiveSettings.maxGenreClasses
+    if ($effectiveSettings.iconMode === 'playlists') {
+      const selectedNames = $effectiveFilters.playlists
       const selected =
-        $filters.playlists === null
+        selectedNames === null
           ? $playlists
-          : $playlists.filter((p) => $filters.playlists!.includes(p.name))
+          : $playlists.filter((p) => selectedNames.includes(p.name))
       return playlistClasses($scoped, selected, max)
     }
     const genres = $scoped.map((t) => t.genre)
-    if ($settings.iconMode === 'clusters') {
+    if ($effectiveSettings.iconMode === 'clusters') {
       const clustered = computeGenreClasses(genres, 'hybrid', max)
       return clustered === null ? null : { ...clustered, keyedBy: 'genre' as const }
     }
@@ -359,15 +362,18 @@ export const linkArmed = writable(false)
 /** Adjacency: for each track id, the ids it shares a combo edge with —
  * manual pairs included (v12 WS9), so the hub, retry ring and focus star all
  * treat a marked combo as a road. */
-export const neighbours = derived([edges, effectiveManualEdges], ([$edges, $manualEdges]) => {
-  const map = new Map<string, Set<string>>()
-  const connect = (x: string, y: string) => {
-    if (!map.has(x)) map.set(x, new Set())
-    if (!map.has(y)) map.set(y, new Set())
-    map.get(x)!.add(y)
-    map.get(y)!.add(x)
-  }
-  for (const e of $edges) connect(e.sourceId, e.targetId)
-  for (const e of $manualEdges) connect(e.a, e.b)
-  return map
-})
+export const neighbours = derived(
+  [edges, effectiveManualEdges],
+  ([$edges, $effectiveManualEdges]) => {
+    const map = new Map<string, Set<string>>()
+    const connect = (x: string, y: string) => {
+      if (!map.has(x)) map.set(x, new Set())
+      if (!map.has(y)) map.set(y, new Set())
+      map.get(x)!.add(y)
+      map.get(y)!.add(x)
+    }
+    for (const e of $edges) connect(e.sourceId, e.targetId)
+    for (const e of $effectiveManualEdges) connect(e.a, e.b)
+    return map
+  },
+)

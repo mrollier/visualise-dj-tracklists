@@ -189,7 +189,7 @@
     // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived-local
     const angles = new Map<string, number>()
     // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived-local
-    const bySlot = new Map<string, Track[]>()
+    const bySlot = new Map<CamelotKey, Track[]>()
     for (const track of $library) {
       if (track.key === null) continue
       if (!bySlot.has(track.key)) bySlot.set(track.key, [])
@@ -210,7 +210,7 @@
       const minRadius = Math.min(...slotNodes.map((n) => n.r))
       const half = spreadHalfDeg(factor, NODE_WORLD_RADIUS, minRadius)
       const offsets = relaxSlotAngles(slotNodes, half, NODE_WORLD_RADIUS)
-      const base = wheelSlotAngleDeg(key as CamelotKey)
+      const base = wheelSlotAngleDeg(key)
       for (const [id, offset] of offsets) angles.set(id, base + offset)
     }
     return angles
@@ -533,7 +533,7 @@
   role="presentation"
   onmousemove={(e) => (mouse = { x: e.clientX, y: e.clientY })}
   onclick={(e) => {
-    if ((e.target as Element).tagName === 'svg') selectedId.set(null)
+    if (e.target instanceof Element && e.target.tagName === 'svg') selectedId.set(null)
   }}
 >
   <svg

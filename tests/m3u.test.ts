@@ -74,6 +74,16 @@ describe('importM3u', () => {
     expect(result.tracklist[1]).toBe(result.newTracks[0].id)
   })
 
+  test('unmatched EXTINF name without " - " becomes the title, with no artist', () => {
+    const m3u = ['#EXTM3U', '#EXTINF:200,Solo Title Only', '/music/solo.mp3'].join('\n')
+    const result = importM3u(m3u, [])
+    expect(result.newTracks[0]).toMatchObject({
+      title: 'Solo Title Only',
+      artist: null,
+      durationSec: 200,
+    })
+  })
+
   test('paths without EXTINF still import using the file name as title', () => {
     const m3u = ['/music/found-tape.wav'].join('\n')
     const result = importM3u(m3u, [])

@@ -80,10 +80,11 @@ export function importM3u(m3u: string, library: Track[]): M3uImportResult {
     if (matched !== undefined) {
       tracklist.push(matched.id)
     } else {
-      const dash = pendingName?.indexOf(' - ') ?? -1
-      const artist = dash > 0 ? pendingName!.slice(0, dash).trim() : null
+      const name = pendingName
+      const dash = name?.indexOf(' - ') ?? -1
+      const artist = name !== null && dash > 0 ? name.slice(0, dash).trim() : null
       const title =
-        dash > 0 ? pendingName!.slice(dash + 3).trim() : (pendingName ?? stem(basename(path)))
+        name !== null && dash > 0 ? name.slice(dash + 3).trim() : (name ?? stem(basename(path)))
       const track: Track = {
         ...EMPTY_TRACK_FIELDS,
         id: `m3u-${newTracks.length}-${basename(path)}`,

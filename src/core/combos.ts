@@ -99,7 +99,7 @@ export interface ComboEdge {
   matched: CriterionField[]
 }
 
-type Predicate = (a: Track, b: Track, config: CriteriaConfig) => boolean
+type Predicate = (a: Track, b: Track, criteria: CriteriaConfig) => boolean
 
 export type GenreMatcher = (rawA: string, rawB: string) => boolean
 
@@ -112,9 +112,9 @@ export type GenreMatcher = (rawA: string, rawB: string) => boolean
  */
 export function makeGenreMatcher(
   genres: Iterable<string | null>,
-  cfg: CriteriaConfig,
+  criteria: CriteriaConfig,
 ): GenreMatcher {
-  const { method, mode, k, threshold } = cfg.genre
+  const { method, mode, k, threshold } = criteria.genre
   if (mode === 'threshold') {
     return (rawA, rawB) => genreSimilarity(rawA, rawB, method) >= threshold
   }
@@ -154,7 +154,7 @@ export function makeGenreMatcher(
  */
 export function matchedGenrePairs(
   genres: Iterable<string | null>,
-  cfg: CriteriaConfig,
+  criteria: CriteriaConfig,
 ): [string, string][] {
   const vocabulary = new Set<string>()
   for (const raw of genres) {
@@ -162,7 +162,7 @@ export function matchedGenrePairs(
     for (const component of genreComponents(raw)) vocabulary.add(component)
   }
   const labels = [...vocabulary].sort()
-  const matches = makeGenreMatcher(labels, cfg)
+  const matches = makeGenreMatcher(labels, criteria)
   const pairs: [string, string][] = []
   for (let i = 0; i < labels.length; i++) {
     for (let j = i + 1; j < labels.length; j++) {
@@ -177,40 +177,40 @@ export function matchedGenrePairs(
  * tolerance, or null if none of the enabled ratios (unit, half/double, 2/3
  * time) fits. Ratios are tried unit-first so the plain match always wins.
  */
-function bpmCompatibleRatio(a: Track, b: Track, cfg: CriteriaConfig): number | null {
+function bpmCompatibleRatio(a: Track, b: Track, criteria: CriteriaConfig): number | null {
   if (a.bpm === null || b.bpm === null) return null
   const ratios: number[] = []
-  if (cfg.bpm.unitTime) ratios.push(1)
-  if (cfg.bpm.halfDouble) ratios.push(2, 0.5)
-  if (cfg.bpm.twoThirds) ratios.push(1.5, 2 / 3)
+  if (criteria.bpm.unitTime) ratios.push(1)
+  if (criteria.bpm.halfDouble) ratios.push(2, 0.5)
+  if (criteria.bpm.twoThirds) ratios.push(1.5, 2 / 3)
   for (const ratio of ratios) {
     const effective = b.bpm * ratio
     const low = Math.min(a.bpm, effective)
-    if (Math.abs(a.bpm - effective) <= (cfg.bpm.maxPercent / 100) * low) return ratio
+    if (Math.abs(a.bpm - effective) <= (criteria.bpm.maxPercent / 100) * low) return ratio
   }
   return null
 }
 
 const PREDICATES: Record<CriterionField, Predicate> = {
-  key: (a, b, cfg) => {
-    const opts = { plusTwo: cfg.key.plusTwo, plusSeven: cfg.key.plusSeven }
+  key: (a, b, criteria) => {
+    const opts = { plusTwo: criteria.key.plusTwo, plusSeven: criteria.key.plusSeven }
     // Vinyl mode: beatmatching by pitch shifts the key along with the tempo,
     // so keys are compared *after* that shift (design-v5 §B). The plain
     // comparison only applies without vinyl mode or when a tempo is unknown.
-    if (!cfg.key.vinylMode || a.bpm === null || b.bpm === null) {
+    if (!criteria.key.vinylMode || a.bpm === null || b.bpm === null) {
       return keysMatch(a.key!, b.key!, opts)
     }
-    const ratio = bpmCompatibleRatio(a, b, cfg)
+    const ratio = bpmCompatibleRatio(a, b, criteria)
     if (ratio === null) return false // beyond the pitch fader: unbeatmatchable
     const semitones = 12 * Math.log2(a.bpm / (b.bpm * ratio))
     const shift = Math.round(semitones)
     if (Math.abs(semitones - shift) > 0.35) return false // detuned, between keys
     return keysMatch(a.key!, transposeCamelot(b.key!, shift), opts)
   },
-  bpm: (a, b, cfg) => bpmCompatibleRatio(a, b, cfg) !== null,
+  bpm: (a, b, criteria) => bpmCompatibleRatio(a, b, criteria) !== null,
   // genre is handled in evaluateCombo: it needs the library-wide matcher.
   genre: () => false,
-  year: (a, b, cfg) => Math.abs(a.year! - b.year!) <= cfg.year.maxYears,
+  year: (a, b, criteria) => Math.abs(a.year! - b.year!) <= criteria.year.maxYears,
 }
 
 const FIELDS = Object.keys(PREDICATES) as CriterionField[]
@@ -220,8 +220,8 @@ const FIELDS = Object.keys(PREDICATES) as CriterionField[]
  * A demanded criterion must match on both sides for any edge, and floors the
  * N-of-M threshold (threshold ≥ demandedCount).
  */
-export function demandedCount(cfg: CriteriaConfig): number {
-  return FIELDS.filter((f) => cfg[f].enabled && cfg[f].demanded).length
+export function demandedCount(criteria: CriteriaConfig): number {
+  return FIELDS.filter((f) => criteria[f].enabled && criteria[f].demanded).length
 }
 
 /**
@@ -230,9 +230,12 @@ export function demandedCount(cfg: CriteriaConfig): number {
  * picker uses this as a gentle preference when no harmonious transition is
  * left (v8 issue 16).
  */
-export function keysNearlyMatch(a: Track, b: Track, cfg: CriteriaConfig): boolean {
+export function keysNearlyMatch(a: Track, b: Track, criteria: CriteriaConfig): boolean {
   if (a.key === null || b.key === null) return false
-  const relaxed: CriteriaConfig = { ...cfg, key: { ...cfg.key, plusTwo: true, plusSeven: true } }
+  const relaxed: CriteriaConfig = {
+    ...criteria,
+    key: { ...criteria.key, plusTwo: true, plusSeven: true },
+  }
   return PREDICATES.key(a, b, relaxed)
 }
 
@@ -245,7 +248,7 @@ export function keysNearlyMatch(a: Track, b: Track, cfg: CriteriaConfig): boolea
 export function evaluateCombo(
   a: Track,
   b: Track,
-  config: CriteriaConfig,
+  criteria: CriteriaConfig,
   genreMatch?: GenreMatcher,
 ): ComboEvaluation {
   const evaluable: CriterionField[] = []
@@ -256,23 +259,23 @@ export function evaluateCombo(
   // forced picker scores pairs off it even when they never form an edge.
   let demandedFailed = false
   for (const field of FIELDS) {
-    if (!config[field].enabled) continue
+    if (!criteria[field].enabled) continue
     if (a[field] === null || b[field] === null) {
-      if (config[field].demanded) demandedFailed = true
+      if (criteria[field].demanded) demandedFailed = true
       continue
     }
     evaluable.push(field)
     let fieldMatched: boolean
     if (field === 'genre') {
-      genreMatch ??= makeGenreMatcher([a.genre, b.genre], config)
+      genreMatch ??= makeGenreMatcher([a.genre, b.genre], criteria)
       fieldMatched = genreMatch(a.genre!, b.genre!)
     } else {
-      fieldMatched = PREDICATES[field](a, b, config)
+      fieldMatched = PREDICATES[field](a, b, criteria)
     }
     if (fieldMatched) matched.push(field)
-    else if (config[field].demanded) demandedFailed = true
+    else if (criteria[field].demanded) demandedFailed = true
   }
-  const effectiveThreshold = Math.min(config.threshold, evaluable.length)
+  const effectiveThreshold = Math.min(criteria.threshold, evaluable.length)
   const isCombo = !demandedFailed && evaluable.length > 0 && matched.length >= effectiveThreshold
   return { evaluable, matched, isCombo }
 }
@@ -320,15 +323,15 @@ interface ComboView {
   pairCount: number
 }
 
-export function computeComboView(tracks: Track[], config: CriteriaConfig): ComboView {
+export function computeComboView(tracks: Track[], criteria: CriteriaConfig): ComboView {
   // The symbolic complete graph only holds when nothing is required AND
   // nothing is demanded (v14 C2): a locked criterion still filters every pair,
   // so those edges must be materialized, not assumed.
-  if (config.threshold === 0 && demandedCount(config) === 0) {
+  if (criteria.threshold === 0 && demandedCount(criteria) === 0) {
     const n = tracks.length
     return { edges: [], complete: true, pairCount: n < 2 ? 0 : (n * (n - 1)) / 2 }
   }
-  const edges = computeEdges(tracks, config)
+  const edges = computeEdges(tracks, criteria)
   return { edges, complete: false, pairCount: edges.length }
 }
 
@@ -340,18 +343,18 @@ export function computeComboView(tracks: Track[], config: CriteriaConfig): Combo
  * threshold at all times (v14 C2): threshold ≥ demandedCount.
  */
 export function toggleCriterion(
-  config: CriteriaConfig,
+  criteria: CriteriaConfig,
   field: CriterionField,
   enabled: boolean,
 ): CriteriaConfig {
-  const enabledCount = (cfg: CriteriaConfig): number =>
-    [cfg.key, cfg.bpm, cfg.genre, cfg.year].filter((c) => c.enabled).length
-  const next: CriteriaConfig = { ...config, [field]: { ...config[field], enabled } }
+  const enabledCount = (criteria: CriteriaConfig): number =>
+    [criteria.key, criteria.bpm, criteria.genre, criteria.year].filter((c) => c.enabled).length
+  const next: CriteriaConfig = { ...criteria, [field]: { ...criteria[field], enabled } }
   const after = enabledCount(next)
-  let threshold = config.threshold
+  let threshold = criteria.threshold
   // v14 C1: enabling ALWAYS requires the newly-enabled criterion — including up
   // from a previous deliberate 0 (design change per ISSUES.md C1).
-  if (enabled && !config[field].enabled) threshold = Math.min(threshold + 1, after)
+  if (enabled && !criteria[field].enabled) threshold = Math.min(threshold + 1, after)
   if (after > 0 && threshold > after) threshold = after
   threshold = Math.max(threshold, demandedCount(next)) // v14 C2 floor
   return { ...next, threshold }
@@ -363,24 +366,24 @@ export function toggleCriterion(
  * is (the desired bar is unaffected by removing a floor).
  */
 export function toggleDemanded(
-  config: CriteriaConfig,
+  criteria: CriteriaConfig,
   field: CriterionField,
   demanded: boolean,
 ): CriteriaConfig {
-  const next: CriteriaConfig = { ...config, [field]: { ...config[field], demanded } }
+  const next: CriteriaConfig = { ...criteria, [field]: { ...criteria[field], demanded } }
   return { ...next, threshold: Math.max(next.threshold, demandedCount(next)) }
 }
 
 /** All undirected combo edges for a track set, each pair reported once. */
-export function computeEdges(tracks: Track[], config: CriteriaConfig): ComboEdge[] {
+export function computeEdges(tracks: Track[], criteria: CriteriaConfig): ComboEdge[] {
   const genreMatch = makeGenreMatcher(
     tracks.map((t) => t.genre),
-    config,
+    criteria,
   )
   const edges: ComboEdge[] = []
   for (let i = 0; i < tracks.length; i++) {
     for (let j = i + 1; j < tracks.length; j++) {
-      const { matched, isCombo } = evaluateCombo(tracks[i], tracks[j], config, genreMatch)
+      const { matched, isCombo } = evaluateCombo(tracks[i], tracks[j], criteria, genreMatch)
       if (isCombo) {
         edges.push({ sourceId: tracks[i].id, targetId: tracks[j].id, matched })
       }
