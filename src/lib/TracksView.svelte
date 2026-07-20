@@ -9,7 +9,7 @@
   import { COLUMN_LABELS, visibleColumns } from '../core/columns'
   import type { Track } from '../core/model'
   import { nextStarState, type StarState } from '../core/pins'
-  import { formatPropertyValue, PROPERTY_BY_KEY } from '../core/properties'
+  import { formatPropertyValue, PROPERTY_BY_KEY, REKORDBOX_COLOURS } from '../core/properties'
   import { removeAllOccurrences } from '../core/sets'
   import { sortTracks, type TrackSortField } from '../core/trackSort'
   import {
@@ -42,6 +42,12 @@
   function isTextColumn(field: TrackSortField): boolean {
     const kind = PROPERTY_BY_KEY.get(field)?.kind
     return kind === 'alpha' || kind === 'contains' || kind === 'colour' || kind === 'quality'
+  }
+
+  // Rekordbox stores colour as a raw `0xRRGGBB` string; turn it into a CSS hex
+  // for the swatch, or null if it isn't a recognisable 6-digit hex (#8).
+  function colourHex(raw: string): string | null {
+    return /^0x[0-9a-fA-F]{6}$/.test(raw) ? '#' + raw.slice(2) : null
   }
 
   function toggleSort(field: TrackSortField) {
@@ -407,6 +413,25 @@
                       >{'★'.repeat(track.rating)}</span
                     ><span class="stars off">{'☆'.repeat(5 - track.rating)}</span>{/if}
                 </td>
+              {:else if field === 'colour'}
+                <!-- Rekordbox colour as a real swatch, not the raw 0xRRGGBB
+                     (ISSUES.md #8). Named tags get an accessible title. -->
+                <td class="colour">
+                  {#if track.colour === null}
+                    —
+                  {:else}
+                    {@const hex = colourHex(track.colour)}
+                    {#if hex !== null}
+                      <span
+                        class="swatch"
+                        style="background: {hex}"
+                        title={REKORDBOX_COLOURS[track.colour] ?? track.colour}
+                      ></span>
+                    {:else}
+                      {track.colour}
+                    {/if}
+                  {/if}
+                </td>
               {:else}
                 <td
                   class:ellipsis={isTextColumn(field)}
@@ -651,6 +676,20 @@
     max-width: 220px;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  /* Rekordbox colour swatch (#8): a small chip of the tag's colour. */
+  .colour {
+    text-align: center;
+  }
+
+  .swatch {
+    display: inline-block;
+    width: 13px;
+    height: 13px;
+    border-radius: 3px;
+    border: 1px solid color-mix(in srgb, var(--ink) 25%, transparent);
+    vertical-align: middle;
   }
 
   /* Header and body icons share a centred column (v11 issue 11): the ★ in
