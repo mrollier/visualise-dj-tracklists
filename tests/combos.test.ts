@@ -1297,7 +1297,7 @@ describe('toggleCriterion maintains the demanded floor (v14 C2)', () => {
     expect(next.threshold).toBe(2)
   })
 
-  test('disabling a demanded criterion drops its floor but keeps the flag', () => {
+  test('disabling a demanded criterion drops its floor AND clears the flag', () => {
     const cfg = config({
       key: { ...DEFAULT_CRITERIA.key, demanded: true },
       genre: { ...DEFAULT_CRITERIA.genre, demanded: true },
@@ -1305,12 +1305,14 @@ describe('toggleCriterion maintains the demanded floor (v14 C2)', () => {
     })
     const dropped = toggleCriterion(cfg, 'genre', false)
     expect(dropped.genre.enabled).toBe(false)
-    expect(dropped.genre.demanded).toBe(true) // flag survives
+    expect(dropped.genre.demanded).toBe(false) // must-match doesn't survive a disable
     expect(demandedCount(dropped)).toBe(1) // only key counts while genre disabled
-    // Re-enabling restores the lock's floor.
+    // Re-enabling comes back unlocked — must-match is a deliberate re-press,
+    // not something a re-enable should restore on its own.
     const restored = toggleCriterion(dropped, 'genre', true)
-    expect(demandedCount(restored)).toBe(2)
-    expect(restored.threshold).toBeGreaterThanOrEqual(2)
+    expect(restored.genre.demanded).toBe(false)
+    expect(demandedCount(restored)).toBe(1)
+    expect(restored.threshold).toBeGreaterThanOrEqual(1)
   })
 })
 

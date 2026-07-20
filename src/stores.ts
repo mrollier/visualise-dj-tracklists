@@ -1,8 +1,9 @@
 import { derived, get, writable, type Writable } from 'svelte/store'
 import {
   computeComboView,
-  focusEdges as computeFocusEdges,
   DEFAULT_CRITERIA,
+  EASY_CRITERIA,
+  focusEdges as computeFocusEdges,
   makeGenreMatcher,
   type CriteriaConfig,
 } from './core/combos'
@@ -216,7 +217,7 @@ export const manualEdges = writable<ManualEdge[]>([])
  */
 const easyMode = derived(settings, ($s) => $s.uiMode === 'easy')
 export const effectiveCriteria = derived([criteria, easyMode], ([$c, $e]) =>
-  $e ? structuredClone(DEFAULT_CRITERIA) : $c,
+  $e ? structuredClone(EASY_CRITERIA) : $c,
 )
 export const effectiveFilters = derived([filters, easyMode], ([$f, $e]) =>
   $e ? { ...structuredClone(EMPTY_FILTERS), playlists: $f.playlists } : $f,

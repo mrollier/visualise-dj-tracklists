@@ -1,11 +1,118 @@
 # Issues — open
 
-Nothing open right now. All nineteen items from the v13 review resolved in
-**v14** ([designs/design-v14.md](designs/design-v14.md) has the per-issue
-design notes, the S1 reservation algorithm, the effective-store layer and the
-schema-v6 change list). The list below records what actually shipped —
-including the few places the implementation deviated from the original plan,
-kept honest so nothing is silently reopened.
+A handful of items from Michiel's v14 UI review. **Open** below is the actual
+backlog — logged only, deliberately not started, waiting for a plan phase.
+**Done this session** is a separate, honest record of five items that got
+implemented ad hoc mid-review instead of being logged first (a process slip,
+not a plan) — kept here so nothing is silently unaccounted for. Everything
+further below that — all nineteen items from the v13 review — resolved in
+**v14**
+([designs/design-v14.md](designs/design-v14.md) has the per-issue design
+notes, the S1 reservation algorithm, the effective-store layer and the
+schema-v6 change list). The "Resolved in v14" list records what actually
+shipped — including the few places the implementation deviated from the
+original plan, kept honest so nothing is silently reopened.
+
+## Open
+
+**Filters**
+
+1. **F5** — The quality (Kind) and key-ring (Keys) filters are each a 3-way
+   single-select "ring switch" (`lossy` / `lossless` / `both` in
+   `FiltersSection.svelte`'s `QUALITY_CHOICES`; `both` / `minor` / `major` in
+   `RING_CHOICES`). Replace both with **two independent toggle buttons** —
+   `lossy` + `lossless`, `minor` + `major` — each clickable on/off, no shared
+   "both" button. Both on (or both off-then-on) reproduces today's "both" (no
+   filter); both off means the filter matches nothing, which is the expected
+   (if unhelpful) result of deselecting everything. Saves row width, which
+   matters most for Kind: the `both` label is currently clipped in the filter
+   panel. `QualityChoice`/`currentQuality`/`setQuality`
+   (`FiltersSection.svelte:211-223`) and `filters.keyRing`
+   (`core/filter.ts:86`, `EMPTY_FILTERS.keyRing`) both need their two-state
+   selection logic reworked to hold an independent on/off pair rather than one
+   of three exclusive values — a schema-relevant change (`keyRing` is
+   persisted) and a `migrateFilters` update for the new shape.
+
+**Sidebar chrome**
+
+2. **N1** — The Playlists section header renders darker than Filters,
+   Genres, and Criteria. `PlaylistsSection.svelte`'s `summary` rule
+   (`PlaylistsSection.svelte:84-87`) never got the `color: var(--ink-secondary);
+   font-weight: 600` that `FiltersSection.svelte`, `GenresSection.svelte`, and
+   `CriteriaPanel.svelte` all set on theirs — it's rendering in the browser
+   default ink instead. Add the missing two declarations so all four sidebar
+   headers match.
+
+**Set builder**
+
+3. **S4** — ⚡ Force to N re-plays the reveal animation over the WHOLE new
+   walk, including the prefix that was already on screen before the force —
+   so the tracks that drew a moment ago visibly draw again instead of the
+   animation just continuing where it stopped. Root cause:
+   `walkRevealPlan(ids)` (`core/walkReveal.ts:27`) always indexes
+   `nodeDelays`/`edgeDelays` from `i=0` over whatever `ids` array it's given,
+   with no notion of "this many nodes are already revealed." The force path
+   (`TracklistPanel.svelte:233-244`, `suggest(force=true)`) calls
+   `bumpWalkReveal(walkRevealPlan(walk.ids).totalMs)` with the FULL new
+   `walk.ids` — even though S2 guarantees that walk is a strict-prefix
+   extension (single-arm) or arm-stability seam-fill (pinned-end two-arm) of
+   what's already drawn, i.e. the leading tracks are byte-identical to the
+   ones just animated. Fix shape: the force path needs to tell the reveal
+   plan how many leading ids to skip (the pre-force walk's length, e.g. via a
+   `startAt` param on `walkRevealPlan` or a plan built only over
+   `walk.ids.slice(startIndex)` with delays offset by the already-elapsed
+   time) so only the newly-forced tail actually animates in.
+
+4. **S5** — Double-click on the wheel always appends to the END of the set
+   (`appendToSet`, `stores.ts:124`: `[...ids, id]`), even when a track
+   partway through the set is the current selection. Michiel wants to select
+   a mid-set track, then double-click a different (new) track elsewhere, and
+   have it splice in right after the selected one — not tack onto the tail.
+   Design (confirmed): scope is "selection is a track id already IN the
+   active tracklist and the set is non-empty" → insert right after that
+   occurrence; otherwise (nothing selected, or the selection isn't in the
+   set) falls back to today's append-at-end, so the existing "double-click to
+   start/append" behaviour is unchanged in every case that doesn't apply.
+   The spliced-in transition gets the same trust ★/🔗 already get: it inserts
+   even if it breaks the combo criteria on one or both new edges — one rule
+   for every manual hand-edit, no new block/confirm path. Implementation
+   seam: `TracklistPanel.svelte` already has splice-based hand-edits
+   (`removeAt` at line 80 uses `ids.toSpliced(index, 1)`; `move` at line 86)
+   that funnel through `closeForceWindow()` (line 190) to clear forcedSteps
+   staleness — an insert needs the same treatment, and needs the selected
+   track's INDEX, not just its id, since a track may appear twice in a set
+   (not back-to-back) — first occurrence is the reasonable default there,
+   unconfirmed with Michiel (edge case, flagged not blocking).
+
+## Done this session (ad hoc, outside the plan)
+
+Implemented and verified (tests, typecheck, and a live browser pass) before
+Michiel flagged that this whole review should have stayed log-only until a
+plan phase. Left in place rather than reverted — working, tested code isn't
+worth discarding — but recorded here since it never went through a plan.
+
+- **Criterion lock doesn't survive a disable/re-enable.** Unchecking a combo
+  criterion left its 🔒 `demanded` flag set; re-enabling it came back locked
+  without a fresh 🔒 press. `toggleCriterion` (`core/combos.ts:345`) now
+  clears `demanded` whenever a criterion is disabled.
+- **Tracks-view manual-combo column.** A third narrow column next to ★/＋:
+  unselected shows a per-row manual-combo count, selecting a track swaps that
+  for clickable 🔗 icons on its actual partners (hover-reveal to add a new
+  one), plus a header "clear all" with a confirmation dialog.
+  `TracksView.svelte`.
+- **"Replay the guided tour" button in Advanced settings.** The only prior
+  path was a link inside the header's import-details tooltip, which needs a
+  live `$lastImportReport` to render at all — gone after any reload.
+  `AdvancedMenu.svelte`.
+- **Easy mode's fixed criteria tightened to key + BPM, both required** (was
+  3-of-4 across key/bpm/genre/year — too loose per Michiel's review). New
+  `EASY_CRITERIA` constant (`core/combos.ts`), wired into `effectiveCriteria`
+  (`stores.ts`). Confirmed on the sample library: 147 → 75 combo suggestions.
+- **Save/load discoverability + a real gap.** "Import…" relabeled to "Import
+  / load project…" (it already auto-detects `.json`) and moved next to Save.
+  Also found and fixed: loading a `.json` project silently overwrote the
+  current library with no confirmation, unlike loading the sample collection
+  — now gated behind the same in-app confirm dialog. `TopBar.svelte`.
 
 ## Resolved in v14
 

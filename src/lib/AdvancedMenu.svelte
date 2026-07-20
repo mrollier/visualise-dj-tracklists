@@ -11,6 +11,7 @@
   import ConfirmDialog from './ConfirmDialog.svelte'
   import InfoTooltip from './InfoTooltip.svelte'
   import SliderRow from './SliderRow.svelte'
+  import { startTour } from './tour'
   import {
     criteria,
     filters,
@@ -559,6 +560,12 @@
       <button class="to-tracks" onclick={goToTracksView}>Choose in the Tracks view →</button>
     </div>
   </details>
+
+  <!-- The guided tour otherwise only replays from a link buried in the
+       header's import-details tooltip, which needs a live $lastImportReport
+       to even render — gone again after a reload. This is the reliable,
+       always-there way back to it. -->
+  <button class="reset-defaults" onclick={startTour}>↻ Replay the guided tour</button>
 
   <!-- v9 issue 3: everything this panel owns, back to its default value.
        Filters, playlists, sets, pins, and the theme are deliberately not

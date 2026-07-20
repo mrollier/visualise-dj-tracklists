@@ -15,8 +15,10 @@
   import {
     appendToSet,
     comboComplete,
+    effectiveManualEdges,
     hoveredId,
     linkArmed,
+    manualEdges,
     mustInclude,
     neighbours,
     pinnedFirst,
@@ -24,11 +26,13 @@
     selectedId,
     selectOrLink,
     settings,
+    toggleManualEdge,
     trackById,
     tracklist,
     trackSort,
     visibleLibrary,
   } from '../stores'
+  import ConfirmDialog from './ConfirmDialog.svelte'
 
   const COLUMN_LABEL = COLUMN_LABELS
 
@@ -89,6 +93,39 @@
     return $neighbours.get($selectedId)
   })
   const mustSet = $derived(new Set($mustInclude))
+
+  // Manual-combo column: hidden in easy mode, like the rest of the 🔗
+  // machinery (E1 — link mode is out of sight and inert there).
+  const easy = $derived($settings.uiMode === 'easy')
+
+  // No selection: each row shows how many manual combos it's part of at all.
+  const manualCountById = $derived.by(() => {
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived-local
+    const map = new Map<string, number>()
+    for (const e of $effectiveManualEdges) {
+      map.set(e.a, (map.get(e.a) ?? 0) + 1)
+      map.set(e.b, (map.get(e.b) ?? 0) + 1)
+    }
+    return map
+  })
+
+  // With a selection: which other rows actually share a manual combo with it
+  // — the list-view analogue of the wheel's dashed lines.
+  const manualPartnerIds = $derived.by(() => {
+    if ($selectedId === null) return null
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived-local
+    const set = new Set<string>()
+    for (const e of $effectiveManualEdges) {
+      if (e.a === $selectedId) set.add(e.b)
+      else if (e.b === $selectedId) set.add(e.a)
+    }
+    return set
+  })
+
+  let manualClearConfirm: ConfirmDialog
+  function clearAllManualEdges(): void {
+    manualEdges.set([])
+  }
 
   function selectRow(id: string) {
     // v14 T1 / v14 WS10: an armed 🔗 makes the next row click mark/unmark a
@@ -213,6 +250,20 @@
               onclick={() => (inSetOnly = !inSetOnly)}>☰</button
             >
           </th>
+          {#if !easy}
+            <!-- Manual (🔗) combos, list-view analogue of the wheel's dashed
+                 links: unselected shows a per-row count, a selection swaps
+                 that for a lit/clickable icon on the actual partners. -->
+            <th class="manual-col">
+              <button
+                class="pos-toggle"
+                disabled={$manualEdges.length === 0}
+                title="Clear every manual combo"
+                aria-label="Clear all manual combos"
+                onclick={() => manualClearConfirm.open(clearAllManualEdges)}>🗑</button
+              >
+            </th>
+          {/if}
           {#each columns as field (field)}
             <th
               class:drop-target={dropField === field}
@@ -304,6 +355,45 @@
                 {/if}
               </button>
             </td>
+            {#if !easy}
+              {@const sel = $selectedId}
+              <td class="manual">
+                {#if sel === null}
+                  {@const count = manualCountById.get(track.id) ?? 0}
+                  {#if count > 0}
+                    <span class="manual-count" title="{count} manual combo{count === 1 ? '' : 's'}"
+                      >{count}</span
+                    >
+                  {/if}
+                {:else if track.id === sel}
+                  <span
+                    class="tag on"
+                    title="Selected — its manual combos light up on the other rows"
+                    >🔗</span
+                  >
+                {:else if manualPartnerIds?.has(track.id)}
+                  <button
+                    class="tag on"
+                    title="Manually combo'd — click to remove"
+                    aria-label="Remove the manual combo with {track.title}"
+                    onclick={(e) => {
+                      e.stopPropagation()
+                      toggleManualEdge(sel, track.id)
+                    }}>🔗</button
+                  >
+                {:else}
+                  <button
+                    class="tag"
+                    title="Click to mark a manual combo with the selected track"
+                    aria-label="Add a manual combo with {track.title}"
+                    onclick={(e) => {
+                      e.stopPropagation()
+                      toggleManualEdge(sel, track.id)
+                    }}>🔗</button
+                  >
+                {/if}
+              </td>
+            {/if}
             {#each columns as field (field)}
               {#if field === 'rating'}
                 <td
@@ -337,6 +427,14 @@
     {/if}
   {/if}
 </section>
+
+<ConfirmDialog
+  bind:this={manualClearConfirm}
+  title="Clear all manual combos?"
+  body="Every user-defined combo (the dashed links on the wheel) is removed, library-wide — not just the tracks in this view. Cmd+Z undoes it if that was a mistake."
+  confirmLabel="Clear all"
+  danger
+/>
 
 <style>
   .tracks-view {
@@ -424,6 +522,21 @@
 
   .pos {
     text-align: center;
+  }
+
+  .manual-col {
+    width: 30px;
+    text-align: center;
+  }
+
+  .manual {
+    text-align: center;
+  }
+
+  .manual-count {
+    font-size: 11px;
+    color: var(--ink-muted);
+    font-variant-numeric: tabular-nums;
   }
 
   .pos-btn {

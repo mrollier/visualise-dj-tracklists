@@ -82,6 +82,21 @@ export const DEFAULT_CRITERIA: CriteriaConfig = {
   threshold: 3,
 }
 
+/**
+ * Easy mode's fixed criteria (v15): key + BPM only, both required — genre
+ * and year matching are too loose for a hands-off default. Not editable in
+ * easy mode (the Combo criteria section is hidden there); switching to
+ * advanced control is the only way to change it. Missing data still shrinks
+ * the denominator same as everywhere else (neither field is `demanded`) —
+ * a track with no BPM tag isn't zeroed out of every combo, just judged on key.
+ */
+export const EASY_CRITERIA: CriteriaConfig = {
+  ...DEFAULT_CRITERIA,
+  genre: { ...DEFAULT_CRITERIA.genre, enabled: false },
+  year: { ...DEFAULT_CRITERIA.year, enabled: false },
+  threshold: 2,
+}
+
 /** The metadata fields that act as pairwise combo criteria. */
 export type CriterionField = 'key' | 'bpm' | 'genre' | 'year'
 
@@ -349,7 +364,11 @@ export function toggleCriterion(
 ): CriteriaConfig {
   const enabledCount = (criteria: CriteriaConfig): number =>
     [criteria.key, criteria.bpm, criteria.genre, criteria.year].filter((c) => c.enabled).length
-  const next: CriteriaConfig = { ...criteria, [field]: { ...criteria[field], enabled } }
+  // Disabling drops the lock too: a re-enable must come back unlocked, not
+  // silently still demanded (must-match is a per-session commitment, not a
+  // property that survives the criterion being switched off).
+  const demanded = enabled ? criteria[field].demanded : false
+  const next: CriteriaConfig = { ...criteria, [field]: { ...criteria[field], enabled, demanded } }
   const after = enabledCount(next)
   let threshold = criteria.threshold
   // v14 C1: enabling ALWAYS requires the newly-enabled criterion — including up

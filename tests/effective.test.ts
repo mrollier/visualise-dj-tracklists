@@ -1,6 +1,6 @@
 import { get } from 'svelte/store'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
-import { DEFAULT_CRITERIA } from '../src/core/combos'
+import { DEFAULT_CRITERIA, EASY_CRITERIA } from '../src/core/combos'
 import { EMPTY_FILTERS } from '../src/core/filter'
 import { DEFAULT_SETTINGS } from '../src/core/settings'
 import { SAMPLE_TRACKS } from '../src/data/sample-tracks'
@@ -48,7 +48,7 @@ describe('effective stores — easy mode computes with defaults', () => {
     expect(get(effectiveManualEdges)).toEqual([{ a: 'x', b: 'y' }])
   })
 
-  test('easy ⇒ effectiveCriteria deep-equals DEFAULT_CRITERIA despite mutations', () => {
+  test('easy ⇒ effectiveCriteria deep-equals EASY_CRITERIA despite mutations', () => {
     criteria.update((c) => ({
       ...c,
       threshold: 1,
@@ -57,14 +57,27 @@ describe('effective stores — easy mode computes with defaults', () => {
     }))
     settings.update((s) => ({ ...s, uiMode: 'easy' }))
 
-    expect(get(effectiveCriteria)).toEqual(DEFAULT_CRITERIA)
+    expect(get(effectiveCriteria)).toEqual(EASY_CRITERIA)
   })
 
-  test('easy effectiveCriteria is a fresh clone — not aliased to DEFAULT_CRITERIA', () => {
+  // v15: easy mode's fixed criteria are key + BPM only, both required —
+  // genre and year (DEFAULT_CRITERIA's other two enabled fields) are too
+  // loose for a hands-off default.
+  test('easy criteria require key AND bpm, with genre/year disabled', () => {
     settings.update((s) => ({ ...s, uiMode: 'easy' }))
     const eff = get(effectiveCriteria)
-    expect(eff).not.toBe(DEFAULT_CRITERIA)
-    expect(eff.key).not.toBe(DEFAULT_CRITERIA.key)
+    expect(eff.key.enabled).toBe(true)
+    expect(eff.bpm.enabled).toBe(true)
+    expect(eff.genre.enabled).toBe(false)
+    expect(eff.year.enabled).toBe(false)
+    expect(eff.threshold).toBe(2)
+  })
+
+  test('easy effectiveCriteria is a fresh clone — not aliased to EASY_CRITERIA', () => {
+    settings.update((s) => ({ ...s, uiMode: 'easy' }))
+    const eff = get(effectiveCriteria)
+    expect(eff).not.toBe(EASY_CRITERIA)
+    expect(eff.key).not.toBe(EASY_CRITERIA.key)
   })
 
   test('easy ⇒ effectiveFilters keeps playlists but resets properties/genres/keyRing', () => {
@@ -135,7 +148,7 @@ describe('effective stores — easy mode computes with defaults', () => {
 
     // Enter easy: effective layer swings to defaults…
     settings.update((s) => ({ ...s, uiMode: 'easy' }))
-    expect(get(effectiveCriteria)).toEqual(DEFAULT_CRITERIA)
+    expect(get(effectiveCriteria)).toEqual(EASY_CRITERIA)
     // …but the raw writables are untouched.
     expect(get(criteria)).toEqual(storedCriteria)
     expect(get(filters)).toEqual(storedFilters)

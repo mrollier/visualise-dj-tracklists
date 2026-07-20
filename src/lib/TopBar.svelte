@@ -40,6 +40,7 @@
   let fileInput: HTMLInputElement
   let resetDialog: ResetDialog
   let replaceDialog: ConfirmDialog
+  let loadProjectDialog: ConfirmDialog
   let importError = $state('')
 
   async function importAudioFiles(files: File[]): Promise<ImportResult> {
@@ -75,7 +76,13 @@
     try {
       const first = files[0]
       if (first.name.toLowerCase().endsWith('.json')) {
-        applyProject(parseProject(await first.text()))
+        // Loading a saved project replaces the library the same way the
+        // sample collection does — it deserves the same confirmation, which
+        // it never had before (silent overwrite).
+        const project = parseProject(await first.text())
+        const load = () => applyProject(project)
+        if (replaceNeedsConfirmation()) loadProjectDialog.open(load)
+        else load()
         return
       }
       if (first.name.toLowerCase().endsWith('.txt')) {
@@ -275,7 +282,19 @@
       </label>
     {/if}
 
-    <button onclick={() => fileInput.click()}>Import…</button>
+    <!-- The sample's own info icon moved to the status ⓘ (v11 issue 4):
+         loading raises an import report like any other import. -->
+    <button onclick={loadSample} title="Load the sample collection (all themed packs as playlists)"
+      >Load sample</button
+    >
+    <!-- A .json here is a saved project (auto-detected in onFileChosen), not
+         a fresh library import — the label says so and the button sits next
+         to Save so the pair reads as one load/save unit (ISSUES.md). -->
+    <button
+      onclick={() => fileInput.click()}
+      title="Import a library (XML/CSV/TXT/M3U/audio files), or load a previously saved project (.json)"
+      >Import / load project…</button
+    >
     <input
       bind:this={fileInput}
       type="file"
@@ -284,11 +303,6 @@
       hidden
       onchange={onFileChosen}
     />
-    <!-- The sample's own info icon moved to the status ⓘ (v11 issue 4):
-         loading raises an import report like any other import. -->
-    <button onclick={loadSample} title="Load the sample collection (all themed packs as playlists)"
-      >Load sample</button
-    >
     <button onclick={saveProject} disabled={$library.length === 0}>Save project</button>
     {#if !easy}
       <button
@@ -332,6 +346,13 @@
       title="Replace your library?"
       body="Loading the sample collection replaces the current library and set. Save the project first if you want to keep them."
       confirmLabel="Replace and load"
+      danger
+    />
+    <ConfirmDialog
+      bind:this={loadProjectDialog}
+      title="Load this project?"
+      body="Loading a saved project replaces your current library, sets, filters, criteria and manual combos. Save the current project first if you want to keep it."
+      confirmLabel="Load and replace"
       danger
     />
   </div>
