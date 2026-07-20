@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'vitest'
 import { DEFAULT_CRITERIA, type CriteriaConfig } from '../src/core/combos'
-import { EMPTY_TRACK_FIELDS, type Track } from '../src/core/model'
 import {
   nextAnchorId,
   nextExhausted,
@@ -9,19 +8,7 @@ import {
   suggestNext,
   suggestWalk,
 } from '../src/core/suggest'
-
-function track(overrides: Partial<Track> & { id: string }): Track {
-  return {
-    ...EMPTY_TRACK_FIELDS,
-    title: overrides.id,
-    key: '8A',
-    bpm: 128,
-    genre: 'Techno',
-    year: 2020,
-    rating: 4,
-    ...overrides,
-  }
-}
+import { track } from './helpers'
 
 function config(overrides: Partial<CriteriaConfig> = {}): CriteriaConfig {
   return { ...structuredClone(DEFAULT_CRITERIA), ...overrides }
@@ -29,11 +16,46 @@ function config(overrides: Partial<CriteriaConfig> = {}): CriteriaConfig {
 
 // A small chain: a—b—c are strongly connected, d hangs off c, e is isolated.
 const tracks = [
-  track({ id: 'a', key: '8A', bpm: 128 }),
-  track({ id: 'b', key: '8A', bpm: 130 }),
-  track({ id: 'c', key: '9A', bpm: 132 }),
-  track({ id: 'd', key: '10A', bpm: 134, genre: 'Trance', year: 1999 }),
-  track({ id: 'e', key: '3B', bpm: 90, genre: 'Ambient', year: 1980 }),
+  track({
+    genre: 'Techno',
+    year: 2020,
+    rating: 4,
+    id: 'a',
+    key: '8A',
+    bpm: 128,
+  }),
+  track({
+    genre: 'Techno',
+    year: 2020,
+    rating: 4,
+    id: 'b',
+    key: '8A',
+    bpm: 130,
+  }),
+  track({
+    genre: 'Techno',
+    year: 2020,
+    rating: 4,
+    id: 'c',
+    key: '9A',
+    bpm: 132,
+  }),
+  track({
+    rating: 4,
+    id: 'd',
+    key: '10A',
+    bpm: 134,
+    genre: 'Trance',
+    year: 1999,
+  }),
+  track({
+    rating: 4,
+    id: 'e',
+    key: '3B',
+    bpm: 90,
+    genre: 'Ambient',
+    year: 1980,
+  }),
 ]
 
 describe('threshold 0: every track neighbours every other (v11 issue 2a)', () => {
@@ -92,7 +114,16 @@ describe('suggestWalk', () => {
   })
 
   test('without a seed, the opening track varies with the seed (fully random start)', () => {
-    const clique = Array.from({ length: 6 }, (_, i) => track({ id: `t${i}` }))
+    const clique = Array.from({ length: 6 }, (_, i) =>
+      track({
+        key: '8A',
+        bpm: 128,
+        genre: 'Techno',
+        year: 2020,
+        rating: 4,
+        id: `t${i}`,
+      }),
+    )
     const starts = new Set(
       Array.from(
         { length: 10 },
@@ -161,9 +192,30 @@ describe('suggestWalk', () => {
     test('two-ended walks force through a broken middle', () => {
       // a and d connect to nothing shared: without force the arms stall.
       const gap = [
-        track({ id: 'a', key: '8A', bpm: 128 }),
-        track({ id: 'z', key: '3B', bpm: 90, genre: 'Ambient', year: 1980 }),
-        track({ id: 'd', key: '8A', bpm: 129 }),
+        track({
+          genre: 'Techno',
+          year: 2020,
+          rating: 4,
+          id: 'a',
+          key: '8A',
+          bpm: 128,
+        }),
+        track({
+          rating: 4,
+          id: 'z',
+          key: '3B',
+          bpm: 90,
+          genre: 'Ambient',
+          year: 1980,
+        }),
+        track({
+          genre: 'Techno',
+          year: 2020,
+          rating: 4,
+          id: 'd',
+          key: '8A',
+          bpm: 129,
+        }),
       ]
       const short = suggestWalk(gap, config({ threshold: 4 }), {
         seedId: 'a',
@@ -198,9 +250,30 @@ describe('suggestWalk', () => {
       demanded: false,
     }
     const trio = [
-      track({ id: 'a', genre: 'Techno' }),
-      track({ id: 'x1', genre: 'Folk' }),
-      track({ id: 'x2', genre: 'Tech House' }),
+      track({
+        key: '8A',
+        bpm: 128,
+        year: 2020,
+        rating: 4,
+        id: 'a',
+        genre: 'Techno',
+      }),
+      track({
+        key: '8A',
+        bpm: 128,
+        year: 2020,
+        rating: 4,
+        id: 'x1',
+        genre: 'Folk',
+      }),
+      track({
+        key: '8A',
+        bpm: 128,
+        year: 2020,
+        rating: 4,
+        id: 'x2',
+        genre: 'Tech House',
+      }),
     ]
     const walk = suggestWalk(trio, cfg, { seedId: 'a', length: 2 }).ids
     expect(walk).toEqual(['a', 'x2'])
@@ -210,9 +283,30 @@ describe('suggestWalk', () => {
     const cfg = config()
     cfg.bpm.halfDouble = true
     const trio = [
-      track({ id: 'a', bpm: 87 }),
-      track({ id: 'x1', bpm: 92 }), // same-time but 5 BPM off
-      track({ id: 'x2', bpm: 174 }), // exact double
+      track({
+        key: '8A',
+        genre: 'Techno',
+        year: 2020,
+        rating: 4,
+        id: 'a',
+        bpm: 87,
+      }),
+      track({
+        key: '8A',
+        genre: 'Techno',
+        year: 2020,
+        rating: 4,
+        id: 'x1',
+        bpm: 92,
+      }), // same-time but 5 BPM off
+      track({
+        key: '8A',
+        genre: 'Techno',
+        year: 2020,
+        rating: 4,
+        id: 'x2',
+        bpm: 174,
+      }), // exact double
     ]
     const walk = suggestWalk(trio, cfg, { seedId: 'a', length: 2 }).ids
     expect(walk).toEqual(['a', 'x2'])
@@ -237,7 +331,16 @@ describe('suggestWalk', () => {
 
   test('with randomness, different seeds can produce different walks', () => {
     // A clique of equivalent tracks: any order is a valid walk.
-    const clique = Array.from({ length: 6 }, (_, i) => track({ id: `t${i}` }))
+    const clique = Array.from({ length: 6 }, (_, i) =>
+      track({
+        key: '8A',
+        bpm: 128,
+        genre: 'Techno',
+        year: 2020,
+        rating: 4,
+        id: `t${i}`,
+      }),
+    )
     const walks = new Set(
       Array.from({ length: 8 }, (_, seed) =>
         suggestWalk(clique, config(), { seedId: 't0', length: 6, randomness: 1, seed }).ids.join(
@@ -251,10 +354,38 @@ describe('suggestWalk', () => {
   describe('pinned endpoints', () => {
     // Year chain at threshold 4: only adjacent pairs are combo edges.
     const chain = [
-      track({ id: 'a', year: 2000 }),
-      track({ id: 'b', year: 2003 }),
-      track({ id: 'c', year: 2006 }),
-      track({ id: 'd', year: 2009 }),
+      track({
+        key: '8A',
+        bpm: 128,
+        genre: 'Techno',
+        rating: 4,
+        id: 'a',
+        year: 2000,
+      }),
+      track({
+        key: '8A',
+        bpm: 128,
+        genre: 'Techno',
+        rating: 4,
+        id: 'b',
+        year: 2003,
+      }),
+      track({
+        key: '8A',
+        bpm: 128,
+        genre: 'Techno',
+        rating: 4,
+        id: 'c',
+        year: 2006,
+      }),
+      track({
+        key: '8A',
+        bpm: 128,
+        genre: 'Techno',
+        rating: 4,
+        id: 'd',
+        year: 2009,
+      }),
     ]
 
     test('a pinned end makes the walk finish there', () => {
@@ -270,7 +401,16 @@ describe('suggestWalk', () => {
     })
 
     test('pinned first and last, full length: all tracks distinct', () => {
-      const clique = Array.from({ length: 6 }, (_, i) => track({ id: `t${i}` }))
+      const clique = Array.from({ length: 6 }, (_, i) =>
+        track({
+          key: '8A',
+          bpm: 128,
+          genre: 'Techno',
+          year: 2020,
+          rating: 4,
+          id: `t${i}`,
+        }),
+      )
       const walk = suggestWalk(clique, config(), {
         seedId: 't0',
         endId: 't5',
@@ -306,10 +446,38 @@ describe('suggestWalk', () => {
 describe('suggestNext', () => {
   // a—b—c chain (year steps at threshold 4), plus d only reachable from c.
   const chain = [
-    track({ id: 'a', year: 2000 }),
-    track({ id: 'b', year: 2003 }),
-    track({ id: 'c', year: 2006 }),
-    track({ id: 'd', year: 2009 }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      rating: 4,
+      id: 'a',
+      year: 2000,
+    }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      rating: 4,
+      id: 'b',
+      year: 2003,
+    }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      rating: 4,
+      id: 'c',
+      year: 2006,
+    }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      rating: 4,
+      id: 'd',
+      year: 2009,
+    }),
   ]
   const chainCfg = () => config({ threshold: 4 })
 
@@ -445,9 +613,30 @@ describe('forced key preference (v8 issue 16)', () => {
   // (10A vs 8A), 'a-far' three slots away (11A). Without the affinity term
   // the id tiebreak would pick 'a-far'.
   const stranded = [
-    track({ id: 'anchor', key: '8A', bpm: 128, genre: 'Techno', year: 2020 }),
-    track({ id: 'a-far', key: '11A', bpm: 200, genre: 'Jazz', year: 1990 }),
-    track({ id: 'z-plus2', key: '10A', bpm: 200, genre: 'Jazz', year: 1990 }),
+    track({
+      rating: 4,
+      id: 'anchor',
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+    }),
+    track({
+      rating: 4,
+      id: 'a-far',
+      key: '11A',
+      bpm: 200,
+      genre: 'Jazz',
+      year: 1990,
+    }),
+    track({
+      rating: 4,
+      id: 'z-plus2',
+      key: '10A',
+      bpm: 200,
+      genre: 'Jazz',
+      year: 1990,
+    }),
   ]
 
   test('a forced pick slightly prefers a ±2/±7-semitone key relation', () => {
@@ -459,9 +648,30 @@ describe('forced key preference (v8 issue 16)', () => {
     // Both candidates match bpm+genre+year (3 of 4); key differs only in
     // distance. Equal scores must still fall to the id tiebreak.
     const matched = [
-      track({ id: 'anchor', key: '8A', bpm: 128, genre: 'Techno', year: 2020 }),
-      track({ id: 'a-far', key: '11A', bpm: 128, genre: 'Techno', year: 2020 }),
-      track({ id: 'b-plus2', key: '10A', bpm: 128, genre: 'Techno', year: 2020 }),
+      track({
+        rating: 4,
+        id: 'anchor',
+        key: '8A',
+        bpm: 128,
+        genre: 'Techno',
+        year: 2020,
+      }),
+      track({
+        rating: 4,
+        id: 'a-far',
+        key: '11A',
+        bpm: 128,
+        genre: 'Techno',
+        year: 2020,
+      }),
+      track({
+        rating: 4,
+        id: 'b-plus2',
+        key: '10A',
+        bpm: 128,
+        genre: 'Techno',
+        year: 2020,
+      }),
     ]
     const next = suggestNext(matched, config(), ['anchor'], {})
     expect(next).toEqual({ trackId: 'a-far', insertIndex: 1 })
@@ -510,9 +720,30 @@ describe('progressionFit', () => {
 describe('suggestWalk with a BPM progression', () => {
   // One anchor with two equally matching neighbours that differ only in BPM.
   const fork = [
-    track({ id: 'a', bpm: 126 }),
-    track({ id: 'x1', bpm: 123 }),
-    track({ id: 'x2', bpm: 129 }),
+    track({
+      key: '8A',
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'a',
+      bpm: 126,
+    }),
+    track({
+      key: '8A',
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'x1',
+      bpm: 123,
+    }),
+    track({
+      key: '8A',
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'x2',
+      bpm: 129,
+    }),
   ]
 
   test('rising picks the faster candidate, falling the slower', () => {
@@ -539,9 +770,30 @@ describe('suggestWalk with must-include tracks', () => {
   test('a must-include neighbour beats an otherwise better-matching rival', () => {
     // x1 shares a's genre exactly; x2 is genre-distant — normally x1 wins.
     const trio = [
-      track({ id: 'a', genre: 'Techno' }),
-      track({ id: 'x1', genre: 'Techno' }),
-      track({ id: 'x2', genre: 'Folk', year: 2021 }),
+      track({
+        key: '8A',
+        bpm: 128,
+        year: 2020,
+        rating: 4,
+        id: 'a',
+        genre: 'Techno',
+      }),
+      track({
+        key: '8A',
+        bpm: 128,
+        year: 2020,
+        rating: 4,
+        id: 'x1',
+        genre: 'Techno',
+      }),
+      track({
+        key: '8A',
+        bpm: 128,
+        rating: 4,
+        id: 'x2',
+        genre: 'Folk',
+        year: 2021,
+      }),
     ]
     const walk = suggestWalk(trio, config(), {
       seedId: 'a',
@@ -584,7 +836,16 @@ describe('suggestWalk with must-include tracks', () => {
 })
 
 describe('must-include is a hard guarantee (v14 S1)', () => {
-  const clique = Array.from({ length: 10 }, (_, i) => track({ id: `t${i}` }))
+  const clique = Array.from({ length: 10 }, (_, i) =>
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: `t${i}`,
+    }),
+  )
 
   test('every essential appears, across seeds 0–19, at full randomness', () => {
     for (let seed = 0; seed < 20; seed++) {
@@ -654,10 +915,38 @@ describe('must-include is a hard guarantee (v14 S1)', () => {
   test('a disconnected essential is forced into a pinned two-arm walk (plain mode)', () => {
     // Year chain at threshold 4 (only adjacent years connect); 'iso' hangs off.
     const chain = [
-      track({ id: 'a', year: 2000 }),
-      track({ id: 'b', year: 2003 }),
-      track({ id: 'c', year: 2006 }),
-      track({ id: 'iso', year: 1900, key: '3B', genre: 'Ambient' }),
+      track({
+        key: '8A',
+        bpm: 128,
+        genre: 'Techno',
+        rating: 4,
+        id: 'a',
+        year: 2000,
+      }),
+      track({
+        key: '8A',
+        bpm: 128,
+        genre: 'Techno',
+        rating: 4,
+        id: 'b',
+        year: 2003,
+      }),
+      track({
+        key: '8A',
+        bpm: 128,
+        genre: 'Techno',
+        rating: 4,
+        id: 'c',
+        year: 2006,
+      }),
+      track({
+        bpm: 128,
+        rating: 4,
+        id: 'iso',
+        year: 1900,
+        key: '3B',
+        genre: 'Ambient',
+      }),
     ]
     const result = suggestWalk(chain, config({ threshold: 4 }), {
       seedId: 'a',
@@ -690,11 +979,46 @@ describe('force continues the short walk (v14 S2)', () => {
     // WRONG. The honest property is: the forced walk keeps the plain walk's
     // start-arm prefix AND its end-arm suffix, inserting forced picks between.
     const islands = [
-      track({ id: 's', key: '8A', bpm: 128 }),
-      track({ id: 'm1', key: '8A', bpm: 128 }),
-      track({ id: 'e', key: '5A', bpm: 100 }),
-      track({ id: 'm2', key: '5A', bpm: 100 }),
-      track({ id: 'mid', key: '11B', bpm: 200, genre: 'Jazz', year: 1980 }),
+      track({
+        genre: 'Techno',
+        year: 2020,
+        rating: 4,
+        id: 's',
+        key: '8A',
+        bpm: 128,
+      }),
+      track({
+        genre: 'Techno',
+        year: 2020,
+        rating: 4,
+        id: 'm1',
+        key: '8A',
+        bpm: 128,
+      }),
+      track({
+        genre: 'Techno',
+        year: 2020,
+        rating: 4,
+        id: 'e',
+        key: '5A',
+        bpm: 100,
+      }),
+      track({
+        genre: 'Techno',
+        year: 2020,
+        rating: 4,
+        id: 'm2',
+        key: '5A',
+        bpm: 100,
+      }),
+      track({
+        rating: 4,
+        id: 'mid',
+        key: '11B',
+        bpm: 200,
+        genre: 'Jazz',
+        year: 1980,
+      }),
     ]
     const opts = { seedId: 's', endId: 'e', length: 5, randomness: 1, seed: 4 }
     const short = suggestWalk(islands, config({ threshold: 4 }), opts).ids
@@ -750,10 +1074,38 @@ describe('nextAnchorId / nextExhausted', () => {
 
 describe('suggestNext forced mode', () => {
   const chain = [
-    track({ id: 'a', year: 2000 }),
-    track({ id: 'b', year: 2003 }),
-    track({ id: 'c', year: 2006 }),
-    track({ id: 'd', year: 2009 }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      rating: 4,
+      id: 'a',
+      year: 2000,
+    }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      rating: 4,
+      id: 'b',
+      year: 2003,
+    }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      rating: 4,
+      id: 'c',
+      year: 2006,
+    }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      rating: 4,
+      id: 'd',
+      year: 2009,
+    }),
   ]
   const chainCfg = () => config({ threshold: 4 })
 

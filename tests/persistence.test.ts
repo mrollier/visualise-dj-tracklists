@@ -1,7 +1,6 @@
 import { get } from 'svelte/store'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { EMPTY_FILTERS } from '../src/core/filter'
-import { EMPTY_TRACK_FIELDS, type Track } from '../src/core/model'
 import { ALL_SAMPLE_PACKS, CLASSIC_PACK, SAMPLE_COLLECTION } from '../src/data/samples'
 import {
   isSampleLibrary,
@@ -20,10 +19,7 @@ import {
   selectedId,
   tracklist,
 } from '../src/stores'
-
-function track(id: string): Track {
-  return { ...EMPTY_TRACK_FIELDS, id, title: id }
-}
+import { track } from './helpers'
 
 const REPORT = { total: 1, missing: { key: 1, bpm: 1, genre: 1, year: 1, rating: 1 }, errors: [] }
 
@@ -31,7 +27,7 @@ const REPORT = { total: 1, missing: { key: 1, bpm: 1, genre: 1, year: 1, rating:
 vi.stubGlobal('localStorage', { removeItem: () => {}, getItem: () => null, setItem: () => {} })
 
 beforeEach(() => {
-  library.set([track('rb-1'), track('rb-2')])
+  library.set([track({ id: 'rb-1' }), track({ id: 'rb-2' })])
   libraryName.set('old.xml')
   tracklist.set(['rb-1'])
   playlists.set([{ name: 'Old list', trackIds: ['rb-1'] }])
@@ -48,7 +44,7 @@ beforeEach(() => {
 
 describe('replaceLibrary', () => {
   test('replaces library, name, set and report in one go', () => {
-    const next = [track('csv-0')]
+    const next = [track({ id: 'csv-0' })]
     replaceLibrary({ tracks: next, name: 'new.csv', set: ['csv-0'], report: REPORT })
     expect(get(library)).toEqual(next)
     expect(get(libraryName)).toBe('new.csv')
@@ -57,13 +53,13 @@ describe('replaceLibrary', () => {
   })
 
   test('resets stale filters from the previous library', () => {
-    replaceLibrary({ tracks: [track('csv-0')], name: 'new.csv' })
+    replaceLibrary({ tracks: [track({ id: 'csv-0' })], name: 'new.csv' })
     expect(get(filters)).toEqual(EMPTY_FILTERS)
   })
 
   test('a collection with playlists starts with none selected (empty wheel)', () => {
     replaceLibrary({
-      tracks: [track('rb-9')],
+      tracks: [track({ id: 'rb-9' })],
       name: 'collection.xml',
       playlists: [{ name: 'Warm-up', trackIds: ['rb-9'] }],
     })
@@ -72,13 +68,13 @@ describe('replaceLibrary', () => {
   })
 
   test('clears selection and pins', () => {
-    replaceLibrary({ tracks: [track('csv-0')], name: 'new.csv' })
+    replaceLibrary({ tracks: [track({ id: 'csv-0' })], name: 'new.csv' })
     expect(get(selectedId)).toBeNull()
     expect(get(pinnedFirst)).toBeNull()
   })
 
   test('clears the previous import report when none is given', () => {
-    replaceLibrary({ tracks: [track('csv-0')], name: 'new.csv' })
+    replaceLibrary({ tracks: [track({ id: 'csv-0' })], name: 'new.csv' })
     expect(get(lastImportReport)).toBeNull()
   })
 })
@@ -132,8 +128,8 @@ describe('isSampleLibrary', () => {
   })
 
   test('a user library is never a sample, whatever its name says', () => {
-    expect(isSampleLibrary([track('rb-1')])).toBe(false)
-    expect(isSampleLibrary([track('csv-0')])).toBe(false)
+    expect(isSampleLibrary([track({ id: 'rb-1' })])).toBe(false)
+    expect(isSampleLibrary([track({ id: 'csv-0' })])).toBe(false)
   })
 
   test('an empty library is not a sample', () => {
@@ -153,7 +149,7 @@ describe('resetEverything', () => {
 describe('replaceLibrary with selectedPlaylists', () => {
   test('pre-selects the given playlists instead of starting empty', () => {
     replaceLibrary({
-      tracks: [track('txt-0')],
+      tracks: [track({ id: 'txt-0' })],
       name: 'set.txt',
       playlists: [{ name: 'set', trackIds: ['txt-0'] }],
       selectedPlaylists: ['set'],
@@ -163,7 +159,7 @@ describe('replaceLibrary with selectedPlaylists', () => {
 
   test('without it, playlists still start unselected (unchanged default)', () => {
     replaceLibrary({
-      tracks: [track('rb-1')],
+      tracks: [track({ id: 'rb-1' })],
       name: 'coll.xml',
       playlists: [{ name: 'A', trackIds: ['rb-1'] }],
     })

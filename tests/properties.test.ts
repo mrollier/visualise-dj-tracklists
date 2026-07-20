@@ -1,10 +1,7 @@
 import { describe, expect, test } from 'vitest'
-import { EMPTY_TRACK_FIELDS, type Track } from '../src/core/model'
+import { EMPTY_TRACK_FIELDS } from '../src/core/model'
 import { PROPERTY_BY_KEY, TRACK_PROPERTIES, formatPropertyValue } from '../src/core/properties'
-
-function track(overrides: Partial<Track> & { id: string }): Track {
-  return { ...EMPTY_TRACK_FIELDS, title: overrides.id, ...overrides }
-}
+import { track } from './helpers'
 
 describe('TRACK_PROPERTIES (v11 issue 1: the one registry)', () => {
   test('covers exactly every Track field except id, no duplicates', () => {

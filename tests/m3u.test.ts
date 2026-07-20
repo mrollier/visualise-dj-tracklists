@@ -2,30 +2,41 @@ import { describe, expect, test } from 'vitest'
 import { exportM3u } from '../src/core/exporters/m3u'
 import { importM3u, rematchAfterImport } from '../src/core/importers/m3u'
 import { EMPTY_TRACK_FIELDS, type Track } from '../src/core/model'
+import { track } from './helpers'
 
-function track(overrides: Partial<Track> & { id: string }): Track {
-  return {
-    ...EMPTY_TRACK_FIELDS,
-    title: overrides.id,
+const library = [
+  track({
     key: '8A',
     bpm: 128,
     genre: 'Techno',
     year: 2020,
     rating: 4,
-    ...overrides,
-  }
-}
-
-const library = [
-  track({
     id: 'a',
     title: 'Midnight Drive',
     artist: 'Nova Pulse',
     location: 'file://localhost/Users/dj/Music/midnight%20drive.mp3',
     durationSec: 372,
   }),
-  track({ id: 'b', title: 'Glasswork', artist: 'Aurora Fields' }),
-  track({ id: 'c', title: 'Seven Bridges', artist: 'Kasteel' }),
+  track({
+    key: '8A',
+    bpm: 128,
+    genre: 'Techno',
+    year: 2020,
+    rating: 4,
+    id: 'b',
+    title: 'Glasswork',
+    artist: 'Aurora Fields',
+  }),
+  track({
+    key: '8A',
+    bpm: 128,
+    genre: 'Techno',
+    year: 2020,
+    rating: 4,
+    id: 'c',
+    title: 'Seven Bridges',
+    artist: 'Kasteel',
+  }),
 ]
 
 describe('importM3u', () => {
@@ -124,7 +135,15 @@ describe('rematchAfterImport', () => {
   })
 
   test('drops tracklist ids from the replaced library that are not bare m3u tracks', () => {
-    const sampleTrack = track({ id: 'sample-1', title: 'Old Thing' })
+    const sampleTrack = track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'sample-1',
+      title: 'Old Thing',
+    })
     const bareTrack = bare('m3u-0-midnight drive.mp3', {
       location: '/x/midnight drive.mp3',
     })

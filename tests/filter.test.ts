@@ -14,26 +14,41 @@ import {
   wholeExtent,
   type LibraryFilters,
 } from '../src/core/filter'
-import { EMPTY_TRACK_FIELDS, type Track } from '../src/core/model'
-
-function track(overrides: Partial<Track> & { id: string }): Track {
-  return {
-    ...EMPTY_TRACK_FIELDS,
-    title: overrides.id,
-    key: '8A',
-    bpm: 128,
-    genre: 'Techno',
-    year: 2020,
-    rating: 4,
-    ...overrides,
-  }
-}
+import { track } from './helpers'
 
 const tracks = [
-  track({ id: 'a', bpm: 120, year: 2010, rating: 2, genre: 'Techno' }),
-  track({ id: 'b', bpm: 140, year: 2020, rating: 5, genre: 'Trance' }),
-  track({ id: 'c', bpm: 174, year: 2023, rating: 3, genre: 'Drum & Bass' }),
-  track({ id: 'd', bpm: null, year: null, rating: null, genre: null }),
+  track({
+    key: '8A',
+    id: 'a',
+    bpm: 120,
+    year: 2010,
+    rating: 2,
+    genre: 'Techno',
+  }),
+  track({
+    key: '8A',
+    id: 'b',
+    bpm: 140,
+    year: 2020,
+    rating: 5,
+    genre: 'Trance',
+  }),
+  track({
+    key: '8A',
+    id: 'c',
+    bpm: 174,
+    year: 2023,
+    rating: 3,
+    genre: 'Drum & Bass',
+  }),
+  track({
+    key: '8A',
+    id: 'd',
+    bpm: null,
+    year: null,
+    rating: null,
+    genre: null,
+  }),
 ]
 
 function filters(overrides: Partial<LibraryFilters>): LibraryFilters {
@@ -72,9 +87,30 @@ describe('applyFilters (v11 issue 1: per-property ranges)', () => {
   test('the key-ring filter keeps one Camelot ring; keyless tracks always pass (v8 issue 10)', () => {
     expect(EMPTY_FILTERS.keyRing).toBe('both')
     const mixed = [
-      track({ id: 'minor', key: '8A' }),
-      track({ id: 'major', key: '8B' }),
-      track({ id: 'keyless', key: null }),
+      track({
+        bpm: 128,
+        genre: 'Techno',
+        year: 2020,
+        rating: 4,
+        id: 'minor',
+        key: '8A',
+      }),
+      track({
+        bpm: 128,
+        genre: 'Techno',
+        year: 2020,
+        rating: 4,
+        id: 'major',
+        key: '8B',
+      }),
+      track({
+        bpm: 128,
+        genre: 'Techno',
+        year: 2020,
+        rating: 4,
+        id: 'keyless',
+        key: null,
+      }),
     ]
     expect(applyFilters(mixed, filters({ keyRing: 'minor' })).map((t) => t.id)).toEqual([
       'minor',
@@ -113,11 +149,51 @@ describe('alphaBucket / alphaBucketLabel (v14 WS2)', () => {
 
 describe('alpha bucket ranges (v14 WS2)', () => {
   const artists = [
-    track({ id: 'aphex', artist: 'aphex twin' }),
-    track({ id: 'kraftwerk', artist: 'Kraftwerk' }),
-    track({ id: 'zz', artist: 'ZZ Top' }),
-    track({ id: '808', artist: '808 State' }),
-    track({ id: 'none', artist: null }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'aphex',
+      artist: 'aphex twin',
+    }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'kraftwerk',
+      artist: 'Kraftwerk',
+    }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'zz',
+      artist: 'ZZ Top',
+    }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: '808',
+      artist: '808 State',
+    }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'none',
+      artist: null,
+    }),
   ]
 
   test('A–M keeps Kraftwerk, drops ZZ Top; null artist passes', () => {
@@ -133,9 +209,33 @@ describe('alpha bucket ranges (v14 WS2)', () => {
 
 describe('contains filters (v14 WS2)', () => {
   const noted = [
-    track({ id: 'live', comments: 'Recorded LIVE at Berghain' }),
-    track({ id: 'studio', comments: 'studio take' }),
-    track({ id: 'none', comments: null }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'live',
+      comments: 'Recorded LIVE at Berghain',
+    }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'studio',
+      comments: 'studio take',
+    }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'none',
+      comments: null,
+    }),
   ]
 
   test('case-insensitive substring on comments; null passes', () => {
@@ -145,8 +245,24 @@ describe('contains filters (v14 WS2)', () => {
 
   test('works on location, case-insensitively', () => {
     const paths = [
-      track({ id: 'wav', location: '/Music/track.WAV' }),
-      track({ id: 'mp3', location: '/Music/track.mp3' }),
+      track({
+        key: '8A',
+        bpm: 128,
+        genre: 'Techno',
+        year: 2020,
+        rating: 4,
+        id: 'wav',
+        location: '/Music/track.WAV',
+      }),
+      track({
+        key: '8A',
+        bpm: 128,
+        genre: 'Techno',
+        year: 2020,
+        rating: 4,
+        id: 'mp3',
+        location: '/Music/track.mp3',
+      }),
     ]
     const out = applyFilters(paths, filters({ properties: { location: { contains: '.wav' } } }))
     expect(out.map((t) => t.id)).toEqual(['wav'])
@@ -155,9 +271,33 @@ describe('contains filters (v14 WS2)', () => {
 
 describe('colour allow-list (v14 WS2)', () => {
   const coloured = [
-    track({ id: 'pink', colour: '0xFF007F' }),
-    track({ id: 'blue', colour: '0x0000FF' }),
-    track({ id: 'none', colour: null }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'pink',
+      colour: '0xFF007F',
+    }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'blue',
+      colour: '0x0000FF',
+    }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'none',
+      colour: null,
+    }),
   ]
 
   test('keeps allowed colours case-insensitively; null-colour tracks pass (genre precedent)', () => {
@@ -171,11 +311,51 @@ describe('colour allow-list (v14 WS2)', () => {
 
 describe('quality filter (v14 WS2)', () => {
   const files = [
-    track({ id: 'wav', kind: 'WAV File' }),
-    track({ id: 'flac', kind: 'FLAC' }),
-    track({ id: 'mp3', kind: 'MP3 File' }),
-    track({ id: 'weird', kind: 'Some Format' }),
-    track({ id: 'none', kind: null }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'wav',
+      kind: 'WAV File',
+    }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'flac',
+      kind: 'FLAC',
+    }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'mp3',
+      kind: 'MP3 File',
+    }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'weird',
+      kind: 'Some Format',
+    }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'none',
+      kind: null,
+    }),
   ]
 
   test('audioQuality classifies formats; unknowns → null', () => {
@@ -235,11 +415,46 @@ describe('sanitizeRange migration through migrateFilters (v14 WS2)', () => {
 
 describe('key ordinal ranges (v11 issue 1: Camelot number, both rings)', () => {
   const keyed = [
-    track({ id: 'low', key: '3A' }),
-    track({ id: 'inA', key: '9A' }),
-    track({ id: 'inB', key: '11B' }),
-    track({ id: 'high', key: '12B' }),
-    track({ id: 'none', key: null }),
+    track({
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'low',
+      key: '3A',
+    }),
+    track({
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'inA',
+      key: '9A',
+    }),
+    track({
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'inB',
+      key: '11B',
+    }),
+    track({
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'high',
+      key: '12B',
+    }),
+    track({
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'none',
+      key: null,
+    }),
   ]
 
   test('8–12 hits both rings; missing keys pass', () => {
@@ -255,10 +470,42 @@ describe('key ordinal ranges (v11 issue 1: Camelot number, both rings)', () => {
 
 describe('date-kind filters exclude undated tracks (generalizes v10 issue 4b)', () => {
   const dated = [
-    track({ id: 'old', dateAdded: '2019-05-01' }),
-    track({ id: 'mid', dateAdded: '2022-06-15' }),
-    track({ id: 'new', dateAdded: '2024-01-20' }),
-    track({ id: 'none', dateAdded: null }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'old',
+      dateAdded: '2019-05-01',
+    }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'mid',
+      dateAdded: '2022-06-15',
+    }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'new',
+      dateAdded: '2024-01-20',
+    }),
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id: 'none',
+      dateAdded: null,
+    }),
   ]
 
   test('filters lexically by YYYY-MM-DD, bounds inclusive', () => {
@@ -279,8 +526,24 @@ describe('date-kind filters exclude undated tracks (generalizes v10 issue 4b)', 
 
   test('the rule covers every date-kind property (lastPlayed too)', () => {
     const played = [
-      track({ id: 'p', lastPlayed: '2024-03-01' }),
-      track({ id: 'never', lastPlayed: null }),
+      track({
+        key: '8A',
+        bpm: 128,
+        genre: 'Techno',
+        year: 2020,
+        rating: 4,
+        id: 'p',
+        lastPlayed: '2024-03-01',
+      }),
+      track({
+        key: '8A',
+        bpm: 128,
+        genre: 'Techno',
+        year: 2020,
+        rating: 4,
+        id: 'never',
+        lastPlayed: null,
+      }),
     ]
     const out = applyFilters(
       played,
@@ -300,12 +563,38 @@ describe('propertyExtents (v11: computed only for requested keys)', () => {
   })
 
   test('key extents run over Camelot numbers across both rings', () => {
-    const keyed = [track({ id: 'a', key: '3A' }), track({ id: 'b', key: '11B' })]
+    const keyed = [
+      track({
+        bpm: 128,
+        genre: 'Techno',
+        year: 2020,
+        rating: 4,
+        id: 'a',
+        key: '3A',
+      }),
+      track({
+        bpm: 128,
+        genre: 'Techno',
+        year: 2020,
+        rating: 4,
+        id: 'b',
+        key: '11B',
+      }),
+    ]
     expect(propertyExtents(keyed, ['key'])).toEqual({ key: [3, 11] })
   })
 
   test('a property with no values yields null; unrequested and non-range kinds are absent', () => {
-    const unrated = [track({ id: 'x', rating: null })]
+    const unrated = [
+      track({
+        key: '8A',
+        bpm: 128,
+        genre: 'Techno',
+        year: 2020,
+        id: 'x',
+        rating: null,
+      }),
+    ]
     expect(propertyExtents(unrated, ['rating'])).toEqual({ rating: null })
     expect(propertyExtents(tracks, ['bpm', 'artist'])).toEqual({ bpm: [120, 174] })
   })

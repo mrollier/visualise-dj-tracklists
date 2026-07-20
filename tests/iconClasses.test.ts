@@ -1,20 +1,8 @@
 import { describe, expect, test } from 'vitest'
 import { genreFamilyOf, umbrellaFor } from '../src/core/genre'
 import { classIndexOfTrack, genreFamilyClasses, playlistClasses } from '../src/core/iconClasses'
-import { EMPTY_TRACK_FIELDS, type Playlist, type Track } from '../src/core/model'
-
-function track(overrides: Partial<Track> & { id: string }): Track {
-  return {
-    ...EMPTY_TRACK_FIELDS,
-    title: overrides.id,
-    key: '8A',
-    bpm: 128,
-    genre: 'Techno',
-    year: 2020,
-    rating: 4,
-    ...overrides,
-  }
-}
+import type { Playlist } from '../src/core/model'
+import { track } from './helpers'
 
 describe('genreFamilyOf (v8 issues 4+5)', () => {
   test('walks the primary lineage up to the family level', () => {
@@ -106,7 +94,16 @@ describe('umbrellaFor (v10 issue 10)', () => {
 })
 
 describe('playlistClasses', () => {
-  const tracks = ['t1', 't2', 't3', 't4', 't5'].map((id) => track({ id }))
+  const tracks = ['t1', 't2', 't3', 't4', 't5'].map((id) =>
+    track({
+      key: '8A',
+      bpm: 128,
+      genre: 'Techno',
+      year: 2020,
+      rating: 4,
+      id,
+    }),
+  )
   const playlistA: Playlist = { name: 'Warm-up', trackIds: ['t1', 't2', 't3'] }
   const playlistB: Playlist = { name: 'Peak', trackIds: ['t3', 't4', 'ghost'] }
 
@@ -152,19 +149,82 @@ describe('playlistClasses', () => {
 describe('classIndexOfTrack', () => {
   test('resolves through the genre key or the track key, null-safe', () => {
     const byGenre = genreFamilyClasses(['Deep House', 'Jazz'], 4)
-    expect(classIndexOfTrack(byGenre, track({ id: 'x', genre: 'Deep House / Techno' }))).toBe(
-      byGenre!.classOf.get('deep house'),
-    )
-    expect(classIndexOfTrack(byGenre, track({ id: 'x', genre: null }))).toBeNull()
+    expect(
+      classIndexOfTrack(
+        byGenre,
+        track({
+          key: '8A',
+          bpm: 128,
+          year: 2020,
+          rating: 4,
+          id: 'x',
+          genre: 'Deep House / Techno',
+        }),
+      ),
+    ).toBe(byGenre!.classOf.get('deep house'))
+    expect(
+      classIndexOfTrack(
+        byGenre,
+        track({
+          key: '8A',
+          bpm: 128,
+          year: 2020,
+          rating: 4,
+          id: 'x',
+          genre: null,
+        }),
+      ),
+    ).toBeNull()
     const byTrack = playlistClasses(
-      [track({ id: 'p1' }), track({ id: 'p2' })],
+      [
+        track({
+          key: '8A',
+          bpm: 128,
+          genre: 'Techno',
+          year: 2020,
+          rating: 4,
+          id: 'p1',
+        }),
+        track({
+          key: '8A',
+          bpm: 128,
+          genre: 'Techno',
+          year: 2020,
+          rating: 4,
+          id: 'p2',
+        }),
+      ],
       [
         { name: 'A', trackIds: ['p1'] },
         { name: 'B', trackIds: ['p2'] },
       ],
       6,
     )
-    expect(classIndexOfTrack(byTrack, track({ id: 'p2' }))).toBe(1)
-    expect(classIndexOfTrack(null, track({ id: 'x' }))).toBeNull()
+    expect(
+      classIndexOfTrack(
+        byTrack,
+        track({
+          key: '8A',
+          bpm: 128,
+          genre: 'Techno',
+          year: 2020,
+          rating: 4,
+          id: 'p2',
+        }),
+      ),
+    ).toBe(1)
+    expect(
+      classIndexOfTrack(
+        null,
+        track({
+          key: '8A',
+          bpm: 128,
+          genre: 'Techno',
+          year: 2020,
+          rating: 4,
+          id: 'x',
+        }),
+      ),
+    ).toBeNull()
   })
 })

@@ -1,5 +1,5 @@
 import { get } from 'svelte/store'
-import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { manualEdges, selectedId, settings, tracklist } from '../src/stores'
 import { redoOnce, resetUndo, startUndo, undoOnce } from '../src/lib/undoStore'
 
@@ -12,6 +12,8 @@ describe('undo wiring (v12 WS9/WS14)', () => {
     startUndo()
     resetUndo()
   })
+
+  afterEach(() => vi.useRealTimers())
 
   test('a manual-edge toggle is undoable and redoable', () => {
     manualEdges.set([{ a: 'x', b: 'y' }])

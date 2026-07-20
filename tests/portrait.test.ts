@@ -1,32 +1,53 @@
 import { describe, expect, test } from 'vitest'
 import { buildSetPortrait, type PortraitOptions } from '../src/core/exporters/portrait'
-import { EMPTY_TRACK_FIELDS, type Track } from '../src/core/model'
-
-function track(id: string, over: Partial<Track> = {}): Track {
-  return {
-    id,
-    title: `Title ${id}`,
-    ...EMPTY_TRACK_FIELDS,
-    artist: `Artist ${id}`,
-    key: '8A',
-    bpm: 124,
-    genre: 'techno',
-    year: 2020,
-    ...over,
-  }
-}
+import { track } from './helpers'
 
 function options(over: Partial<PortraitOptions> = {}): PortraitOptions {
   const walk = [
-    track('a', { key: '8A', bpm: 122 }),
-    track('b', { key: '9A', bpm: 125 }),
-    track('c', { key: '9B', bpm: 128 }),
+    track({
+      id: 'a',
+      title: 'Title a',
+      artist: 'Artist a',
+      key: '8A',
+      bpm: 122,
+      genre: 'techno',
+      year: 2020,
+    }),
+    track({
+      id: 'b',
+      title: 'Title b',
+      artist: 'Artist b',
+      key: '9A',
+      bpm: 125,
+      genre: 'techno',
+      year: 2020,
+    }),
+    track({
+      id: 'c',
+      title: 'Title c',
+      artist: 'Artist c',
+      key: '9B',
+      bpm: 128,
+      genre: 'techno',
+      year: 2020,
+    }),
   ]
   return {
     setName: 'Saturday Closing',
     libraryName: 'My crate',
     walk,
-    library: [...walk, track('d', { key: '3B', bpm: 140 })],
+    library: [
+      ...walk,
+      track({
+        id: 'd',
+        title: 'Title d',
+        artist: 'Artist d',
+        key: '3B',
+        bpm: 140,
+        genre: 'techno',
+        year: 2020,
+      }),
+    ],
     radialAxis: 'bpm',
     theme: 'dark',
     scheme: 'blue',
@@ -57,7 +78,19 @@ describe('buildSetPortrait (v12 WS3)', () => {
 
   test('escapes XML in titles and artists', () => {
     const svg = buildSetPortrait(
-      options({ walk: [track('x', { title: 'Drum & Bass <live>', artist: 'A & B' })] }),
+      options({
+        walk: [
+          track({
+            id: 'x',
+            title: 'Drum & Bass <live>',
+            artist: 'A & B',
+            key: '8A',
+            bpm: 124,
+            genre: 'techno',
+            year: 2020,
+          }),
+        ],
+      }),
     )
     expect(svg).toContain('Drum &amp; Bass &lt;live&gt;')
     expect(svg).not.toContain('<live>')
@@ -71,7 +104,21 @@ describe('buildSetPortrait (v12 WS3)', () => {
   })
 
   test('keyless walk tracks park in the gutter right of the wheel', () => {
-    const svg = buildSetPortrait(options({ walk: [track('nk', { key: null })] }))
+    const svg = buildSetPortrait(
+      options({
+        walk: [
+          track({
+            id: 'nk',
+            title: 'Title nk',
+            artist: 'Artist nk',
+            key: null,
+            bpm: 124,
+            genre: 'techno',
+            year: 2020,
+          }),
+        ],
+      }),
+    )
     const m = svg.match(/class="walk-node" transform="translate\(([\d.]+)/)
     expect(m).not.toBeNull()
     expect(Number(m![1])).toBeGreaterThan(700) // past the wheel's rim
@@ -88,9 +135,33 @@ describe('buildSetPortrait (v12 WS3)', () => {
     // perfectly under the wheel placement; the poster pushes its numbered
     // badges apart so every number stays readable.
     const walk = [
-      track('a', { key: '8A', bpm: 124 }),
-      track('b', { key: '8A', bpm: 124 }),
-      track('c', { key: '8A', bpm: 124 }),
+      track({
+        id: 'a',
+        title: 'Title a',
+        artist: 'Artist a',
+        key: '8A',
+        bpm: 124,
+        genre: 'techno',
+        year: 2020,
+      }),
+      track({
+        id: 'b',
+        title: 'Title b',
+        artist: 'Artist b',
+        key: '8A',
+        bpm: 124,
+        genre: 'techno',
+        year: 2020,
+      }),
+      track({
+        id: 'c',
+        title: 'Title c',
+        artist: 'Artist c',
+        key: '8A',
+        bpm: 124,
+        genre: 'techno',
+        year: 2020,
+      }),
     ]
     const svg = buildSetPortrait(options({ walk, library: walk }))
     const coords = [
