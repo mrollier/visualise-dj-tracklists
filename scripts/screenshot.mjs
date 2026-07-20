@@ -1684,4 +1684,5 @@ if ((await page.locator('.status .info').count()) !== 0) {
 await page.screenshot({ path: `${scratch}/17-after-reset.png` })
 
 console.log('CONSOLE ERRORS:', errors.length ? errors : 'none')
+if (errors.length > 0) process.exitCode = 1
 await browser.close()
