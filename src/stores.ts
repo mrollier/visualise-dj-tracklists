@@ -127,6 +127,25 @@ export function appendToSet(id: string): void {
 }
 
 /**
+ * Add a track to the active set (S5): if the currently-selected track is
+ * already in the set, splice the new one right after its FIRST occurrence;
+ * otherwise append. `get()` reads are correct here — the callers are event
+ * handlers, not reactive contexts. Skips an edit that would place the new
+ * track back-to-back with an identical one (mirrors appendToSet's guard).
+ */
+export function addTrackToSet(newId: string): void {
+  const sel = get(selectedId)
+  const ids = get(tracklist)
+  const at = sel === null ? -1 : ids.indexOf(sel)
+  if (at === -1) {
+    appendToSet(newId)
+    return
+  }
+  if (ids[at] === newId || ids[at + 1] === newId) return // no back-to-back dup
+  tracklist.update((cur) => cur.toSpliced(at + 1, 0, newId))
+}
+
+/**
  * Create and activate an empty set with the next free ordinal name. Refuses
  * silently at the cap — the ＋ and ✨ buttons disable themselves first.
  */

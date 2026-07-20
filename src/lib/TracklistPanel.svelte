@@ -195,6 +195,14 @@
   $effect(() => {
     if ($activeSet.id !== forceForSetId) closeForceWindow()
   })
+  // Any hand-edit (wheel double-click, an insert, Tracks ＋/✕) flips the active
+  // set to non-generated; the ⚡ window describes generator output, so close it
+  // whenever that happens — covering the edit paths that don't route through
+  // removeAt/move (S5). Fresh ✨/⚡ write via setGeneratedTracklist (generated
+  // stays true), so they never trip this.
+  $effect(() => {
+    if (!$activeSet.generated && shortSnapshot !== null) closeForceWindow()
+  })
   // The ⚡ window also closes when the inputs it was seeded against drift
   // (v14 S2, review finding): a force must never replay a stale seed against a
   // changed library or criteria — mirroring the retry ring's "any external

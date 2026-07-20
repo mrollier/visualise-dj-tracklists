@@ -13,7 +13,7 @@
   import { removeAllOccurrences } from '../core/sets'
   import { sortTracks, type TrackSortField } from '../core/trackSort'
   import {
-    appendToSet,
+    addTrackToSet,
     comboComplete,
     effectiveManualEdges,
     hoveredId,
@@ -346,7 +346,7 @@
                   : `Remove ${track.title} from the set`}
                 onclick={(e) => {
                   e.stopPropagation()
-                  if (positions === undefined) appendToSet(track.id)
+                  if (positions === undefined) addTrackToSet(track.id)
                   else tracklist.update((ids) => removeAllOccurrences(ids, track.id))
                 }}
               >

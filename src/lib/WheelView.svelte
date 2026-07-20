@@ -18,7 +18,7 @@
   import { effectiveTheme } from './theme'
   import { nextExhausted, retryState, suggestNext, type NextSuggestion } from '../core/suggest'
   import {
-    appendToSet,
+    addTrackToSet,
     effectiveCriteria,
     effectiveColorAxis,
     effectiveFilters,
@@ -315,7 +315,7 @@
   }
 
   function appendToTracklist(node: PlacedNode) {
-    appendToSet(node.track.id)
+    addTrackToSet(node.track.id)
   }
 
   function keyLabelPos(key: CamelotKey) {
