@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'vitest'
-import { enrichTrack } from '../src/data/enrich'
+import { enrichTrack, genreEnergyBaseline } from '../src/data/enrich'
 import { genreFamilyOf } from '../src/core/genre'
 import { audioQuality } from '../src/core/filter'
+import { EMPTY_TRACK_FIELDS } from '../src/core/model'
 import { REKORDBOX_COLOURS, TRACK_PROPERTIES } from '../src/core/properties'
 import type { TrackSortField } from '../src/core/trackSort'
 import { ALL_SAMPLE_PACKS, SAMPLE_COLLECTION, SAMPLE_PACKS } from '../src/data/samples'
@@ -111,6 +112,67 @@ describe('the genre-atlas pack (v12 WS10)', () => {
     const withEnergy = atlas!.tracks.filter((t) => t.energy !== null)
     expect(withEnergy.length).toBeGreaterThanOrEqual(10)
     for (const t of withEnergy) expect(t.comments).toMatch(/Energy \d/)
+  })
+})
+
+describe('genre-aware energy across the samples (issue #7)', () => {
+  const classic = ALL_SAMPLE_PACKS.find((p) => p.id === 'classic')!
+
+  test('the baseline tracks genre, not just BPM', () => {
+    // Same BPM, different genre → different energy: proves it is genre-driven,
+    // not just a re-skin of the old (bpm-60)/13 formula.
+    expect(genreEnergyBaseline('Ambient', 120)).toBeLessThan(genreEnergyBaseline('Gabber', 120))
+    expect(genreEnergyBaseline('Trip Hop', 174)).toBeLessThan(genreEnergyBaseline('Drum & Bass', 174))
+    for (const g of ['Ambient', 'Techno', 'Gabber', 'House', 'Downtempo', 'Unknown Genre']) {
+      const e = genreEnergyBaseline(g, 120)
+      expect(e).toBeGreaterThanOrEqual(1)
+      expect(e).toBeLessThanOrEqual(10)
+    }
+  })
+
+  test('Classic demo carries energy in 1..10 for most tracks (issue #7)', () => {
+    const withE = classic.tracks.filter((t) => t.energy !== null)
+    expect(withE.length).toBeGreaterThan(classic.tracks.length / 2)
+    for (const t of withE) {
+      expect(t.energy).toBeGreaterThanOrEqual(1)
+      expect(t.energy).toBeLessThanOrEqual(10)
+    }
+  })
+
+  test('every pack has energy coverage, with gaps', () => {
+    for (const pack of ALL_SAMPLE_PACKS) {
+      const withE = pack.tracks.filter((t) => t.energy !== null)
+      expect(withE.length, `${pack.name} has no energy`).toBeGreaterThan(0)
+    }
+    // Gaps exist somewhere across the collection.
+    expect(SAMPLE_COLLECTION.tracks.some((t) => t.energy === null)).toBe(true)
+  })
+
+  test('high-energy genres read hotter than low-energy ones across the collection', () => {
+    const all = SAMPLE_COLLECTION.tracks
+    const avg = (re: RegExp) => {
+      const es = all
+        .filter((t) => t.energy !== null && re.test(t.genre ?? ''))
+        .map((t) => t.energy as number)
+      return es.reduce((a, b) => a + b, 0) / es.length
+    }
+    const hot = avg(/techno|drum ?& ?bass|gabber|schranz|dubstep/i)
+    const cool = avg(/ambient|downtempo|folk|jazz|blues|trip ?hop/i)
+    expect(hot).toBeGreaterThan(cool + 1.5)
+  })
+
+  test('energy is deterministic for a fixed track id', () => {
+    const base = {
+      ...EMPTY_TRACK_FIELDS,
+      id: 'classic-0',
+      title: 'X',
+      artist: 'Y',
+      genre: 'Techno',
+      bpm: 128,
+    }
+    const a = enrichTrack(base, { label: null, albums: {} })
+    const b = enrichTrack(base, { label: null, albums: {} })
+    expect(a.energy).toBe(b.energy)
   })
 })
 

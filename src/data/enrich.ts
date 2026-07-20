@@ -55,6 +55,44 @@ function pick<T>(pool: readonly T[], u: (salt: string) => number, salt: string):
   return pool[Math.floor(u(salt) * pool.length)]
 }
 
+// Genre → a 1-10 energy baseline (Mixed-In-Key scale), so the sample energy
+// reads sensibly per style rather than tracking BPM alone (issue #7). Ordered
+// most-specific first, so "hard techno" beats "techno" and "drum & bass"
+// beats a bare "bass".
+const GENRE_ENERGY: readonly (readonly [RegExp, number])[] = [
+  [/gabber|hardcore|speedcore/i, 10],
+  [/schranz|\btekno\b/i, 9],
+  [/hard techno|industrial techno/i, 9],
+  [/psytrance|goa/i, 8],
+  [/dubstep|drum ?& ?bass|\bdnb\b|d&b|jungle/i, 8],
+  [/halftime/i, 7],
+  [/\btechno\b/i, 7],
+  [/trance/i, 7],
+  [/uk garage|garage|\bbass\b|breakbeat|breaks/i, 6],
+  [/\bidm\b|electro/i, 6],
+  [/house/i, 6],
+  [/disco|afrobeat|dancehall|new wave/i, 6],
+  [/\bpop\b|r&b|\brnb\b|reggae|indie|electro swing/i, 5],
+  [/hip ?hop|trip ?hop|\bdub\b/i, 4],
+  [/jazz|blues|folk|soul/i, 3],
+  [/downtempo|chill/i, 3],
+  [/ambient/i, 2],
+]
+
+/**
+ * A 1-10 energy baseline for a genre (issue #7). Known genres map to a fixed
+ * level so energy reflects style, not tempo; an unknown genre falls back to a
+ * gentle BPM curve (and 5 with no BPM either). The caller adds a small
+ * deterministic jitter on top.
+ */
+export function genreEnergyBaseline(genre: string | null, bpm: number | null): number {
+  if (genre !== null) {
+    for (const [re, e] of GENRE_ENERGY) if (re.test(genre)) return e
+  }
+  if (bpm === null) return 5
+  return Math.max(1, Math.min(10, Math.round((bpm - 60) / 13)))
+}
+
 /** `date` (YYYY-MM-DD) plus `days`, still YYYY-MM-DD — used for the fields
  *  that must land on or after another generated date. */
 function addDays(date: string, days: number): string {
@@ -101,6 +139,23 @@ export function enrichTrack(track: Track, extras: PackExtras): Track {
   const size =
     durationSec === null || bitRate === null ? null : Math.round(durationSec * bitRate * 125)
 
+  // Mixed-In-Key-style energy from the genre baseline + a ±1 jitter, with a
+  // small gap rate (issue #7). The matching "Energy N" comment doubles as the
+  // sample's Comments coverage and mirrors what MIK writes into a real library.
+  const energy =
+    u('energy?') < 0.12
+      ? null
+      : Math.max(
+          1,
+          Math.min(10, genreEnergyBaseline(track.genre, track.bpm) + Math.round(u('energy-jitter') * 2 - 1)),
+        )
+  const comments =
+    energy === null
+      ? track.comments
+      : track.comments
+        ? `${track.comments} - Energy ${energy}`
+        : `Energy ${energy}`
+
   const ext = kind === null ? 'mp3' : (EXTENSION_BY_KIND[kind] ?? 'mp3')
   const artistName = track.artist ?? 'Unknown Artist'
   const folder = label ?? 'white-label'
@@ -109,6 +164,8 @@ export function enrichTrack(track: Track, extras: PackExtras): Track {
 
   return {
     ...track,
+    energy,
+    comments,
     album: u('album?') < 0.1 ? null : album,
     durationSec,
     dateAdded: u('date?') < 0.1 ? null : dateAddedAnchor,
