@@ -23,7 +23,7 @@ import type { TrackSortField } from './trackSort'
  *   generalized) — "between these dates" has no sensible answer for an
  *   unknown date, and hiding them is what a DJ browsing by recency wants.
  * - key: inclusive range over the Camelot NUMBER (1–12), both rings — the
- *   ring is filtered separately by `keyRing`, so the two compose.
+ *   ring is filtered separately by `keyRings`, so the two compose.
  */
 export type QualityChoice = 'lossy' | 'lossless'
 export type PropertyRange =
@@ -31,7 +31,7 @@ export type PropertyRange =
   | [string, string] // date
   | { contains: string } // contains kind (case-insensitive substring)
   | { colours: string[] } // colour kind: allow-list of raw tag values
-  | { quality: QualityChoice } // quality kind; "both" = entry absent
+  | { qualities: QualityChoice[] } // quality kind allow-list (F5); both-on = entry absent, [] = both-off
 
 // --- alpha buckets (v14 WS2) ---
 /** The '#' bucket for non-letter / diacritic starts, ordered AFTER Z. */
@@ -63,8 +63,8 @@ function isContains(range: PropertyRange): range is { contains: string } {
 function isColours(range: PropertyRange): range is { colours: string[] } {
   return !Array.isArray(range) && 'colours' in range
 }
-function isQuality(range: PropertyRange): range is { quality: QualityChoice } {
-  return !Array.isArray(range) && 'quality' in range
+function isQualities(range: PropertyRange): range is { qualities: QualityChoice[] } {
+  return !Array.isArray(range) && 'qualities' in range
 }
 
 export interface LibraryFilters {
@@ -79,11 +79,13 @@ export interface LibraryFilters {
    */
   playlists: string[] | null
   /**
-   * Show only one Camelot ring (minor = A/inner, major = B/outer). Lives
-   * with the key criterion in the UI but is a visibility filter; keyless
-   * tracks always pass (v8 issue 10).
+   * Which Camelot rings to show (F5): independent toggles for minor (A/inner)
+   * and major (B/outer). Both true = both rings (the old 'both'); both false =
+   * no keyed track shows. Lives with the key criterion in the UI but is a
+   * visibility filter; keyless tracks always pass (v8 issue 10), even with both
+   * toggles off.
    */
-  keyRing: 'both' | 'minor' | 'major'
+  keyRings: { minor: boolean; major: boolean }
 }
 
 /** Pseudo-playlist name: tracks that appear in no playlist at all. */
@@ -93,7 +95,7 @@ export const EMPTY_FILTERS: LibraryFilters = {
   properties: {},
   genres: null,
   playlists: null,
-  keyRing: 'both',
+  keyRings: { minor: true, major: true },
 }
 
 /** A saved entry that must be a two-number tuple; null otherwise. */
@@ -146,8 +148,14 @@ function sanitizeRange(prop: TrackProperty, entry: unknown): PropertyRange | nul
     }
     case 'quality': {
       if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return null
-      const value = (entry as Record<string, unknown>).quality
-      return value === 'lossy' || value === 'lossless' ? { quality: value } : null
+      const rec = entry as Record<string, unknown>
+      const valid = (v: unknown): v is QualityChoice => v === 'lossy' || v === 'lossless'
+      if (Array.isArray(rec.qualities)) {
+        // F5: an empty array is a real "both-off" state — keep it, don't drop.
+        return { qualities: [...new Set(rec.qualities.filter(valid))] }
+      }
+      if (valid(rec.quality)) return { qualities: [rec.quality] } // old v6 → v7 migration
+      return null
     }
   }
 }
@@ -169,7 +177,16 @@ export function migrateFilters(raw: unknown): LibraryFilters {
   if (Array.isArray(p.playlists)) {
     out.playlists = p.playlists.filter((n): n is string => typeof n === 'string')
   }
-  if (p.keyRing === 'minor' || p.keyRing === 'major') out.keyRing = p.keyRing
+  // F5: new-shape {minor,major} toggles; else migrate the old string enum.
+  const kr = p.keyRings
+  if (typeof kr === 'object' && kr !== null && !Array.isArray(kr)) {
+    out.keyRings = {
+      minor: (kr as Record<string, unknown>).minor !== false,
+      major: (kr as Record<string, unknown>).major !== false,
+    }
+  } else if (p.keyRing === 'minor') out.keyRings = { minor: true, major: false }
+  else if (p.keyRing === 'major') out.keyRings = { minor: false, major: true }
+  // old 'both'/absent/garbage → the EMPTY_FILTERS default (both true)
   const rawProperties =
     typeof p.properties === 'object' && p.properties !== null
       ? (p.properties as Record<string, unknown>)
@@ -308,10 +325,11 @@ function passesProperty(track: Track, prop: TrackProperty, range: PropertyRange)
       return range.colours.some((c) => c.toLowerCase() === value)
     }
     case 'quality': {
-      if (!isQuality(range)) return true
+      if (!isQualities(range)) return true
       if (raw === null) return true
       const quality = audioQuality(String(raw))
-      return quality === null || quality === range.quality
+      // Unknown/missing format always passes (F5); a known one must be allowed.
+      return quality === null || range.qualities.includes(quality)
     }
   }
 }
@@ -367,12 +385,13 @@ export function applyFilters(
   const allowed =
     filters.genres === null ? null : new Set(filters.genres.map((g) => g.toLowerCase()))
   const allowedIds = playlistMemberIds(tracks, filters.playlists, playlists)
-  const ring = filters.keyRing === 'minor' ? 'A' : filters.keyRing === 'major' ? 'B' : null
+  // F5: a track passes iff keyless (always) or its ring toggle is on.
+  const { minor, major } = filters.keyRings
   return tracks.filter(
     (t) =>
       active.every(({ prop, range }) => passesProperty(t, prop, range)) &&
       (allowed === null || t.genre === null || allowed.has(t.genre.toLowerCase())) &&
       (allowedIds === null || allowedIds.has(t.id)) &&
-      (ring === null || t.key === null || camelotRing(t.key) === ring),
+      (t.key === null || (camelotRing(t.key) === 'A' ? minor : major)),
   )
 }

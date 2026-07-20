@@ -39,7 +39,7 @@ describe('effective stores — easy mode computes with defaults', () => {
   test('in advanced, effective stores pass the raw stores through unchanged', () => {
     settings.update((s) => ({ ...s, uiMode: 'advanced', edgeOpacity: 0.9 }))
     criteria.update((c) => ({ ...c, threshold: 1 }))
-    filters.update((f) => ({ ...f, keyRing: 'minor' }))
+    filters.update((f) => ({ ...f, keyRings: { minor: true, major: false } }))
     manualEdges.set([{ a: 'x', b: 'y' }])
 
     expect(get(effectiveSettings)).toEqual(get(settings))
@@ -80,12 +80,12 @@ describe('effective stores — easy mode computes with defaults', () => {
     expect(eff.key).not.toBe(EASY_CRITERIA.key)
   })
 
-  test('easy ⇒ effectiveFilters keeps playlists but resets properties/genres/keyRing', () => {
+  test('easy ⇒ effectiveFilters keeps playlists but resets properties/genres/keyRings', () => {
     filters.set({
       properties: { bpm: [120, 130] },
       genres: ['house'],
       playlists: ['Warmup', 'Peak'],
-      keyRing: 'major',
+      keyRings: { minor: false, major: true },
     })
     settings.update((s) => ({ ...s, uiMode: 'easy' }))
 
@@ -93,7 +93,7 @@ describe('effective stores — easy mode computes with defaults', () => {
     expect(eff.playlists).toEqual(['Warmup', 'Peak'])
     expect(eff.properties).toEqual(EMPTY_FILTERS.properties)
     expect(eff.genres).toEqual(EMPTY_FILTERS.genres)
-    expect(eff.keyRing).toEqual(EMPTY_FILTERS.keyRing)
+    expect(eff.keyRings).toEqual(EMPTY_FILTERS.keyRings)
   })
 
   test('easy ⇒ effectiveManualEdges is []', () => {
@@ -133,7 +133,7 @@ describe('effective stores — easy mode computes with defaults', () => {
       properties: { bpm: [120, 130] as [number, number] },
       genres: ['house'],
       playlists: ['Peak'],
-      keyRing: 'major' as const,
+      keyRings: { minor: false, major: true },
     }
     const storedSettings = {
       ...structuredClone(DEFAULT_SETTINGS),

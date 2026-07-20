@@ -85,8 +85,8 @@ describe('applyFilters (v11 issue 1: per-property ranges)', () => {
     expect(out.map((t) => t.id)).toEqual(['d'])
   })
 
-  test('the key-ring filter keeps one Camelot ring; keyless tracks always pass (v8 issue 10)', () => {
-    expect(EMPTY_FILTERS.keyRing).toBe('both')
+  test('the key-ring toggles keep the chosen Camelot rings; keyless always passes (v8 issue 10 / F5)', () => {
+    expect(EMPTY_FILTERS.keyRings).toEqual({ minor: true, major: true })
     const mixed = [
       track({
         bpm: 128,
@@ -113,15 +113,17 @@ describe('applyFilters (v11 issue 1: per-property ranges)', () => {
         key: null,
       }),
     ]
-    expect(applyFilters(mixed, filters({ keyRing: 'minor' })).map((t) => t.id)).toEqual([
-      'minor',
-      'keyless',
-    ])
-    expect(applyFilters(mixed, filters({ keyRing: 'major' })).map((t) => t.id)).toEqual([
-      'major',
-      'keyless',
-    ])
-    expect(applyFilters(mixed, filters({ keyRing: 'both' }))).toHaveLength(3)
+    expect(
+      applyFilters(mixed, filters({ keyRings: { minor: true, major: false } })).map((t) => t.id),
+    ).toEqual(['minor', 'keyless'])
+    expect(
+      applyFilters(mixed, filters({ keyRings: { minor: false, major: true } })).map((t) => t.id),
+    ).toEqual(['major', 'keyless'])
+    expect(applyFilters(mixed, filters({ keyRings: { minor: true, major: true } }))).toHaveLength(3)
+    // F5 both-off: only keyless survives (missing key always passes).
+    expect(
+      applyFilters(mixed, filters({ keyRings: { minor: false, major: false } })).map((t) => t.id),
+    ).toEqual(['keyless'])
   })
 })
 
@@ -368,14 +370,27 @@ describe('quality filter (v14 WS2)', () => {
     expect(audioQuality('Some Format')).toBeNull()
   })
 
-  test('lossless keeps lossless; unknown and null pass', () => {
-    const out = applyFilters(files, filters({ properties: { kind: { quality: 'lossless' } } }))
+  test('lossless-only keeps lossless; unknown and null pass', () => {
+    const out = applyFilters(files, filters({ properties: { kind: { qualities: ['lossless'] } } }))
     expect(out.map((t) => t.id)).toEqual(['wav', 'flac', 'weird', 'none'])
   })
 
-  test('lossy keeps lossy; unknown and null pass', () => {
-    const out = applyFilters(files, filters({ properties: { kind: { quality: 'lossy' } } }))
+  test('lossy-only keeps lossy; unknown and null pass', () => {
+    const out = applyFilters(files, filters({ properties: { kind: { qualities: ['lossy'] } } }))
     expect(out.map((t) => t.id)).toEqual(['mp3', 'weird', 'none'])
+  })
+
+  test('F5 both-on (both in the allow-list) passes every file', () => {
+    const out = applyFilters(
+      files,
+      filters({ properties: { kind: { qualities: ['lossy', 'lossless'] } } }),
+    )
+    expect(out).toHaveLength(5)
+  })
+
+  test('F5 both-off (empty allow-list) keeps only unknown/absent-format tracks', () => {
+    const out = applyFilters(files, filters({ properties: { kind: { qualities: [] } } }))
+    expect(out.map((t) => t.id)).toEqual(['weird', 'none'])
   })
 })
 
@@ -391,15 +406,25 @@ describe('sanitizeRange migration through migrateFilters (v14 WS2)', () => {
         artist: [-3, 40.6],
         comments: { contains: 'live' },
         colour: { colours: ['0xFF0000'] },
-        kind: { quality: 'lossy' },
+        kind: { qualities: ['lossy'] },
       },
     })
     expect(migrated.properties).toEqual({
       artist: [0, 26],
       comments: { contains: 'live' },
       colour: { colours: ['0xFF0000'] },
-      kind: { quality: 'lossy' },
+      kind: { qualities: ['lossy'] },
     })
+  })
+
+  test('F5: an old v6 single-quality range migrates to the new qualities array', () => {
+    const migrated = migrateFilters({ properties: { kind: { quality: 'lossless' } } })
+    expect(migrated.properties).toEqual({ kind: { qualities: ['lossless'] } })
+  })
+
+  test('F5: a both-off empty qualities array is preserved (not dropped)', () => {
+    const migrated = migrateFilters({ properties: { kind: { qualities: [] } } })
+    expect(migrated.properties).toEqual({ kind: { qualities: [] } })
   })
 
   test('malformed object shapes drop (empty contains, empty colours, bad quality)', () => {
@@ -463,8 +488,11 @@ describe('key ordinal ranges (v11 issue 1: Camelot number, both rings)', () => {
     expect(out.map((t) => t.id)).toEqual(['inA', 'inB', 'high', 'none'])
   })
 
-  test('composes with the ring switch', () => {
-    const out = applyFilters(keyed, filters({ properties: { key: [8, 12] }, keyRing: 'minor' }))
+  test('composes with the ring toggles', () => {
+    const out = applyFilters(
+      keyed,
+      filters({ properties: { key: [8, 12] }, keyRings: { minor: true, major: false } }),
+    )
     expect(out.map((t) => t.id)).toEqual(['inA', 'none'])
   })
 })

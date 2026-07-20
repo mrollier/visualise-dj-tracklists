@@ -328,9 +328,8 @@
   // key-range filter — composed, not replaced. The 0.6s .excluded opacity
   // fade animates either cause for free.
   function keyExcluded(key: CamelotKey): boolean {
-    const ringExcluded =
-      ($effectiveFilters.keyRing === 'minor' && key.endsWith('B')) ||
-      ($effectiveFilters.keyRing === 'major' && key.endsWith('A'))
+    const { minor, major } = $effectiveFilters.keyRings
+    const ringExcluded = (key.endsWith('A') && !minor) || (key.endsWith('B') && !major)
     const range = $effectiveFilters.properties.key
     const outOfRange =
       Array.isArray(range) &&

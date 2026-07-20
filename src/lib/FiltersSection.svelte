@@ -208,18 +208,21 @@
     return colour.startsWith('0x') ? `#${colour.slice(2)}` : colour
   }
 
-  // --- quality (v14 WS2): lossy / lossless / both; "both" writes null. ---
-  const QUALITY_CHOICES = [
-    { value: 'lossy', label: 'lossy' },
-    { value: 'lossless', label: 'lossless' },
-    { value: null, label: 'both' },
-  ] as const
-  function currentQuality(key: TrackSortField): QualityChoice | null {
+  // --- quality (F5): independent lossy/lossless toggles. Both-on writes null
+  // (no filter); otherwise the allow-list — which may be empty (both-off →
+  // only unknown-format tracks show, per the missing-passes rule). ---
+  const QUALITY_TOGGLES: QualityChoice[] = ['lossy', 'lossless']
+  function selectedQualities(key: TrackSortField): QualityChoice[] {
     const range = $filters.properties[key]
-    return range !== undefined && !Array.isArray(range) && 'quality' in range ? range.quality : null
+    return range !== undefined && !Array.isArray(range) && 'qualities' in range
+      ? range.qualities
+      : ['lossy', 'lossless'] // absent = both-on
   }
-  function setQuality(prop: TrackProperty, choice: QualityChoice | null): void {
-    writeProperty(prop.key, choice === null ? null : { quality: choice })
+  function toggleQuality(prop: TrackProperty, q: QualityChoice): void {
+    const cur = selectedQualities(prop.key)
+    const next = cur.includes(q) ? cur.filter((x) => x !== q) : [...cur, q]
+    const bothOn = next.includes('lossy') && next.includes('lossless')
+    writeProperty(prop.key, bothOn ? null : { qualities: next })
   }
 
   /** Reset: numeric ranges to the selection's whole-number extremes; alpha to
@@ -239,13 +242,15 @@
     }
   }
 
-  // The minor/major ring switch (issue 6): semantically always a filter
-  // (v8 issue 10) — since v9 its control finally lives here too.
-  const RING_CHOICES = [
-    { value: 'both', label: 'both' },
-    { value: 'minor', label: 'minor' },
-    { value: 'major', label: 'major' },
+  // The minor/major ring toggles (F5): semantically always a filter (v8 issue
+  // 10) — two independent on/off buttons. Both-off shows only keyless tracks.
+  const RING_TOGGLES = [
+    { key: 'minor', label: 'minor' },
+    { key: 'major', label: 'major' },
   ] as const
+  function toggleRing(ring: 'minor' | 'major'): void {
+    filters.update((f) => ({ ...f, keyRings: { ...f.keyRings, [ring]: !f.keyRings[ring] } }))
+  }
 </script>
 
 <details>
@@ -351,13 +356,13 @@
         </div>
       {:else}
         <div class="ring-switch" role="group" aria-label="{prop.label} filter">
-          {#each QUALITY_CHOICES as choice (choice.label)}
+          {#each QUALITY_TOGGLES as q (q)}
             <button
-              class:on={currentQuality(prop.key) === choice.value}
-              aria-pressed={currentQuality(prop.key) === choice.value}
-              onclick={() => setQuality(prop, choice.value)}
+              class:on={selectedQualities(prop.key).includes(q)}
+              aria-pressed={selectedQualities(prop.key).includes(q)}
+              onclick={() => toggleQuality(prop, q)}
             >
-              {choice.label}
+              {q}
             </button>
           {/each}
         </div>
@@ -376,11 +381,11 @@
   <div class="filter-row">
     <span class="filter-label">Keys</span>
     <div class="ring-switch" role="group" aria-label="Show keys">
-      {#each RING_CHOICES as choice (choice.value)}
+      {#each RING_TOGGLES as choice (choice.key)}
         <button
-          class:on={$filters.keyRing === choice.value}
-          aria-pressed={$filters.keyRing === choice.value}
-          onclick={() => filters.update((f) => ({ ...f, keyRing: choice.value }))}
+          class:on={$filters.keyRings[choice.key]}
+          aria-pressed={$filters.keyRings[choice.key]}
+          onclick={() => toggleRing(choice.key)}
         >
           {choice.label}
         </button>

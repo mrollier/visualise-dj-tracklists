@@ -8,7 +8,7 @@ import { DEFAULT_SETTINGS, type AppSettings } from '../src/core/settings'
 import { SAMPLE_TRACKS } from '../src/data/sample-tracks'
 
 const project: Project = {
-  version: 6,
+  version: 7,
   manualEdges: [],
   libraryName: 'My crate',
   tracks: SAMPLE_TRACKS,
@@ -89,7 +89,7 @@ describe('project persistence (v3)', () => {
       colorAxis: 'auto',
     })
     const parsed = parseProject(v2)
-    expect(parsed.version).toBe(6)
+    expect(parsed.version).toBe(7)
     expect(parsed.sets).toHaveLength(1)
     expect(parsed.sets[0]).toMatchObject({
       name: 'First Set',
@@ -372,8 +372,9 @@ describe('project persistence (v3)', () => {
       dateAdded: ['2020-01-01', '9999-12-31'],
     })
     expect(parsed.filters.playlists).toEqual(['Openers'])
-    expect(parsed.filters.keyRing).toBe('minor')
-    expect(parsed.version).toBe(6)
+    // F5: the old string keyRing migrates to the new toggle pair.
+    expect(parsed.filters.keyRings).toEqual({ minor: true, major: false })
+    expect(parsed.version).toBe(7)
   })
 
   test('garbage property filters are dropped or clamped (v14 WS2 kinds)', () => {
@@ -389,7 +390,7 @@ describe('project persistence (v3)', () => {
       comments: { contains: 'live' }, // contains object → survives
       location: { contains: '' }, // empty contains → dropped
       colour: { colours: ['0xFF0000'] }, // colour allow-list → survives
-      kind: { quality: 'lossless' }, // quality → survives
+      kind: { quality: 'lossless' }, // old v6 single quality → migrates to array
     }
     const parsed = parseProject(JSON.stringify(raw))
     expect(parsed.filters.properties).toEqual({
@@ -398,7 +399,7 @@ describe('project persistence (v3)', () => {
       genre: [3, 8],
       comments: { contains: 'live' },
       colour: { colours: ['0xFF0000'] },
-      kind: { quality: 'lossless' },
+      kind: { qualities: ['lossless'] },
     })
   })
 
@@ -412,7 +413,7 @@ describe('project persistence (v3)', () => {
           key: [8, 12],
           comments: { contains: 'peak' },
           colour: { colours: ['0xFF007F', '0x0000FF'] },
-          kind: { quality: 'lossy' },
+          kind: { qualities: ['lossy'] },
         },
       },
     }
@@ -453,11 +454,11 @@ describe('project persistence (v3)', () => {
     expect(parseProject(JSON.stringify(raw)).settings.iconMode).toBe('families')
   })
 
-  test('saves from before the key-ring filter default to both rings (v8 issue 10)', () => {
+  test('saves from before the key-ring filter default to both rings (v8 issue 10 / F5)', () => {
     const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
     const filters = raw.filters as Record<string, unknown>
-    Reflect.deleteProperty(filters, 'keyRing')
-    expect(parseProject(JSON.stringify(raw)).filters.keyRing).toBe('both')
+    Reflect.deleteProperty(filters, 'keyRings')
+    expect(parseProject(JSON.stringify(raw)).filters.keyRings).toEqual({ minor: true, major: true })
   })
 
   test('saves from before the BPM ratio toggles default unit time on (v8 issue 6)', () => {
@@ -547,7 +548,7 @@ describe('project persistence (v3)', () => {
       radialAxis: 'bpm',
     })
     const migrated = parseProject(v1)
-    expect(migrated.version).toBe(6)
+    expect(migrated.version).toBe(7)
     expect(migrated.filters).toEqual(EMPTY_FILTERS)
     expect(migrated.settings).toEqual(DEFAULT_SETTINGS)
     expect(migrated.colorAxis).toBe('auto')
@@ -821,7 +822,7 @@ describe('WS6 sanitize round-trip pins (v14.1)', () => {
     }),
   ]
   const buildValid = (settings: AppSettings): Project => ({
-    version: 6,
+    version: 7,
     manualEdges: [{ a: 't1', b: 't2', tag: 'mashup' }],
     libraryName: 'Pin crate',
     tracks: pinTracks,

@@ -25,10 +25,13 @@ import { DEFAULT_SETTINGS, type AppSettings } from './settings'
  * v6 (v14: text filter kind split into alpha/contains/colour/quality, so old
  *  stored text ranges are dropped on load — WS2; per-criterion `demanded`
  *  flags — WS4; per-track `isVinyl` dropped — WS1; `slotSpreadFactor` clamp
- *  widened to 0–2 — WS7; `manualEdgeWeight` setting — WS5).
+ *  widened to 0–2 — WS7; `manualEdgeWeight` setting — WS5),
+ * v7 (F5: filters `keyRing` string enum → `keyRings` {minor,major} toggle
+ *  pair; quality range `{quality}` → `{qualities: []}`, where an empty array
+ *  is the "both-off" state — old shapes migrate on load).
  */
 export interface Project {
-  version: 6
+  version: 7
   libraryName: string
   tracks: Track[]
   criteria: CriteriaConfig
@@ -225,7 +228,8 @@ export function parseProject(json: string): Project {
     p.version !== 3 &&
     p.version !== 4 &&
     p.version !== 5 &&
-    p.version !== 6
+    p.version !== 6 &&
+    p.version !== 7
   ) {
     throw new Error(`Unsupported project version: ${String(p.version)}`)
   }
@@ -418,7 +422,7 @@ export function parseProject(json: string): Project {
   }
 
   return {
-    version: 6,
+    version: 7,
     manualEdges,
     libraryName: typeof p.libraryName === 'string' ? p.libraryName : '',
     tracks,
