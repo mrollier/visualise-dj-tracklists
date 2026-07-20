@@ -440,12 +440,15 @@
       Column = shown in the Tracks view (drag the table headers to reorder; a hidden column
       remembers its place). Filter = shown in the left panel; hiding a filter also clears it.
     </p>
-    <div class="prop-head" aria-hidden="true">
-      <span class="prop-name"></span>
-      <span>column</span>
-      <span>filter</span>
-    </div>
     <div class="scroll-list">
+      <!-- The header lives INSIDE the scroll list (sticky) so it shares the
+           exact scrollbar gutter as the rows and its columns always line up
+           with the checkboxes (ISSUES.md #9). -->
+      <div class="prop-head" aria-hidden="true">
+        <span class="prop-name"></span>
+        <span>column</span>
+        <span>filter</span>
+      </div>
       {#each $settings.trackColumns as field (field)}
         <div class="prop-row">
           <span class="prop-name">{COLUMN_LABELS[field]}</span>
@@ -722,9 +725,12 @@
   .scroll-list {
     max-height: 200px;
     overflow-y: auto;
+    /* Always reserve the scrollbar gutter so the header (a sticky child, so it
+       shares this exact gutter) and the rows never disagree (ISSUES.md #9). */
+    scrollbar-gutter: stable;
     border: 1px solid var(--border);
     border-radius: 6px;
-    padding: 4px 8px;
+    padding: 0 8px 4px;
   }
 
   /* The per-property Column/Filter grid (v11 issue 1). */
@@ -738,7 +744,15 @@
   }
 
   .prop-head {
-    padding: 2px 24px 2px 8px;
+    /* Sticky inside .scroll-list: no horizontal padding (the list's 8px + the
+       shared scrollbar gutter position it identically to the rows), a top
+       inset for breathing room, and the panel bg to hide rows scrolling under
+       it (ISSUES.md #9). */
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--page);
+    padding: 4px 0 2px;
     color: var(--ink-muted);
     font-size: 10.5px;
     text-transform: uppercase;
