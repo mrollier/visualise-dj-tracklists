@@ -78,6 +78,14 @@ lives in [designs/design-v12.md](designs/design-v12.md). Statuses: **done** ·
   coverage report) plus build-time LLM alias mining; a runtime LLM call was
   considered and **rejected** (not local-first).
 
+## Naming ideas
+
+- **Project name: "Zodiac Constellation"** — **done** (2026-07-20): the Wheel
+  view's radial layout reads as a star map, and its 120-fold structure echoes
+  the zodiac belt; "constellation" replaces "tracker" to describe a mix's
+  tracks as linked stars rather than a logged set, keeping the Mixlog boundary
+  from POSITIONING.md intact.
+
 ## Integration
 
 - **Formats from other software (VirtualDJ, …)** — **v14+**: flexible
