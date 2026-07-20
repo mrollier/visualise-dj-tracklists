@@ -431,12 +431,14 @@
     padding: 2px 6px;
   }
 
-  /* F1: give number boxes room so 4-digit years / 3-digit BPM stay legible
-     with the spinner visible on hover (macOS Chrome + Safari). */
+  /* F1/#10: number boxes are a fixed 58px — enough for a 4-digit year and the
+     hover spinner (macOS Chrome + Safari), but no wider. grow:0 stops them
+     ballooning to fill the row (which read as too wide); the reset button
+     right-aligns so it still hugs the row's edge. */
   .filter-row input[type='number'] {
     width: auto;
-    flex: 1 1 68px;
-    min-width: 68px;
+    flex: 0 1 58px;
+    min-width: 52px;
     padding: 2px 2px 2px 6px;
     font-variant-numeric: tabular-nums;
   }
@@ -500,6 +502,7 @@
   }
 
   .range-reset {
+    margin-left: auto;
     padding: 1px 4px;
     font-size: 12px;
     line-height: 1.4;
