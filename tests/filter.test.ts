@@ -7,6 +7,7 @@ import {
   applyPlaylistFilter,
   audioQuality,
   clampRange,
+  colourChipOptions,
   EMPTY_FILTERS,
   migrateFilters,
   NOT_IN_PLAYLIST,
@@ -710,5 +711,48 @@ describe('clampRange (generic over numbers and strings since v11)', () => {
     expect(clampRange(['k', 'b'], 'min')).toEqual(['b', 'b'])
     expect(clampRange(['k', 'b'], 'max')).toEqual(['k', 'k'])
     expect(clampRange(['b', 'k'], 'min')).toEqual(['b', 'k'])
+  })
+})
+
+describe('colourChipOptions (v14.1 WS7: honest display of out-of-scope selections)', () => {
+  test('an out-of-scope selected colour surfaces as inScope:false', () => {
+    expect(colourChipOptions(['red'], ['red', 'blue'])).toEqual([
+      { colour: 'red', inScope: true },
+      { colour: 'blue', inScope: false },
+    ])
+  })
+
+  test('a colour both scoped and selected is not duplicated', () => {
+    expect(colourChipOptions(['red', 'blue'], ['blue'])).toEqual([
+      { colour: 'red', inScope: true },
+      { colour: 'blue', inScope: true },
+    ])
+  })
+
+  test('empty scoped yields just the selected colours, all out of scope', () => {
+    expect(colourChipOptions([], ['red', 'blue'])).toEqual([
+      { colour: 'red', inScope: false },
+      { colour: 'blue', inScope: false },
+    ])
+  })
+
+  test('empty selected yields just the scoped colours', () => {
+    expect(colourChipOptions(['red', 'blue'], [])).toEqual([
+      { colour: 'red', inScope: true },
+      { colour: 'blue', inScope: true },
+    ])
+  })
+
+  test('both empty yields an empty list', () => {
+    expect(colourChipOptions([], [])).toEqual([])
+  })
+
+  test('ordering is stable: scoped order preserved, out-of-scope appended in selected order', () => {
+    expect(colourChipOptions(['green', 'red'], ['purple', 'red', 'yellow'])).toEqual([
+      { colour: 'green', inScope: true },
+      { colour: 'red', inScope: true },
+      { colour: 'purple', inScope: false },
+      { colour: 'yellow', inScope: false },
+    ])
   })
 })

@@ -4,6 +4,7 @@
     ALPHA_CATCH_ALL,
     alphaBucketLabel,
     clampRange,
+    colourChipOptions,
     propertyExtents,
     wholeExtent,
     type LibraryFilters,
@@ -332,16 +333,19 @@
         />
       {:else if prop.kind === 'colour'}
         <div class="colour-chips" role="group" aria-label="{prop.label} filter">
-          {#each scopedColours as colour (colour)}
+          {#each colourChipOptions(scopedColours, selectedColours(prop.key)) as chip (chip.colour)}
             <button
               class="colour-chip"
-              class:on={selectedColours(prop.key).includes(colour)}
-              aria-pressed={selectedColours(prop.key).includes(colour)}
-              title={REKORDBOX_COLOURS[colour] ?? colour}
-              onclick={() => toggleColour(prop, colour)}
+              class:on={selectedColours(prop.key).includes(chip.colour)}
+              class:out-of-scope={!chip.inScope}
+              aria-pressed={selectedColours(prop.key).includes(chip.colour)}
+              title={chip.inScope
+                ? (REKORDBOX_COLOURS[chip.colour] ?? chip.colour)
+                : `${REKORDBOX_COLOURS[chip.colour] ?? chip.colour} — not in the selected playlists; click to remove`}
+              onclick={() => toggleColour(prop, chip.colour)}
             >
-              <span class="colour-swatch" style="background:{swatch(colour)}"></span>
-              {REKORDBOX_COLOURS[colour] ?? colour}
+              <span class="colour-swatch" style="background:{swatch(chip.colour)}"></span>
+              {REKORDBOX_COLOURS[chip.colour] ?? chip.colour}
             </button>
           {/each}
         </div>
@@ -470,6 +474,13 @@
   .colour-chip.on {
     background: color-mix(in srgb, var(--accent) 18%, transparent);
     color: var(--ink);
+  }
+
+  /* v14.1 WS7: still selected (hence .on too) but no longer in the scoped
+     playlists — dimmed + dashed so it reads as removable, not just active. */
+  .colour-chip.out-of-scope {
+    border-style: dashed;
+    opacity: 0.6;
   }
 
   .colour-swatch {

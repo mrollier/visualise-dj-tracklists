@@ -222,6 +222,27 @@ export function propertyExtents(
  * filters reset to these, so the bounds read cleanly and still cover every
  * track in the current selection.
  */
+/**
+ * Colour-chip rendering options (v14.1 WS7): chips must show every colour
+ * the store is actually filtering by, not just the ones in scope — a stored
+ * selection can retain a colour that dropped out of scope after a playlist
+ * switch, and hiding its chip would filter invisibly. Scoped colours come
+ * first (in their given order, `inScope: true`); any selected colour not in
+ * scope is appended afterwards, in selected's order, `inScope: false`. A
+ * colour that is both scoped and selected appears once, `inScope: true`.
+ */
+export function colourChipOptions(
+  scoped: string[],
+  selected: string[],
+): { colour: string; inScope: boolean }[] {
+  const scopedSet = new Set(scoped)
+  const out = scoped.map((colour) => ({ colour, inScope: true }))
+  for (const colour of selected) {
+    if (!scopedSet.has(colour)) out.push({ colour, inScope: false })
+  }
+  return out
+}
+
 export function wholeExtent(extent: [number, number]): [number, number] {
   return [Math.floor(extent[0]), Math.ceil(extent[1])]
 }
