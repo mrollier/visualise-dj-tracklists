@@ -54,23 +54,28 @@
 
 <main>
   <CriteriaPanel />
-  {#if $library.length === 0}
-    <div class="empty">
-      <h2>Your library as a web of combos</h2>
-      <p>
-        Import a Rekordbox collection XML or playlist TXT, a CSV, an M3U8 playlist, or tagged audio
-        files — or load the sample library — to see your tracks on the Camelot wheel, with suggested
-        combos as edges between them.
-      </p>
-      <p class="privacy">Everything stays in your browser. Nothing is uploaded.</p>
-    </div>
-  {:else if effectiveView === 'genres'}
-    <GenreMapView />
-  {:else if effectiveView === 'tracks'}
-    <TracksView />
-  {:else}
-    <WheelView />
-  {/if}
+  <!-- The central pane scrolls (only it) once the window is too narrow for the
+       view's floor width, so the wheel never shrinks to nothing and the
+       sidebars stay put (ISSUES.md #13). -->
+  <div class="center-scroll">
+    {#if $library.length === 0}
+      <div class="empty">
+        <h2>Your library as a web of combos</h2>
+        <p>
+          Import a Rekordbox collection XML or playlist TXT, a CSV, an M3U8 playlist, or tagged audio
+          files — or load the sample library — to see your tracks on the Camelot wheel, with
+          suggested combos as edges between them.
+        </p>
+        <p class="privacy">Everything stays in your browser. Nothing is uploaded.</p>
+      </div>
+    {:else if effectiveView === 'genres'}
+      <GenreMapView />
+    {:else if effectiveView === 'tracks'}
+      <TracksView />
+    {:else}
+      <WheelView />
+    {/if}
+  </div>
   <!-- The right aside: advanced settings swap in where the set lives, so the
        wheel stays visible while settings change (design-v5 §E). The selected
        track's card docks at its foot whichever panel is open (v9 issue 19). -->
@@ -91,6 +96,31 @@
     flex: 1;
     display: flex;
     min-height: 0;
+  }
+
+  /* Central-pane scroll container (#13): shrinks with the window (min-width:0)
+     but its floored view overflows and scrolls here — the fixed-width sidebars
+     never move. */
+  .center-scroll {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    overflow: auto;
+  }
+
+  /* Floor each central view so a narrow window scrolls it instead of squishing
+     the wheel to nothing. App-scoped specificity beats the views' own
+     min-width:0. The empty state stays fluid (no floor). */
+  .center-scroll > :global(.wheel-wrap),
+  .center-scroll > :global(.map-wrap),
+  .center-scroll > :global(.tracks-view) {
+    flex: 1;
+    min-width: 680px;
+  }
+
+  .center-scroll > .empty {
+    flex: 1;
+    min-width: 0;
   }
 
   .right-aside {

@@ -854,7 +854,11 @@
 
   .legend-shapes {
     display: flex;
-    flex-wrap: wrap;
+    /* Single scrolling row rather than piling into stacks now the pane floors
+       (ISSUES.md #13). */
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    max-width: 640px;
     gap: 4px 12px;
   }
 

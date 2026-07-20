@@ -1362,17 +1362,23 @@
     position: absolute;
     left: 12px;
     bottom: 10px;
-    /* Bounded on the right (zoom controls live there) and wrapping: on
-       narrow windows the legend must never spill over the side panels
-       and swallow their clicks (ISSUES.md #13). */
+    /* Bounded on the right (zoom controls live there). Single line now that the
+       pane has a width floor (ISSUES.md #13): it scrolls within its own bar on
+       an unusually chip-heavy library rather than piling into rows. */
     right: 72px;
     transition: right 0.3s ease;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
     display: flex;
     align-items: center;
     gap: 8px;
     color: var(--ink-secondary);
     font-size: 12px;
+  }
+
+  .legend > * {
+    flex-shrink: 0;
   }
 
   .legend-title {
