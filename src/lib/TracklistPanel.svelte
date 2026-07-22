@@ -440,7 +440,8 @@
 
   {#if walkTracks.length === 0}
     <p class="hint">
-      Double-click a track on the wheel to start your constellation. Each next double-click appends;
+      Double-click a track on the wheel to start your constellation. Each next double-click drops
+      the track in right after the one you have selected, so you can grow the walk from anywhere;
       transitions are checked against your combo criteria. Or let the app suggest a walk and edit
       from there.
     </p>

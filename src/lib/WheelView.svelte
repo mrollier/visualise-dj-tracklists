@@ -308,15 +308,25 @@
       : $effectiveSettings.edgeOpacity
   }
 
-  function select(node: PlacedNode) {
+  // The selection as it stood before the current click burst. A double-click
+  // delivers click, click, dblclick: the first click moves the selection onto
+  // the double-clicked node, so the node to insert AFTER is the one selected
+  // before that (v17 #5).
+  let insertAnchor: string | null = null
+
+  function select(node: PlacedNode, event: MouseEvent) {
+    // The second click of a double-click would toggle the just-made selection
+    // straight back off — and a double-click means "add", never "deselect".
+    if (event.detail > 1) return
+    insertAnchor = $selectedId
     // Link mode (v12 WS9): an armed 🔗 turns the next click into a combo
     // mark/unmark; the selection stays on the source so marks can chain.
     // Shared with the tracks table via selectOrLink (v14 WS10).
     selectOrLink(node.track.id)
   }
 
-  function appendToTracklist(node: PlacedNode) {
-    addTrackToSet(node.track.id)
+  function addToTracklist(node: PlacedNode, anchorId: string | null) {
+    addTrackToSet(node.track.id, anchorId)
   }
 
   function keyLabelPos(key: CamelotKey) {
@@ -710,11 +720,11 @@
           aria-label="{node.track.title} — {trackSummary(node.track)}"
           onmouseenter={() => (hovered = node)}
           onmouseleave={() => (hovered = null)}
-          onclick={() => select(node)}
-          ondblclick={() => appendToTracklist(node)}
+          onclick={(e) => select(node, e)}
+          ondblclick={() => addToTracklist(node, insertAnchor)}
           onkeydown={(e) => {
-            if (e.key === 'Enter') select(node)
-            if (e.key === '+') appendToTracklist(node)
+            if (e.key === 'Enter') selectOrLink(node.track.id)
+            if (e.key === '+') addTrackToSet(node.track.id)
           }}
         >
           <circle cx={node.x} cy={node.y} r={11 / zoomK} fill="transparent" />

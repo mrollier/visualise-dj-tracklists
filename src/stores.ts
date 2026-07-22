@@ -131,16 +131,18 @@ export function appendToSet(id: string): void {
 }
 
 /**
- * Add a track to the active set (S5): if the currently-selected track is
- * already in the set, splice the new one right after its FIRST occurrence;
- * otherwise append. `get()` reads are correct here — the callers are event
- * handlers, not reactive contexts. Skips an edit that would place the new
- * track back-to-back with an identical one (mirrors appendToSet's guard).
+ * Add a track to the active set (S5): if the anchor track is already in the
+ * set, splice the new one right after its FIRST occurrence; otherwise append.
+ * The anchor defaults to the live selection, but the wheel passes it
+ * explicitly — a double-click's two preceding `click` events have already
+ * moved and then cleared `selectedId` by the time `ondblclick` runs (v17 #5).
+ * `get()` reads are correct here — the callers are event handlers, not
+ * reactive contexts. Skips an edit that would place the new track back-to-back
+ * with an identical one (mirrors appendToSet's guard).
  */
-export function addTrackToSet(newId: string): void {
-  const sel = get(selectedId)
+export function addTrackToSet(newId: string, anchorId: string | null = get(selectedId)): void {
   const ids = get(tracklist)
-  const at = sel === null ? -1 : ids.indexOf(sel)
+  const at = anchorId === null ? -1 : ids.indexOf(anchorId)
   if (at === -1) {
     appendToSet(newId)
     return
