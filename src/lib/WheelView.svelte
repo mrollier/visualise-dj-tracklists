@@ -492,6 +492,7 @@
 
 <div
   class="wheel-wrap"
+  data-tour="wheel"
   role="presentation"
   onmousemove={(e) => (mouse = { x: e.clientX, y: e.clientY })}
   onclick={(e) => {

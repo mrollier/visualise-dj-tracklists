@@ -235,7 +235,13 @@
     <!-- Easy mode hides these wheel-only controls but KEEPS their layout box
          (visibility, not removal) so the surviving buttons never slide — the
          empty gap signals "options fell away" (ISSUES.md #5). -->
-    <div class="view-switch" class:easy-hidden={easy} role="group" aria-label="Central view">
+    <div
+      class="view-switch"
+      class:easy-hidden={easy}
+      data-tour="views"
+      role="group"
+      aria-label="Central view"
+    >
       <button
         class:active={$viewMode === 'wheel'}
         onclick={() => viewMode.set('wheel')}
@@ -322,6 +328,7 @@
          computes on sensible defaults instead of its current values. -->
     <button
       class="mode-toggle"
+      data-tour="easy"
       aria-pressed={easy}
       class:active={easy}
       title={easy

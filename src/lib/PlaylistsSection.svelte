@@ -49,7 +49,7 @@
 </script>
 
 {#if $playlists.length > 0}
-  <details open class:fill>
+  <details open class:fill data-tour="playlists">
     <summary class="micro-label">
       Playlists
       <span class="summary-count">{summary}</span>

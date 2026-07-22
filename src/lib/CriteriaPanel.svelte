@@ -96,7 +96,7 @@
 
     <GenresSection />
 
-    <details open>
+    <details open data-tour="criteria">
       <summary class="micro-label">Combo criteria</summary>
 
       <div class="criterion">

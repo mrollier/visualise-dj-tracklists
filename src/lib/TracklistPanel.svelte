@@ -335,6 +335,7 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <aside
+  data-tour="constellation"
   onclick={(e) => {
     if (e.target === e.currentTarget) selectedId.set(null)
   }}
@@ -408,6 +409,7 @@
     {:else}
       <button
         class="primary"
+        data-tour="suggest"
         onclick={() => suggest()}
         disabled={suggestDisabled}
         title={suggestDisabled && $visibleLibrary.length > 0
