@@ -38,3 +38,10 @@ dist-ssr
 
 # throwaway visual style comps (design exploration)
 design-mockups/
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
