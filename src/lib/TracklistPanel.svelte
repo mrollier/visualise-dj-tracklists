@@ -13,7 +13,7 @@
   import ConfirmDialog from './ConfirmDialog.svelte'
   import InfoTooltip from './InfoTooltip.svelte'
   import SparkleBurst, { SPARKLE_BURST_MS } from './SparkleBurst.svelte'
-  import { canAddSet, MAX_SETS } from '../core/sets'
+  import { canAddSet, MAX_SETS, moveItem } from '../core/sets'
   import {
     activeSet,
     activeSetId,
@@ -85,19 +85,43 @@
     closeForceWindow()
   }
 
-  function move(index: number, delta: -1 | 1) {
+  function reorder(from: number, insertAt: number) {
     let moved = false
     tracklist.update((ids) => {
-      const target = index + delta
-      if (target < 0 || target >= ids.length) return ids
-      const next = [...ids]
-      ;[next[index], next[target]] = [next[target], next[index]]
-      moved = true
+      const next = moveItem(ids, from, insertAt)
+      moved = next.some((id, i) => id !== ids[i])
       return next
     })
-    // Only a move that actually happened is a hand-edit; a no-op at the ends
-    // leaves the ⚡ window intact.
+    // Only a reorder that actually happened is a hand-edit; a no-op drop or a
+    // move off the ends leaves the ⚡ window intact.
     if (moved) closeForceWindow()
+  }
+
+  function move(index: number, delta: -1 | 1) {
+    const target = index + delta
+    if (target < 0 || target >= $tracklist.length) return
+    // ↑ lands in the gap before the neighbour; ↓ lands in the gap after it.
+    reorder(index, delta === -1 ? target : target + 1)
+  }
+
+  // Drag-reorder (v17 #6): the ↑/↓ buttons stay for touch and keyboard; this
+  // is the pointer path. `dropGap` is a gap index — the insertion line renders
+  // on the row below it, or after the last row when it equals the length.
+  let dragIndex = $state<number | null>(null)
+  let dropGap = $state<number | null>(null)
+
+  function dragOverRow(event: DragEvent, index: number) {
+    event.preventDefault()
+    const box = (event.currentTarget as HTMLElement).getBoundingClientRect()
+    dropGap = event.clientY < box.top + box.height / 2 ? index : index + 1
+  }
+
+  function endDrag() {
+    const from = dragIndex
+    const gap = dropGap
+    dragIndex = null
+    dropGap = null
+    if (from !== null && gap !== null) reorder(from, gap)
   }
 
   /** Ask for a name first (ISSUES.md #15); cancelling aborts the export. */
@@ -469,8 +493,22 @@
           <li
             class="track"
             class:active={track.id === $selectedId}
+            class:dragging={dragIndex === i}
+            class:drop-above={dropGap === i}
+            class:drop-below={dropGap === i + 1 && i === walkTracks.length - 1}
             class:reveal={revealing && i >= revealPlan.from}
             style:animation-delay="{(i - revealPlan.origin) * revealPlan.stepMs}ms"
+            draggable="true"
+            ondragstart={(e) => {
+              dragIndex = i
+              e.dataTransfer?.setData('text/plain', String(i))
+            }}
+            ondragover={(e) => dragOverRow(e, i)}
+            ondrop={(e) => {
+              e.preventDefault()
+              endDrag()
+            }}
+            ondragend={endDrag}
             onmouseenter={() => hoveredId.set(track.id)}
             onmouseleave={() => hoveredId.set(null)}
           >
@@ -654,6 +692,7 @@
   }
 
   .track {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 4px;
@@ -663,6 +702,38 @@
 
   .track.active {
     border-color: var(--accent);
+  }
+
+  /* Drag-reorder (v17 #6): a line marks the gap the row will land in, rather
+     than highlighting the row it displaces — the destination is what you are
+     aiming at. Drawn on the ::before/::after so it costs no layout. */
+  .track[draggable='true'] {
+    cursor: grab;
+  }
+
+  .track.dragging {
+    opacity: 0.4;
+    cursor: grabbing;
+  }
+
+  .track.drop-above::before,
+  .track.drop-below::after {
+    content: '';
+    position: absolute;
+    left: 4px;
+    right: 4px;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--accent);
+    pointer-events: none;
+  }
+
+  .track.drop-above::before {
+    top: -1px;
+  }
+
+  .track.drop-below::after {
+    bottom: -1px;
   }
 
   /* Walk-draw cascade (v12 WS1): rows arrive as the wheel reaches them.

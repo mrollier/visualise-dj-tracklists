@@ -80,6 +80,21 @@ export function removeAllOccurrences(ids: readonly string[], id: string): string
   return ids.filter((x) => x !== id)
 }
 
+/**
+ * Reorder one slot of a list. `insertAt` is a GAP index in the ORIGINAL array
+ * — 0 is before the first item, `items.length` is after the last — which is
+ * what a drop between two rows means. The two gaps flanking `from` are no-ops.
+ * Positional, not identity-based: a set may hold the same track twice.
+ */
+export function moveItem<T>(items: readonly T[], from: number, insertAt: number): T[] {
+  if (from < 0 || from >= items.length) return [...items]
+  if (insertAt < 0 || insertAt > items.length) return [...items]
+  const next = [...items]
+  const [moved] = next.splice(from, 1)
+  next.splice(insertAt > from ? insertAt - 1 : insertAt, 0, moved)
+  return next
+}
+
 /** A fresh un-generated "First Constellation", optionally seeded with tracks. */
 export function freshFirstSet(trackIds: string[] = []): TrackSet {
   return { id: newSetId(), name: ordinalSetName(0), trackIds, generated: false }

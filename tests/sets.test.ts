@@ -3,6 +3,7 @@ import {
   canAddSet,
   freshFirstSet,
   MAX_SETS,
+  moveItem,
   newSetId,
   nextSetName,
   ordinalSetName,
@@ -91,5 +92,40 @@ describe('removeAllOccurrences (v9 issue 14)', () => {
     const ids = ['a', 'b', 'a']
     removeAllOccurrences(ids, 'a')
     expect(ids).toEqual(['a', 'b', 'a'])
+  })
+})
+
+describe('moveItem', () => {
+  test('moves an item down to a later gap', () => {
+    expect(moveItem(['a', 'b', 'c', 'd'], 0, 3)).toEqual(['b', 'c', 'a', 'd'])
+  })
+
+  test('moves an item up to an earlier gap', () => {
+    expect(moveItem(['a', 'b', 'c', 'd'], 3, 1)).toEqual(['a', 'd', 'b', 'c'])
+  })
+
+  test('gap 0 puts the item first, gap length puts it last', () => {
+    expect(moveItem(['a', 'b', 'c'], 2, 0)).toEqual(['c', 'a', 'b'])
+    expect(moveItem(['a', 'b', 'c'], 0, 3)).toEqual(['b', 'c', 'a'])
+  })
+
+  test('the two gaps flanking the item are both no-ops', () => {
+    expect(moveItem(['a', 'b', 'c'], 1, 1)).toEqual(['a', 'b', 'c'])
+    expect(moveItem(['a', 'b', 'c'], 1, 2)).toEqual(['a', 'b', 'c'])
+  })
+
+  test('duplicate ids move by position, not by identity', () => {
+    expect(moveItem(['a', 'b', 'a'], 2, 0)).toEqual(['a', 'a', 'b'])
+  })
+
+  test('an out-of-range index is a no-op', () => {
+    expect(moveItem(['a', 'b'], 5, 0)).toEqual(['a', 'b'])
+    expect(moveItem(['a', 'b'], 0, 9)).toEqual(['a', 'b'])
+  })
+
+  test('never mutates the input', () => {
+    const ids = ['a', 'b', 'c']
+    moveItem(ids, 0, 3)
+    expect(ids).toEqual(['a', 'b', 'c'])
   })
 })
