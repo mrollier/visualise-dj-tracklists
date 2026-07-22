@@ -338,6 +338,23 @@ The core (`src/core/`) is pure TypeScript with no DOM or Svelte imports — the 
 logic is reusable and fully unit-tested. The Svelte components in `src/lib/` are a thin
 view layer over it.
 
+## Deploy
+
+The app is a fully client-side static bundle — no backend, database, or secrets — so it
+can be hosted on any static host. It is published to **Cloudflare Pages** via git
+integration: every push to `main` triggers a build and deploy, and pull requests get
+preview URLs automatically.
+
+| Setting | Value |
+| --- | --- |
+| Build command | `npm run build` |
+| Build output directory | `dist` |
+| Node version | `20` (pinned in `.nvmrc`; also set `NODE_VERSION=20` in the Pages env) |
+
+`public/_headers` keeps `sw.js` and `index.html` revalidated so updates ship promptly,
+while hashed `assets/*` stay immutably cached. No SPA `_redirects` fallback is needed —
+the app is a single mount with no client-side routes.
+
 ## Background & roadmap
 
 The concept — track set graphs, track vector walks, and DJ "fingerprints" as statistics
