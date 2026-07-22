@@ -377,7 +377,7 @@
     {/if}
     {#if $lastImportReport}
       <InfoTooltip label="Import details" align="right">
-        <strong>{$lastImportReport.total} tracks imported</strong>
+        <span><strong>{$lastImportReport.total} tracks imported</strong></span>
         {#if missingSummary}
           <span>{missingSummary}</span>
         {/if}

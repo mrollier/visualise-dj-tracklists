@@ -9,6 +9,7 @@ import {
   MAX_SETS,
   newSetId,
   ordinalSetName,
+  shortenLegacySetName,
   uniqueSetName,
   type TrackSet,
 } from './sets'
@@ -256,11 +257,14 @@ export function parseProject(json: string): Project {
   // The sets are the suggestion browser (v8 issue 18): a hand-edited save
   // with more than the cap keeps its first MAX_SETS entries.
   sets = sets.slice(0, MAX_SETS)
+  // v17: pre-v17 saves carried the noun in the default names ("First
+  // Constellation"); strip it so old work matches the new short defaults.
   // v9 (issue 18): saves that already carry duplicate names get the same
-  // auto-suffix a rename would.
+  // auto-suffix a rename would — run after the shortening, which can itself
+  // create a clash.
   const seenNames: string[] = []
   sets = sets.map((s) => {
-    const name = uniqueSetName(s.name, seenNames)
+    const name = uniqueSetName(shortenLegacySetName(s.name), seenNames)
     seenNames.push(name)
     return name === s.name ? s : { ...s, name }
   })

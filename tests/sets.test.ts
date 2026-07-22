@@ -8,6 +8,7 @@ import {
   nextSetName,
   ordinalSetName,
   removeAllOccurrences,
+  shortenLegacySetName,
   uniqueSetName,
 } from '../src/core/sets'
 
@@ -21,40 +22,55 @@ describe('the set cap (v8 issue 18)', () => {
 })
 
 describe('ordinalSetName', () => {
-  test('names the first twelve sets with ordinal words', () => {
-    expect(ordinalSetName(0)).toBe('First Constellation')
-    expect(ordinalSetName(1)).toBe('Second Constellation')
-    expect(ordinalSetName(2)).toBe('Third Constellation')
-    expect(ordinalSetName(11)).toBe('Twelfth Constellation')
+  test('counts upward in bare ordinals', () => {
+    expect(ordinalSetName(0)).toBe('First')
+    expect(ordinalSetName(1)).toBe('Second')
+    expect(ordinalSetName(2)).toBe('Third')
+    expect(ordinalSetName(11)).toBe('Twelfth')
   })
 
-  test('falls back to numbers beyond the twelfth', () => {
-    expect(ordinalSetName(12)).toBe('Constellation 13')
-    expect(ordinalSetName(99)).toBe('Constellation 100')
+  test('past the ordinals it falls back to the bare number', () => {
+    expect(ordinalSetName(12)).toBe('13')
+    expect(ordinalSetName(99)).toBe('100')
+  })
+})
+
+describe('shortenLegacySetName', () => {
+  test('strips the noun from an untouched pre-v17 default', () => {
+    expect(shortenLegacySetName('First Constellation')).toBe('First')
+    expect(shortenLegacySetName('Twelfth Constellation')).toBe('Twelfth')
+    expect(shortenLegacySetName('Constellation 13')).toBe('13')
+  })
+
+  test('leaves a name the user chose alone', () => {
+    expect(shortenLegacySetName('peak time bangers')).toBe('peak time bangers')
+    expect(shortenLegacySetName('My Constellation')).toBe('My Constellation')
+    expect(shortenLegacySetName('Constellation')).toBe('Constellation')
+    expect(shortenLegacySetName('First')).toBe('First')
   })
 })
 
 describe('nextSetName', () => {
   test('advances past the names already taken', () => {
-    expect(nextSetName([])).toBe('First Constellation')
-    expect(nextSetName(['First Constellation'])).toBe('Second Constellation')
-    expect(nextSetName(['First Constellation', 'Second Constellation'])).toBe('Third Constellation')
+    expect(nextSetName([])).toBe('First')
+    expect(nextSetName(['First'])).toBe('Second')
+    expect(nextSetName(['First', 'Second'])).toBe('Third')
   })
 
   test('counts the EXISTING sets, custom names included (v9 issue 18)', () => {
-    // The reported bug: two renamed sets, add a third → it said "First Constellation".
-    expect(nextSetName(['warm-up', 'peak time bangers'])).toBe('Third Constellation')
-    expect(nextSetName(['Second Constellation', 'peak time bangers'])).toBe('Third Constellation')
+    // The reported bug: two renamed sets, add a third → it said "First".
+    expect(nextSetName(['warm-up', 'peak time bangers'])).toBe('Third')
+    expect(nextSetName(['Second', 'peak time bangers'])).toBe('Third')
   })
 
   test('scans past taken ordinals beyond the count', () => {
-    expect(nextSetName(['First Constellation', 'Third Constellation'])).toBe('Fourth Constellation')
+    expect(nextSetName(['First', 'Third'])).toBe('Fourth')
   })
 })
 
 describe('uniqueSetName (v9 issue 18)', () => {
   test('a free name passes through untouched', () => {
-    expect(uniqueSetName('Peak time', ['First Constellation'])).toBe('Peak time')
+    expect(uniqueSetName('Peak time', ['First'])).toBe('Peak time')
   })
 
   test('clashes get a file-manager suffix, counting past taken ones', () => {
@@ -69,9 +85,9 @@ describe('newSetId / freshFirstSet', () => {
     expect(ids.size).toBe(100)
   })
 
-  test('freshFirstSet builds an un-generated First Constellation around the given tracks', () => {
+  test('freshFirstSet builds an un-generated First constellation around the given tracks', () => {
     const set = freshFirstSet(['a', 'b'])
-    expect(set.name).toBe('First Constellation')
+    expect(set.name).toBe('First')
     expect(set.trackIds).toEqual(['a', 'b'])
     expect(set.generated).toBe(false)
     expect(set.id.length).toBeGreaterThan(0)

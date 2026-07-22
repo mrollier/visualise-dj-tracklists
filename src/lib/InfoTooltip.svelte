@@ -132,8 +132,10 @@
     white-space: normal;
   }
 
+  /* Inline, so a <strong> mid-sentence doesn't break the paragraph in three
+     (v17 #7). Report-style tooltips get their heading line from the <span>
+     rule below instead. */
   .tooltip :global(strong) {
-    display: block;
     color: var(--ink);
   }
 

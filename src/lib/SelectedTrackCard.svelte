@@ -108,7 +108,7 @@
           🔗{linkedCount > 0 ? linkedCount : ''}
         </button>
         <InfoTooltip label="About these marks" align="right">
-          <strong>Marks for suggested constellations</strong>
+          <span><strong>Marks for suggested constellations</strong></span>
           <span>★ — guaranteed to appear in suggested constellations (forcing a transition if it must).</span>
           <span>⏮ — open generated constellations with it.</span>
           <span>⏭ — close generated constellations with it.</span>

@@ -442,7 +442,7 @@
             ? 'Generate a constellation (replaces this untouched one — Cmd+Z steps back)'
             : 'Generate a new constellation alongside this hand-edited one'}
       >
-        ✨ Suggest a constellation from the wheel
+        ✨ Suggest a constellation
         <SparkleBurst active={bursting} />
       </button>
     {/if}

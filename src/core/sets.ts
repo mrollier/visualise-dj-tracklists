@@ -25,9 +25,22 @@ const ORDINALS = [
   'Twelfth',
 ]
 
-/** "First Constellation", "Second Constellation", …, "Constellation 13". */
+/** "First", "Second", …, "13". Kept short: the set dropdown is 190px wide and
+ * ellipsis-cut anything longer (v17 #7). */
 export function ordinalSetName(index: number): string {
-  return index < ORDINALS.length ? `${ORDINALS[index]} Constellation` : `Constellation ${index + 1}`
+  return index < ORDINALS.length ? ORDINALS[index] : String(index + 1)
+}
+
+const LEGACY_ORDINAL_NAME = new RegExp(`^(${ORDINALS.join('|')}) Constellation$`)
+const LEGACY_NUMBERED_NAME = /^Constellation (\d+)$/
+
+/**
+ * Pre-v17 saves stored the default names with the noun attached ("First
+ * Constellation"). Strip it on load so existing work sheds the ellipsis too.
+ * Only EXACT old defaults match — a name the user chose is never touched.
+ */
+export function shortenLegacySetName(name: string): string {
+  return name.replace(LEGACY_ORDINAL_NAME, '$1').replace(LEGACY_NUMBERED_NAME, '$1')
 }
 
 /**
@@ -95,7 +108,7 @@ export function moveItem<T>(items: readonly T[], from: number, insertAt: number)
   return next
 }
 
-/** A fresh un-generated "First Constellation", optionally seeded with tracks. */
+/** A fresh un-generated "First" constellation, optionally seeded with tracks. */
 export function freshFirstSet(trackIds: string[] = []): TrackSet {
   return { id: newSetId(), name: ordinalSetName(0), trackIds, generated: false }
 }
