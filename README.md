@@ -349,7 +349,7 @@ preview URLs automatically.
 | --- | --- |
 | Build command | `npm run build` |
 | Build output directory | `dist` |
-| Node version | `20` (pinned in `.nvmrc`; also set `NODE_VERSION=20` in the Pages env) |
+| Node version | `22` (pinned in `.nvmrc`; also set `NODE_VERSION=22` in the Cloudflare build env) |
 
 `public/_headers` keeps `sw.js` and `index.html` revalidated so updates ship promptly,
 while hashed `assets/*` stay immutably cached. No SPA `_redirects` fallback is needed —
