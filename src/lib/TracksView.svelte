@@ -129,6 +129,7 @@
   })
 
   let manualClearConfirm: ConfirmDialog
+  let starAllConfirm: ConfirmDialog
   function clearAllManualEdges(): void {
     manualEdges.set([])
   }
@@ -185,6 +186,19 @@
     )
   }
 
+  // Both directions ask first (#3): one click used to rewrite every ★ in the
+  // view, and the count can run into the hundreds.
+  const starAllTitle = $derived(
+    allVisibleStarred
+      ? `Remove the ★ from all ${starAllTarget.length} tracks in this view?`
+      : `Mark all ${starAllTarget.length} tracks in this view as essential?`,
+  )
+  const starAllBody = $derived(
+    allVisibleStarred
+      ? 'Every track in the current view loses its ★. Tracks outside the view keep theirs. Cmd+Z steps back if that was a mistake.'
+      : 'Every track in the current view is marked as essential, so suggested constellations must include them all. Cmd+Z steps back if that was a mistake.',
+  )
+
   // --- ＋/position column (v8 issue 15): 1-based slots in the ACTIVE set ---
   const positionsById = $derived.by(() => {
     // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived-local
@@ -235,7 +249,7 @@
                 : 'Mark every track in this view as essential'}
               aria-label="Toggle essential for all tracks in view"
               aria-pressed={allVisibleStarred}
-              onclick={toggleAllStars}>★</button
+              onclick={() => starAllConfirm.open(toggleAllStars)}>★</button
             >
           </th>
           <th class="pos-col">
@@ -349,7 +363,9 @@
               <button
                 class="pos-btn"
                 class:in-set={positions !== undefined}
-                title={positions === undefined ? 'Add to constellation' : 'In the constellation — click to remove'}
+                title={positions === undefined
+                  ? 'Add to constellation'
+                  : 'In the constellation — click to remove'}
                 aria-label={positions === undefined
                   ? `Add ${track.title} to the constellation`
                   : `Remove ${track.title} from the constellation`}
@@ -377,8 +393,7 @@
                 {:else if track.id === sel}
                   <span
                     class="tag on"
-                    title="Selected — its manual combos light up on the other rows"
-                    >🔗</span
+                    title="Selected — its manual combos light up on the other rows">🔗</span
                   >
                 {:else if manualPartnerIds?.has(track.id)}
                   <button
@@ -461,6 +476,14 @@
   title="Clear all manual combos?"
   body="Every user-defined combo (the dashed links on the wheel) is removed, library-wide — not just the tracks in this view. Cmd+Z undoes it if that was a mistake."
   confirmLabel="Clear all"
+  danger
+/>
+
+<ConfirmDialog
+  bind:this={starAllConfirm}
+  title={starAllTitle}
+  body={starAllBody}
+  confirmLabel={allVisibleStarred ? 'Remove all ★' : 'Mark all ★'}
   danger
 />
 

@@ -17,6 +17,8 @@ export interface UndoSnapshot {
   tuning: string
   /** JSON of the manual edges (v12 WS9) — a mark toggle is a work edit. */
   marks: string
+  /** JSON of the ★ / ⏮ / ⏭ marks (v17) — a star is a work edit, not tuning. */
+  pins: string
 }
 
 export interface UndoStack {
@@ -34,6 +36,7 @@ export function sameWork(a: UndoSnapshot, b: UndoSnapshot): boolean {
     a.generated === b.generated &&
     a.selectedId === b.selectedId &&
     a.marks === b.marks &&
+    a.pins === b.pins &&
     a.trackIds.length === b.trackIds.length &&
     a.trackIds.every((id, i) => id === b.trackIds[i])
   )

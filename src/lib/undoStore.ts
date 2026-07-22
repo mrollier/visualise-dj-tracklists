@@ -16,6 +16,9 @@ import {
   activeSetId,
   criteria,
   manualEdges,
+  mustInclude,
+  pinnedFirst,
+  pinnedLast,
   selectedId,
   setGeneratedTracklist,
   settings,
@@ -35,12 +38,23 @@ import {
 
 const TUNING_DEBOUNCE_MS = 350
 
+interface Pins {
+  mustInclude: string[]
+  pinnedFirst: string | null
+  pinnedLast: string | null
+}
+
+function pinsOf($mustInclude: string[], $first: string | null, $last: string | null): string {
+  return JSON.stringify({ mustInclude: $mustInclude, pinnedFirst: $first, pinnedLast: $last })
+}
+
 let stack: UndoStack = initStack({
   trackIds: [],
   generated: false,
   selectedId: null,
   tuning: '{}',
   marks: '[]',
+  pins: pinsOf([], null, null),
 })
 let applying = false
 let pending: UndoSnapshot | null = null
@@ -62,6 +76,7 @@ function currentSnapshot(): UndoSnapshot {
     selectedId: get(selectedId),
     tuning: tuningOf(get(settings), get(criteria)),
     marks: JSON.stringify(get(manualEdges)),
+    pins: pinsOf(get(mustInclude), get(pinnedFirst), get(pinnedLast)),
   }
 }
 
@@ -81,6 +96,10 @@ function applySnapshot(snapshot: UndoSnapshot): void {
     }
     if (parsed.criteria !== undefined) criteria.set(parsed.criteria)
     manualEdges.set(JSON.parse(snapshot.marks) as ManualEdge[])
+    const pins = JSON.parse(snapshot.pins) as Pins
+    mustInclude.set(pins.mustInclude)
+    pinnedFirst.set(pins.pinnedFirst)
+    pinnedLast.set(pins.pinnedLast)
   } finally {
     applying = false
   }
@@ -128,14 +147,24 @@ export function startUndo(): void {
     resetUndo()
   })
   const watched = derived(
-    [activeSet, selectedId, settings, criteria, manualEdges],
-    ([$set, $selected, $settings, $criteria, $manualEdges]): UndoSnapshot => {
+    [activeSet, selectedId, settings, criteria, manualEdges, mustInclude, pinnedFirst, pinnedLast],
+    ([
+      $set,
+      $selected,
+      $settings,
+      $criteria,
+      $manualEdges,
+      $mustInclude,
+      $pinnedFirst,
+      $pinnedLast,
+    ]): UndoSnapshot => {
       return {
         trackIds: $set.trackIds,
         generated: $set.generated,
         selectedId: $selected,
         tuning: tuningOf($settings, $criteria),
         marks: JSON.stringify($manualEdges),
+        pins: pinsOf($mustInclude, $pinnedFirst, $pinnedLast),
       }
     },
   )

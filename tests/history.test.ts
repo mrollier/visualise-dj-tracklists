@@ -8,6 +8,7 @@ function snap(overrides: Partial<UndoSnapshot> = {}): UndoSnapshot {
     selectedId: null,
     tuning: '{}',
     marks: '[]',
+    pins: '{}',
     ...overrides,
   }
 }
