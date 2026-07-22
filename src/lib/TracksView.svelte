@@ -600,19 +600,30 @@
      hover/focus to signal it removes every manual combo. Same in-place glyph
      swap the in-set position button uses below — no layout shift, and the
      target is the icon itself rather than a speck off its corner (#4). */
+  .manual-clear {
+    position: relative;
+  }
+
+  /* The 🔗 keeps its box (hidden, not removed) and the ✕ overlays it, so the
+     swap can't resize the button — ✕ is a narrower glyph than the emoji. */
   .manual-clear .clear-x {
-    display: none;
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    visibility: hidden;
     color: var(--walk-bright);
   }
 
   .manual-clear:hover:not(:disabled) .link-ico,
   .manual-clear:focus-visible:not(:disabled) .link-ico {
-    display: none;
+    visibility: hidden;
   }
 
   .manual-clear:hover:not(:disabled) .clear-x,
   .manual-clear:focus-visible:not(:disabled) .clear-x {
-    display: inline;
+    visibility: visible;
   }
 
   .manual-count {
