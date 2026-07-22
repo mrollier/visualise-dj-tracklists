@@ -503,7 +503,7 @@
     bind:this={svgEl}
     viewBox="0 0 {WIDTH} {SIZE}"
     role="application"
-    aria-label="Camelot wheel of the track library"
+    aria-label="Harmonic key wheel of the track library"
   >
     <g class="zoom-layer" transform={zoomTransform}>
       <!-- Radial grid + tick labels -->

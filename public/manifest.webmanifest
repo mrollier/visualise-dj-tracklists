@@ -1,7 +1,7 @@
 {
-  "name": "visualise-dj-tracklists",
-  "short_name": "dj-tracklists",
-  "description": "Your DJ library as a living graph on the Camelot wheel — every playable transition drawn, every set a visible walk. Nothing leaves your machine.",
+  "name": "Zodiac Tracker",
+  "short_name": "Zodiac",
+  "description": "Your DJ library as a living graph on the harmonic key wheel — every playable transition drawn, every constellation a visible walk. Nothing leaves your machine.",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",

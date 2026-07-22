@@ -114,7 +114,7 @@
           </label>
           <InfoTooltip label="How key matching works">
             A combo needs harmonically adjacent keys — the same key, its
-            relative major/minor, or a ±1 step around the Camelot wheel.
+            relative major/minor, or a ±1 step around the harmonic key wheel.
             {#if keyMoves.length > 0}
               Extra moves on: {keyMoves.join(' · ')}.
             {/if}

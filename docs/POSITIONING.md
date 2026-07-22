@@ -9,7 +9,7 @@ drawn from them (2026-07-17).
 ## The position in one paragraph
 
 This app is a **map, not a logbook**. It renders an entire DJ library as a graph —
-tracks as nodes anchored to a 24-slot Camelot wheel, playable transitions as edges
+tracks as nodes anchored to a 24-slot harmonic key wheel, playable transitions as edges
 computed from stated, tunable criteria — and draws a set as a visible **walk**
 through that structure. It is prospective (what *could* you play next?), visual
 (the answer is a shape, not a ranked list), explainable (every edge exists for a
@@ -79,7 +79,7 @@ primitive.
 
 Five things no established tool combines, and most don't have at all:
 
-1. **The whole library as a graph on the Camelot wheel, with the set as a visible
+1. **The whole library as a graph on the harmonic key wheel, with the set as a visible
    walk.** Unoccupied. HarmonySet draws only the *set's* tracks on a circle of
    fifths; DJOID's graphs are force-directed blobs; Mixgraph shows an energy arc.
    Nobody anchors every track of a library to its harmonic position and threads
@@ -139,7 +139,7 @@ beer, not a feature to build unilaterally.
 ## Brand identity
 
 **Positioning statement**: *A map of everything you could play. Your DJ library as
-a living graph on the Camelot wheel — every playable transition drawn, every set a
+a living graph on the harmonic key wheel — every playable transition drawn, every set a
 visible walk, every suggestion explainable, and nothing ever leaves your machine.*
 
 **Tagline options**:
@@ -226,8 +226,8 @@ Beyond the current roadmap, in rough order of leverage:
 - **The wheel as a teaching instrument.** The app *shows* why harmonic mixing
   works instead of asserting it. A "learn" mode or a short illustrated guide
   (sample pack + guided walk) targets the large beginner audience that currently
-  learns the Camelot wheel from static blog diagrams — every one of the top
-  search results for "Camelot wheel" is a text explainer, not an instrument.
+  learns the harmonic key wheel from static blog diagrams — every one of the top
+  search results for "harmonic mixing wheel" is a text explainer, not an instrument.
 - **Mixlog interop** — see above; a conversation first, a feature maybe.
 
 ## Caveats and corrections
@@ -241,7 +241,7 @@ Beyond the current roadmap, in rough order of leverage:
   in particular Mixgraph's and DJ.Studio's cloud/local behaviour and "no graph"
   status. Verify before repeating publicly.
 - **"Unoccupied" is a negative claim.** Two independent research passes found no
-  established tool drawing a library-wide Camelot graph with a set walk — but
+  established tool drawing a library-wide harmonic key graph with a set walk — but
   unindexed hobby projects can exist. Say "no *established, maintained* tool does
   this", never "this has never been attempted".
 - **Names are collision-checked, not trademark-cleared.** A real trademark search

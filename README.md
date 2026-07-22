@@ -1,14 +1,14 @@
-# visualise-dj-tracklists
+# Zodiac Tracker
 
 A local-first web app that shows a DJ library as a **graph** instead of a list: tracks are
-nodes on a Camelot-wheel polar view, suggested combos are edges computed from tunable
+nodes on a harmonic-key-wheel polar view, suggested combos are edges computed from tunable
 matching criteria (key adjacency, BPM, genre similarity, year), and a tracklist is a
 visible **walk** woven through that structure. It is a map of what you _could_ play,
 not a log of what you did.
 
 Your library never leaves your machine — there is no backend, no account, no upload.
 
-![The Camelot wheel with a demo set](docs/screenshots/wheel-with-set.png)
+![The harmonic key wheel with a demo constellation](docs/screenshots/wheel-with-set.png)
 
 ## What it does
 
@@ -27,7 +27,7 @@ Your library never leaves your machine — there is no backend, no account, no u
   with an **empty wheel** and a Playlists panel on the left — toggle the playlists
   you want (plus a "Not in a playlist" bucket for the rest) instead of drowning in
   2000 nodes.
-- **See the web**: key as angle on a 24-slot Camelot wheel (every harmonically compatible
+- **See the web**: key as angle on a 24-slot harmonic key wheel (every harmonically compatible
   key angularly adjacent, minor/major sectors tinted), switchable radius (BPM / rating /
   year), node colour on its own axis. Combo edges draw **around the track you select**:
   its star of compatible neighbours by default, plus the cluster's own interconnections
@@ -250,7 +250,7 @@ Your library never leaves your machine — there is no backend, no account, no u
 
 DJ tooling usually sells visualisation, set-planning, and track suggestion as three
 separate products; this app is the synthesis of all three, built around one idea no
-established tool ships: the **whole library drawn as a graph on the Camelot wheel,
+established tool ships: the **whole library drawn as a graph on the harmonic key wheel,
 with the set as a visible walk through it**. Set-builders like DJ.Studio or Mixgraph
 show a timeline or a scored slot list; rekordbox's Related Tracks shows a ranked
 list; library managers show tables. Here the answer is a shape you can see and steer.

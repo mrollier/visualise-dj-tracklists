@@ -105,7 +105,7 @@ distribute:
 ## 5. Pre-publish checklist
 - [ ] App name cleared (USPTO/EUIPO + app stores + domain).
 - [ ] No competitor names, logos, screenshots, icons, or code anywhere in the repo or marketing.
-- [ ] Wheel described as "harmonic key wheel"; "Camelot" used only as compatible notation, not branding.
+- [x] Wheel described as "harmonic key wheel"; "Camelot" used only as compatible notation, not branding.
 - [ ] `LICENSE` file added (code) + docs/asset licence stated in README.
 - [ ] Dependency notices retained; `license-checker` run.
 - [ ] Sample data is invented; no real track metadata/art/audio shipped.

@@ -1,6 +1,6 @@
 {
-  "name": "visualise-dj-tracklists",
-  "description": "Local-first Svelte 5 app: visualise a DJ library as a wheel of harmonic/BPM/genre combos and build tracklists",
+  "name": "zodiac-tracker",
+  "description": "Local-first Svelte 5 app: visualise a DJ library as a harmonic key wheel of key/BPM/genre combos and build constellations",
   "license": "UNLICENSED",
   "private": true,
   "version": "0.1.0",

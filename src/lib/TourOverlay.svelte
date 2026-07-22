@@ -17,7 +17,7 @@
     {
       target: 'wheel',
       title: 'Your library, drawn as a wheel',
-      body: 'Every track sits in its key’s slot on the Camelot wheel; distance from the centre is its BPM. It’s all computed from your files, in your browser — nothing is uploaded.',
+      body: 'Every track sits in its key’s slot on the harmonic key wheel; distance from the centre is its BPM. It’s all computed from your files, in your browser — nothing is uploaded.',
     },
     {
       target: 'wheel',
