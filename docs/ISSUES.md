@@ -1,6 +1,102 @@
 # Issues — open
 
-Nothing open right now. Michiel's live review of the app (13 items) shipped in
+Nothing open right now. Michiel's dictated review (six items) shipped in
+**v17** below (branch `v17-ux-review`), on top of the 13-item live review
+resolved in **v16**, the v14 UI review resolved in **v15**, and all nineteen
+v13 items resolved in **v14**
+([designs/design-v14.md](designs/design-v14.md) has the older per-issue notes).
+Each "Resolved" list records what actually shipped.
+
+## Resolved in v17
+
+A legal item plus five UX defects, dictated in one pass. Numbered 1 and 3–7:
+Michiel jumped from the first item to "as a third issue", so there is no
+issue 2. One green commit each on `v17-ux-review`; no schema change. Three of
+the six turned out to be something other than what they looked like — noted
+per item.
+
+1. **Trademark: the wheel is no longer branded "the Camelot wheel".**
+   "Camelot" / "Camelot Wheel" is a Mixed In Key mark ([legal/README.md](../legal/README.md)
+   §1, whose pre-publish checkbox this ticks). Every user-facing mention now
+   says **"harmonic key wheel"**: the PWA manifest, the onboarding paragraph,
+   the guided-tour step, the key-criterion tooltip, the wheel's `aria-label`,
+   plus `README.md` and `docs/POSITIONING.md`. What deliberately stayed: the
+   1A–12B **notation** references ("keys in Camelot order", "the key by
+   Camelot number") — functional, descriptive use that legal/README §1
+   explicitly blesses and that DJs search for — and every internal identifier
+   (`CamelotKey`, `ALL_CAMELOT_KEYS`, `camelotNumber`, the importers, the
+   tests). A new `tests/branding.test.ts` fails the build if the phrase
+   returns to a user-facing file. _Bundled in:_ the app rebranded to Zodiac
+   Tracker in v16 but `manifest.webmanifest`, `README.md` and `package.json`
+   still carried `visualise-dj-tracklists`; all three now match.
+
+3. **Tracks view: the bulk ★ asks first — and every ★ is now undoable.**
+   _Worse than reported:_ undo never covered the star marks
+   (`undoStore` snapshotted only `manualEdges`), so a mis-clicked header ★
+   was unrecoverable, not merely annoying. Two fixes: `UndoSnapshot` gains a
+   `pins` field (`mustInclude` + `pinnedFirst` + `pinnedLast`), making every
+   star action a Cmd+Z step; and the header ★ now opens a `ConfirmDialog` in
+   **both** directions, naming the live count ("Mark all 33 tracks in this
+   view as essential?"). Files: `core/history.ts`, `lib/undoStore.ts`,
+   `lib/TracksView.svelte`.
+
+4. **Tracks view: the clear-all ✕ moved onto the 🔗 it belongs to.** It was
+   an 8px speck absolutely positioned off the icon's top-right corner,
+   drifting outside the 26px column. The 🔗 now hides on hover/focus and the
+   ✕ overlays it — the same in-place glyph swap the in-set position button
+   already uses. _Deviation from the plan:_ a `display: none` swap (the
+   position button's exact idiom) shrank the button 27px → 21px, because ✕ is
+   a narrower glyph than the emoji; caught in the browser pass, so the 🔗
+   keeps its box via `visibility` and the ✕ sits absolutely centred over it.
+   Confirm-on-click is untouched. File: `lib/TracksView.svelte`.
+
+5. **Wheel: a double-click inserts after the selected track.** _Not a missing
+   feature — a bug._ `addTrackToSet` had spliced after the selection since
+   v14 (S5) and was unit-tested; the wheel destroyed the anchor before it was
+   read. A double-click delivers `click, click, dblclick`: the first click
+   moved the selection onto the double-clicked node, the second hit
+   `selectOrLink`'s toggle-off branch and set it to `null`, so `ondblclick`
+   saw no selection and appended. Now the second click of a burst is inert
+   (`event.detail > 1`) and the double-click passes the pre-burst selection
+   explicitly — `addTrackToSet(newId, anchorId?)`, defaulting to the live
+   selection so the Tracks ＋ button and the `+` key are unchanged. _Also
+   fixes, unreported:_ a wheel double-click used to leave the selection
+   cleared. Files: `stores.ts`, `lib/WheelView.svelte`; the empty-set hint
+   copy was corrected to match.
+
+6. **Constellation panel: drag-and-drop reordering.** Rows are draggable with
+   an accent **insertion line** marking the destination gap (top/bottom half
+   of the hovered row picks the side) — Rekordbox/Spotify behaviour, chosen
+   over highlighting the displaced row. The ↑/↓ buttons stay as the touch and
+   keyboard path, and both routes go through one `reorder(from, insertAt)`
+   over a shared, unit-tested `moveItem()` gap-index helper in `core/sets.ts`
+   — positional, not identity-based, since a set may hold the same track
+   twice. HTML5 DnD, matching the column-header drag already in the Tracks
+   view; no new dependency.
+
+7. **Set panel: shorter button, one-paragraph tooltip, shorter default names.**
+   - The suggest button drops its tail: "✨ Suggest a constellation".
+   - _The tooltip was a CSS bug, not the copy._ `InfoTooltip` forced
+     `:global(strong) { display: block }`, so the inline
+     `<strong>constellation</strong>` broke the sentence into three lines.
+     `strong` is inline again; the two report-style tooltips
+     (`SelectedTrackCard`, `TopBar`) wrap their heading in the `<span>` that
+     already carries the block rule.
+   - Default set names drop the noun — "First", "Second", …, "13" — because
+     the 190px dropdown ellipsis-cut "First Constellation". Pre-v17 saves
+     shed it on load too, via `shortenLegacySetName`: only **exact** old
+     defaults match, so a hand-picked name is never touched, and the
+     migration runs before the duplicate-suffix pass so a collapse into an
+     existing "First" still gets its " (2)". No schema bump — names are
+     free-form strings.
+
+**Verified in the browser** (Playwright over the running dev server, sample
+library loaded): 22 checks covering all six issues — including the exact
+reported scenario for #5 (three-track constellation, middle track selected,
+double-click a fourth node → it lands at position 3) and a real
+mouse-driven drag for #6.
+
+Michiel's live review of the app (13 items) shipped in
 **v16** below (branch `v16-ux-review`), on top of the v14 UI review resolved
 in **v15** and all nineteen v13 items resolved in **v14**
 ([designs/design-v14.md](designs/design-v14.md) has the older per-issue notes).
