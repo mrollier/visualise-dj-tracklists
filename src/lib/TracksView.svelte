@@ -596,26 +596,23 @@
     padding-right: 2px;
   }
 
-  /* Header clear-all: a 🔗 (matching the row cells) that reveals a small ✕ on
-     hover/focus to signal it removes every manual combo (ISSUES.md #3). */
-  .manual-clear {
-    position: relative;
+  /* Header clear-all: the 🔗 (matching the row cells) swaps for a ✕ on
+     hover/focus to signal it removes every manual combo. Same in-place glyph
+     swap the in-set position button uses below — no layout shift, and the
+     target is the icon itself rather than a speck off its corner (#4). */
+  .manual-clear .clear-x {
+    display: none;
+    color: var(--walk-bright);
   }
 
-  .manual-clear .clear-x {
-    position: absolute;
-    top: -3px;
-    right: -1px;
-    font-size: 8px;
-    line-height: 1;
-    color: var(--walk-bright);
-    opacity: 0;
-    transition: opacity 0.12s ease;
+  .manual-clear:hover:not(:disabled) .link-ico,
+  .manual-clear:focus-visible:not(:disabled) .link-ico {
+    display: none;
   }
 
   .manual-clear:hover:not(:disabled) .clear-x,
   .manual-clear:focus-visible:not(:disabled) .clear-x {
-    opacity: 1;
+    display: inline;
   }
 
   .manual-count {
