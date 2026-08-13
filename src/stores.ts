@@ -15,7 +15,13 @@ import {
 } from './core/filter'
 import { computeGenreClasses } from './core/genreClasses'
 import { genreFamilyClasses, playlistClasses } from './core/iconClasses'
-import { comboIdSet, starredIdSet, type MarksContext } from './core/marks'
+import {
+  comboIdSet,
+  MARK_FILTERS,
+  starredIdSet,
+  type MarksContext,
+  type MarksFilter,
+} from './core/marks'
 import type { ImportReport, ManualEdge, Playlist, Track } from './core/model'
 import { canAddSet, freshFirstSet, nextSetName, uniqueSetName, type TrackSet } from './core/sets'
 import { DEFAULT_SETTINGS, type AppSettings } from './core/settings'
@@ -314,6 +320,45 @@ const marksContext: Readable<MarksContext | null> = distinct(
   ),
   marksContextEqual,
 )
+
+/**
+ * Turn one marks quick-filter on/off — the ONE mutator every write site
+ * routes through (v18 #3/#8 review fix, B1): TracksView's header ★/🔗,
+ * FiltersSection's all/only switches, and AdvancedMenu's hide-clears branch
+ * and "Reset settings" button all call this instead of poking
+ * `filters.marks` directly.
+ *
+ * Early-returns when `value` already matches — without it, a no-op click
+ * (re-clicking the already-active "only" button, hiding an already-off row,
+ * resetting an already-off flag) still writes `filters`, which cascades
+ * into `marksContext`/`visibleLibrary` — the O(n²) combo recompute Task 6's
+ * `distinct` wrapper guards against real churn, not this kind of no-op.
+ *
+ * Turning a flag ON also force-adds its row to `settings.visibleFilters` if
+ * missing: the same "an active filter is never invisible" invariant
+ * `persist.ts`'s force-visible loop keeps for property filters. A marks
+ * flag activated from the Tracks-view header needs the identical escape
+ * hatch, since the panel row is the only place to turn it off again once
+ * the header toggle itself is disabled (nothing left to filter) or hidden
+ * (easy mode, in-set-only mode).
+ */
+export function setMarkFilter(flag: keyof MarksFilter, value: boolean): void {
+  if (get(filters).marks[flag] === value) return
+  filters.update((f) => ({ ...f, marks: { ...f.marks, [flag]: value } }))
+  if (!value) return
+  const meta = MARK_FILTERS.find((m) => m.flag === flag)
+  if (meta === undefined) return
+  settings.update((s) =>
+    s.visibleFilters.includes(meta.key)
+      ? s
+      : { ...s, visibleFilters: [...s.visibleFilters, meta.key] },
+  )
+}
+
+/** Flip one marks quick-filter — the Tracks-view header ★/🔗 onclick. */
+export function toggleMarkFilter(flag: keyof MarksFilter): void {
+  setMarkFilter(flag, !get(filters).marks[flag])
+}
 
 /** The filtered library: what the wheel, edges and suggestions operate on. */
 export const visibleLibrary = derived(

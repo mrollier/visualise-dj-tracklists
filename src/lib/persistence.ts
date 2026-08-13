@@ -58,7 +58,18 @@ export function applyProject(project: Project): void {
   library.set(project.tracks)
   manualEdges.set(project.manualEdges)
   criteria.set(project.criteria)
-  filters.set(project.filters)
+  // v18 #3/#8 review fix (B5): marks are session-only state describing
+  // mustInclude/pins (wiped below by resetSuggestions()), so an active
+  // marks flag can't survive this restore intact — a project loaded via
+  // parseProject already carries both-off (migrateFilters' "always loads
+  // off" rule), but applyProject has a second, unmigrated caller: the
+  // guided tour's "return to my work" snapshots the LIVE project object via
+  // currentProject() (no serialize/parse round-trip) before swapping in the
+  // sample, then restores it here — if a header ★/🔗 toggle was on at that
+  // moment, filters.set(project.filters) would restore it active over the
+  // now-empty stars/combos resetSuggestions() is about to produce, filtering
+  // the whole library out from under the user the moment they return.
+  filters.set({ ...project.filters, marks: { starredOnly: false, comboOnly: false } })
   settings.set(project.settings)
   sets.set(project.sets)
   activeSetId.set(project.activeSetId)

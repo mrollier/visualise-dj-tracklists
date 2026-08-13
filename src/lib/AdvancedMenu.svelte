@@ -2,12 +2,7 @@
   import { get } from 'svelte/store'
   import { matchedGenrePairs } from '../core/combos'
   import { METHOD_LABEL_LONG, METHOD_PICK_ORDER, type GenreMethod } from '../core/genre'
-  import {
-    isMarkFilterKey,
-    MARK_FILTER_KEYS,
-    type MarkFilterKey,
-    type MarksFilter,
-  } from '../core/marks'
+  import { isMarkFilterKey, MARK_FILTERS, type MarkFilterKey } from '../core/marks'
   import type { Track } from '../core/model'
   import { resetAdvancedCriteria, resetAdvancedSettings } from '../core/reset'
   import { type BpmProgression } from '../core/settings'
@@ -27,6 +22,7 @@
     pinnedLast,
     rightPanel,
     selectedId,
+    setMarkFilter,
     settings,
     trackById,
     viewMode,
@@ -68,21 +64,23 @@
   function resetToDefaults() {
     settings.update(resetAdvancedSettings)
     criteria.update(resetAdvancedCriteria)
+    // v18 #3/#8 review fix (B4): resetAdvancedSettings resets visibleFilters
+    // to its default (marks rows hidden), but never touches filters.marks
+    // itself — without this, an active marks flag would end up hidden but
+    // still filtering, breaking the "an active filter is never invisible"
+    // invariant, and contradicting this button's own dialog copy ("Filters
+    // … are kept" — a marks flag silently surviving as an invisible filter
+    // isn't "kept", it's lost track of).
+    for (const m of MARK_FILTERS) setMarkFilter(m.flag, false)
   }
 
   // --- Track properties (v11 issue 1): one table decides, per property,
   // whether it shows as a Tracks-view column and as a left-panel filter.
   // Hiding a filter also clears it, so a hidden filter never keeps acting.
   // Since v18 (#3/#8) the same table also carries the two marks pseudo-rows
-  // (below, after the trackColumns {#each}) — no column, filter-only.
-  const MARK_FILTER_LABEL: Record<MarkFilterKey, string> = {
-    starred: 'Starred ★',
-    combos: 'Manual combos 🔗',
-  }
-  const MARK_FILTER_FLAG: Record<MarkFilterKey, keyof MarksFilter> = {
-    starred: 'starredOnly',
-    combos: 'comboOnly',
-  }
+  // (below, after the trackColumns {#each}) — no column, filter-only; label/
+  // flag come from the shared MARK_FILTERS registry (marks.ts), not a
+  // locally hand-rolled map (v18 review fix, B2).
   function toggleFilterVisible(key: TrackSortField | MarkFilterKey) {
     const nowShown = !$settings.visibleFilters.includes(key)
     settings.update((s) => ({
@@ -94,9 +92,11 @@
     if (!nowShown) {
       if (isMarkFilterKey(key)) {
         // Hide-clears-filter parity: a hidden marks row can't keep filtering
-        // underneath, same as a hidden property filter does below.
-        const flag = MARK_FILTER_FLAG[key]
-        filters.update((f) => ({ ...f, marks: { ...f.marks, [flag]: false } }))
+        // underneath, same as a hidden property filter does below. Routed
+        // through the shared mutator (stores.ts) like every other marks
+        // write site, for its no-op guard.
+        const meta = MARK_FILTERS.find((m) => m.key === key)
+        if (meta !== undefined) setMarkFilter(meta.flag, false)
       } else {
         filters.update((f) => {
           const properties = { ...f.properties }
@@ -497,16 +497,18 @@
       {/each}
       <!-- The two marks quick-filters (v18 #3/#8): filter-only, no column —
            starred/combo membership lives on the tracks themselves, not a
-           table cell. -->
-      {#each MARK_FILTER_KEYS as key (key)}
+           table cell. aria-label uses `aria` (no emoji), not `label` — a
+           screen reader would otherwise speak the glyph's Unicode name
+           (v18 review fix, D). -->
+      {#each MARK_FILTERS as m (m.key)}
         <div class="prop-row">
-          <span class="prop-name">{MARK_FILTER_LABEL[key]}</span>
+          <span class="prop-name">{m.label}</span>
           <span></span>
           <input
             type="checkbox"
-            aria-label="{MARK_FILTER_LABEL[key]} filter"
-            checked={$settings.visibleFilters.includes(key)}
-            onchange={() => toggleFilterVisible(key)}
+            aria-label="{m.aria} filter"
+            checked={$settings.visibleFilters.includes(m.key)}
+            onchange={() => toggleFilterVisible(m.key)}
           />
         </div>
       {/each}

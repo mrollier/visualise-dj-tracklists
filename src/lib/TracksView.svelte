@@ -7,6 +7,7 @@
   // toggles mark a track as essential (must-include) or as the opener/closer
   // of generated sets — the same pins as everywhere else.
   import { COLUMN_LABELS, visibleColumns } from '../core/columns'
+  import { MARK_FILTERS } from '../core/marks'
   import type { Track } from '../core/model'
   import { nextStarState, type StarState } from '../core/pins'
   import { formatPropertyValue, PROPERTY_BY_KEY, REKORDBOX_COLOURS } from '../core/properties'
@@ -19,6 +20,7 @@
     filters,
     hoveredId,
     linkArmed,
+    manualEdges,
     mustInclude,
     neighbours,
     pinnedFirst,
@@ -27,6 +29,7 @@
     selectOrLink,
     settings,
     toggleManualEdge,
+    toggleMarkFilter,
     trackById,
     tracklist,
     trackSort,
@@ -103,6 +106,34 @@
   // machinery (E1 — link mode is out of sight and inert there).
   const easy = $derived($settings.uiMode === 'easy')
 
+  // Total header/body columns, incl. the tags/pos/manual leads (v18 #3/#8
+  // review fix, A1): the empty-state row spans all of them via colspan, so
+  // <thead> — and its ★/🔗 filter toggles — stays mounted even when the
+  // filtered view is empty. The old version replaced the whole <table> with
+  // a plain hint div, unmounting the only control that could turn an active
+  // header filter back off.
+  const colCount = $derived(2 + (easy ? 0 : 1) + columns.length)
+
+  // Whether the header ★/🔗 toggles have anything to show if turned on
+  // (v18 #3/#8 review fix, A2) — disabled otherwise, since clicking would
+  // either change nothing (nothing starred: "only" already equals "all") or
+  // silently empty the table with no visible cause. Never disabled while
+  // its flag is ON, so it can always be turned back off. anyStarred mirrors
+  // marks.ts's starredIdSet definition (must-include ∪ both pins) without a
+  // second Set alloc — mustSet already covers the must-include half.
+  const anyStarred = $derived(mustSet.size > 0 || $pinnedFirst !== null || $pinnedLast !== null)
+  const starToggleDisabled = $derived(!$filters.marks.starredOnly && !anyStarred)
+  const comboToggleDisabled = $derived(!$filters.marks.comboOnly && $manualEdges.length === 0)
+
+  // The two flags the header buttons drive, read from the shared registry
+  // (v18 #3/#8 review fix, B2) rather than bare string literals — the two
+  // buttons still keep their own bespoke title copy below (different glyph,
+  // different disabled reason, too dissimilar to loop like FiltersSection/
+  // AdvancedMenu do), but not a second hardcoded copy of which pseudo-key
+  // maps to which filters.marks flag.
+  const starredFlag = MARK_FILTERS.find((m) => m.key === 'starred')?.flag ?? 'starredOnly'
+  const comboFlag = MARK_FILTERS.find((m) => m.key === 'combos')?.flag ?? 'comboOnly'
+
   // No selection: each row shows how many manual combos it's part of at all.
   const manualCountById = $derived.by(() => {
     // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived-local
@@ -155,11 +186,16 @@
       $pinnedFirst !== null && $pinnedFirst !== id,
       $pinnedLast !== null && $pinnedLast !== id,
     )
-    mustInclude.update((ids) => ids.filter((x) => x !== id))
+    // v18 #3/#8 review fix (C4): one mustInclude.update, not remove-then-
+    // conditionally-add — each write is a full marksContext/visibleLibrary
+    // recompute once starredOnly is on (the O(n²) combo graph rides along).
+    mustInclude.update((ids) => {
+      const without = ids.filter((x) => x !== id)
+      return next === 'must' ? [...without, id] : without
+    })
     if ($pinnedFirst === id) pinnedFirst.set(null)
     if ($pinnedLast === id) pinnedLast.set(null)
-    if (next === 'must') mustInclude.update((ids) => [...ids, id])
-    else if (next === 'first') pinnedFirst.set(id)
+    if (next === 'first') pinnedFirst.set(id)
     else if (next === 'last') pinnedLast.set(id)
   }
 
@@ -193,120 +229,136 @@
 </script>
 
 <section class="tracks-view">
-  {#if rows.length === 0}
-    <div class="empty-hint">
-      <strong>Nothing to list yet.</strong>
-      <span>Select a playlist or loosen the filters on the left to fill the table.</span>
-    </div>
-  {:else}
-    <table class:has-selection={$selectedId !== null}>
-      <thead>
-        <tr>
-          <!-- Tags + position lead the row (v9 issue 13); the header ★ is a
-               quick filter now (v18 #3/#8 — the old mark-all-★ action
-               retired), hidden in easy mode like the 🔗 column below. -->
-          <th class="tags-col">
-            {#if !easy}
-              <button
-                class="tag header-toggle"
-                class:on={$filters.marks.starredOnly}
-                title={$filters.marks.starredOnly
+  <table class:has-selection={$selectedId !== null}>
+    <thead>
+      <tr>
+        <!-- Tags + position lead the row (v9 issue 13); the header ★ is a
+             quick filter now (v18 #3/#8 — the old mark-all-★ action
+             retired). The button (not the column — the row-level ★ still
+             cycles) hides in easy mode and in-set-only mode, like the 🔗
+             toggle below: both modes' rows bypass or hide the filtered
+             view the header controls act on. -->
+        <th class="tags-col">
+          {#if !easy && !inSetOnly}
+            <button
+              class="tag header-toggle"
+              class:on={$filters.marks.starredOnly}
+              disabled={starToggleDisabled}
+              title={starToggleDisabled
+                ? 'Nothing is starred yet'
+                : $filters.marks.starredOnly
                   ? 'Showing only ★ tracks — click to show all'
                   : 'Show only ★ tracks'}
-                aria-label="Toggle showing only starred tracks"
-                aria-pressed={$filters.marks.starredOnly}
-                onclick={() =>
-                  filters.update((f) => ({
-                    ...f,
-                    marks: { ...f.marks, starredOnly: !f.marks.starredOnly },
-                  }))}>★</button
-              >
-            {/if}
-          </th>
-          <th class="pos-col">
-            <!-- Toggle a metadata-rich, set-only, position-ordered view (v10
-                 issue 15). Disabled while the set is empty — an empty
-                 set-only table is a dead end (v11 issue 12a). -->
-            <button
-              class="pos-toggle"
-              class:on={inSetOnly}
-              disabled={$tracklist.length === 0}
-              title={$tracklist.length === 0
-                ? 'Add tracks to the constellation first'
-                : inSetOnly
-                  ? 'Show all tracks'
-                  : 'Show only this constellation, in order'}
-              aria-label="Toggle the constellation-only view"
-              aria-pressed={inSetOnly}
-              onclick={() => (inSetOnly = !inSetOnly)}>☰</button
+              aria-label="Toggle showing only starred tracks"
+              aria-pressed={$filters.marks.starredOnly}
+              onclick={() => toggleMarkFilter(starredFlag)}>★</button
             >
-          </th>
-          {#if !easy}
-            <!-- Manual (🔗) combos, list-view analogue of the wheel's dashed
-                 links: unselected shows a per-row count, a selection swaps
-                 that for a lit/clickable icon on the actual partners. The
-                 header 🔗 is a quick filter (v18 #3/#8), same idiom as the
-                 header ★ — the old clear-all-combos action retired. -->
-            <th class="manual-col">
+          {/if}
+        </th>
+        <th class="pos-col">
+          <!-- Toggle a metadata-rich, set-only, position-ordered view (v10
+               issue 15). Disabled while the set is empty — an empty
+               set-only table is a dead end (v11 issue 12a). -->
+          <button
+            class="pos-toggle"
+            class:on={inSetOnly}
+            disabled={$tracklist.length === 0}
+            title={$tracklist.length === 0
+              ? 'Add tracks to the constellation first'
+              : inSetOnly
+                ? 'Show all tracks'
+                : 'Show only this constellation, in order'}
+            aria-label="Toggle the constellation-only view"
+            aria-pressed={inSetOnly}
+            onclick={() => (inSetOnly = !inSetOnly)}>☰</button
+          >
+        </th>
+        {#if !easy}
+          <!-- Manual (🔗) combos, list-view analogue of the wheel's dashed
+               links: unselected shows a per-row count, a selection swaps
+               that for a lit/clickable icon on the actual partners. The
+               header 🔗 is a quick filter (v18 #3/#8), same idiom as the
+               header ★ — the old clear-all-combos action retired; also
+               in-set-only-gated (its rows bypass visibleLibrary entirely,
+               so the filter would have nothing to act on there). -->
+          <th class="manual-col">
+            {#if !inSetOnly}
               <button
                 class="tag header-toggle"
                 class:on={$filters.marks.comboOnly}
-                title={$filters.marks.comboOnly
-                  ? 'Showing only manual-combo tracks — click to show all'
-                  : 'Show only tracks with a manual combo'}
+                disabled={comboToggleDisabled}
+                title={comboToggleDisabled
+                  ? 'No manual combos yet'
+                  : $filters.marks.comboOnly
+                    ? 'Showing only manual-combo tracks — click to show all'
+                    : 'Show only tracks with a manual combo'}
                 aria-label="Toggle showing only tracks with a manual combo"
                 aria-pressed={$filters.marks.comboOnly}
-                onclick={() =>
-                  filters.update((f) => ({
-                    ...f,
-                    marks: { ...f.marks, comboOnly: !f.marks.comboOnly },
-                  }))}>🔗</button
+                onclick={() => toggleMarkFilter(comboFlag)}>🔗</button
               >
-            </th>
-          {/if}
-          {#each columns as field (field)}
-            <th
-              class:drop-target={dropField === field}
-              draggable="true"
-              ondragstart={(e) => {
-                dragField = field
-                e.dataTransfer?.setData('text/plain', field)
-              }}
-              ondragover={(e) => {
-                e.preventDefault()
-                dropField = field
-              }}
-              ondragleave={() => {
-                if (dropField === field) dropField = null
-              }}
-              ondrop={(e) => {
-                e.preventDefault()
-                headerDrop(field)
-              }}
-              ondragend={() => {
-                dragField = null
-                dropField = null
-              }}
-              aria-sort={!inSetOnly && $trackSort.field === field
-                ? $trackSort.dir === 'asc'
-                  ? 'ascending'
-                  : 'descending'
-                : undefined}
-            >
-              <button class="sort" onclick={() => toggleSort(field)}>
-                {COLUMN_LABEL[field]}
-                <!-- Set order supersedes column sorting in set-only mode, so
-                     the triangle hides there (v11 issue 12b); the stored
-                     sort is untouched and returns on toggle-back. -->
-                {#if !inSetOnly && $trackSort.field === field}<span class="dir"
-                    >{$trackSort.dir === 'asc' ? '▲' : '▼'}</span
-                  >{/if}
-              </button>
-            </th>
-          {/each}
+            {/if}
+          </th>
+        {/if}
+        {#each columns as field (field)}
+          <th
+            class:drop-target={dropField === field}
+            draggable="true"
+            ondragstart={(e) => {
+              dragField = field
+              e.dataTransfer?.setData('text/plain', field)
+            }}
+            ondragover={(e) => {
+              e.preventDefault()
+              dropField = field
+            }}
+            ondragleave={() => {
+              if (dropField === field) dropField = null
+            }}
+            ondrop={(e) => {
+              e.preventDefault()
+              headerDrop(field)
+            }}
+            ondragend={() => {
+              dragField = null
+              dropField = null
+            }}
+            aria-sort={!inSetOnly && $trackSort.field === field
+              ? $trackSort.dir === 'asc'
+                ? 'ascending'
+                : 'descending'
+              : undefined}
+          >
+            <button class="sort" onclick={() => toggleSort(field)}>
+              {COLUMN_LABEL[field]}
+              <!-- Set order supersedes column sorting in set-only mode, so
+                   the triangle hides there (v11 issue 12b); the stored
+                   sort is untouched and returns on toggle-back. -->
+              {#if !inSetOnly && $trackSort.field === field}<span class="dir"
+                  >{$trackSort.dir === 'asc' ? '▲' : '▼'}</span
+                >{/if}
+            </button>
+          </th>
+        {/each}
+      </tr>
+    </thead>
+    <tbody>
+      {#if rows.length === 0}
+        <!-- v18 #3/#8 review fix (A1): a spanning row inside <tbody>, not a
+             div replacing the whole <table> — <thead> (and the ★/🔗 filter
+             toggles in it) must stay mounted so an active header filter
+             that empties the view can always be turned back off. -->
+        <tr class="empty-row">
+          <td colspan={colCount}>
+            <div class="empty-hint">
+              <strong>Nothing to list yet.</strong>
+              <span
+                >Select a playlist, loosen the filters on the left, or turn off an active header
+                filter to fill the table.</span
+              >
+            </div>
+          </td>
         </tr>
-      </thead>
-      <tbody>
+      {:else}
         {#each rows as track (track.id)}
           {@const positions = positionsById.get(track.id)}
           {@const starState = starStateOf(track.id)}
@@ -437,14 +489,14 @@
             {/each}
           </tr>
         {/each}
-      </tbody>
-    </table>
-    {#if !inSetOnly && sorted.length > MAX_ROWS}
-      <p class="capped">
-        Showing the first {MAX_ROWS} of {sorted.length} tracks — flip the sort or narrow the playlist
-        selection to reach the rest.
-      </p>
-    {/if}
+      {/if}
+    </tbody>
+  </table>
+  {#if !inSetOnly && sorted.length > MAX_ROWS}
+    <p class="capped">
+      Showing the first {MAX_ROWS} of {sorted.length} tracks — flip the sort or narrow the playlist selection
+      to reach the rest.
+    </p>
   {/if}
 </section>
 
@@ -456,8 +508,12 @@
     background: var(--surface);
   }
 
+  /* v18 #3/#8 review fix (A1): now a <td> child, not the section's sole
+     child, so it no longer fills/centres in the full panel height (a table
+     row can't stretch into leftover flex space without real trickery) —
+     .empty-row's padding below is the tradeoff, generous breathing room
+     instead of true vertical centring. */
   .empty-hint {
-    height: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -465,6 +521,14 @@
     gap: 4px;
     color: var(--ink-secondary);
     font-size: 13px;
+  }
+
+  .empty-row {
+    cursor: default;
+  }
+
+  .empty-row td {
+    padding: 48px 16px;
   }
 
   .empty-hint span {
@@ -671,19 +735,34 @@
 
   /* The header ★/🔗 quick filters appear on header hover, like the row tags
      on row hover (v10 issue 14); each stays lit while its marks filter is
-     active (v18 #3/#8 — shared idiom, one class for both glyphs). */
-  .header-toggle {
-    opacity: 0;
-  }
-
+     active. v18 #3/#8 review fix (C3): that's the ONLY non-dead rule this
+     block needs — .tag below already gives any element carrying both
+     classes the identical base opacity:0 and .on opacity:1/accent colour;
+     the one thing .tag can't provide is revealing on *header* hover/focus
+     (.tag only reveals on `tbody tr:hover`, which never matches a <th>). */
   thead:hover .header-toggle,
-  thead:focus-within .header-toggle,
-  .header-toggle.on {
+  thead:focus-within .header-toggle {
     opacity: 1;
   }
 
-  .header-toggle.on {
-    color: var(--accent);
+  /* C2: restores the ~26×30 hit area the old pos-toggle-styled mark-all/
+     clear-all buttons had — .tag alone (padding 0 3px) is sized for a
+     dense row icon, too small for a primary header control. The compound
+     selector (not bare .header-toggle) has higher specificity than .tag's
+     own padding, so it wins regardless of each rule's position in the
+     file. */
+  .tag.header-toggle {
+    padding: 8px 6px;
+  }
+
+  /* Dimmed + inert while there's nothing to filter (never true while the
+     flag is ON — see TracksView's starToggleDisabled/comboToggleDisabled).
+     Same values as .pos-toggle:disabled. Specificity (0,3,0) unconditionally
+     beats the thead:hover reveal rule above (0,2,1), so a disabled toggle
+     stays dim even while the header is hovered. */
+  .tag.header-toggle:disabled {
+    opacity: 0.4;
+    cursor: default;
   }
 
   .pos-toggle {

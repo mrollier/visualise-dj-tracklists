@@ -11,10 +11,17 @@
     type PropertyRange,
     type QualityChoice,
   } from '../core/filter'
-  import { isMarkFilterKey, type MarksFilter } from '../core/marks'
+  import { isMarkFilterKey, MARK_FILTERS } from '../core/marks'
   import { PROPERTY_BY_KEY, REKORDBOX_COLOURS, type TrackProperty } from '../core/properties'
   import type { TrackSortField } from '../core/trackSort'
-  import { filters, library, playlistScopedLibrary, settings, visibleLibrary } from '../stores'
+  import {
+    filters,
+    library,
+    playlistScopedLibrary,
+    setMarkFilter,
+    settings,
+    visibleLibrary,
+  } from '../stores'
 
   type RangeSide = 'min' | 'max'
 
@@ -28,14 +35,16 @@
   // properties" table), resolved through the registry (v11 issue 1). Since
   // v18 (#3/#8) visibleFilters can also carry the 'starred'/'combos' marks
   // pseudo-keys, filtered out here — those two render as their own gated
-  // rows below the property {#each}, bound to filters.marks directly rather
-  // than a per-property range.
+  // rows below the property {#each} (markRows, from the MARK_FILTERS
+  // registry), bound to filters.marks directly rather than a per-property
+  // range.
   const rows = $derived(
     $settings.visibleFilters
       .filter((key): key is TrackSortField => !isMarkFilterKey(key))
       .map((key) => PROPERTY_BY_KEY.get(key))
       .filter((p): p is TrackProperty => p !== undefined && p.filterable),
   )
+  const markRows = $derived(MARK_FILTERS.filter((m) => $settings.visibleFilters.includes(m.key)))
 
   // Extents of the playlist-scoped library for the numeric-ish rows: the
   // defaults follow the playlists you work in, not the whole collection.
@@ -257,17 +266,6 @@
   function toggleRing(ring: 'minor' | 'major'): void {
     filters.update((f) => ({ ...f, keyRings: { ...f.keyRings, [ring]: !f.keyRings[ring] } }))
   }
-
-  // The starred/combo marks quick-filters (v18 #3/#8): two optional rows,
-  // gated by visibleFilters like a property row, but backed by
-  // filters.marks rather than a per-property range (see marks.ts). One
-  // on/off toggle each, plus the same ↺ reset the property rows have.
-  function toggleMarkFilter(flag: keyof MarksFilter): void {
-    filters.update((f) => ({ ...f, marks: { ...f.marks, [flag]: !f.marks[flag] } }))
-  }
-  function resetMarkFilter(flag: keyof MarksFilter): void {
-    filters.update((f) => ({ ...f, marks: { ...f.marks, [flag]: false } }))
-  }
 </script>
 
 <details>
@@ -395,46 +393,28 @@
     </div>
   {/each}
 
-  {#if $settings.visibleFilters.includes('starred')}
+  {#each markRows as m (m.key)}
     <div class="filter-row">
-      <span class="filter-label">Starred ★</span>
-      <div class="ring-switch" role="group" aria-label="Starred filter">
+      <span class="filter-label">{m.label}</span>
+      <!-- Two-button segmented switch, exactly like the Keys row below —
+           not a single morphing button (v18 #3/#8 review fix, B3): a
+           single button showing "all" while pressed=false announces
+           nothing useful, and its width jumps between the two labels. No
+           ↺ reset either: clicking "all" IS the reset. -->
+      <div class="ring-switch" role="group" aria-label="{m.aria} filter">
         <button
-          class:on={$filters.marks.starredOnly}
-          aria-pressed={$filters.marks.starredOnly}
-          onclick={() => toggleMarkFilter('starredOnly')}
+          class:on={!$filters.marks[m.flag]}
+          aria-pressed={!$filters.marks[m.flag]}
+          onclick={() => setMarkFilter(m.flag, false)}>all</button
         >
-          {$filters.marks.starredOnly ? 'only' : 'all'}
-        </button>
-      </div>
-      <button
-        class="range-reset"
-        title="Clear this filter"
-        aria-label="Reset Starred filter"
-        onclick={() => resetMarkFilter('starredOnly')}>↺</button
-      >
-    </div>
-  {/if}
-  {#if $settings.visibleFilters.includes('combos')}
-    <div class="filter-row">
-      <span class="filter-label">Manual combos 🔗</span>
-      <div class="ring-switch" role="group" aria-label="Manual combos filter">
         <button
-          class:on={$filters.marks.comboOnly}
-          aria-pressed={$filters.marks.comboOnly}
-          onclick={() => toggleMarkFilter('comboOnly')}
+          class:on={$filters.marks[m.flag]}
+          aria-pressed={$filters.marks[m.flag]}
+          onclick={() => setMarkFilter(m.flag, true)}>only</button
         >
-          {$filters.marks.comboOnly ? 'only' : 'all'}
-        </button>
       </div>
-      <button
-        class="range-reset"
-        title="Clear this filter"
-        aria-label="Reset Manual combos filter"
-        onclick={() => resetMarkFilter('comboOnly')}>↺</button
-      >
     </div>
-  {/if}
+  {/each}
 
   <div class="filter-row">
     <span class="filter-label">Keys</span>

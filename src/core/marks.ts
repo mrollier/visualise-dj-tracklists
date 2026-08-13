@@ -26,6 +26,31 @@ export function isMarkFilterKey(k: string): k is MarkFilterKey {
   return (MARK_FILTER_KEYS as readonly string[]).includes(k)
 }
 
+/** One registry row's shape — see `MARK_FILTERS` below. */
+export interface MarkFilterMeta {
+  key: MarkFilterKey
+  flag: keyof MarksFilter
+  label: string
+  aria: string
+}
+
+/**
+ * Single source of truth for the two marks rows, consumed by every UI
+ * surface that renders one (v18 #3/#8 review fix — FiltersSection and
+ * AdvancedMenu previously hand-rolled their own label/flag maps, which had
+ * already drifted: AdvancedMenu's checkbox aria-labels baked the emoji into
+ * the accessible name instead of using a clean `aria` string).
+ *
+ * `label` puts the glyph FIRST, not last: FiltersSection's `.filter-label`
+ * is a fixed 52px with `text-overflow: ellipsis`, which clips from the
+ * right — a trailing glyph (the original "Manual combos 🔗") rendered as
+ * "Manual c…", losing the icon entirely.
+ */
+export const MARK_FILTERS: readonly MarkFilterMeta[] = [
+  { key: 'starred', flag: 'starredOnly', label: '★ Starred', aria: 'Starred' },
+  { key: 'combos', flag: 'comboOnly', label: '🔗 Combos', aria: 'Manual combos' },
+] as const
+
 /**
  * The live id sets a marks filter checks membership against, resolved from
  * the session stores just before filtering (`stores.ts`'s `marksContext`).

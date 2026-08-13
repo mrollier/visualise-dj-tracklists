@@ -4,6 +4,8 @@ import { EMPTY_FILTERS } from '../src/core/filter'
 import { freshFirstSet } from '../src/core/sets'
 import { ALL_SAMPLE_PACKS, CLASSIC_PACK, SAMPLE_COLLECTION } from '../src/data/samples'
 import {
+  applyProject,
+  currentProject,
   hasUserWork,
   isSampleLibrary,
   loadSampleCollection,
@@ -293,5 +295,31 @@ describe('replaceLibrary with selectedPlaylists', () => {
       playlists: [{ name: 'A', trackIds: ['rb-1'] }],
     })
     expect(get(filters).playlists).toEqual([])
+  })
+})
+
+describe('applyProject resets marks on restore (v18 #3/#8 review fix, B5)', () => {
+  test('an active marks flag in the snapshot always comes back both-off', () => {
+    // Mirrors tour.ts's snapshot/restore, the vulnerable path: currentProject()
+    // captures the LIVE filters store verbatim (no migrateFilters pass, unlike
+    // a save/load round-trip) before the tour swaps in the sample; restoring
+    // that snapshot later must not resurrect an active starredOnly/comboOnly
+    // over the stars/combos applyProject's resetSuggestions() just emptied —
+    // that would filter the whole library out from under the returning user.
+    filters.update((f) => ({ ...f, marks: { starredOnly: true, comboOnly: true } }))
+    const snapshot = currentProject()
+
+    applyProject(snapshot)
+
+    expect(get(filters).marks).toEqual({ starredOnly: false, comboOnly: false })
+  })
+
+  test('the rest of the snapshot restores untouched', () => {
+    filters.update((f) => ({ ...f, genres: ['techno'], marks: { ...f.marks, starredOnly: true } }))
+    const snapshot = currentProject()
+
+    applyProject(snapshot)
+
+    expect(get(filters).genres).toEqual(['techno'])
   })
 })
