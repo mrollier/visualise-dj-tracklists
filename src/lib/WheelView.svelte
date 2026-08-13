@@ -2,6 +2,7 @@
   import { scaleLinear } from 'd3-scale'
   import { cubicOut } from 'svelte/easing'
   import { Tween } from 'svelte/motion'
+  import { fade } from 'svelte/transition'
   import { classIndexOfTrack } from '../core/iconClasses'
   import { ALL_CAMELOT_KEYS, camelotNumber, wheelSlotAngleDeg, type CamelotKey } from '../core/keys'
   import { annularSectorPath, relaxSlotAngles, spreadHalfDeg } from '../core/layout'
@@ -16,6 +17,7 @@
   import { createShapePathCache } from './shapeSymbols'
   import { createViewZoom } from './viewZoom'
   import { effectiveTheme } from './theme'
+  import { motionMs } from './motion'
   import { nextExhausted, retryState, suggestNext, type NextSuggestion } from '../core/suggest'
   import {
     addTrackToSet,
@@ -335,8 +337,9 @@
 
   // v14 W1: a key sector (and its label) fades when its ring is filtered out
   // (existing keyRing logic) OR its Camelot number falls outside an active
-  // key-range filter — composed, not replaced. The 0.6s .excluded opacity
-  // fade animates either cause for free.
+  // key-range filter — composed, not replaced. The 0.6s .excluded transition
+  // animates either cause for free (sector: fill cross-fade, v18 #2a; label:
+  // opacity fade).
   function keyExcluded(key: CamelotKey): boolean {
     const { minor, major } = $effectiveFilters.keyRings
     const ringExcluded = (key.endsWith('A') && !minor) || (key.endsWith('B') && !major)
@@ -712,53 +715,60 @@
 
       <!-- Nodes -->
       {#each visibleNodes as node (node.track.id)}
-        <g
-          class="node"
-          opacity={nodeOpacity(node)}
-          role="button"
-          tabindex="0"
-          aria-label="{node.track.title} — {trackSummary(node.track)}"
-          onmouseenter={() => (hovered = node)}
-          onmouseleave={() => (hovered = null)}
-          onclick={(e) => select(node, e)}
-          ondblclick={() => addToTracklist(node, insertAnchor)}
-          onkeydown={(e) => {
-            if (e.key === 'Enter') selectOrLink(node.track.id)
-            if (e.key === '+') addTrackToSet(node.track.id)
-          }}
-        >
-          <circle cx={node.x} cy={node.y} r={11 / zoomK} fill="transparent" />
-          {#if node.track.id === $hoveredId}
-            <!-- Subtle halo mirroring a hover in the set list (v9 issue 20). -->
-            <circle
-              cx={node.x}
-              cy={node.y}
-              r={12 / zoomK}
-              class="hover-ring"
+        <!-- Outer wrapper carries the enter/exit fade (v18 issue 11b): its
+             transition sets inline style.opacity, which would otherwise
+             clobber the inner opacity ATTRIBUTE if it were on the same
+             element. Two nested elements composite (multiply) instead, so a
+             node fading in mid-selection still lands at the dimmed value. -->
+        <g transition:fade={{ duration: motionMs(RADIAL_TWEEN_MS), easing: cubicOut }}>
+          <g
+            class="node"
+            opacity={nodeOpacity(node)}
+            role="button"
+            tabindex="0"
+            aria-label="{node.track.title} — {trackSummary(node.track)}"
+            onmouseenter={() => (hovered = node)}
+            onmouseleave={() => (hovered = null)}
+            onclick={(e) => select(node, e)}
+            ondblclick={() => addToTracklist(node, insertAnchor)}
+            onkeydown={(e) => {
+              if (e.key === 'Enter') selectOrLink(node.track.id)
+              if (e.key === '+') addTrackToSet(node.track.id)
+            }}
+          >
+            <circle cx={node.x} cy={node.y} r={11 / zoomK} fill="transparent" />
+            {#if node.track.id === $hoveredId}
+              <!-- Subtle halo mirroring a hover in the set list (v9 issue 20). -->
+              <circle
+                cx={node.x}
+                cy={node.y}
+                r={12 / zoomK}
+                class="hover-ring"
+                vector-effect="non-scaling-stroke"
+              />
+            {/if}
+            {#if taggedIds.has(node.track.id)}
+              <!-- Subtle marker for essential/opener/closer tags set in the
+                   Tracks view (issue 7) — its own ring, so it coexists with
+                   the selected and in-walk strokes on the dot itself. -->
+              <circle
+                cx={node.x}
+                cy={node.y}
+                r={9 / zoomK}
+                class="tag-ring"
+                vector-effect="non-scaling-stroke"
+              />
+            {/if}
+            <path
+              d={shapePath(classIndexOf(node.track), node.track.id === $selectedId ? 7 : 5)}
+              transform="translate({node.x},{node.y}) scale({1 / zoomK})"
+              fill={nodeColor(node.track[$effectiveColorAxis])}
+              class="dot"
+              class:selected={node.track.id === $selectedId}
+              class:in-walk={$tracklist.includes(node.track.id)}
               vector-effect="non-scaling-stroke"
             />
-          {/if}
-          {#if taggedIds.has(node.track.id)}
-            <!-- Subtle marker for essential/opener/closer tags set in the
-                 Tracks view (issue 7) — its own ring, so it coexists with
-                 the selected and in-walk strokes on the dot itself. -->
-            <circle
-              cx={node.x}
-              cy={node.y}
-              r={9 / zoomK}
-              class="tag-ring"
-              vector-effect="non-scaling-stroke"
-            />
-          {/if}
-          <path
-            d={shapePath(classIndexOf(node.track), node.track.id === $selectedId ? 7 : 5)}
-            transform="translate({node.x},{node.y}) scale({1 / zoomK})"
-            fill={nodeColor(node.track[$effectiveColorAxis])}
-            class="dot"
-            class:selected={node.track.id === $selectedId}
-            class:in-walk={$tracklist.includes(node.track.id)}
-            vector-effect="non-scaling-stroke"
-          />
+          </g>
         </g>
       {/each}
 
