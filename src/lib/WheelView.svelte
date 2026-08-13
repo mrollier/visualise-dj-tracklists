@@ -1434,6 +1434,17 @@
     .sector {
       transition: none;
     }
+
+    /* Two pre-existing (pre-v18) keyframes had no escape (v18 #15 rider):
+       the retry-ring's force/spent dash-spin and the exhausted-hub pulse. */
+    .hub-retry.force .retry-ring,
+    .hub-retry.spent .retry-ring {
+      animation: none;
+    }
+
+    .hub.warning .hub-circle {
+      animation: none;
+    }
   }
 
   /* Ghost stars (v18 #11): non-interactive placeholders for walk members the
