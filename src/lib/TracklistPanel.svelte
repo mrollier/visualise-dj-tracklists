@@ -394,11 +394,15 @@
         <span class="badge" title="Untouched generated constellation">✨</span>
       {/if}
       <span class="set-actions">
-        <button title="Rename this constellation" aria-label="Rename constellation" onclick={startRename}
-          >✎</button
+        <button
+          title="Rename this constellation"
+          aria-label="Rename constellation"
+          onclick={startRename}>✎</button
         >
         <button
-          title={canAddSet($sets) ? 'Start a new constellation' : `${MAX_SETS} constellations at most`}
+          title={canAddSet($sets)
+            ? 'Start a new constellation'
+            : `${MAX_SETS} constellations at most`}
           aria-label="New constellation"
           onclick={addSet}
           disabled={!canAddSet($sets)}>＋</button
@@ -447,9 +451,8 @@
       </button>
     {/if}
     <InfoTooltip label="What's a constellation?" align="right">
-      A <strong>constellation</strong> is this app's name for a set — a mix drawn as a walk
-      through your library, star to star across the wheel. Build one here, or by double-clicking
-      tracks on the wheel.
+      A <strong>constellation</strong> is this app's name for a set — a mix drawn as a walk through your
+      library, star to star across the wheel. Build one here, or by double-clicking tracks on the wheel.
     </InfoTooltip>
   </div>
   {#if forcedSteps !== null && forcedSteps > 0}
@@ -537,8 +540,15 @@
               </button>
             {/if}
             <span class="actions">
-              <button title="Move up" aria-label="Move up" onclick={() => move(i, -1)}>↑</button>
-              <button title="Move down" aria-label="Move down" onclick={() => move(i, 1)}>↓</button>
+              <button class="move" title="Move up" aria-label="Move up" onclick={() => move(i, -1)}
+                >↑</button
+              >
+              <button
+                class="move"
+                title="Move down"
+                aria-label="Move down"
+                onclick={() => move(i, 1)}>↓</button
+              >
               <button title="Remove" aria-label="Remove" onclick={() => removeAt(i)}>✕</button>
             </span>
           </li>
@@ -847,6 +857,17 @@
   .actions button {
     padding: 1px 6px;
     font-size: 11px;
+  }
+
+  /* v18 #5: mouse users drag-reorder; ↑/↓ stay for touch (coarse pointer)
+     and reappear for keyboard focus on every device. */
+  @media (pointer: fine) {
+    .actions .move {
+      display: none;
+    }
+    .track:focus-within .actions .move {
+      display: inline-block;
+    }
   }
 
   .transition {
