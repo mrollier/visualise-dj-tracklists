@@ -519,16 +519,34 @@
     align-items: center;
     justify-content: center;
     gap: 4px;
+    /* Centres itself within the full-width colspan cell below, rather than
+       stretching edge to edge (v18 review fix, round 2) — a comfortable
+       reading width for the hint sentence, not the whole table's width. */
+    max-width: 420px;
+    margin: 0 auto;
     color: var(--ink-secondary);
     font-size: 13px;
   }
 
   .empty-row {
     cursor: default;
+    /* Not a data row — the generic tbody tr rule below assumes ＋/click
+       affordances that don't apply here (v18 review fix, round 2). */
+    user-select: text;
   }
 
+  /* v18 review fix (round 2): the generic `td` rule further down sets
+     white-space: nowrap for tabular alignment, INHERITED here since
+     .empty-hint/.empty-hint span never reset it — the ~106-char hint
+     sentence rendered as one unbreakable line, and table-layout: auto grew
+     the whole table (horizontal scroll on .tracks-view) to fit it whenever
+     the view was narrower than that line, e.g. with the 280px Advanced
+     panel open. break-word is a defensive backstop for any single token
+     that's still too long to fit .empty-hint's max-width above. */
   .empty-row td {
     padding: 48px 16px;
+    white-space: normal;
+    overflow-wrap: break-word;
   }
 
   .empty-hint span {
@@ -670,7 +688,9 @@
     display: inline;
   }
 
-  tbody tr:hover {
+  /* :not(.empty-row) (v18 review fix, round 2): the info row isn't
+     interactive, so it shouldn't tint like a selectable data row. */
+  tbody tr:hover:not(.empty-row) {
     background: color-mix(in srgb, var(--ink) 5%, transparent);
   }
 
