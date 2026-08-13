@@ -125,15 +125,33 @@
 
   // Deliberately seeds the tween with the initial domain (no mount
   // animation); the $effect below keeps it tracking changes.
-  // 600ms reads noticeably calmer than the original 350 (issue 5).
-  const RADIAL_TWEEN_MS = 600
+  // 600ms reads noticeably calmer than the original 350 (issue 5). Aliased
+  // from radialMorph.ts's own constant (not a second independent 600)
+  // because the per-node morph and this domain tween must settle in the
+  // same instant — see the $effect below and radialMorph.ts's own doc
+  // comment for why (v18 #11a fix round 1: IMPORTANT).
+  const RADIAL_TWEEN_MS = RADIAL_MORPH_TOTAL_MS
   // svelte-ignore state_referenced_locally
   const domainTween = new Tween<[number, number]>(targetDomain, {
     duration: RADIAL_TWEEN_MS,
     easing: cubicOut,
   })
   $effect(() => {
-    domainTween.target = targetDomain
+    // motionMs-wrapped (v18 #11a fix round 1: CRITICAL), not the plain
+    // `domainTween.target = targetDomain` setter this used to be — that
+    // setter always animates over the constructor's fixed duration, with no
+    // way to override it per call. Under reduced motion this MUST snap in
+    // the same flush as morphTween's own instant landing (below): if this
+    // tween kept animating over a real 600ms while morphTween (and the
+    // landing $effect that watches it) snapped instantly, nodes would fall
+    // back to radialScale(newAxisValue) against a domain still sliding from
+    // the OLD axis's range the moment the morph state clears — the exact
+    // rim-pinning mismatch this whole feature exists to fix, reproduced
+    // specifically when the user asked for LESS motion. Same duration
+    // either way (motionMs is a no-op unless reduced motion is on), so this
+    // is not a behaviour change for same-axis filter-edit tweens beyond
+    // also finally respecting reduced motion, which they never did before.
+    void domainTween.set(targetDomain, { duration: motionMs(RADIAL_TWEEN_MS), easing: cubicOut })
   })
 
   // Clamped: mid-tween (and for filtered-out tracks that are placed but
@@ -229,12 +247,30 @@
   }
 
   const morphTween = new Tween(0, { duration: RADIAL_MORPH_TOTAL_MS, easing: linear })
-  // Per-node {from, to} scalars and start delay, all keyed by track id; null
+  // Per-node from scalar and start delay, all keyed by track id; null
   // outside a swap's morph window, when `nodes` below takes the plain
   // radialScale/gutterY path exactly as before (byte-identical steady
   // state). Reassigned wholesale on every swap and on landing, never
   // mutated in place — Map identity is what `nodes`'s $derived reacts to.
   let morphFrom: Map<string, number> | null = $state(null)
+  // The axis the active morph is heading TOWARD — morphedScalar (used for
+  // rendering) recomputes each node's destination LIVE against this axis
+  // and the CURRENT targetDomain every time it's called, rather than
+  // reading a value frozen at swap-start (v18 #11a fix round 1: MINOR).
+  // Otherwise a filter edit mid-morph would retarget domainTween (and the
+  // rings) immediately while nodes kept gliding toward the stale
+  // pre-edit target, then jumped to the correct spot the instant the morph
+  // landed and handed off to the (already-current) plain path.
+  let morphAxis: RadialAxis | null = $state(null)
+  // A FROZEN snapshot of morphAxis's destination at swap-start — unlike the
+  // live recomputation above, this one is deliberately NOT kept live: it
+  // exists solely so a second swap interrupting this one (below) can ask
+  // "where was this morph's own `to` when it started", which can't be
+  // recovered any other way once $radialAxis has already moved on to the
+  // new value. A live "to" needs domainTween.current or a moment-old
+  // targetDomain either way (see the untrack block below); reusing the
+  // frozen snapshot for that one purpose is simpler than also inventing a
+  // second history-tracking mechanism just for it.
   let morphTo: Map<string, number> | null = $state(null)
   let morphDelays: Map<string, number> | null = $state(null)
 
@@ -313,6 +349,7 @@
 
     morphFrom = from
     morphTo = to
+    morphAxis = axis
     morphDelays = radialMorphDelays(angleNodes)
     void morphTween.set(0, { duration: 0 })
     void morphTween.set(1, { duration: motionMs(RADIAL_MORPH_TOTAL_MS), easing: linear })
@@ -322,21 +359,26 @@
   // keeps tracking any LATER filter-driven domain change (a morph that never
   // cleared would freeze nodes at their swap-time target forever).
   $effect(() => {
-    if (morphFrom !== null && morphTo !== null && morphTween.current >= 1) {
+    if (morphFrom !== null && morphAxis !== null && morphTween.current >= 1) {
       morphFrom = null
       morphTo = null
+      morphAxis = null
       morphDelays = null
     }
   })
 
-  /** Mid-morph: this node's current lerped scalar. Otherwise (including a
-   * node the active morph doesn't cover): `plain`, unchanged. */
-  function morphedScalar(id: string, plain: number): number {
-    if (morphFrom === null || morphTo === null || morphDelays === null) return plain
-    const from = morphFrom.get(id)
-    const to = morphTo.get(id)
-    if (from === undefined || to === undefined) return plain
-    const delay = morphDelays.get(id) ?? 0
+  /** Mid-morph: this node's current lerped scalar, its destination
+   * recomputed LIVE against targetDomain every call (see morphAxis above).
+   * Otherwise (including a node the active morph doesn't cover): `plain`,
+   * unchanged. */
+  function morphedScalar(track: Track, unkeyed: boolean, plain: number): number {
+    if (morphFrom === null || morphAxis === null || morphDelays === null) return plain
+    const from = morphFrom.get(track.id)
+    if (from === undefined) return plain
+    const to = unkeyed
+      ? settledGutterYOf(track, morphAxis, targetDomain)
+      : settledRadiusOf(track, morphAxis, targetDomain)
+    const delay = morphDelays.get(track.id) ?? 0
     return lerp(from, to, radialMorphProgress(morphTween.current, delay))
   }
 
@@ -351,7 +393,7 @@
     function unkeyedY(track: Track): number {
       const value = track[$radialAxis]
       const plain = value === null ? gutterBottom + GUTTER_MISSING_Y_GAP : gutterY(value)
-      return morphedScalar(track.id, plain)
+      return morphedScalar(track, true, plain)
     }
 
     // Tracks without a key live in the gutter, still positioned by the radial
@@ -384,7 +426,7 @@
       const value = track[$radialAxis]
       const angle = slotAngleById.get(track.id) ?? 0
       const plainR = value === null ? R_FALLBACK : radialScale(value)
-      const r = morphedScalar(track.id, plainR)
+      const r = morphedScalar(track, false, plainR)
       placed.push({ track, ...polar(angle, r), unkeyed: false, missingRadial: value === null })
     }
     return placed
