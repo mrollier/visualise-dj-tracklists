@@ -55,7 +55,7 @@ describe('undo wiring (v12 WS9/WS14)', () => {
     expect(get(pinnedFirst)).toBeNull()
   })
 
-  test('a scoped bulk clear touching mustInclude and both pins is a single undo step (v18 #3, Task 8)', () => {
+  test('a scoped bulk clear touching mustInclude and both pins is a single undo step, redoable too (v18 #3, Task 8)', () => {
     // Mark up some state, then re-baseline: only the CLEAR itself is under test.
     mustInclude.set(['x', 'y'])
     pinnedFirst.set('x')
@@ -84,6 +84,42 @@ describe('undo wiring (v12 WS9/WS14)', () => {
     expect(get(mustInclude)).toEqual(['x', 'y'])
     expect(get(pinnedFirst)).toBe('x')
     expect(get(pinnedLast)).toBe('y')
+
+    // One Cmd+Shift+Z re-applies the whole clear, same as any other step.
+    redoOnce()
+    expect(get(mustInclude)).toEqual([])
+    expect(get(pinnedFirst)).toBeNull()
+    expect(get(pinnedLast)).toBeNull()
+  })
+
+  test('withOneUndoStep rolls back every store fn touched if fn throws partway, and re-throws (review fix)', () => {
+    mustInclude.set(['x'])
+    pinnedFirst.set(null)
+    pinnedLast.set(null)
+    resetUndo() // baseline: mustInclude=['x'], no pins, no history
+
+    expect(() =>
+      withOneUndoStep(() => {
+        mustInclude.set(['x', 'y']) // this write "succeeds" before the throw
+        pinnedFirst.set('boom')
+        throw new Error('simulated failure mid-edit')
+      }),
+    ).toThrow('simulated failure mid-edit')
+
+    // Rolled back to the EXACT pre-call values — not left at fn's partial
+    // write. Without the fix, mustInclude stays ['x', 'y'] and pinnedFirst
+    // stays 'boom' here: applying is reset (finally runs) but nothing
+    // restores the stores themselves.
+    expect(get(mustInclude)).toEqual(['x'])
+    expect(get(pinnedFirst)).toBeNull()
+    expect(get(pinnedLast)).toBeNull()
+
+    // Nothing was recorded either: there is nothing to undo TO, so undoOnce
+    // is a genuine no-op rather than resurfacing an unrelated older step.
+    undoOnce()
+    expect(get(mustInclude)).toEqual(['x'])
+    expect(get(pinnedFirst)).toBeNull()
+    expect(get(pinnedLast)).toBeNull()
   })
 
   test('a settings change is undoable after the debounce window', () => {

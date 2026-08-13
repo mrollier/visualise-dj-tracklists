@@ -139,12 +139,27 @@ export function resetUndo(): void {
  * end result as a single step. Any pending (debounced) tuning change is
  * flushed first, as its own step, preserving order — the same rule
  * `undoOnce`/`redoOnce` and the watcher's own "real edit" branch follow.
+ *
+ * Atomic on failure (review fix, v18 #3 Task 8): if `fn` throws partway
+ * through its writes, every undo-tracked store is rolled back to its exact
+ * pre-`fn` value — via `applySnapshot`, the same restore undo/redo itself
+ * uses, so the rollback writes are equally suppressed from recording — and
+ * the error is re-thrown. Nothing is recorded on this path: the rollback
+ * already put every store back where `stack.present` has them, so there is
+ * nothing new to capture. Without this, a throw mid-`fn` would leave
+ * whatever `fn` wrote before it threw both unrecorded (an immediate Cmd+Z
+ * would be a no-op) and un-rolled-back (the partial state would silently
+ * fold into whatever the NEXT unrelated edit records).
  */
 export function withOneUndoStep(fn: () => void): void {
   flushPending()
+  const before = currentSnapshot()
   applying = true
   try {
     fn()
+  } catch (err) {
+    applySnapshot(before)
+    throw err
   } finally {
     applying = false
   }
