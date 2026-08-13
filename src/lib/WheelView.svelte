@@ -3,6 +3,7 @@
   import { cubicOut } from 'svelte/easing'
   import { Tween } from 'svelte/motion'
   import { fade } from 'svelte/transition'
+  import { ghostWalkIds } from '../core/ghosts'
   import { classIndexOfTrack } from '../core/iconClasses'
   import { ALL_CAMELOT_KEYS, camelotNumber, wheelSlotAngleDeg, type CamelotKey } from '../core/keys'
   import { annularSectorPath, relaxSlotAngles, spreadHalfDeg } from '../core/layout'
@@ -232,6 +233,21 @@
   const visibleNodes = $derived(nodes.filter((n) => visibleIds.has(n.track.id)))
 
   const nodeById = $derived(new Map(visibleNodes.map((n) => [n.track.id, n])))
+
+  // Ghost stars (v18 #11): walk members the active filters hide still have a
+  // placement (the full-library `nodes` pass above covers every track, not
+  // just the visible ones, and the clamped radial scale rim-pins one that's
+  // out of the domain for free) — they just aren't in visibleNodes. ids come
+  // pre-deduped/ordered from ghostWalkIds; nodeById above stays visible-only
+  // and untouched, so combo/manual edges keep their both-visible behaviour.
+  const ghostIds = $derived(new Set(ghostWalkIds($tracklist, visibleIds)))
+  const ghostNodes = $derived(nodes.filter((n) => ghostIds.has(n.track.id)))
+  /** Walk edges alone may span a hidden endpoint, so they alone look this up
+   * instead of the plain nodeById. Reduces to nodeById byte-for-byte when
+   * nothing is filtered out (ghostNodes is then empty). */
+  const walkNodeById = $derived(
+    new Map([...visibleNodes, ...ghostNodes].map((n) => [n.track.id, n])),
+  )
 
   const colorDomain = $derived.by((): [number, number] => {
     const values = $library
@@ -659,6 +675,21 @@
         >
           <path d="M 0 1 L 9 5 L 0 9 z" fill="var(--walk)" />
         </marker>
+        <!-- Ghost edges (v18 #11) point at a marker of their own: a marker's
+             content doesn't inherit the referencing line's stroke-opacity,
+             so the dimming has to live here too. fill-opacity, not opacity —
+             the plain paint property, no extra compositing layer. -->
+        <marker
+          id="walk-arrow-ghost"
+          viewBox="0 0 10 10"
+          refX="9"
+          refY="5"
+          markerWidth="7"
+          markerHeight="7"
+          orient="auto-start-reverse"
+        >
+          <path d="M 0 1 L 9 5 L 0 9 z" fill="var(--walk)" fill-opacity="0.4" />
+        </marker>
       </defs>
       <!-- Keyed by position: the same ordered pair can occur twice when a
            track appears in the set more than once (remark 15). The outer key
@@ -672,8 +703,9 @@
           style:--reveal-total="{revealPlan.totalMs}ms"
         >
           {#each walkPairs as [fromId, toId], pairIndex (pairIndex)}
-            {@const a = nodeById.get(fromId)}
-            {@const b = nodeById.get(toId)}
+            {@const a = walkNodeById.get(fromId)}
+            {@const b = walkNodeById.get(toId)}
+            {@const ghost = ghostIds.has(fromId) || ghostIds.has(toId)}
             {#if a && b}
               <line
                 x1={a.x}
@@ -681,6 +713,7 @@
                 x2={b.x}
                 y2={b.y}
                 class="walk-edge"
+                class:ghost
                 class:reveal={revealing && revealPlan.edgeDelays[pairIndex] !== null}
                 pathLength={revealing && revealPlan.edgeDelays[pairIndex] !== null ? 1 : undefined}
                 style:animation-delay={revealing && revealPlan.edgeDelays[pairIndex] !== null
@@ -689,13 +722,15 @@
                 style:animation-duration={revealing && revealPlan.edgeDelays[pairIndex] !== null
                   ? `${revealPlan.stepMs}ms`
                   : undefined}
-                marker-end="url(#walk-arrow)"
+                marker-end={ghost ? 'url(#walk-arrow-ghost)' : 'url(#walk-arrow)'}
                 vector-effect="non-scaling-stroke"
               />
             {/if}
           {/each}
           {#if revealing}
-            <!-- One pulse per unique walk node, fired as the walk reaches it. -->
+            <!-- One pulse per unique walk node, fired as the walk reaches it.
+                 nodeById (visible-only) is deliberate here, not walkNodeById:
+                 a ghost has no star to pulse at (v18 #11). -->
             {#each [...revealPlan.nodeDelays] as [id, delay] (id)}
               {@const n = nodeById.get(id)}
               {#if n}
@@ -712,6 +747,27 @@
           {/if}
         </g>
       {/key}
+
+      <!-- Ghost stars (v18 #11): walk members the filters currently hide,
+           drawn UNDER the real nodes so a track crossing the visible/hidden
+           line always shows its star on top mid cross-fade. Non-interactive
+           (no hit target, no tooltip) — the same Task-10 fade wrapper as the
+           real nodes below makes this the star↔ghost cross-fade: one node's
+           <g> outros from the block below while this one's intros here. -->
+      {#each ghostNodes as node (node.track.id)}
+        <g
+          class="ghost-node"
+          transition:fade={{ duration: motionMs(RADIAL_TWEEN_MS), easing: cubicOut }}
+        >
+          <circle
+            cx={node.x}
+            cy={node.y}
+            r={3.5 / zoomK}
+            class="ghost-dot"
+            vector-effect="non-scaling-stroke"
+          />
+        </g>
+      {/each}
 
       <!-- Nodes -->
       {#each visibleNodes as node (node.track.id)}
@@ -1060,6 +1116,20 @@
     stroke-width: 2;
   }
 
+  /* Ghost edges (v18 #11): a hidden endpoint dashes and dims instead of
+     vanishing. stroke-opacity, NOT opacity — .walk-edge.reveal below
+     animates `opacity` with animation-fill-mode: forwards, so dimming on a
+     separate property is the only way it survives that animation. Placed
+     BEFORE .walk-edge.reveal in the cascade on purpose: same specificity,
+     so during a reveal the later .reveal rule's dash-draw (`1`) wins the
+     stroke-dasharray tie over this rule's `5 5`, letting the line still
+     draw itself in; once the reveal ends and .reveal is unset, the dashed
+     ghost pattern here takes back over. */
+  .walk-edge.ghost {
+    stroke-opacity: 0.4;
+    stroke-dasharray: 5 5;
+  }
+
   .manual-edge {
     stroke: var(--accent);
     stroke-width: 1.6;
@@ -1150,6 +1220,21 @@
     .sector {
       transition: none;
     }
+  }
+
+  /* Ghost stars (v18 #11): non-interactive placeholders for walk members the
+     filters hide — no label, no tooltip, no hit target. The intro/exit fade
+     itself is JS-driven (motionMs, already 0 under reduced motion), so
+     nothing more is needed here for that preference. */
+  .ghost-node {
+    pointer-events: none;
+  }
+
+  .ghost-dot {
+    fill: none;
+    stroke: var(--ink-muted);
+    stroke-width: 1.2;
+    opacity: 0.35;
   }
 
   .node {
