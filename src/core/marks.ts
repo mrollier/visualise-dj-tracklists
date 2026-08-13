@@ -41,10 +41,11 @@ export interface MarksContext {
 }
 
 /**
- * "Starred" = any non-none star state: must-include ∪ the two pins. A pinned
- * track always shows the same filled star glyph as a must-include one in the
- * Tracks view (pins.ts's `StarState`), so it has to count here too, not just
- * as a pin.
+ * "Starred" = any non-none star state: must-include ∪ the two pins. The
+ * Tracks view renders a different glyph per state (★/⏮/⏭ — `pins.ts`'s
+ * `StarState`) but treats all three alike via the shared `on` class, not
+ * glyph identity — a pinned track has to count as starred here too, not
+ * just as a pin.
  */
 export function starredIdSet(
   mustInclude: readonly string[],

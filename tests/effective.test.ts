@@ -212,6 +212,7 @@ describe('marksContext — perf gate (v18 #3/#8)', () => {
     mustInclude.set([])
     pinnedFirst.set(null)
     pinnedLast.set(null)
+    manualEdges.set([])
   })
   afterEach(() => {
     filters.set(structuredClone(EMPTY_FILTERS))
@@ -219,9 +220,10 @@ describe('marksContext — perf gate (v18 #3/#8)', () => {
     mustInclude.set([])
     pinnedFirst.set(null)
     pinnedLast.set(null)
+    manualEdges.set([])
   })
 
-  test('with both mark flags off, cycling mustInclude does not re-emit visibleLibrary', () => {
+  test('with both mark flags off, cycling mustInclude/pins/manualEdges does not re-emit visibleLibrary', () => {
     let emits = 0
     const unsubscribe = visibleLibrary.subscribe(() => {
       emits += 1
@@ -231,6 +233,12 @@ describe('marksContext — perf gate (v18 #3/#8)', () => {
     mustInclude.set([SAMPLE_TRACKS[0].id])
     mustInclude.set([])
     mustInclude.set([SAMPLE_TRACKS[1].id, SAMPLE_TRACKS[0].id])
+    pinnedFirst.set(SAMPLE_TRACKS[0].id)
+    pinnedFirst.set(null)
+    pinnedLast.set(SAMPLE_TRACKS[1].id)
+    pinnedLast.set(null)
+    manualEdges.set([{ a: SAMPLE_TRACKS[0].id, b: SAMPLE_TRACKS[1].id }])
+    manualEdges.set([])
 
     expect(emits).toBe(afterSubscribe)
     unsubscribe()
@@ -250,6 +258,32 @@ describe('marksContext — perf gate (v18 #3/#8)', () => {
 
     expect(emits).toBeGreaterThan(afterSubscribe)
     expect(get(visibleLibrary).map((t) => t.id)).toEqual([SAMPLE_TRACKS[0].id])
+    unsubscribe()
+  })
+
+  // The two tests above don't actually pin `distinct`'s own contribution:
+  // Svelte's own dedup already collapses null→null (both-off) transitions
+  // regardless of `distinct`, and the "reacts" test only proves recompute
+  // happens on a REAL content change. The scenario only `distinct` guards is
+  // a recompute that lands back on a content-EQUAL but reference-DIFFERENT
+  // MarksContext — e.g. mustInclude reordered to the same set. Without
+  // `distinct`, Svelte's `safe_not_equal` treats any new object as "changed"
+  // and would re-emit anyway.
+  test('with starredOnly on, reordering mustInclude to the same id set does not re-emit visibleLibrary', () => {
+    filters.update((f) => ({ ...f, marks: { starredOnly: true, comboOnly: false } }))
+    mustInclude.set([SAMPLE_TRACKS[0].id, SAMPLE_TRACKS[1].id])
+    expect(get(visibleLibrary).map((t) => t.id)).toEqual([SAMPLE_TRACKS[0].id, SAMPLE_TRACKS[1].id])
+
+    let emits = 0
+    const unsubscribe = visibleLibrary.subscribe(() => {
+      emits += 1
+    })
+    const afterSubscribe = emits
+
+    // Same SET, different order — a new array/Set reference, not a new member.
+    mustInclude.set([SAMPLE_TRACKS[1].id, SAMPLE_TRACKS[0].id])
+
+    expect(emits).toBe(afterSubscribe)
     unsubscribe()
   })
 })
