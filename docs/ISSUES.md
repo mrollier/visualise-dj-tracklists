@@ -1,85 +1,151 @@
 # Issues — open
 
-Eleven items below, from Michiel's UX review of v17 — ready for planning.
-For history: the legal item plus five UX defects from that pass shipped in
-**v17** (branch `v17-ux-review`), on top of the 13-item live review resolved
-in **v16**, the v14 UI review resolved in **v15**, and all nineteen v13 items
-resolved in **v14** ([designs/design-v14.md](designs/design-v14.md) has the
-older per-issue notes). Each "Resolved" list records what actually shipped.
+Nothing open right now. Eleven items from Michiel's UX review of v17 shipped
+in **v18** below (branch `v18-ux-wave`), on top of the legal item plus five
+UX defects from that pass resolved in **v17** (branch `v17-ux-review`), the
+13-item live review resolved in **v16**, the v14 UI review resolved in
+**v15**, and all nineteen v13 items resolved in **v14**
+([designs/design-v14.md](designs/design-v14.md) has the older per-issue notes).
+Each "Resolved" list records what actually shipped.
 
-## Open — v18 UX review
+## Resolved in v18
 
-Eleven items in Michiel's own numbering. 3 and 8 are one workstream; 11
-bundles four smaller animation fixes lettered a–d, tied back to 2, 7 and 10.
+Eleven items in Michiel's own numbering, all shipped on `v18-ux-wave`. 3 and
+8 were one workstream (the header ★/🔗 change and its replacement filter
+rows); 11 bundled four smaller animation fixes lettered a–d, tied back to 2,
+7 and 10. No schema change — the new marks flags serialize but never load
+active (see 3/8).
 
-1. **Loading the sample collection over itself silently wipes real work.**
-   The confirmation today only fires for a genuinely different library, so
-   re-loading the sample over an active session destroys every
-   constellation, ★ mark, manual combo and filter, with no warning and no
-   undo. Both the Load-sample button and the tour's entry points will
-   confirm whenever any user work exists, over any library including the
-   sample; a fresh app never sees the dialog.
-2. **The wheel's minor/major toggle animation ends in a colour snap, not a
-   fade.** The sector tint's opacity fade isn't smooth through its last
-   frame, and the ring's stars pop onto it instantly while the wedge is
-   still fading underneath. Fix: sectors cross-fade `fill` between
-   precomputed tints instead of fading opacity, and the stars join the same
-   fade mechanism built for every filter change (see 11b).
-3. **Tracks-view header ★/🔗 bulk-mutate the whole view — star everything
-   visible, delete every manual combo — which is dangerous and rarely what's
-   wanted.** Both retire as destructive actions and become filter toggles
-   instead: show only ★ tracks, or only tracks with a manual combo. Bulk
-   _removal_ stays possible — scoped to the selected playlists, or the whole
-   library when none are selected — moved into Advanced options behind a
-   confirm; one workstream with issue 8, which supplies the matching filter
-   rows.
-4. **The 🔗 icon changes appearance on row hover while a track is selected,
-   for no reason.** With a selection live every row is already a valid link
-   target, so the hover-triggered reveal only adds flicker. Every row's 🔗
-   becomes faintly visible for as long as a track stays selected; hover
-   changes only the cursor, and the selected/partner icons keep their full
-   accent.
-5. **The constellation panel's ↑/↓ buttons are redundant now that v17 added
-   drag-and-drop reordering.** Hide them on fine-pointer (mouse/trackpad)
-   setups; keep them for touch, since HTML5 drag doesn't fire there, and for
-   keyboard focus on any device.
-6. **The combo-criteria "must match" 🔒 locks don't line up.** Each is
-   `position: absolute` at a fixed top offset, so rows of different heights
-   (BPM wraps to two lines) throw it out of alignment with the rest. Move
-   every lock into its row's normal flex flow, fixed-width so 🔒 ↔ 🔓 can't
-   shift the row, anchored to the first line.
-7. **The wheel-centre "retry" / "force retry" state word sits low, and only
-   the thin ring edge is clickable.** Curve the word along the ring's lower
-   arc instead — the app's first `<textPath>` — and widen the click target
-   from the dashed edge to the whole outer donut, from the `+` hub's
-   boundary out past the words; ⟲ reset stays where it is.
-8. **Add optional filters for ★ tracks and tracks with a manual combo, off
-   by default.** They land as two new rows in the Advanced-options
-   Track-properties grid — the same grid whose property _columns_ are
-   already on by default — but the new filter checkboxes start unchecked,
-   so neither appears in the Filters panel until switched on. One
-   workstream with issue 3, which repoints the Tracks-view header ★/🔗 at
-   these two flags.
-9. **The favicon is a stale purple Figma lightning bolt, unrelated to the
-   app.** Replace it with the Big Dipper's four **bowl** stars connected by
-   thin lines, drawn in the wheel's own palette, on a tile that stays
-   legible at 16px in both light and dark browser chrome.
-10. **Filtering out a constellation member (e.g. a max-BPM cap) silently
-    breaks the walk — its arrows just vanish.** Render hidden members
-    instead as small, dim, non-interactive ghost stars at their true wheel
-    position, joined by dashed, dimmed arrows, so the constellation still
-    reads as one connected path even with some of it filtered out of view.
-11. **Four more micro-animations, all with a `prefers-reduced-motion`
-    escape:**
+1. **Loading the sample collection over itself no longer silently wipes real
+   work.** A new `hasUserWork()` catches what the old real-library check
+   couldn't see — a track sitting in any set, a manual edge, or a
+   session-only pin/mark, whatever the library underneath — and
+   `sampleLoadNeedsConfirmation()` ORs it with that check. Both
+   `loadSample()` and the guided tour's two entry points (TopBar, Advanced)
+   now gate on it, sharing one dialog; a fresh app still sees no dialog on
+   its first sample load. Files: `lib/persistence.ts`, `lib/TopBar.svelte`,
+   `lib/AdvancedMenu.svelte`.
+2. **The minor/major sector tint cross-fades its `fill` now, and the stars
+   fade with it.** The wedge's excluded state used to fade `opacity`,
+   snapping colour on the last frame; it now transitions between two
+   precomputed `fill` tokens instead, and every wheel star fades in and out
+   on any filter change — built once here and reused by the ghost cross-fade
+   (10) and the retry ring's enter/exit (7/11c). Key-range exclusion still
+   fades the label's opacity only. Files: `app.css`, `lib/WheelView.svelte`.
+3. **Tracks-view header ★/🔗 retired as bulk-mutate actions and became
+   filter toggles** — show only ★ tracks, or only tracks with a manual
+   combo — with the old mark-all-★ and clear-all-🔗 dialogs, and their CSS,
+   deleted outright. One workstream with 8, which supplies the matching
+   rows. _Trap-proofing cluster, added in review:_ the first cut let the
+   toggles unmount their own `<thead>` whenever the filtered table went
+   empty, stranding the only control that could turn the filter back off —
+   the empty state is now a spanning row inside `<tbody>`, so `<thead>`
+   always stays mounted. Both header buttons also disable, with a title
+   explaining why, whenever turning them on would do nothing, but are never
+   disabled while already on, so a lit toggle can always be switched back
+   off (the *active ⇒ visible* invariant, guaranteed by construction, not a
+   separate check). Turning a flag on force-reveals its row in the Filters
+   panel if hidden; "Reset to defaults" and the guided tour's "return to my
+   work" both restore the flag too. All five write sites — both header
+   buttons, the Filters panel's two buttons, the Advanced-menu
+   hide-checkbox, and the reset path — now funnel through one
+   `setMarkFilter`/`toggleMarkFilter` mutator in `stores.ts`, replacing five
+   hand-rolled copies. Files: `lib/TracksView.svelte`,
+   `lib/FiltersSection.svelte`, `lib/AdvancedMenu.svelte`, `stores.ts`,
+   `core/marks.ts`.
+4. **Every row's 🔗 stays faintly visible for as long as a track is
+   selected**, instead of only revealing on hover. A `.has-selection` class
+   on the table dims every non-partner 🔗 to 0.35 opacity; partners and the
+   selection's own icon keep full accent, and hover now changes only the
+   cursor. File: `lib/TracksView.svelte`.
+5. **The constellation panel's ↑/↓ hide on fine-pointer (mouse/trackpad)
+   devices**, where drag-and-drop reorders instead; they stay for touch (no
+   HTML5 drag there) and reappear on keyboard focus, via one `@media
+   (pointer: fine)` rule. File: `lib/TracklistPanel.svelte`.
+6. **The combo-criteria 🔒/🔓 locks moved into the row's normal flex flow**,
+   fixed-width and anchored to the first line, instead of `position:
+   absolute` at a fixed offset that drifted out of alignment whenever BPM
+   wrapped to two lines. File: `lib/CriteriaPanel.svelte`.
+7. **The retry/force-retry word curves along the ring's lower arc now** —
+   the app's first `<textPath>` — **and the click target widened to the
+   whole outer donut** (46→70px radius, up from the thin dashed edge alone),
+   plus a scale-in/out transition on the retry ring and the ⟲ reset disc as
+   they mount and unmount (11c). Files: `core/layout.ts` (new
+   `lowerArcPath`), `lib/WheelView.svelte`.
+8. **Two optional filters — ★ tracks and tracks with a manual combo —
+   landed in the Advanced Track-properties grid**, off by default like the
+   property columns' own filter checkboxes, wired to the same
+   `filters.marks` flags issue 3's header buttons drive. _Deviation the plan
+   didn't anticipate:_ marks filters **serialize but always load off** —
+   `mustInclude` and the pins are session-only, so a persisted-active
+   starred filter would silently blank the wheel on reload. `migrateFilters`
+   never copies a saved `marks` value onto the parsed result, which *is* the
+   reset (documented at the `return out` site, `core/filter.ts`). One
+   workstream with 3.
+9. **The favicon is the Big Dipper's four bowl stars, connected by thin
+   lines, in the wheel's own palette.** Michiel picked variant B (teal
+   stars, an amber "walk"-coloured connecting line) from four scratchpad
+   candidates, with two corrections: uniform 4.5px stars (dropping an
+   initial graded-size hierarchy), and a quadrilateral **re-derived from the
+   four bowl stars' real cos(Dec)-corrected RA/Dec** so the shape reads as
+   the true, asymmetric trapezoidal bowl rather than the more diamond-shaped
+   placeholder first drawn. `scripts/render-icons.mjs` (Playwright, the
+   `screenshot.mjs` idiom) rasterises the hand-written `public/favicon.svg`
+   to the manifest's PNG sizes. _Review-fix addition:_ the plain
+   `icon-512.png` render — rounded, transparent-cornered, correct for a
+   browser tab — was also doing double duty as the manifest's `purpose:
+   "maskable"` entry, where Dubhe (the bowl star farthest from centre) sat
+   past the W3C/Chrome 40%-radius safe zone by about 4.4px. A **dedicated
+   `icon-512-maskable.png`** now renders the same untouched SVG scaled 0.8×
+   on a full-bleed opaque tile, clearing the safe circle with room to spare;
+   the two `purpose: "any"` entries are untouched. Files: `public/favicon.svg`,
+   `public/manifest.webmanifest`, `scripts/render-icons.mjs`.
+10. **A constellation member the filters hide no longer breaks the walk's
+    line.** It renders instead as a small, dim, non-interactive ghost star
+    at its true wheel position, joined by dashed, dimmed arrows — the
+    constellation still reads as one connected path with part of it
+    filtered out of view. Combo and manual edges still simply don't render
+    when an endpoint is hidden, unchanged. Files: `core/ghosts.ts` (new),
+    `lib/WheelView.svelte`.
+11. **Four more micro-animations, every one with a working
+    `prefers-reduced-motion` escape:**
     - **(a)** Swapping the Radius axis morphs each star directly from its
-      old orbit to its new one, staggered in a clockwise sweep — which also
-      fixes a rim-pinning artifact in the current tween, by construction.
+      old orbit to its new one, delayed by a clockwise angular sweep,
+      instead of jumping mid-tween and pinning at the rim until the domain
+      caught up. _Review-fix finding:_ the first cut's reduced-motion path
+      reproduced the exact rim-pinning bug it existed to fix — the domain
+      tween's own retarget never respected `motionMs`, so under reduced
+      motion the per-node morph snapped instantly while the domain was
+      still animating at full length underneath it. Coupling the domain
+      tween's duration to the same `motionMs(RADIAL_TWEEN_MS)` fixed the
+      swap case and, as a side effect, closed a **pre-existing gap**: the
+      rings/ticks now respect reduced motion on an ordinary filter-driven
+      range edit too, which they never did before this task. Files:
+      `core/radialMorph.ts` (new), `lib/WheelView.svelte`.
     - **(b)** Stars fade in and out on every filter change instead of
-      popping (ties to 2, which needs the same mechanism for sectors).
+      popping, the same mechanism 2 reuses for sectors. Files:
+      `lib/motion.ts` (new), `lib/WheelView.svelte`.
     - **(c)** The retry ring eases in and out instead of appearing and
-      vanishing outright (ties to 7).
-    - **(d)** A walk member cross-fades between its star and ghost states
-      instead of swapping instantly (ties to 10).
+      vanishing outright (folded into 7).
+    - **(d)** A ghost member cross-fades with its star instead of swapping
+      instantly (folded into 10, the same fade wrapper as (b)).
+
+    _Close-out rider:_ two keyframes that predate this wave — the retry
+    ring's force/spent dash-spin and the exhausted-hub pulse — had no
+    reduced-motion escape of their own; both now do, closing out "every
+    animation" for the wheel.
+
+**Verified in the browser** (Playwright over the running dev server, sample
+library loaded, fresh `localStorage`): 18 checks covering every issue above
+plus the cross-cutting concerns — the load-sample guard and its cancel path,
+both header toggles' narrow/restore/auto-reveal/disabled-guard/
+empty-table-survives cycle, a scoped bulk clear undone in one `Cmd+Z`,
+criteria-lock alignment, ghost stars under a tightened BPM filter (including
+a manual edge losing its rendered line when an endpoint hides), the retry
+ring's curved label and full-donut click target, the radial morph's settle
+behaviour, the sector cross-fade, both themes, and a full reduced-motion
+sweep over the axis morph and the ring toggle — zero console or page errors
+across the whole pass.
 
 ## Resolved in v17
 
