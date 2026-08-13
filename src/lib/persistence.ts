@@ -1,9 +1,15 @@
 import { get } from 'svelte/store'
 import { DEFAULT_CRITERIA } from '../core/combos'
 import { EMPTY_FILTERS } from '../core/filter'
-import { buildReport, type ImportReport, type Playlist, type Track } from '../core/model'
+import {
+  buildReport,
+  type ImportReport,
+  type ManualEdge,
+  type Playlist,
+  type Track,
+} from '../core/model'
 import { parseProject, serializeProject, type Project } from '../core/persist'
-import { freshFirstSet } from '../core/sets'
+import { freshFirstSet, type TrackSet } from '../core/sets'
 import { DEFAULT_SETTINGS } from '../core/settings'
 import { ALL_SAMPLE_PACKS, CLASSIC_PACK, SAMPLE_COLLECTION } from '../data/samples'
 import {
@@ -15,6 +21,9 @@ import {
   library,
   libraryName,
   manualEdges,
+  mustInclude,
+  pinnedFirst,
+  pinnedLast,
   playlists,
   radialAxis,
   resetSuggestions,
@@ -145,6 +154,42 @@ export function isSampleLibrary(tracks: Track[]): boolean {
 export function replaceNeedsConfirmation(): boolean {
   const current = get(library)
   return current.length > 0 && !isSampleLibrary(current)
+}
+
+/**
+ * Whether the given state holds anything a user would mind losing: a track
+ * in any set, a manual edge, or a session-only mark (★ must-include, or a
+ * pinned opener/closer). Untouched sets over an empty or sample library
+ * don't count — there's nothing there to grieve (v18 #1).
+ */
+export function hasUserWork(state: {
+  sets: TrackSet[]
+  manualEdges: ManualEdge[]
+  mustInclude: string[]
+  pinnedFirst: string | null
+  pinnedLast: string | null
+}): boolean {
+  return (
+    state.sets.some((set) => set.trackIds.length > 0) ||
+    state.manualEdges.length > 0 ||
+    state.mustInclude.length > 0 ||
+    state.pinnedFirst !== null ||
+    state.pinnedLast !== null
+  )
+}
+
+/** Load-sample / tour guard: real-library warning (unchanged) OR user work over any library. */
+export function sampleLoadNeedsConfirmation(): boolean {
+  return (
+    replaceNeedsConfirmation() ||
+    hasUserWork({
+      sets: get(sets),
+      manualEdges: get(manualEdges),
+      mustInclude: get(mustInclude),
+      pinnedFirst: get(pinnedFirst),
+      pinnedLast: get(pinnedLast),
+    })
+  )
 }
 
 /** Restore the autosaved project, if any. Returns whether something loaded. */

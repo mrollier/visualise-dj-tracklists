@@ -1,19 +1,23 @@
 import { get } from 'svelte/store'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { EMPTY_FILTERS } from '../src/core/filter'
+import { freshFirstSet } from '../src/core/sets'
 import { ALL_SAMPLE_PACKS, CLASSIC_PACK, SAMPLE_COLLECTION } from '../src/data/samples'
 import {
+  hasUserWork,
   isSampleLibrary,
   loadSampleCollection,
   replaceLibrary,
   replaceNeedsConfirmation,
   resetEverything,
+  sampleLoadNeedsConfirmation,
 } from '../src/lib/persistence'
 import {
   filters,
   lastImportReport,
   library,
   libraryName,
+  mustInclude,
   pinnedFirst,
   playlists,
   selectedId,
@@ -115,6 +119,113 @@ describe('replaceNeedsConfirmation', () => {
   test('a sample library is disposable and replaced silently', () => {
     loadSampleCollection()
     expect(replaceNeedsConfirmation()).toBe(false)
+  })
+})
+
+describe('hasUserWork (v18 #1)', () => {
+  test('fresh state — one empty set, no marks/edges/pins — is no user work', () => {
+    expect(
+      hasUserWork({
+        sets: [freshFirstSet()],
+        manualEdges: [],
+        mustInclude: [],
+        pinnedFirst: null,
+        pinnedLast: null,
+      }),
+    ).toBe(false)
+  })
+
+  test('any set holding tracks is user work', () => {
+    expect(
+      hasUserWork({
+        sets: [freshFirstSet(['rb-1'])],
+        manualEdges: [],
+        mustInclude: [],
+        pinnedFirst: null,
+        pinnedLast: null,
+      }),
+    ).toBe(true)
+  })
+
+  test('a manual edge is user work', () => {
+    expect(
+      hasUserWork({
+        sets: [freshFirstSet()],
+        manualEdges: [{ a: 'rb-1', b: 'rb-2' }],
+        mustInclude: [],
+        pinnedFirst: null,
+        pinnedLast: null,
+      }),
+    ).toBe(true)
+  })
+
+  test('a must-include mark is user work', () => {
+    expect(
+      hasUserWork({
+        sets: [freshFirstSet()],
+        manualEdges: [],
+        mustInclude: ['rb-1'],
+        pinnedFirst: null,
+        pinnedLast: null,
+      }),
+    ).toBe(true)
+  })
+
+  test('a pinned opener is user work', () => {
+    expect(
+      hasUserWork({
+        sets: [freshFirstSet()],
+        manualEdges: [],
+        mustInclude: [],
+        pinnedFirst: 'rb-1',
+        pinnedLast: null,
+      }),
+    ).toBe(true)
+  })
+
+  test('a pinned closer is user work', () => {
+    expect(
+      hasUserWork({
+        sets: [freshFirstSet()],
+        manualEdges: [],
+        mustInclude: [],
+        pinnedFirst: null,
+        pinnedLast: 'rb-2',
+      }),
+    ).toBe(true)
+  })
+
+  test('several empty sets are still no user work', () => {
+    expect(
+      hasUserWork({
+        sets: [freshFirstSet(), freshFirstSet(), freshFirstSet()],
+        manualEdges: [],
+        mustInclude: [],
+        pinnedFirst: null,
+        pinnedLast: null,
+      }),
+    ).toBe(false)
+  })
+})
+
+describe('sampleLoadNeedsConfirmation (v18 #1)', () => {
+  test('a real library needs confirmation, same as replaceNeedsConfirmation', () => {
+    // the beforeEach loads a user library ('rb-…' ids)
+    expect(sampleLoadNeedsConfirmation()).toBe(true)
+  })
+
+  test('a virgin sample with no user work needs no confirmation', () => {
+    loadSampleCollection()
+    expect(sampleLoadNeedsConfirmation()).toBe(false)
+  })
+
+  test('user work over the sample still needs confirmation (the bug this fixes)', () => {
+    // loading the sample first clears sets/edges/pins (replaceLibrary), so
+    // this isolates "user work over an already-loaded sample" — previously
+    // this replaced silently, wiping the mark for good.
+    loadSampleCollection()
+    mustInclude.set(['rb-1'])
+    expect(sampleLoadNeedsConfirmation()).toBe(true)
   })
 })
 

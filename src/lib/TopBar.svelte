@@ -31,6 +31,7 @@
     loadSampleCollection,
     replaceLibrary,
     replaceNeedsConfirmation,
+    sampleLoadNeedsConfirmation,
   } from './persistence'
   import { effectiveTheme, toggleTheme } from './theme'
   import { maybeStartTour, startTour } from './tour'
@@ -41,6 +42,7 @@
   let resetDialog: ResetDialog
   let replaceDialog: ConfirmDialog
   let loadProjectDialog: ConfirmDialog
+  let tourConfirm: ConfirmDialog
   let importError = $state('')
 
   async function importAudioFiles(files: File[]): Promise<ImportResult> {
@@ -178,13 +180,14 @@
 
   // One sample collection (design-v6 §D): all packs as playlists in a single
   // library, loaded like an XML import. Confirms once over user work, via
-  // the in-app dialog (issue 6).
+  // the in-app dialog (issue 6) — including work sitting on top of an
+  // already-loaded sample, which used to rewipe silently (v18 #1).
   function loadSample() {
     const load = () => {
       loadSampleCollection()
       maybeStartTour() // first-ever sample load opens the guided tour (WS12)
     }
-    if (replaceNeedsConfirmation()) replaceDialog.open(load)
+    if (sampleLoadNeedsConfirmation()) replaceDialog.open(load)
     else load()
   }
 
@@ -353,7 +356,7 @@
     <ConfirmDialog
       bind:this={replaceDialog}
       title="Replace your library?"
-      body="Loading the sample collection replaces the current library and constellation. Save the project first if you want to keep them."
+      body="Loading the sample collection replaces the current library and clears your constellations, ★ marks and manual combos. Save the project first if you want to keep them."
       confirmLabel="Replace and load"
       danger
     />
@@ -362,6 +365,13 @@
       title="Load this project?"
       body="Loading a saved project replaces your current library, constellations, filters, criteria and manual combos. Save the current project first if you want to keep it."
       confirmLabel="Load and replace"
+      danger
+    />
+    <ConfirmDialog
+      bind:this={tourConfirm}
+      title="Replay the guided tour?"
+      body="Replaying the tour swaps in the demo collection and resets criteria, filters and view to the walkthrough defaults. Save the project first if you want to keep your current library and sets."
+      confirmLabel="Start tour"
       danger
     />
   </div>
@@ -390,7 +400,12 @@
         {#if coverageSummary}
           <span>{coverageSummary}</span>
         {/if}
-        <button class="tour-link" onclick={startTour}>Show the guided tour</button>
+        <button
+          class="tour-link"
+          onclick={() =>
+            sampleLoadNeedsConfirmation() ? tourConfirm.open(startTour) : startTour()}
+          >Show the guided tour</button
+        >
       </InfoTooltip>
     {/if}
   </div>
