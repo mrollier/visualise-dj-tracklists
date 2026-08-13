@@ -1,6 +1,7 @@
 <script lang="ts">
   import { scaleLinear } from 'd3-scale'
-  import { cubicOut } from 'svelte/easing'
+  import { untrack } from 'svelte'
+  import { cubicOut, linear } from 'svelte/easing'
   import { Tween } from 'svelte/motion'
   import { fade, scale } from 'svelte/transition'
   import { ghostWalkIds } from '../core/ghosts'
@@ -8,6 +9,11 @@
   import { ALL_CAMELOT_KEYS, camelotNumber, wheelSlotAngleDeg, type CamelotKey } from '../core/keys'
   import { annularSectorPath, lowerArcPath, relaxSlotAngles, spreadHalfDeg } from '../core/layout'
   import type { Track } from '../core/model'
+  import {
+    RADIAL_MORPH_TOTAL_MS,
+    radialMorphDelays,
+    radialMorphProgress,
+  } from '../core/radialMorph'
   import {
     COLOR_SCHEMES,
     focusEdgeOpacity,
@@ -38,6 +44,7 @@
     pinnedLast,
     playlistScopedLibrary,
     radialAxis,
+    type RadialAxis,
     rightPanel,
     selectedId,
     tracklist,
@@ -83,6 +90,10 @@
   function polar(angleDeg: number, r: number): { x: number; y: number } {
     const rad = ((angleDeg - 90) * Math.PI) / 180 // 0° at 12 o'clock, clockwise
     return { x: CX + r * Math.cos(rad), y: CY + r * Math.sin(rad) }
+  }
+
+  function lerp(a: number, b: number, t: number): number {
+    return a + (b - a) * t
   }
 
   // The radial axis is the one part of the frame that rescales: its domain
@@ -185,11 +196,163 @@
     return angles
   })
 
+  // --- v18 #11a: per-node radial morph on an axis swap ---
+  // An axis swap (BPM→Rating etc.) changes every track's radial VALUE
+  // instantly, while the domain tween above is still sliding from the old
+  // axis's numeric range to the new one — reading radialScale(newValue)
+  // against that mid-flight, wrong-units domain is exactly what pinned
+  // nodes to the rim until the tween caught up (the bug this task fixes).
+  // Fix: while a swap is in flight, node placement never touches
+  // radialScale/domainTween at all — each node glides its own settled
+  // scalar (radius if keyed, gutter y if not) from where it stood to where
+  // the new axis puts it, on its own eased 0..1 timeline
+  // (radialMorphProgress), staggered clockwise from 12 o'clock
+  // (radialMorphDelays). domainTween keeps animating the rings/ticks
+  // exactly as before — same duration, so the two settle together — and
+  // stays the whole mechanism for same-axis (filter) domain changes; this
+  // block only ever affects node placement.
+
+  /** A keyed track's settled radius under a given axis + (already-niced)
+   * domain — the same maths as `radialScale`, parameterised so it can be
+   * evaluated against an arbitrary domain instead of the live tween. */
+  function settledRadiusOf(track: Track, axis: RadialAxis, domain: [number, number]): number {
+    const value = track[axis]
+    return value === null
+      ? R_FALLBACK
+      : scaleLinear().domain(domain).range([R_MIN, R_MAX]).clamp(true)(value)
+  }
+  /** Gutter analogue of settledRadiusOf, for unkeyed tracks. */
+  function settledGutterYOf(track: Track, axis: RadialAxis, domain: [number, number]): number {
+    const value = track[axis]
+    if (value === null) return gutterBottom + GUTTER_MISSING_Y_GAP
+    return CY - (settledRadiusOf(track, axis, domain) - (R_MIN + R_MAX) / 2)
+  }
+
+  const morphTween = new Tween(0, { duration: RADIAL_MORPH_TOTAL_MS, easing: linear })
+  // Per-node {from, to} scalars and start delay, all keyed by track id; null
+  // outside a swap's morph window, when `nodes` below takes the plain
+  // radialScale/gutterY path exactly as before (byte-identical steady
+  // state). Reassigned wholesale on every swap and on landing, never
+  // mutated in place — Map identity is what `nodes`'s $derived reacts to.
+  let morphFrom: Map<string, number> | null = $state(null)
+  let morphTo: Map<string, number> | null = $state(null)
+  let morphDelays: Map<string, number> | null = $state(null)
+
+  // The axis just before the current one. Plain (non-reactive) variable by
+  // design, the same way `insertAnchor` above tracks "the selection before
+  // this click": $radialAxis inside the effect below always reads the NEW
+  // value, so the old one has to be remembered by hand between runs.
+  let previousRadialAxis: RadialAxis = $radialAxis
+
+  $effect(() => {
+    const axis = $radialAxis
+    if (axis === previousRadialAxis) return // mount, or a filter edit: domainTween alone handles it
+    const oldAxis = previousRadialAxis
+    previousRadialAxis = axis
+
+    const domain = targetDomain // the NEW axis's settled (niced) target
+    const trackList = $library
+    const slots = slotAngleById
+
+    // Untracked: a snapshot of whatever's on screen this instant, not a
+    // dependency of THIS effect — reading any of these live (outside
+    // untrack) would make the effect re-fire on every animation frame of
+    // whichever tween is running, instead of once per swap (the `nodes`
+    // $derived below is the intended per-frame reader of both tweens).
+    const {
+      from: liveFrom,
+      to: liveTo,
+      delays: liveDelays,
+      t: liveT,
+      domain: liveDomain,
+    } = untrack(() => ({
+      from: morphFrom,
+      to: morphTo,
+      delays: morphDelays,
+      t: morphTween.current,
+      domain: domainTween.current,
+    }))
+
+    /** Each node's own current on-screen scalar, a moment before this swap. */
+    function currentScalar(track: Track, unkeyed: boolean): number {
+      const fromValue = liveFrom?.get(track.id)
+      const toValue = liveTo?.get(track.id)
+      if (liveFrom && liveTo && fromValue !== undefined && toValue !== undefined) {
+        // Rapid mid-morph swap: restart FROM the interrupted morph's own
+        // live lerp (the currently-rendered position), not its stale
+        // settled value — otherwise the node would jump to where it would
+        // have been at rest, not where it visually is right now.
+        const delay = liveDelays?.get(track.id) ?? 0
+        return lerp(fromValue, toValue, radialMorphProgress(liveT, delay))
+      }
+      // Steady state (or a node the interrupted morph never covered, e.g.
+      // added to the library mid-flight): liveDomain is exactly the domain
+      // nodes were rendered with a moment ago, settled or not.
+      return unkeyed
+        ? settledGutterYOf(track, oldAxis, liveDomain)
+        : settledRadiusOf(track, oldAxis, liveDomain)
+    }
+
+    // Built fresh and assigned to morphFrom/morphTo wholesale below, never
+    // mutated in place once stored — same "plain Map on purpose" reasoning
+    // as nodes' byBand above.
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- built fresh, assigned wholesale below
+    const from = new Map<string, number>()
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- built fresh, assigned wholesale below
+    const to = new Map<string, number>()
+    const angleNodes: { id: string; angleDeg: number | null }[] = []
+    for (const track of trackList) {
+      const unkeyed = track.key === null
+      from.set(track.id, currentScalar(track, unkeyed))
+      to.set(
+        track.id,
+        unkeyed ? settledGutterYOf(track, axis, domain) : settledRadiusOf(track, axis, domain),
+      )
+      angleNodes.push({ id: track.id, angleDeg: unkeyed ? null : (slots.get(track.id) ?? null) })
+    }
+
+    morphFrom = from
+    morphTo = to
+    morphDelays = radialMorphDelays(angleNodes)
+    void morphTween.set(0, { duration: 0 })
+    void morphTween.set(1, { duration: motionMs(RADIAL_MORPH_TOTAL_MS), easing: linear })
+  })
+
+  // Landed: hand placement back to the plain radialScale/gutterY path, so it
+  // keeps tracking any LATER filter-driven domain change (a morph that never
+  // cleared would freeze nodes at their swap-time target forever).
+  $effect(() => {
+    if (morphFrom !== null && morphTo !== null && morphTween.current >= 1) {
+      morphFrom = null
+      morphTo = null
+      morphDelays = null
+    }
+  })
+
+  /** Mid-morph: this node's current lerped scalar. Otherwise (including a
+   * node the active morph doesn't cover): `plain`, unchanged. */
+  function morphedScalar(id: string, plain: number): number {
+    if (morphFrom === null || morphTo === null || morphDelays === null) return plain
+    const from = morphFrom.get(id)
+    const to = morphTo.get(id)
+    if (from === undefined || to === undefined) return plain
+    const delay = morphDelays.get(id) ?? 0
+    return lerp(from, to, radialMorphProgress(morphTween.current, delay))
+  }
+
   // Placement runs over the FULL library so every track's angle (and gutter
   // slot) is independent of the filters: filtering only makes nodes appear
   // or disappear, leaving gaps in the fans — nothing moves (design-v6 §A).
   const nodes = $derived.by(() => {
     const placed: PlacedNode[] = []
+
+    /** Settled gutter y for this track under the live axis/scale, or its
+     * mid-morph lerped y while an axis swap is in flight (v18 #11a). */
+    function unkeyedY(track: Track): number {
+      const value = track[$radialAxis]
+      const plain = value === null ? gutterBottom + GUTTER_MISSING_Y_GAP : gutterY(value)
+      return morphedScalar(track.id, plain)
+    }
 
     // Tracks without a key live in the gutter, still positioned by the radial
     // value (remark 3: a missing key must not hide a known BPM/year/rating).
@@ -201,28 +364,27 @@
     // eslint-disable-next-line svelte/prefer-svelte-reactivity
     const byBand = new Map<number, Track[]>()
     for (const track of unkeyed) {
-      const value = track[$radialAxis]
-      const y = value === null ? gutterBottom + GUTTER_MISSING_Y_GAP : gutterY(value)
-      const band = Math.round(y / 16)
+      const band = Math.round(unkeyedY(track) / 16)
       if (!byBand.has(band)) byBand.set(band, [])
       byBand.get(band)!.push(track)
     }
     for (const [, group] of byBand) {
       group.forEach((track, i) => {
         const value = track[$radialAxis]
-        const y = value === null ? gutterBottom + GUTTER_MISSING_Y_GAP : gutterY(value)
+        const y = unkeyedY(track)
         const x = GUTTER_X + (i - (group.length - 1) / 2) * 14
         placed.push({ track, x, y, unkeyed: true, missingRadial: value === null })
       })
     }
 
     // Keyed tracks: the relaxed slot angle (memoised below — issue 17) plus
-    // the tween-animated radius.
+    // the tween-animated radius, or — mid-swap — the per-node morph (v18 #11a).
     for (const track of $library) {
       if (track.key === null) continue
       const value = track[$radialAxis]
       const angle = slotAngleById.get(track.id) ?? 0
-      const r = value === null ? R_FALLBACK : radialScale(value)
+      const plainR = value === null ? R_FALLBACK : radialScale(value)
+      const r = morphedScalar(track.id, plainR)
       placed.push({ track, ...polar(angle, r), unkeyed: false, missingRadial: value === null })
     }
     return placed
