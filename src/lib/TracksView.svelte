@@ -16,9 +16,9 @@
     addTrackToSet,
     comboComplete,
     effectiveManualEdges,
+    filters,
     hoveredId,
     linkArmed,
-    manualEdges,
     mustInclude,
     neighbours,
     pinnedFirst,
@@ -32,7 +32,6 @@
     trackSort,
     visibleLibrary,
   } from '../stores'
-  import ConfirmDialog from './ConfirmDialog.svelte'
 
   const COLUMN_LABEL = COLUMN_LABELS
 
@@ -128,12 +127,6 @@
     return set
   })
 
-  let manualClearConfirm: ConfirmDialog
-  let starAllConfirm: ConfirmDialog
-  function clearAllManualEdges(): void {
-    manualEdges.set([])
-  }
-
   function selectRow(id: string) {
     // v14 T1 / v14 WS10: an armed 🔗 makes the next row click mark/unmark a
     // combo, just like a wheel click; the selection stays on the source so
@@ -169,35 +162,6 @@
     else if (next === 'first') pinnedFirst.set(id)
     else if (next === 'last') pinnedLast.set(id)
   }
-
-  // Header ★ (v9 issue 15): star every track in the current view; when they
-  // are all starred already, a second click clears them again. The target is
-  // the set in in-set-only mode, otherwise the whole filtered selection.
-  const starAllTarget = $derived(inSetOnly ? inSetRows : sorted)
-  const allVisibleStarred = $derived(
-    starAllTarget.length > 0 && starAllTarget.every((t) => mustSet.has(t.id)),
-  )
-  function toggleAllStars() {
-    const visible = new Set(starAllTarget.map((t) => t.id))
-    mustInclude.update((ids) =>
-      allVisibleStarred
-        ? ids.filter((id) => !visible.has(id))
-        : [...ids, ...starAllTarget.map((t) => t.id).filter((id) => !ids.includes(id))],
-    )
-  }
-
-  // Both directions ask first (#3): one click used to rewrite every ★ in the
-  // view, and the count can run into the hundreds.
-  const starAllTitle = $derived(
-    allVisibleStarred
-      ? `Remove the ★ from all ${starAllTarget.length} tracks in this view?`
-      : `Mark all ${starAllTarget.length} tracks in this view as essential?`,
-  )
-  const starAllBody = $derived(
-    allVisibleStarred
-      ? 'Every track in the current view loses its ★. Tracks outside the view keep theirs. Cmd+Z steps back if that was a mistake.'
-      : 'Every track in the current view is marked as essential, so suggested constellations must include them all. Cmd+Z steps back if that was a mistake.',
-  )
 
   // --- ＋/position column (v8 issue 15): 1-based slots in the ACTIVE set ---
   const positionsById = $derived.by(() => {
@@ -238,19 +202,26 @@
     <table class:has-selection={$selectedId !== null}>
       <thead>
         <tr>
-          <!-- Tags + position lead the row (v9 issue 13); the header ★
-               stars everything in the current view (issue 15). -->
+          <!-- Tags + position lead the row (v9 issue 13); the header ★ is a
+               quick filter now (v18 #3/#8 — the old mark-all-★ action
+               retired), hidden in easy mode like the 🔗 column below. -->
           <th class="tags-col">
-            <button
-              class="tag header-star"
-              class:on={allVisibleStarred}
-              title={allVisibleStarred
-                ? 'Remove the ★ from every track in this view'
-                : 'Mark every track in this view as essential'}
-              aria-label="Toggle essential for all tracks in view"
-              aria-pressed={allVisibleStarred}
-              onclick={() => starAllConfirm.open(toggleAllStars)}>★</button
-            >
+            {#if !easy}
+              <button
+                class="tag header-toggle"
+                class:on={$filters.marks.starredOnly}
+                title={$filters.marks.starredOnly
+                  ? 'Showing only ★ tracks — click to show all'
+                  : 'Show only ★ tracks'}
+                aria-label="Toggle showing only starred tracks"
+                aria-pressed={$filters.marks.starredOnly}
+                onclick={() =>
+                  filters.update((f) => ({
+                    ...f,
+                    marks: { ...f.marks, starredOnly: !f.marks.starredOnly },
+                  }))}>★</button
+              >
+            {/if}
           </th>
           <th class="pos-col">
             <!-- Toggle a metadata-rich, set-only, position-ordered view (v10
@@ -273,18 +244,24 @@
           {#if !easy}
             <!-- Manual (🔗) combos, list-view analogue of the wheel's dashed
                  links: unselected shows a per-row count, a selection swaps
-                 that for a lit/clickable icon on the actual partners. -->
+                 that for a lit/clickable icon on the actual partners. The
+                 header 🔗 is a quick filter (v18 #3/#8), same idiom as the
+                 header ★ — the old clear-all-combos action retired. -->
             <th class="manual-col">
               <button
-                class="pos-toggle manual-clear"
-                disabled={$manualEdges.length === 0}
-                title="Clear every manual combo"
-                aria-label="Clear all manual combos"
-                onclick={() => manualClearConfirm.open(clearAllManualEdges)}
+                class="tag header-toggle"
+                class:on={$filters.marks.comboOnly}
+                title={$filters.marks.comboOnly
+                  ? 'Showing only manual-combo tracks — click to show all'
+                  : 'Show only tracks with a manual combo'}
+                aria-label="Toggle showing only tracks with a manual combo"
+                aria-pressed={$filters.marks.comboOnly}
+                onclick={() =>
+                  filters.update((f) => ({
+                    ...f,
+                    marks: { ...f.marks, comboOnly: !f.marks.comboOnly },
+                  }))}>🔗</button
               >
-                <span class="link-ico">🔗</span>
-                <span class="clear-x" aria-hidden="true">✕</span>
-              </button>
             </th>
           {/if}
           {#each columns as field (field)}
@@ -471,22 +448,6 @@
   {/if}
 </section>
 
-<ConfirmDialog
-  bind:this={manualClearConfirm}
-  title="Clear all manual combos?"
-  body="Every user-defined combo (the dashed links on the wheel) is removed, library-wide — not just the tracks in this view. Cmd+Z undoes it if that was a mistake."
-  confirmLabel="Clear all"
-  danger
-/>
-
-<ConfirmDialog
-  bind:this={starAllConfirm}
-  title={starAllTitle}
-  body={starAllBody}
-  confirmLabel={allVisibleStarred ? 'Remove all ★' : 'Mark all ★'}
-  danger
-/>
-
 <style>
   .tracks-view {
     flex: 1;
@@ -594,36 +555,6 @@
   .manual {
     padding-left: 2px;
     padding-right: 2px;
-  }
-
-  /* Header clear-all: the 🔗 (matching the row cells) swaps for a ✕ on
-     hover/focus to signal it removes every manual combo. Same in-place glyph
-     swap the in-set position button uses below — no layout shift, and the
-     target is the icon itself rather than a speck off its corner (#4). */
-  .manual-clear {
-    position: relative;
-  }
-
-  /* The 🔗 keeps its box (hidden, not removed) and the ✕ overlays it, so the
-     swap can't resize the button — ✕ is a narrower glyph than the emoji. */
-  .manual-clear .clear-x {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    visibility: hidden;
-    color: var(--walk-bright);
-  }
-
-  .manual-clear:hover:not(:disabled) .link-ico,
-  .manual-clear:focus-visible:not(:disabled) .link-ico {
-    visibility: hidden;
-  }
-
-  .manual-clear:hover:not(:disabled) .clear-x,
-  .manual-clear:focus-visible:not(:disabled) .clear-x {
-    visibility: visible;
   }
 
   .manual-count {
@@ -738,19 +669,20 @@
     text-align: center;
   }
 
-  /* The header ★ appears on header hover, like the row stars on row hover
-     (v10 issue 14); it stays lit when all visible tracks are starred. */
-  .header-star {
+  /* The header ★/🔗 quick filters appear on header hover, like the row tags
+     on row hover (v10 issue 14); each stays lit while its marks filter is
+     active (v18 #3/#8 — shared idiom, one class for both glyphs). */
+  .header-toggle {
     opacity: 0;
   }
 
-  thead:hover .header-star,
-  thead:focus-within .header-star,
-  .header-star.on {
+  thead:hover .header-toggle,
+  thead:focus-within .header-toggle,
+  .header-toggle.on {
     opacity: 1;
   }
 
-  .header-star.on {
+  .header-toggle.on {
     color: var(--accent);
   }
 

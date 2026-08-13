@@ -11,7 +11,7 @@
     type PropertyRange,
     type QualityChoice,
   } from '../core/filter'
-  import { isMarkFilterKey } from '../core/marks'
+  import { isMarkFilterKey, type MarksFilter } from '../core/marks'
   import { PROPERTY_BY_KEY, REKORDBOX_COLOURS, type TrackProperty } from '../core/properties'
   import type { TrackSortField } from '../core/trackSort'
   import { filters, library, playlistScopedLibrary, settings, visibleLibrary } from '../stores'
@@ -27,8 +27,9 @@
   // The rows on show: the user's visibleFilters selection (advanced "Track
   // properties" table), resolved through the registry (v11 issue 1). Since
   // v18 (#3/#8) visibleFilters can also carry the 'starred'/'combos' marks
-  // pseudo-keys; this section only renders property rows, so they are
-  // skipped here (their own row is a separate control, outside this task).
+  // pseudo-keys, filtered out here — those two render as their own gated
+  // rows below the property {#each}, bound to filters.marks directly rather
+  // than a per-property range.
   const rows = $derived(
     $settings.visibleFilters
       .filter((key): key is TrackSortField => !isMarkFilterKey(key))
@@ -256,6 +257,17 @@
   function toggleRing(ring: 'minor' | 'major'): void {
     filters.update((f) => ({ ...f, keyRings: { ...f.keyRings, [ring]: !f.keyRings[ring] } }))
   }
+
+  // The starred/combo marks quick-filters (v18 #3/#8): two optional rows,
+  // gated by visibleFilters like a property row, but backed by
+  // filters.marks rather than a per-property range (see marks.ts). One
+  // on/off toggle each, plus the same ↺ reset the property rows have.
+  function toggleMarkFilter(flag: keyof MarksFilter): void {
+    filters.update((f) => ({ ...f, marks: { ...f.marks, [flag]: !f.marks[flag] } }))
+  }
+  function resetMarkFilter(flag: keyof MarksFilter): void {
+    filters.update((f) => ({ ...f, marks: { ...f.marks, [flag]: false } }))
+  }
 </script>
 
 <details>
@@ -382,6 +394,47 @@
       >
     </div>
   {/each}
+
+  {#if $settings.visibleFilters.includes('starred')}
+    <div class="filter-row">
+      <span class="filter-label">Starred ★</span>
+      <div class="ring-switch" role="group" aria-label="Starred filter">
+        <button
+          class:on={$filters.marks.starredOnly}
+          aria-pressed={$filters.marks.starredOnly}
+          onclick={() => toggleMarkFilter('starredOnly')}
+        >
+          {$filters.marks.starredOnly ? 'only' : 'all'}
+        </button>
+      </div>
+      <button
+        class="range-reset"
+        title="Clear this filter"
+        aria-label="Reset Starred filter"
+        onclick={() => resetMarkFilter('starredOnly')}>↺</button
+      >
+    </div>
+  {/if}
+  {#if $settings.visibleFilters.includes('combos')}
+    <div class="filter-row">
+      <span class="filter-label">Manual combos 🔗</span>
+      <div class="ring-switch" role="group" aria-label="Manual combos filter">
+        <button
+          class:on={$filters.marks.comboOnly}
+          aria-pressed={$filters.marks.comboOnly}
+          onclick={() => toggleMarkFilter('comboOnly')}
+        >
+          {$filters.marks.comboOnly ? 'only' : 'all'}
+        </button>
+      </div>
+      <button
+        class="range-reset"
+        title="Clear this filter"
+        aria-label="Reset Manual combos filter"
+        onclick={() => resetMarkFilter('comboOnly')}>↺</button
+      >
+    </div>
+  {/if}
 
   <div class="filter-row">
     <span class="filter-label">Keys</span>

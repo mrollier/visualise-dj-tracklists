@@ -2,6 +2,12 @@
   import { get } from 'svelte/store'
   import { matchedGenrePairs } from '../core/combos'
   import { METHOD_LABEL_LONG, METHOD_PICK_ORDER, type GenreMethod } from '../core/genre'
+  import {
+    isMarkFilterKey,
+    MARK_FILTER_KEYS,
+    type MarkFilterKey,
+    type MarksFilter,
+  } from '../core/marks'
   import type { Track } from '../core/model'
   import { resetAdvancedCriteria, resetAdvancedSettings } from '../core/reset'
   import { type BpmProgression } from '../core/settings'
@@ -67,7 +73,17 @@
   // --- Track properties (v11 issue 1): one table decides, per property,
   // whether it shows as a Tracks-view column and as a left-panel filter.
   // Hiding a filter also clears it, so a hidden filter never keeps acting.
-  function toggleFilterVisible(key: TrackSortField) {
+  // Since v18 (#3/#8) the same table also carries the two marks pseudo-rows
+  // (below, after the trackColumns {#each}) — no column, filter-only.
+  const MARK_FILTER_LABEL: Record<MarkFilterKey, string> = {
+    starred: 'Starred ★',
+    combos: 'Manual combos 🔗',
+  }
+  const MARK_FILTER_FLAG: Record<MarkFilterKey, keyof MarksFilter> = {
+    starred: 'starredOnly',
+    combos: 'comboOnly',
+  }
+  function toggleFilterVisible(key: TrackSortField | MarkFilterKey) {
     const nowShown = !$settings.visibleFilters.includes(key)
     settings.update((s) => ({
       ...s,
@@ -76,11 +92,18 @@
         : s.visibleFilters.filter((k) => k !== key),
     }))
     if (!nowShown) {
-      filters.update((f) => {
-        const properties = { ...f.properties }
-        Reflect.deleteProperty(properties, key)
-        return { ...f, properties }
-      })
+      if (isMarkFilterKey(key)) {
+        // Hide-clears-filter parity: a hidden marks row can't keep filtering
+        // underneath, same as a hidden property filter does below.
+        const flag = MARK_FILTER_FLAG[key]
+        filters.update((f) => ({ ...f, marks: { ...f.marks, [flag]: false } }))
+      } else {
+        filters.update((f) => {
+          const properties = { ...f.properties }
+          Reflect.deleteProperty(properties, key)
+          return { ...f, properties }
+        })
+      }
     }
   }
 
@@ -470,6 +493,21 @@
           {:else}
             <span></span>
           {/if}
+        </div>
+      {/each}
+      <!-- The two marks quick-filters (v18 #3/#8): filter-only, no column —
+           starred/combo membership lives on the tracks themselves, not a
+           table cell. -->
+      {#each MARK_FILTER_KEYS as key (key)}
+        <div class="prop-row">
+          <span class="prop-name">{MARK_FILTER_LABEL[key]}</span>
+          <span></span>
+          <input
+            type="checkbox"
+            aria-label="{MARK_FILTER_LABEL[key]} filter"
+            checked={$settings.visibleFilters.includes(key)}
+            onchange={() => toggleFilterVisible(key)}
+          />
         </div>
       {/each}
     </div>
