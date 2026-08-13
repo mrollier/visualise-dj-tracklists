@@ -50,9 +50,23 @@ active (see 3/8).
    buttons, the Filters panel's two buttons, the Advanced-menu
    hide-checkbox, and the reset path — now funnel through one
    `setMarkFilter`/`toggleMarkFilter` mutator in `stores.ts`, replacing five
-   hand-rolled copies. Files: `lib/TracksView.svelte`,
+   hand-rolled copies. The destructive bulk actions the header buttons
+   dropped come back scoped, in Advanced → Track properties: two
+   confirm-gated buttons with live counts ("Clear ★ marks (N)" / "Clear 🔗
+   combos (N)"), acting on the selected playlists or the whole library when
+   none are selected. _Deviation the plan didn't anticipate:_ its premise
+   that a bulk clear is automatically one undo step was empirically false —
+   clearing stars is three separate store writes (`mustInclude` plus both
+   pins), and three sequential top-level `.set()` calls record three
+   separate `undoStore` steps, not one, so a single Cmd+Z would only have
+   undone the last of the three. A new `withOneUndoStep` helper
+   (`lib/undoStore.ts`) batches a write into one recorded step — and is
+   atomic on exception too, rolling every store it touched back to its
+   pre-call snapshot and re-throwing rather than leaving a partial write
+   recorded. Clearing combos doesn't need it: `manualEdges` is a single
+   store, already inherently one step. Files: `lib/TracksView.svelte`,
    `lib/FiltersSection.svelte`, `lib/AdvancedMenu.svelte`, `stores.ts`,
-   `core/marks.ts`.
+   `core/marks.ts`, `lib/undoStore.ts`.
 4. **Every row's 🔗 stays faintly visible for as long as a track is
    selected**, instead of only revealing on hover. A `.has-selection` class
    on the table dims every non-partner 🔗 to 0.35 opacity; partners and the
