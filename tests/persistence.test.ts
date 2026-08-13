@@ -17,8 +17,10 @@ import {
   lastImportReport,
   library,
   libraryName,
+  manualEdges,
   mustInclude,
   pinnedFirst,
+  pinnedLast,
   playlists,
   selectedId,
   tracklist,
@@ -211,6 +213,21 @@ describe('hasUserWork (v18 #1)', () => {
 describe('sampleLoadNeedsConfirmation (v18 #1)', () => {
   test('a real library needs confirmation, same as replaceNeedsConfirmation', () => {
     // the beforeEach loads a user library ('rb-…' ids)
+    expect(sampleLoadNeedsConfirmation()).toBe(true)
+  })
+
+  test('a real library alone needs confirmation, with zero user work (isolates the OR)', () => {
+    // The beforeEach also leaves hasUserWork() true (tracklist ['rb-1'],
+    // pinnedFirst 'rb-1'), so the test above never isolates which half of
+    // the OR is doing the work. Clear every user-work signal here so only
+    // replaceNeedsConfirmation() can be making this true — dropping that
+    // half of the OR (e.g. "refactoring" to hasUserWork(...) alone) would
+    // turn this false and fail.
+    tracklist.set([])
+    mustInclude.set([])
+    pinnedFirst.set(null)
+    pinnedLast.set(null)
+    manualEdges.set([])
     expect(sampleLoadNeedsConfirmation()).toBe(true)
   })
 
