@@ -987,7 +987,7 @@
     stroke: none;
     /* Match the 600ms radial tween (cubic-out) so the wedge settles WITH the
        nodes, not ~100ms early — that early settle read as a flash (v10 #7). */
-    transition: opacity 0.6s cubic-bezier(0.33, 1, 0.68, 1);
+    transition: fill 0.6s cubic-bezier(0.33, 1, 0.68, 1);
   }
 
   .sector.major {
@@ -995,7 +995,11 @@
   }
 
   .sector.excluded {
-    opacity: 0.15;
+    fill: var(--sector-minor-off);
+  }
+
+  .sector.major.excluded {
+    fill: var(--sector-major-off);
   }
 
   .key-label {
@@ -1131,6 +1135,10 @@
 
     g.walk-group.celebrate {
       animation: none;
+    }
+
+    .sector {
+      transition: none;
     }
   }
 
