@@ -15,6 +15,7 @@ import {
   wholeExtent,
   type LibraryFilters,
 } from '../src/core/filter'
+import type { MarksContext } from '../src/core/marks'
 import { track } from './helpers'
 
 const tracks = [
@@ -124,6 +125,69 @@ describe('applyFilters (v11 issue 1: per-property ranges)', () => {
     expect(
       applyFilters(mixed, filters({ keyRings: { minor: false, major: false } })).map((t) => t.id),
     ).toEqual(['keyless'])
+  })
+})
+
+describe('marks quick-filters (v18 #3/#8)', () => {
+  const marked = [
+    track({ id: 'a', key: '8A', bpm: 120, year: 2010, rating: 2, genre: 'Techno' }),
+    track({ id: 'b', key: '8A', bpm: 120, year: 2010, rating: 2, genre: 'Techno' }),
+    track({ id: 'c', key: '8A', bpm: 120, year: 2010, rating: 2, genre: 'Techno' }),
+  ]
+  // 'b' is deliberately in both sets, so the compose test can tell AND from OR.
+  const marks: MarksContext = {
+    starredIds: new Set(['a', 'b']),
+    comboIds: new Set(['b', 'c']),
+  }
+
+  test('starredOnly keeps only starred ids, including a pinned one', () => {
+    const out = applyFilters(
+      marked,
+      filters({ marks: { starredOnly: true, comboOnly: false } }),
+      [],
+      marks,
+    )
+    expect(out.map((t) => t.id)).toEqual(['a', 'b'])
+  })
+
+  test('comboOnly keeps only the edge endpoints', () => {
+    const out = applyFilters(
+      marked,
+      filters({ marks: { starredOnly: false, comboOnly: true } }),
+      [],
+      marks,
+    )
+    expect(out.map((t) => t.id)).toEqual(['b', 'c'])
+  })
+
+  test('both flags compose with AND, not OR', () => {
+    const out = applyFilters(
+      marked,
+      filters({ marks: { starredOnly: true, comboOnly: true } }),
+      [],
+      marks,
+    )
+    expect(out.map((t) => t.id)).toEqual(['b'])
+  })
+
+  test('flags on with no context filters nothing — safe for stray callers', () => {
+    const out = applyFilters(marked, filters({ marks: { starredOnly: true, comboOnly: true } }))
+    expect(out).toHaveLength(3)
+  })
+
+  test('both flags off is inert even when a context is supplied', () => {
+    expect(applyFilters(marked, EMPTY_FILTERS, [], marks)).toHaveLength(3)
+  })
+})
+
+describe('migrateFilters and marks (v18 #3/#8: session-only, always loads off)', () => {
+  test('EMPTY_FILTERS.marks is both-off', () => {
+    expect(EMPTY_FILTERS.marks).toEqual({ starredOnly: false, comboOnly: false })
+  })
+
+  test('a saved active marks filter loads with both flags false', () => {
+    const migrated = migrateFilters({ marks: { starredOnly: true, comboOnly: true } })
+    expect(migrated.marks).toEqual({ starredOnly: false, comboOnly: false })
   })
 })
 

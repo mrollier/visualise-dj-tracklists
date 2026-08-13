@@ -11,6 +11,7 @@
     type PropertyRange,
     type QualityChoice,
   } from '../core/filter'
+  import { isMarkFilterKey } from '../core/marks'
   import { PROPERTY_BY_KEY, REKORDBOX_COLOURS, type TrackProperty } from '../core/properties'
   import type { TrackSortField } from '../core/trackSort'
   import { filters, library, playlistScopedLibrary, settings, visibleLibrary } from '../stores'
@@ -24,9 +25,13 @@
   }))
 
   // The rows on show: the user's visibleFilters selection (advanced "Track
-  // properties" table), resolved through the registry (v11 issue 1).
+  // properties" table), resolved through the registry (v11 issue 1). Since
+  // v18 (#3/#8) visibleFilters can also carry the 'starred'/'combos' marks
+  // pseudo-keys; this section only renders property rows, so they are
+  // skipped here (their own row is a separate control, outside this task).
   const rows = $derived(
     $settings.visibleFilters
+      .filter((key): key is TrackSortField => !isMarkFilterKey(key))
       .map((key) => PROPERTY_BY_KEY.get(key))
       .filter((p): p is TrackProperty => p !== undefined && p.filterable),
   )

@@ -961,3 +961,42 @@ describe('vinyl flag removed (v14 WS1)', () => {
     expect(serializeProject(parsed)).not.toContain('isVinyl')
   })
 })
+
+// v18 (#3/#8): the marks quick-filters add two pseudo-keys to visibleFilters
+// (which row shows in the panel — an ordinary persisted preference) while the
+// filter STATE (filters.marks itself) stays session-only and always resets;
+// see filter.ts's migrateFilters for why.
+describe('marks quick-filters persistence (v18 #3/#8)', () => {
+  test("a saved visibleFilters keeps the 'starred'/'combos' pseudo-keys", () => {
+    const raw = JSON.parse(serializeProject(project)) as {
+      settings: Record<string, unknown>
+      filters: Record<string, unknown>
+    }
+    raw.filters.properties = {} // keep the active-filter force-visible guard out of this test
+    raw.settings.visibleFilters = ['bpm', 'starred', 'combos']
+    expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual([
+      'bpm',
+      'starred',
+      'combos',
+    ])
+  })
+
+  test('garbage keys still drop alongside the real pseudo-keys', () => {
+    const raw = JSON.parse(serializeProject(project)) as {
+      settings: Record<string, unknown>
+      filters: Record<string, unknown>
+    }
+    raw.filters.properties = {}
+    raw.settings.visibleFilters = ['starred', 'nonsense', 'combos']
+    expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual(['starred', 'combos'])
+  })
+
+  test('a saved active marks filter always parses back to both-off', () => {
+    const raw = JSON.parse(serializeProject(project)) as { filters: Record<string, unknown> }
+    raw.filters.marks = { starredOnly: true, comboOnly: true }
+    expect(parseProject(JSON.stringify(raw)).filters.marks).toEqual({
+      starredOnly: false,
+      comboOnly: false,
+    })
+  })
+})

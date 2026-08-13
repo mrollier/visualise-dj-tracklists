@@ -2,6 +2,7 @@ import { migrateColumns } from './columns'
 import { DEFAULT_CRITERIA, demandedCount, type CriteriaConfig } from './combos'
 import { migrateFilters, type LibraryFilters } from './filter'
 import { normalizeKey } from './keys'
+import { MARK_FILTER_KEYS } from './marks'
 import { energyFromComments, type ManualEdge, type Playlist, type Track } from './model'
 import { DEFAULT_VISIBLE_FILTERS, TRACK_PROPERTIES } from './properties'
 import {
@@ -390,9 +391,15 @@ export function parseProject(json: string): Project {
   // [] is a valid "hide every property filter" choice. Either way, an
   // actively filtering property is forced visible — the hide-clears-filter
   // invariant means nothing may filter invisibly.
-  const validFilterKeys = new Set<string>(
-    TRACK_PROPERTIES.filter((prop) => prop.filterable).map((prop) => prop.key),
-  )
+  // v18 (#3/#8): the two marks pseudo-keys join the same whitelist — only
+  // whether their ROW shows in the panel. Filters carry transient `marks`
+  // quick-filters too (LibraryFilters.marks), but that boolean state is
+  // always reset on load (see migrateFilters), so it never reaches the
+  // force-visible loop below, which stays property-only.
+  const validFilterKeys = new Set<string>([
+    ...TRACK_PROPERTIES.filter((prop) => prop.filterable).map((prop) => prop.key),
+    ...MARK_FILTER_KEYS,
+  ])
   const savedVisible = rawSettings.visibleFilters
   settings.visibleFilters = Array.isArray(savedVisible)
     ? savedVisible.filter(

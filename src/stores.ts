@@ -1,4 +1,4 @@
-import { derived, get, writable, type Writable } from 'svelte/store'
+import { derived, get, writable, type Readable, type Writable } from 'svelte/store'
 import {
   computeComboView,
   DEFAULT_CRITERIA,
@@ -15,6 +15,7 @@ import {
 } from './core/filter'
 import { computeGenreClasses } from './core/genreClasses'
 import { genreFamilyClasses, playlistClasses } from './core/iconClasses'
+import { comboIdSet, starredIdSet, type MarksContext } from './core/marks'
 import type { ImportReport, ManualEdge, Playlist, Track } from './core/model'
 import { canAddSet, freshFirstSet, nextSetName, uniqueSetName, type TrackSet } from './core/sets'
 import { DEFAULT_SETTINGS, type AppSettings } from './core/settings'
@@ -259,11 +260,66 @@ export const effectiveSettings = derived([settings, easyMode], ([$s, $e]) =>
 )
 export const effectiveManualEdges = derived([manualEdges, easyMode], ([$m, $e]) => ($e ? [] : $m))
 
+/**
+ * Wrap a store so subscribers are only notified when the value actually
+ * changes per `equal` (v18 #3/#8), not merely re-derived to a new reference.
+ * Svelte's own dedup (`derived`'s internal `safe_not_equal`) treats any
+ * object/array as "always changed" — it can't cheaply tell whether one was
+ * mutated in place — so an object-valued derived would otherwise re-emit,
+ * and cascade into anything downstream, on every upstream tick even when
+ * nothing the object represents actually changed. `marksContext` below is
+ * exactly that case.
+ */
+function distinct<T>(store: Readable<T>, equal: (a: T, b: T) => boolean): Readable<T> {
+  let last: T
+  let hasLast = false
+  return derived(store, ($value, set) => {
+    if (!hasLast || !equal(last, $value)) {
+      last = $value
+      hasLast = true
+      set($value)
+    }
+  })
+}
+
+function marksContextEqual(a: MarksContext | null, b: MarksContext | null): boolean {
+  if (a === null || b === null) return a === b
+  const setEqual = (x: ReadonlySet<string>, y: ReadonlySet<string>): boolean =>
+    x.size === y.size && [...x].every((id) => y.has(id))
+  return setEqual(a.starredIds, b.starredIds) && setEqual(a.comboIds, b.comboIds)
+}
+
+/**
+ * The marks quick-filters' live context (v18 #3/#8): `null` while both
+ * `starredOnly`/`comboOnly` are off, so `visibleLibrary` stays inert to
+ * mustInclude/pin/manualEdges churn — the perf gate, since `visibleLibrary`
+ * feeds `computeComboView`, which is O(n²), and would otherwise recompute on
+ * every star click even with the filters off. Wrapped in `distinct` so an
+ * on-flag recompute that lands on the same id SET (not just a new object)
+ * doesn't cascade either. Reads `effectiveFilters` (not raw `filters`) so
+ * easy mode's forced-off marks (stores.ts's `effectiveFilters`) also gate
+ * this, not just the persisted layer.
+ */
+const marksContext: Readable<MarksContext | null> = distinct(
+  derived(
+    [effectiveFilters, mustInclude, pinnedFirst, pinnedLast, manualEdges],
+    ([$filters, $mustInclude, $pinnedFirst, $pinnedLast, $manualEdges]): MarksContext | null => {
+      const { starredOnly, comboOnly } = $filters.marks
+      if (!starredOnly && !comboOnly) return null
+      return {
+        starredIds: starredIdSet($mustInclude, $pinnedFirst, $pinnedLast),
+        comboIds: comboIdSet($manualEdges),
+      }
+    },
+  ),
+  marksContextEqual,
+)
+
 /** The filtered library: what the wheel, edges and suggestions operate on. */
 export const visibleLibrary = derived(
-  [library, effectiveFilters, playlists],
-  ([$library, $effectiveFilters, $playlists]) =>
-    applyFilters($library, $effectiveFilters, $playlists),
+  [library, effectiveFilters, playlists, marksContext],
+  ([$library, $effectiveFilters, $playlists, $marks]) =>
+    applyFilters($library, $effectiveFilters, $playlists, $marks ?? undefined),
 )
 
 /**

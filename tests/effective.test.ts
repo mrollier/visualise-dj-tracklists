@@ -13,6 +13,9 @@ import {
   filters,
   library,
   manualEdges,
+  mustInclude,
+  pinnedFirst,
+  pinnedLast,
   settings,
   visibleLibrary,
 } from '../src/stores'
@@ -80,12 +83,13 @@ describe('effective stores — easy mode computes with defaults', () => {
     expect(eff.key).not.toBe(EASY_CRITERIA.key)
   })
 
-  test('easy ⇒ effectiveFilters keeps playlists but resets properties/genres/keyRings', () => {
+  test('easy ⇒ effectiveFilters keeps playlists but resets properties/genres/keyRings/marks', () => {
     filters.set({
       properties: { bpm: [120, 130] },
       genres: ['house'],
       playlists: ['Warmup', 'Peak'],
       keyRings: { minor: false, major: true },
+      marks: { starredOnly: true, comboOnly: true },
     })
     settings.update((s) => ({ ...s, uiMode: 'easy' }))
 
@@ -94,6 +98,9 @@ describe('effective stores — easy mode computes with defaults', () => {
     expect(eff.properties).toEqual(EMPTY_FILTERS.properties)
     expect(eff.genres).toEqual(EMPTY_FILTERS.genres)
     expect(eff.keyRings).toEqual(EMPTY_FILTERS.keyRings)
+    // v18 (#3/#8): easy mode is a second, independent reason marks read as
+    // inert — on top of migrateFilters always loading them off.
+    expect(eff.marks).toEqual(EMPTY_FILTERS.marks)
   })
 
   test('easy ⇒ effectiveManualEdges is []', () => {
@@ -134,6 +141,7 @@ describe('effective stores — easy mode computes with defaults', () => {
       genres: ['house'],
       playlists: ['Peak'],
       keyRings: { minor: false, major: true },
+      marks: { starredOnly: true, comboOnly: false },
     }
     const storedSettings = {
       ...structuredClone(DEFAULT_SETTINGS),
@@ -188,5 +196,60 @@ describe('effective stores — easy mode computes with defaults', () => {
     const advancedSecond = get(visibleLibrary)
     expect(advancedSecond).not.toBe(easy)
     expect(advancedSecond.length).toBe(advancedFirst.length)
+  })
+})
+
+// v18 (#3/#8): visibleLibrary feeds computeComboView, which is O(n²) — a
+// naive dependency on mustInclude/pins/manualEdges would recompute the combo
+// graph on every star click even with both marks flags off. marksContext
+// (stores.ts) is gated through `distinct` so it only re-emits when the id
+// SET it resolves actually changes, and stays `null` (inert) while both
+// flags are off — this pins that mechanism at the visibleLibrary boundary.
+describe('marksContext — perf gate (v18 #3/#8)', () => {
+  beforeEach(() => {
+    filters.set(structuredClone(EMPTY_FILTERS))
+    library.set(structuredClone(SAMPLE_TRACKS))
+    mustInclude.set([])
+    pinnedFirst.set(null)
+    pinnedLast.set(null)
+  })
+  afterEach(() => {
+    filters.set(structuredClone(EMPTY_FILTERS))
+    library.set([])
+    mustInclude.set([])
+    pinnedFirst.set(null)
+    pinnedLast.set(null)
+  })
+
+  test('with both mark flags off, cycling mustInclude does not re-emit visibleLibrary', () => {
+    let emits = 0
+    const unsubscribe = visibleLibrary.subscribe(() => {
+      emits += 1
+    })
+    const afterSubscribe = emits // the initial synchronous push on subscribe
+
+    mustInclude.set([SAMPLE_TRACKS[0].id])
+    mustInclude.set([])
+    mustInclude.set([SAMPLE_TRACKS[1].id, SAMPLE_TRACKS[0].id])
+
+    expect(emits).toBe(afterSubscribe)
+    unsubscribe()
+  })
+
+  test('turning starredOnly on makes visibleLibrary shrink to the starred ids and react to mustInclude', () => {
+    filters.update((f) => ({ ...f, marks: { starredOnly: true, comboOnly: false } }))
+    expect(get(visibleLibrary)).toEqual([]) // nothing starred yet — everything hides
+
+    let emits = 0
+    const unsubscribe = visibleLibrary.subscribe(() => {
+      emits += 1
+    })
+    const afterSubscribe = emits
+
+    mustInclude.set([SAMPLE_TRACKS[0].id])
+
+    expect(emits).toBeGreaterThan(afterSubscribe)
+    expect(get(visibleLibrary).map((t) => t.id)).toEqual([SAMPLE_TRACKS[0].id])
+    unsubscribe()
   })
 })

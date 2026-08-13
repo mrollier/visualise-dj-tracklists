@@ -1,4 +1,5 @@
 import { camelotNumber, camelotRing } from './keys'
+import type { MarksContext, MarksFilter } from './marks'
 import type { Playlist, Track } from './model'
 import { PROPERTY_BY_KEY, TRACK_PROPERTIES, type TrackProperty } from './properties'
 import type { TrackSortField } from './trackSort'
@@ -86,6 +87,14 @@ export interface LibraryFilters {
    * toggles off.
    */
   keyRings: { minor: boolean; major: boolean }
+  /**
+   * The starred-only / combo-only quick-filters (v18 #3/#8, `marks.ts`).
+   * Both false = inert. Filtering by these needs a `MarksContext` passed
+   * separately to `applyFilters` — see that function and `marks.ts` for why
+   * the live id sets don't live on this object. A saved-active value here is
+   * never honoured on load (`migrateFilters` below always resets it).
+   */
+  marks: MarksFilter
 }
 
 /** Pseudo-playlist name: tracks that appear in no playlist at all. */
@@ -96,6 +105,7 @@ export const EMPTY_FILTERS: LibraryFilters = {
   genres: null,
   playlists: null,
   keyRings: { minor: true, major: true },
+  marks: { starredOnly: false, comboOnly: false },
 }
 
 /** A saved entry that must be a two-number tuple; null otherwise. */
@@ -196,6 +206,12 @@ export function migrateFilters(raw: unknown): LibraryFilters {
     const range = sanitizeRange(prop, rawProperties[prop.key])
     if (range !== null) out.properties[prop.key] = range
   }
+  // v18 (#3/#8): `p.marks` is deliberately never read. The marks quick-filters
+  // check membership in mustInclude/pinnedFirst/pinnedLast, which are
+  // session-only stores that always start empty — a persisted-active marks
+  // filter would blank the wheel on every reload. `out` is already the
+  // EMPTY_FILTERS clone from above (both flags false), so simply not copying
+  // `p.marks` onto it IS the reset; there is nothing else to do here.
   return out
 }
 
@@ -334,6 +350,21 @@ function passesProperty(track: Track, prop: TrackProperty, range: PropertyRange)
   }
 }
 
+/**
+ * The marks-quick-filter pass test (v18 #3/#8): true unless a flag is on AND
+ * a context is present that excludes the track. A missing context makes
+ * BOTH flags inert, not "hide everything" — the safe default for a stray
+ * caller (existing tests, a future one-off filter preview) that never passed
+ * one.
+ */
+function passesMarks(track: Track, flags: MarksFilter, context: MarksContext | undefined): boolean {
+  if (context === undefined) return true
+  return (
+    (!flags.starredOnly || context.starredIds.has(track.id)) &&
+    (!flags.comboOnly || context.comboIds.has(track.id))
+  )
+}
+
 /** The track ids the playlist selection allows, or null when it is inert. */
 function playlistMemberIds(
   tracks: Track[],
@@ -374,6 +405,7 @@ export function applyFilters(
   tracks: Track[],
   filters: LibraryFilters,
   playlists: Playlist[] = [],
+  marks?: MarksContext,
 ): Track[] {
   // Resolve the active property filters once, in registry order — unknown
   // keys in a corrupted save simply never match a property and stay inert.
@@ -392,6 +424,7 @@ export function applyFilters(
       active.every(({ prop, range }) => passesProperty(t, prop, range)) &&
       (allowed === null || t.genre === null || allowed.has(t.genre.toLowerCase())) &&
       (allowedIds === null || allowedIds.has(t.id)) &&
-      (t.key === null || (camelotRing(t.key) === 'A' ? minor : major)),
+      (t.key === null || (camelotRing(t.key) === 'A' ? minor : major)) &&
+      passesMarks(t, filters.marks, marks),
   )
 }

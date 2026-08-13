@@ -42,6 +42,7 @@ beforeEach(() => {
     genres: ['techno'],
     playlists: [],
     keyRings: { minor: true, major: true },
+    marks: { starredOnly: false, comboOnly: false },
   })
   selectedId.set('rb-1')
   pinnedFirst.set('rb-1')
