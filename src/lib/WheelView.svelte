@@ -1434,17 +1434,6 @@
     .sector {
       transition: none;
     }
-
-    /* Two pre-existing (pre-v18) keyframes had no escape (v18 #15 rider):
-       the retry-ring's force/spent dash-spin and the exhausted-hub pulse. */
-    .hub-retry.force .retry-ring,
-    .hub-retry.spent .retry-ring {
-      animation: none;
-    }
-
-    .hub.warning .hub-circle {
-      animation: none;
-    }
   }
 
   /* Ghost stars (v18 #11): non-interactive placeholders for walk members the
@@ -1637,6 +1626,25 @@
     }
     100% {
       stroke-width: 1;
+    }
+  }
+
+  /* Two pre-existing (pre-v18) keyframes had no escape (v18 #15 rider):
+     the retry-ring's force/spent dash-spin and the exhausted-hub pulse.
+     This block must come AFTER both rules above, not in the file's earlier
+     shared reduced-motion block: same specificity, so an earlier override
+     loses the cascade tiebreak to these later, unconditional declarations
+     (caught live by Task 15's own review — verified via a running
+     .hub.warning/.hub-retry.force session that the earlier position was a
+     no-op under page.emulateMedia({ reducedMotion: 'reduce' })). */
+  @media (prefers-reduced-motion: reduce) {
+    .hub-retry.force .retry-ring,
+    .hub-retry.spent .retry-ring {
+      animation: none;
+    }
+
+    .hub.warning .hub-circle {
+      animation: none;
     }
   }
 
