@@ -11,7 +11,14 @@
   import InfoTooltip from './InfoTooltip.svelte'
   import PlaylistsSection from './PlaylistsSection.svelte'
   import RatingBoxes from './RatingBoxes.svelte'
-  import { comboPairCount, criteria, library, selectedId, settings, visibleLibrary } from '../stores'
+  import {
+    comboPairCount,
+    criteria,
+    library,
+    selectedId,
+    settings,
+    visibleLibrary,
+  } from '../stores'
 
   // Easy mode (v12 WS4): the panel keeps its stats and Playlists — filters,
   // genres and the criteria machinery hide behind their current values.
@@ -113,46 +120,48 @@
             Key
           </label>
           <InfoTooltip label="How key matching works">
-            A combo needs harmonically adjacent keys — the same key, its
-            relative major/minor, or a ±1 step around the harmonic key wheel.
+            A combo needs harmonically adjacent keys — the same key, its relative major/minor, or a
+            ±1 step around the harmonic key wheel.
             {#if keyMoves.length > 0}
               Extra moves on: {keyMoves.join(' · ')}.
             {/if}
             Change key moves in advanced settings → Key &amp; BPM.
           </InfoTooltip>
+          {#if $criteria.key.enabled}
+            <button
+              type="button"
+              class="lock"
+              class:on={$criteria.key.demanded}
+              aria-pressed={$criteria.key.demanded}
+              title="Must match"
+              onclick={() => toggleLock('key')}>{$criteria.key.demanded ? '🔒' : '🔓'}</button
+            >
+          {/if}
         </div>
-        {#if $criteria.key.enabled}
-          <button
-            type="button"
-            class="lock"
-            class:on={$criteria.key.demanded}
-            aria-pressed={$criteria.key.demanded}
-            title="Must match"
-            onclick={() => toggleLock('key')}>{$criteria.key.demanded ? '🔒' : '🔓'}</button
-          >
-        {/if}
       </div>
 
       <div class="criterion">
-        <label>
-          <input
-            type="checkbox"
-            checked={$criteria.bpm.enabled}
-            onchange={(e) => setEnabled('bpm', e)}
-          />
-          BPM within
-          <input type="number" min="0" max="50" bind:value={$criteria.bpm.maxPercent} /> %
-        </label>
-        {#if $criteria.bpm.enabled}
-          <button
-            type="button"
-            class="lock"
-            class:on={$criteria.bpm.demanded}
-            aria-pressed={$criteria.bpm.demanded}
-            title="Must match"
-            onclick={() => toggleLock('bpm')}>{$criteria.bpm.demanded ? '🔒' : '🔓'}</button
-          >
-        {/if}
+        <div class="criterion-head">
+          <label>
+            <input
+              type="checkbox"
+              checked={$criteria.bpm.enabled}
+              onchange={(e) => setEnabled('bpm', e)}
+            />
+            BPM within
+            <input type="number" min="0" max="50" bind:value={$criteria.bpm.maxPercent} /> %
+          </label>
+          {#if $criteria.bpm.enabled}
+            <button
+              type="button"
+              class="lock"
+              class:on={$criteria.bpm.demanded}
+              aria-pressed={$criteria.bpm.demanded}
+              title="Must match"
+              onclick={() => toggleLock('bpm')}>{$criteria.bpm.demanded ? '🔒' : '🔓'}</button
+            >
+          {/if}
+        </div>
         <!-- The metric-ratio toggles live in advanced → Key & BPM; surface
            their effect here so a bare "8%" is never silently misleading. -->
         {#if !$criteria.bpm.unitTime || $criteria.bpm.halfDouble || $criteria.bpm.twoThirds}
@@ -194,39 +203,41 @@
             {/if}
             Change the method and cutoff in advanced settings → Genre distance.
           </InfoTooltip>
+          {#if $criteria.genre.enabled}
+            <button
+              type="button"
+              class="lock"
+              class:on={$criteria.genre.demanded}
+              aria-pressed={$criteria.genre.demanded}
+              title="Must match"
+              onclick={() => toggleLock('genre')}>{$criteria.genre.demanded ? '🔒' : '🔓'}</button
+            >
+          {/if}
         </div>
-        {#if $criteria.genre.enabled}
-          <button
-            type="button"
-            class="lock"
-            class:on={$criteria.genre.demanded}
-            aria-pressed={$criteria.genre.demanded}
-            title="Must match"
-            onclick={() => toggleLock('genre')}>{$criteria.genre.demanded ? '🔒' : '🔓'}</button
-          >
-        {/if}
       </div>
 
       <div class="criterion">
-        <label>
-          <input
-            type="checkbox"
-            checked={$criteria.year.enabled}
-            onchange={(e) => setEnabled('year', e)}
-          />
-          Year within
-          <input type="number" min="0" max="50" bind:value={$criteria.year.maxYears} /> y
-        </label>
-        {#if $criteria.year.enabled}
-          <button
-            type="button"
-            class="lock"
-            class:on={$criteria.year.demanded}
-            aria-pressed={$criteria.year.demanded}
-            title="Must match"
-            onclick={() => toggleLock('year')}>{$criteria.year.demanded ? '🔒' : '🔓'}</button
-          >
-        {/if}
+        <div class="criterion-head">
+          <label>
+            <input
+              type="checkbox"
+              checked={$criteria.year.enabled}
+              onchange={(e) => setEnabled('year', e)}
+            />
+            Year within
+            <input type="number" min="0" max="50" bind:value={$criteria.year.maxYears} /> y
+          </label>
+          {#if $criteria.year.enabled}
+            <button
+              type="button"
+              class="lock"
+              class:on={$criteria.year.demanded}
+              aria-pressed={$criteria.year.demanded}
+              title="Must match"
+              onclick={() => toggleLock('year')}>{$criteria.year.demanded ? '🔒' : '🔓'}</button
+            >
+          {/if}
+        </div>
       </div>
 
       <div class="criterion threshold">
@@ -313,11 +324,16 @@
 
   /* The lock affordance: a small toggle at the row's right edge that pins the
      criterion as mandatory (v14 C2). Muted when open, accent when locked — so
-     a demanded criterion reads at a glance. */
+     a demanded criterion reads at a glance. Last child of its row's flex
+     head, pushed to the edge by margin-left: auto; fixed width so 🔒 ↔ 🔓
+     can't shift the row (ISSUES.md #6). */
   .lock {
-    position: absolute;
-    top: 6px;
-    right: 0;
+    margin-left: auto;
+    margin-top: 1px;
+    flex-shrink: 0;
+    width: 26px;
+    display: inline-flex;
+    justify-content: center;
     padding: 1px 4px;
     border: 1px solid transparent;
     border-radius: 4px;
@@ -348,20 +364,20 @@
     align-items: center;
     gap: 6px;
     flex-wrap: wrap;
-    padding-right: 26px;
     /* Clicking the row toggles the criterion; its label text isn't
        drag-selectable, so reading it never highlights letters (ISSUES.md #1). */
     -webkit-user-select: none;
     user-select: none;
   }
 
-  /* Key/Genre rows: the label + its info icon share one line, the head owns
-     the clearance for the absolute lock (ISSUES.md #2). */
+  /* Every criterion row's head: the label (+ info icon on Key/Genre) and the
+     lock share one line (ISSUES.md #2). flex-start anchors the lock to this
+     first line even when BPM grows a second line below for the ratio note
+     (ISSUES.md #6). */
   .criterion-head {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 6px;
-    padding-right: 26px;
   }
 
   .criterion-head label {
