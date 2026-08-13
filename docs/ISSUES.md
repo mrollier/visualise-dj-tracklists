@@ -150,16 +150,17 @@ active (see 3/8).
     animation" for the wheel.
 
 **Verified in the browser** (Playwright over the running dev server, sample
-library loaded, fresh `localStorage`): 18 checks covering every issue above
+library loaded, fresh `localStorage`): 21/21 checks covering every issue above
 plus the cross-cutting concerns — the load-sample guard and its cancel path,
 both header toggles' narrow/restore/auto-reveal/disabled-guard/
 empty-table-survives cycle, a scoped bulk clear undone in one `Cmd+Z`,
 criteria-lock alignment, ghost stars under a tightened BPM filter (including
 a manual edge losing its rendered line when an endpoint hides), the retry
 ring's curved label and full-donut click target, the radial morph's settle
-behaviour, the sector cross-fade, both themes, and a full reduced-motion
-sweep over the axis morph and the ring toggle — zero console or page errors
-across the whole pass.
+behaviour, the sector cross-fade, both themes, a full reduced-motion
+sweep over the axis morph and the ring toggle, easy-mode round trip, reduced-
+motion rider selectors live, and save/reload marks-off — zero console or page
+errors across the whole pass.
 
 ## Resolved in v17
 

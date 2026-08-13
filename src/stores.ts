@@ -305,6 +305,14 @@ function marksContextEqual(a: MarksContext | null, b: MarksContext | null): bool
  * doesn't cascade either. Reads `effectiveFilters` (not raw `filters`) so
  * easy mode's forced-off marks (stores.ts's `effectiveFilters`) also gate
  * this, not just the persisted layer.
+ *
+ * On a null↔non-null boundary transition (first flag on or last flag off),
+ * `visibleLibrary` recomputes twice — once with the new flags against the
+ * stale context, once with the new context — because it subscribes to
+ * `effectiveFilters` before `marksContext` exists in the graph, so Svelte's
+ * pending-bit diamond guard can't cover that ordering; the intermediate is
+ * content-identical (flags-on with a missing context is inert by design), so
+ * the cost is one extra O(n²) pass on those boundary clicks only.
  */
 const marksContext: Readable<MarksContext | null> = distinct(
   derived(
