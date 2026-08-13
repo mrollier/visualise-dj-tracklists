@@ -1,11 +1,85 @@
 # Issues — open
 
-Nothing open right now. Michiel's dictated review (six items) shipped in
-**v17** below (branch `v17-ux-review`), on top of the 13-item live review
-resolved in **v16**, the v14 UI review resolved in **v15**, and all nineteen
-v13 items resolved in **v14**
-([designs/design-v14.md](designs/design-v14.md) has the older per-issue notes).
-Each "Resolved" list records what actually shipped.
+Eleven items below, from Michiel's UX review of v17 — ready for planning.
+For history: the legal item plus five UX defects from that pass shipped in
+**v17** (branch `v17-ux-review`), on top of the 13-item live review resolved
+in **v16**, the v14 UI review resolved in **v15**, and all nineteen v13 items
+resolved in **v14** ([designs/design-v14.md](designs/design-v14.md) has the
+older per-issue notes). Each "Resolved" list records what actually shipped.
+
+## Open — v18 UX review
+
+Eleven items in Michiel's own numbering. 3 and 8 are one workstream; 11
+bundles four smaller animation fixes lettered a–d, tied back to 2, 7 and 10.
+
+1. **Loading the sample collection over itself silently wipes real work.**
+   The confirmation today only fires for a genuinely different library, so
+   re-loading the sample over an active session destroys every
+   constellation, ★ mark, manual combo and filter, with no warning and no
+   undo. Both the Load-sample button and the tour's entry points will
+   confirm whenever any user work exists, over any library including the
+   sample; a fresh app never sees the dialog.
+2. **The wheel's minor/major toggle animation ends in a colour snap, not a
+   fade.** The sector tint's opacity fade isn't smooth through its last
+   frame, and the ring's stars pop onto it instantly while the wedge is
+   still fading underneath. Fix: sectors cross-fade `fill` between
+   precomputed tints instead of fading opacity, and the stars join the same
+   fade mechanism built for every filter change (see 11b).
+3. **Tracks-view header ★/🔗 bulk-mutate the whole view — star everything
+   visible, delete every manual combo — which is dangerous and rarely what's
+   wanted.** Both retire as destructive actions and become filter toggles
+   instead: show only ★ tracks, or only tracks with a manual combo. Bulk
+   _removal_ stays possible — scoped to the selected playlists, or the whole
+   library when none are selected — moved into Advanced options behind a
+   confirm; one workstream with issue 8, which supplies the matching filter
+   rows.
+4. **The 🔗 icon changes appearance on row hover while a track is selected,
+   for no reason.** With a selection live every row is already a valid link
+   target, so the hover-triggered reveal only adds flicker. Every row's 🔗
+   becomes faintly visible for as long as a track stays selected; hover
+   changes only the cursor, and the selected/partner icons keep their full
+   accent.
+5. **The constellation panel's ↑/↓ buttons are redundant now that v17 added
+   drag-and-drop reordering.** Hide them on fine-pointer (mouse/trackpad)
+   setups; keep them for touch, since HTML5 drag doesn't fire there, and for
+   keyboard focus on any device.
+6. **The combo-criteria "must match" 🔒 locks don't line up.** Each is
+   `position: absolute` at a fixed top offset, so rows of different heights
+   (BPM wraps to two lines) throw it out of alignment with the rest. Move
+   every lock into its row's normal flex flow, fixed-width so 🔒 ↔ 🔓 can't
+   shift the row, anchored to the first line.
+7. **The wheel-centre "retry" / "force retry" state word sits low, and only
+   the thin ring edge is clickable.** Curve the word along the ring's lower
+   arc instead — the app's first `<textPath>` — and widen the click target
+   from the dashed edge to the whole outer donut, from the `+` hub's
+   boundary out past the words; ⟲ reset stays where it is.
+8. **Add optional filters for ★ tracks and tracks with a manual combo, off
+   by default.** They land as two new rows in the Advanced-options
+   Track-properties grid — the same grid whose property _columns_ are
+   already on by default — but the new filter checkboxes start unchecked,
+   so neither appears in the Filters panel until switched on. One
+   workstream with issue 3, which repoints the Tracks-view header ★/🔗 at
+   these two flags.
+9. **The favicon is a stale purple Figma lightning bolt, unrelated to the
+   app.** Replace it with the Big Dipper's four **bowl** stars connected by
+   thin lines, drawn in the wheel's own palette, on a tile that stays
+   legible at 16px in both light and dark browser chrome.
+10. **Filtering out a constellation member (e.g. a max-BPM cap) silently
+    breaks the walk — its arrows just vanish.** Render hidden members
+    instead as small, dim, non-interactive ghost stars at their true wheel
+    position, joined by dashed, dimmed arrows, so the constellation still
+    reads as one connected path even with some of it filtered out of view.
+11. **Four more micro-animations, all with a `prefers-reduced-motion`
+    escape:**
+    - **(a)** Swapping the Radius axis morphs each star directly from its
+      old orbit to its new one, staggered in a clockwise sweep — which also
+      fixes a rim-pinning artifact in the current tween, by construction.
+    - **(b)** Stars fade in and out on every filter change instead of
+      popping (ties to 2, which needs the same mechanism for sectors).
+    - **(c)** The retry ring eases in and out instead of appearing and
+      vanishing outright (ties to 7).
+    - **(d)** A walk member cross-fades between its star and ghost states
+      instead of swapping instantly (ties to 10).
 
 ## Resolved in v17
 
