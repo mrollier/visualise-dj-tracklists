@@ -235,7 +235,7 @@
       <span>Select a playlist or loosen the filters on the left to fill the table.</span>
     </div>
   {:else}
-    <table>
+    <table class:has-selection={$selectedId !== null}>
       <thead>
         <tr>
           <!-- Tags + position lead the row (v9 issue 13); the header ★
@@ -796,6 +796,15 @@
 
   .tag.on {
     color: var(--accent);
+    opacity: 1;
+  }
+
+  /* v18 #4: with a selection every row's 🔗 is a live target — steady, faint.
+     Hover changes only the cursor. Partners/selected (.on) stay full accent. */
+  table.has-selection td.manual .tag:not(.on) {
+    opacity: 0.35;
+  }
+  table.has-selection td.manual .tag:focus-visible {
     opacity: 1;
   }
 
