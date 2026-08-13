@@ -146,7 +146,10 @@ function relaxComponentAngles(
   for (let m = 1; m < n; m++) {
     const prev = sorted[m - 1]
     const cur = sorted[m]
-    const gap = Math.min(minAngularGapDeg(members[prev].r, members[cur].r, nodeRadius), uniformShare)
+    const gap = Math.min(
+      minAngularGapDeg(members[prev].r, members[cur].r, nodeRadius),
+      uniformShare,
+    )
     if (angles[cur] - angles[prev] < gap) angles[cur] = angles[prev] + gap
   }
   // Re-centre on the slot line (v10 issue 5): the one-directional sweep above
@@ -207,4 +210,21 @@ export function annularSectorPath(
     `L ${ix1} ${iy1} ` +
     `A ${r0} ${r0} 0 ${large} 0 ${ix0} ${iy0} Z`
   )
+}
+
+/**
+ * SVG path of a semicircular arc along a ring's lower half, left point
+ * (cx−r, cy) to right point (cx+r, cy), through the bottom. Sweep flag 0
+ * (counter-clockwise) so text laid on it via <textPath> reads left-to-right
+ * upright, rather than mirrored along the top of the circle. Used for the
+ * hub retry label, which curves along the ring instead of sitting on a
+ * straight baseline.
+ */
+export function lowerArcPath(cx: number, cy: number, r: number): string {
+  const round = (v: number) => Math.round(v * 100) / 100
+  const x0 = round(cx - r)
+  const x1 = round(cx + r)
+  const y = round(cy)
+  const rr = round(r)
+  return `M ${x0} ${y} A ${rr} ${rr} 0 0 0 ${x1} ${y}`
 }

@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import {
   annularSectorPath,
+  lowerArcPath,
   minAngularGapDeg,
   relaxSlotAngles,
   spreadHalfDeg,
@@ -92,11 +93,7 @@ describe('relaxSlotAngles (issue 17)', () => {
 
   test('an isolated node stays centred while its slot-mates spread (issue #6)', () => {
     // near1/near2 share a radius (they overlap); far is well clear of both.
-    const out = relaxSlotAngles(
-      [node('near1', 200), node('near2', 200), node('far', 260)],
-      6,
-      P,
-    )
+    const out = relaxSlotAngles([node('near1', 200), node('near2', 200), node('far', 260)], 6, P)
     expect(out.get('far')).toBe(0)
     const gap = Math.abs((out.get('near1') ?? 0) - (out.get('near2') ?? 0))
     expect(gap).toBeGreaterThanOrEqual(minAngularGapDeg(200, 200, P) - 0.05)
@@ -200,5 +197,26 @@ describe('annularSectorPath', () => {
     const nums = numbers(path)
     const points = nums.join(',')
     expect(points).toContain('50,')
+  })
+})
+
+describe('lowerArcPath', () => {
+  // The hub retry label's curve: left→right through the bottom of the ring,
+  // sweep flag 0 so text laid on it via <textPath> reads upright.
+  const numbers = (path: string) => (path.match(/-?\d+(\.\d+)?/g) ?? []).map(Number)
+
+  test('starts at (cx-r, cy) and ends at (cx+r, cy), through the bottom', () => {
+    const path = lowerArcPath(100, 80, 62)
+    expect(path.startsWith('M')).toBe(true)
+    const nums = numbers(path)
+    expect(nums[0]).toBeCloseTo(38, 6) // cx - r
+    expect(nums[1]).toBeCloseTo(80, 6) // cy
+    expect(nums[nums.length - 2]).toBeCloseTo(162, 6) // cx + r
+    expect(nums[nums.length - 1]).toBeCloseTo(80, 6) // cy
+  })
+
+  test('radius appears twice with a 0 sweep flag (upright glyphs, not mirrored)', () => {
+    const path = lowerArcPath(0, 0, 50)
+    expect(path).toContain('A 50 50 0 0 0')
   })
 })

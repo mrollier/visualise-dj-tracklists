@@ -2,11 +2,11 @@
   import { scaleLinear } from 'd3-scale'
   import { cubicOut } from 'svelte/easing'
   import { Tween } from 'svelte/motion'
-  import { fade } from 'svelte/transition'
+  import { fade, scale } from 'svelte/transition'
   import { ghostWalkIds } from '../core/ghosts'
   import { classIndexOfTrack } from '../core/iconClasses'
   import { ALL_CAMELOT_KEYS, camelotNumber, wheelSlotAngleDeg, type CamelotKey } from '../core/keys'
-  import { annularSectorPath, relaxSlotAngles, spreadHalfDeg } from '../core/layout'
+  import { annularSectorPath, lowerArcPath, relaxSlotAngles, spreadHalfDeg } from '../core/layout'
   import type { Track } from '../core/model'
   import {
     COLOR_SCHEMES,
@@ -836,6 +836,7 @@
             class="hub-retry"
             class:force={hubRetryState === 'force-retry'}
             class:spent={hubRetryState === 'reset-only'}
+            transition:scale={{ duration: motionMs(250), start: 0.85, easing: cubicOut }}
             role="button"
             tabindex={hubRetryState === 'reset-only' ? -1 : 0}
             aria-disabled={hubRetryState === 'reset-only'}
@@ -856,14 +857,22 @@
                   ? 'Every alternative has been tried — ⟲ restores the original pick'
                   : 'Not feeling it? Swap the last suggestion for a different pick'}</title
             >
-            <circle cx={CX} cy={CY} r="52" class="retry-hit" />
+            <circle cx={CX} cy={CY} r="58" class="retry-hit" />
             <circle cx={CX} cy={CY} r="52" class="retry-ring" vector-effect="non-scaling-stroke" />
-            <text x={CX} y={CY + 70} class="retry-label" text-anchor="middle"
-              >{hubRetryState === 'force-retry'
-                ? 'force retry'
-                : hubRetryState === 'reset-only'
-                  ? 'all tried'
-                  : 'retry'}</text
+            <!-- First <textPath> in the repo: the label curves along the
+                 ring's lower arc instead of sitting on a straight baseline.
+                 fill on <text> inherits into <textPath> per the SVG spec,
+                 so the hover/force/spent rules below (which target
+                 .retry-label) keep working unchanged. -->
+            <path id="retry-label-arc" d={lowerArcPath(CX, CY, 62)} fill="none" />
+            <text class="retry-label" text-anchor="middle"
+              ><textPath href="#retry-label-arc" startOffset="50%"
+                >{hubRetryState === 'force-retry'
+                  ? 'force retry'
+                  : hubRetryState === 'reset-only'
+                    ? 'all tried'
+                    : 'retry'}</textPath
+              ></text
             >
           </g>
           {#if hubRetryState !== 'retry' && triedIds.length > 0 && originalPickId !== lastHubPick?.trackId}
@@ -871,6 +880,7 @@
                  shown only while the slot actually diverges from the original -->
             <g
               class="hub-reset"
+              transition:scale={{ duration: motionMs(250), start: 0.85, easing: cubicOut }}
               role="button"
               tabindex="0"
               aria-label="Restore the original pick"
@@ -1266,16 +1276,23 @@
     stroke-dasharray: 4 4;
   }
 
-  /* Retry ring: a second, outer target that redraws the last hub pick. */
+  /* Retry ring: a second, outer target that redraws the last hub pick.
+     fill-box + center: the enter/exit scale (v18 #11c) grows from each
+     group's own centre rather than the SVG viewport's origin. */
   .hub-retry {
     cursor: pointer;
     outline: none;
+    transform-box: fill-box;
+    transform-origin: center;
   }
 
+  /* Widened to the full donut (v18 #7): band ≈46→70, so clicks land
+     anywhere between the ＋ hub's disc and past the visible ring —
+     including on the curved label text. */
   .retry-hit {
     fill: none;
     stroke: transparent;
-    stroke-width: 18;
+    stroke-width: 24;
     pointer-events: stroke;
   }
 
@@ -1359,6 +1376,8 @@
 
   .hub-reset {
     cursor: pointer;
+    transform-box: fill-box;
+    transform-origin: center;
   }
 
   .hub-reset .reset-glyph {
