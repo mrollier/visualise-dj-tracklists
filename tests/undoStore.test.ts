@@ -1,5 +1,6 @@
 import { get } from 'svelte/store'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
+import { clearStarsInScope } from '../src/core/marks'
 import {
   manualEdges,
   mustInclude,
@@ -9,7 +10,7 @@ import {
   settings,
   tracklist,
 } from '../src/stores'
-import { redoOnce, resetUndo, startUndo, undoOnce } from '../src/lib/undoStore'
+import { redoOnce, resetUndo, startUndo, undoOnce, withOneUndoStep } from '../src/lib/undoStore'
 
 describe('undo wiring (v12 WS9/WS14)', () => {
   beforeEach(() => {
@@ -52,6 +53,37 @@ describe('undo wiring (v12 WS9/WS14)', () => {
     pinnedFirst.set('x')
     undoOnce()
     expect(get(pinnedFirst)).toBeNull()
+  })
+
+  test('a scoped bulk clear touching mustInclude and both pins is a single undo step (v18 #3, Task 8)', () => {
+    // Mark up some state, then re-baseline: only the CLEAR itself is under test.
+    mustInclude.set(['x', 'y'])
+    pinnedFirst.set('x')
+    pinnedLast.set('y')
+    resetUndo()
+
+    // The Advanced-menu button's own sequence: compute the scoped result,
+    // then write all three stores. Without withOneUndoStep, three separate
+    // .set() calls to three separate stores record three separate steps
+    // (Svelte's classic stores notify per-store, synchronously — nothing
+    // coalesces three back-to-back top-level writes the way the debounce
+    // below coalesces a tuning burst), so one Cmd+Z would only undo the
+    // last of the three.
+    const scope = new Set(['x', 'y'])
+    const result = clearStarsInScope(scope, get(mustInclude), get(pinnedFirst), get(pinnedLast))
+    withOneUndoStep(() => {
+      mustInclude.set(result.mustInclude)
+      pinnedFirst.set(result.pinnedFirst)
+      pinnedLast.set(result.pinnedLast)
+    })
+    expect(get(mustInclude)).toEqual([])
+    expect(get(pinnedFirst)).toBeNull()
+    expect(get(pinnedLast)).toBeNull()
+
+    undoOnce()
+    expect(get(mustInclude)).toEqual(['x', 'y'])
+    expect(get(pinnedFirst)).toBe('x')
+    expect(get(pinnedLast)).toBe('y')
   })
 
   test('a settings change is undoable after the debounce window', () => {

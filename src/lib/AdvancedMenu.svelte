@@ -1,8 +1,16 @@
 <script lang="ts">
   import { get } from 'svelte/store'
   import { matchedGenrePairs } from '../core/combos'
+  import { NOT_IN_PLAYLIST } from '../core/filter'
   import { METHOD_LABEL_LONG, METHOD_PICK_ORDER, type GenreMethod } from '../core/genre'
-  import { isMarkFilterKey, MARK_FILTERS, type MarkFilterKey } from '../core/marks'
+  import {
+    bulkScopeIds,
+    clearCombosInScope,
+    clearStarsInScope,
+    isMarkFilterKey,
+    MARK_FILTERS,
+    type MarkFilterKey,
+  } from '../core/marks'
   import type { Track } from '../core/model'
   import { resetAdvancedCriteria, resetAdvancedSettings } from '../core/reset'
   import { type BpmProgression } from '../core/settings'
@@ -14,12 +22,16 @@
   import { sampleLoadNeedsConfirmation } from './persistence'
   import SliderRow from './SliderRow.svelte'
   import { startTour } from './tour'
+  import { withOneUndoStep } from './undoStore'
   import {
     criteria,
     filters,
+    library,
+    manualEdges,
     mustInclude,
     pinnedFirst,
     pinnedLast,
+    playlists,
     rightPanel,
     selectedId,
     setMarkFilter,
@@ -118,6 +130,63 @@
         : [...s.hiddenColumns, field],
     }))
   }
+
+  // --- Scoped bulk clears (v18 #3, Task 8): the whole-view ★/🔗 bulk
+  // actions Task 7 retired from the Tracks-view header (they're quick
+  // filters now) come back here, scoped to the current playlist selection
+  // and behind a confirm dialog each. `scope` uses bulkScopeIds rather than
+  // the playlistScopedLibrary store: an EMPTY playlist selection has to mean
+  // "the whole library" for these buttons (matching the dialog copy's "no
+  // selection -> whole library" branch below), not applyPlaylistFilter's
+  // ordinary "nothing selected" semantics that playlistScopedLibrary relies
+  // on elsewhere — see marks.ts's bulkScopeIds doc for why they differ.
+  // starClear/comboClear double as both the live button counts AND the
+  // exact new state a confirm writes — one source of truth, cheap to
+  // recompute since mustInclude/pins/manualEdges are small session lists,
+  // not the library itself.
+  const scope = $derived(bulkScopeIds($library, $filters.playlists, $playlists))
+  const starClear = $derived(clearStarsInScope(scope, $mustInclude, $pinnedFirst, $pinnedLast))
+  const comboClear = $derived(clearCombosInScope(scope, $manualEdges))
+
+  // The confirm-dialog bodies name the scope: selected playlists by name (
+  // NOT_IN_PLAYLIST reads as "Not in a playlist", matching
+  // PlaylistsSection's label for the same pseudo-entry), or the whole
+  // library when nothing is ticked.
+  const scopeNames = $derived(
+    ($filters.playlists ?? []).map((name) =>
+      name === NOT_IN_PLAYLIST ? 'Not in a playlist' : name,
+    ),
+  )
+  const scopeCopy = $derived(
+    scopeNames.length === 0
+      ? 'across the whole library'
+      : `in the selected playlists (${scopeNames.join(', ')})`,
+  )
+  const clearStarsBody = $derived(
+    `Removes the ★ mark from ${starClear.cleared} track${starClear.cleared === 1 ? '' : 's'} ${scopeCopy}. Cmd+Z undoes it.`,
+  )
+  const clearCombosBody = $derived(
+    `Removes ${comboClear.cleared} manual combo${comboClear.cleared === 1 ? '' : 's'} ${scopeCopy}. Cmd+Z undoes it.`,
+  )
+
+  let clearStarsConfirm: ConfirmDialog
+  let clearCombosConfirm: ConfirmDialog
+
+  // Three stores (mustInclude + both pins) still land as ONE undo step —
+  // see undoStore.ts's withOneUndoStep for why that needs help (Svelte's
+  // classic stores notify per store, synchronously, so three sequential
+  // top-level .set() calls would otherwise record three).
+  function clearStars() {
+    withOneUndoStep(() => {
+      mustInclude.set(starClear.mustInclude)
+      pinnedFirst.set(starClear.pinnedFirst)
+      pinnedLast.set(starClear.pinnedLast)
+    })
+  }
+  function clearCombos() {
+    manualEdges.set(comboClear.edges)
+  }
+
   // Live feedback for the k/threshold sliders (issue 12): on the wheel the
   // genre criterion is often masked by the other criteria, so show directly
   // how many genre pairs the current settings link.
@@ -513,6 +582,28 @@
         </div>
       {/each}
     </div>
+    <!-- Scoped bulk clears (v18 #3, Task 8): the whole-view ★/🔗 bulk
+         actions retired from the Tracks-view header (3e69be8) come back
+         here — scoped to the playlist selection above, confirmed, and
+         undoable in one Cmd+Z (clearStars/clearCombos). -->
+    <div class="bulk-clear">
+      <button
+        class="danger"
+        disabled={starClear.cleared === 0}
+        aria-label="Clear star marks ({starClear.cleared})"
+        onclick={() => clearStarsConfirm.open(clearStars)}
+      >
+        Clear ★ marks ({starClear.cleared})
+      </button>
+      <button
+        class="danger"
+        disabled={comboClear.cleared === 0}
+        aria-label="Clear manual combos ({comboClear.cleared})"
+        onclick={() => clearCombosConfirm.open(clearCombos)}
+      >
+        Clear 🔗 combos ({comboClear.cleared})
+      </button>
+    </div>
   </details>
 
   <details class="section" bind:open={sectionState.set} ontoggle={(e) => persistToggle('set', e)}>
@@ -636,6 +727,25 @@
     title="Reset all advanced settings?"
     body="Genre matching, key & BPM moves, display options and suggestion settings all return to their defaults. Filters, playlists and your sets are kept."
     confirmLabel="Reset settings"
+    danger
+  />
+
+  <!-- Track properties' scoped bulk-clear buttons (v18 #3, Task 8): kept
+       here with the panel's other confirm dialogs, not nested inside the
+       Track properties <details>, so a closed section can never suppress a
+       dialog that's mid-open (matches tourConfirm/resetConfirm above). -->
+  <ConfirmDialog
+    bind:this={clearStarsConfirm}
+    title="Clear ★ marks?"
+    body={clearStarsBody}
+    confirmLabel="Clear marks"
+    danger
+  />
+  <ConfirmDialog
+    bind:this={clearCombosConfirm}
+    title="Clear manual combos?"
+    body={clearCombosBody}
+    confirmLabel="Clear combos"
     danger
   />
 </aside>
@@ -863,6 +973,22 @@
 
   .reset-defaults:hover {
     color: var(--ink);
+  }
+
+  /* The scoped bulk-clear buttons (v18 #3, Task 8): full width like
+     .reset-defaults, but each stands on its own — no shared hover-color
+     override, so button.danger's own colour (app.css) carries through. */
+  .bulk-clear {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 8px;
+  }
+
+  .bulk-clear button {
+    width: 100%;
+    font-size: 12px;
+    padding: 3px 8px;
   }
 
   /* Two radio choices; each label keeps its circle and text on one line

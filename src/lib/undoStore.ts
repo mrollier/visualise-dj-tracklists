@@ -120,6 +120,37 @@ export function resetUndo(): void {
   stack = initStack(currentSnapshot())
 }
 
+/**
+ * Run `fn` — which may write to several undo-tracked stores for one logical
+ * edit — as exactly ONE undo step (v18 #3, Task 8: the Advanced menu's
+ * scoped bulk-clear buttons are the first caller — clearing ★ marks touches
+ * mustInclude AND both pins, three separate stores). Three sequential
+ * top-level `.set()` calls would otherwise record three separate steps:
+ * Svelte's classic stores notify per-store, synchronously, and nothing here
+ * coalesces three back-to-back writes the way the debounce below coalesces
+ * a tuning burst — each write's own notification sees the OTHER two stores
+ * still at their pre-edit values, so `watched` below would push a partial
+ * snapshot after every single one of the three, and a single Cmd+Z would
+ * only undo the last of them.
+ *
+ * Reuses the exact `applying` guard `applySnapshot` uses so undo/redo
+ * itself never re-records — here it suppresses `watched`'s subscriber for
+ * the duration of `fn`, then one manual `record()` captures the combined
+ * end result as a single step. Any pending (debounced) tuning change is
+ * flushed first, as its own step, preserving order — the same rule
+ * `undoOnce`/`redoOnce` and the watcher's own "real edit" branch follow.
+ */
+export function withOneUndoStep(fn: () => void): void {
+  flushPending()
+  applying = true
+  try {
+    fn()
+  } finally {
+    applying = false
+  }
+  stack = record(stack, currentSnapshot())
+}
+
 export function undoOnce(): void {
   flushPending()
   const next = undo(stack)

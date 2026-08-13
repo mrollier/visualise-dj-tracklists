@@ -1,7 +1,10 @@
 import { get } from 'svelte/store'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
-import { EMPTY_FILTERS } from '../src/core/filter'
+import { EMPTY_FILTERS, NOT_IN_PLAYLIST } from '../src/core/filter'
 import {
+  bulkScopeIds,
+  clearCombosInScope,
+  clearStarsInScope,
   comboIdSet,
   isMarkFilterKey,
   MARK_FILTER_KEYS,
@@ -9,9 +12,10 @@ import {
   starredIdSet,
   type MarkFilterKey,
 } from '../src/core/marks'
-import type { ManualEdge } from '../src/core/model'
+import type { ManualEdge, Playlist } from '../src/core/model'
 import { DEFAULT_SETTINGS } from '../src/core/settings'
 import { filters, setMarkFilter, settings, toggleMarkFilter } from '../src/stores'
+import { track } from './helpers'
 
 describe('starredIdSet (v18 #3/#8)', () => {
   test('collects must-include ids, deduped', () => {
@@ -139,5 +143,107 @@ describe('setMarkFilter / toggleMarkFilter (v18 #3/#8 review fix, B1)', () => {
     expect(get(filters).marks.comboOnly).toBe(true)
     toggleMarkFilter('comboOnly')
     expect(get(filters).marks.comboOnly).toBe(false)
+  })
+})
+
+describe('bulkScopeIds (v18 #3, Task 8)', () => {
+  const library = [track({ id: 'a' }), track({ id: 'b' }), track({ id: 'c' })]
+  const playlists: Playlist[] = [{ name: 'Openers', trackIds: ['a', 'b'] }]
+
+  test('a null selection (playlist filter inactive) falls back to the whole library', () => {
+    expect(bulkScopeIds(library, null, playlists)).toEqual(new Set(['a', 'b', 'c']))
+  })
+
+  test('an empty selection ALSO falls back to the whole library — unlike applyPlaylistFilter, where [] means "nothing"', () => {
+    expect(bulkScopeIds(library, [], playlists)).toEqual(new Set(['a', 'b', 'c']))
+  })
+
+  test('a real selection scopes to just the chosen playlists members', () => {
+    expect(bulkScopeIds(library, ['Openers'], playlists)).toEqual(new Set(['a', 'b']))
+  })
+
+  test('honours the NOT_IN_PLAYLIST pseudo-entry, same as applyPlaylistFilter', () => {
+    expect(bulkScopeIds(library, [NOT_IN_PLAYLIST], playlists)).toEqual(new Set(['c']))
+  })
+
+  test('a selection with no imported playlists is inert — the whole library either way', () => {
+    expect(bulkScopeIds(library, ['Openers'], [])).toEqual(new Set(['a', 'b', 'c']))
+  })
+})
+
+describe('clearStarsInScope (v18 #3, Task 8)', () => {
+  test('drops only the must-include ids that are in scope', () => {
+    const result = clearStarsInScope(new Set(['a', 'b']), ['a', 'b', 'c'], null, null)
+    expect(result.mustInclude).toEqual(['c'])
+    expect(result.cleared).toBe(2)
+  })
+
+  test('leaves out-of-scope stars (must-include and pin alike) untouched', () => {
+    const result = clearStarsInScope(new Set(['a']), ['a', 'z'], 'z', null)
+    expect(result.mustInclude).toEqual(['z'])
+    expect(result.pinnedFirst).toBe('z')
+    expect(result.cleared).toBe(1)
+  })
+
+  test('clears a pin only when the pinned track itself is in scope', () => {
+    const result = clearStarsInScope(new Set(['first-id']), [], 'first-id', 'last-id')
+    expect(result.pinnedFirst).toBeNull()
+    expect(result.pinnedLast).toBe('last-id')
+    expect(result.cleared).toBe(1)
+  })
+
+  test('a track that is both must-include and a pin counts once, not twice', () => {
+    const result = clearStarsInScope(new Set(['b']), ['b'], 'b', null)
+    expect(result.mustInclude).toEqual([])
+    expect(result.pinnedFirst).toBeNull()
+    expect(result.cleared).toBe(1)
+  })
+
+  test('an empty scope clears nothing', () => {
+    const result = clearStarsInScope(new Set(), ['a', 'b'], 'a', 'b')
+    expect(result).toEqual({
+      mustInclude: ['a', 'b'],
+      pinnedFirst: 'a',
+      pinnedLast: 'b',
+      cleared: 0,
+    })
+  })
+})
+
+describe('clearCombosInScope (v18 #3, Task 8)', () => {
+  const edges: ManualEdge[] = [
+    { a: 'x', b: 'y' },
+    { a: 'y', b: 'z' },
+    { a: 'p', b: 'q' },
+  ]
+
+  test('removes an edge when EITHER endpoint is in scope', () => {
+    const result = clearCombosInScope(new Set(['z']), edges)
+    expect(result.edges).toEqual([
+      { a: 'x', b: 'y' },
+      { a: 'p', b: 'q' },
+    ])
+    expect(result.cleared).toBe(1)
+  })
+
+  test('an edge with both endpoints in scope is still removed and counted once', () => {
+    const result = clearCombosInScope(new Set(['x', 'y']), edges)
+    expect(result.edges).toEqual([{ a: 'p', b: 'q' }])
+    expect(result.cleared).toBe(2) // {x,y} and {y,z} both touch the scope
+  })
+
+  test('an edge with neither endpoint in scope survives', () => {
+    const result = clearCombosInScope(new Set(['q']), edges)
+    expect(result.edges).toEqual([
+      { a: 'x', b: 'y' },
+      { a: 'y', b: 'z' },
+    ])
+    expect(result.cleared).toBe(1)
+  })
+
+  test('an empty scope clears nothing', () => {
+    const result = clearCombosInScope(new Set(), edges)
+    expect(result.edges).toEqual(edges)
+    expect(result.cleared).toBe(0)
   })
 })
