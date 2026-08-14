@@ -1,6 +1,37 @@
 # Issues — open
 
-Nothing open right now. Eleven items from Michiel's UX review of v17 shipped
+## Open — v19 z-order review
+
+Six z-order paint-order bugs in the wheel discovered during a review of SVG
+rendering in WheelView.svelte. The wheel's layers render ad-hoc (grid, labels,
+sectors, spokes, rim) with no explicit layering, so document order controls
+which elements appear on top.
+
+1. **Centre zone label paints under the radial spokes.** The "no … value" label
+   at the wheel's centre renders before the 24 radial spokes whose inner radius
+   (80) its letters cross, causing the spokes to lie over the text.
+
+2. **The rim circle passes through the outermost tick label's digits.** The outer
+   rim (r = R_MAX+12 = 342) paints after the outermost tick label and passes
+   through the top ~1px of its digits.
+
+3. **Gutter star stacks cover the gutter tick numbers.** Stacks of ≥2 tracks on
+   a single tick value in the gutter paint after and cover the gutter tick
+   numbers.
+
+4. **Edges to missing-value gutter stars cross the gutter "no value" label.**
+   Edges drawn to gutter stars representing tracks with missing values paint
+   after and cross the gutter's "no value" label.
+
+5. **Radial edges sweeping to the gutter cross the key labels.** Edges sweeping
+   from the wheel to the gutter cross the key labels in the 2–4 o'clock region.
+
+6. **Fonts don't counter-scale under zoom — explicitly staying open this wave.**
+   At high zoom (k up to 8), node radii divide by the zoom factor but font
+   sizes don't, causing labels to grow up to 8×, collide with the rim, and crop
+   at the viewBox. This item is explicitly staying open for the next wave.
+
+Eleven items from Michiel's UX review of v17 shipped
 in **v18** below (branch `v18-ux-wave`), on top of the legal item plus five
 UX defects from that pass resolved in **v17** (branch `v17-ux-review`), the
 13-item live review resolved in **v16**, the v14 UI review resolved in
