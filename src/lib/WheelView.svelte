@@ -740,8 +740,8 @@
   >
     <g class="zoom-layer" transform={zoomTransform}>
       <!-- SVG paint order is document order, so this group's child order is
-           a deliberate layer stack (bugs 1+2, H2, H3). Full order for the
-           WHOLE file:
+           a deliberate layer stack (bugs 1+2, H2, H3). Full paint order for the
+           zoom-layer group:
              1. sector fills
              2. spokes
              3. grid circles + dashed fallback circle
@@ -827,7 +827,6 @@
         {/each}
       {/if}
 
-      <!-- Hub button: suggest the next track for the set -->
       <!-- Suggestion edges: only around the selected track (v9 issue 8) -->
       {#each $focusEdges as edge (`${edge.sourceId}→${edge.targetId}`)}
         {@const a = nodeById.get(edge.sourceId)}
