@@ -740,19 +740,22 @@
   >
     <g class="zoom-layer" transform={zoomTransform}>
       <!-- SVG paint order is document order, so this group's child order is
-           a deliberate layer stack (bugs 1+2, H2, H3). Target order for the
-           WHOLE file — layers 7-11 are placed by a later task; this task
-           only reorders the chrome (1-5) and inserts the label pass (6):
+           a deliberate layer stack (bugs 1+2, H2, H3). Full order for the
+           WHOLE file:
              1. sector fills
              2. spokes
              3. grid circles + dashed fallback circle
              4. rim + gutter axis/tick lines
              5. edges (combo → manual → defs → walk group)
              6. static labels, haloed (tick, zone ×3, key)
-             7. retry group
+             7. retry group — deliberately UNDER the stars so a fallback-ring
+                star (r=70) sitting inside the retry hit band (r 46-70)
+                still wins hover/click
              8. ghost nodes
              9. real nodes
-             10. gutter tick numbers (sole label above data)
+             10. gutter tick numbers (sole label above data — the axis stays
+                 readable over a star stack; pointer-events: none in the
+                 halo CSS keeps the stars interactive underneath)
              11. ⟲ reset disc, then hub (LAST — issue 17)
            Rule: labels sit above all static geometry and above edges; data
            (nodes) sits above labels, except the gutter tick numbers. -->
@@ -809,9 +812,8 @@
       <circle cx={CX} cy={CY} r={R_MAX + 12} class="ring" vector-effect="non-scaling-stroke" />
 
       <!-- No-key gutter axis + tick marks: same scale as the wheel radius,
-           vertically. The gutter-tick-label numbers stay here for now
-           (data-adjacent, not chrome) — a later task lifts them above the
-           nodes (layer 10, see the ordering note above). -->
+           vertically. The gutter-tick-label numbers live above the nodes
+           (layer 10, see the ordering note above), not here. -->
       {#if hasUnkeyed}
         <line x1={GUTTER_X} y1={gutterTop - 10} x2={GUTTER_X} y2={gutterBottom + 10} class="ring" />
         {#each gridTicks as tick (tick)}
@@ -822,7 +824,6 @@
             y2={gutterY(tick)}
             class="spoke"
           />
-          <text x={GUTTER_X + 9} y={gutterY(tick) + 3} class="gutter-tick-label">{tick}</text>
         {/each}
       {/if}
 
@@ -986,6 +987,57 @@
         </text>
       {/if}
 
+      <!-- Hub retry band: layer 7, see the ordering note above. Painted
+           deliberately BEFORE the ghost/node blocks (under the stars) so a
+           fallback-ring star (r=70) sitting inside the retry hit band
+           (r 46-70) still wins hover/click there; the visible ring (r=52)
+           and curved label barely graze stars at 6 o'clock. -->
+      {#if $visibleLibrary.length > 0 && hubRetryState !== 'none'}
+        <g
+          class="hub-retry"
+          class:force={hubRetryState === 'force-retry'}
+          class:spent={hubRetryState === 'reset-only'}
+          transition:scale={{ duration: motionMs(250), start: 0.85, easing: cubicOut }}
+          role="button"
+          tabindex={hubRetryState === 'reset-only' ? -1 : 0}
+          aria-disabled={hubRetryState === 'reset-only'}
+          aria-label={hubRetryState === 'force-retry'
+            ? 'Force retry: swap the last pick for the closest rule-breaking one'
+            : hubRetryState === 'reset-only'
+              ? 'Every alternative has been tried'
+              : 'Retry: replace the last suggested track with another pick'}
+          onclick={hubRetry}
+          onkeydown={(e) => {
+            if (e.key === 'Enter') hubRetry()
+          }}
+        >
+          <title
+            >{hubRetryState === 'force-retry'
+              ? 'No matching alternative left — retrying knowingly breaks the rules'
+              : hubRetryState === 'reset-only'
+                ? 'Every alternative has been tried — ⟲ restores the original pick'
+                : 'Not feeling it? Swap the last suggestion for a different pick'}</title
+          >
+          <circle cx={CX} cy={CY} r="58" class="retry-hit" />
+          <circle cx={CX} cy={CY} r="52" class="retry-ring" vector-effect="non-scaling-stroke" />
+          <!-- First <textPath> in the repo: the label curves along the
+               ring's lower arc instead of sitting on a straight baseline.
+               fill on <text> inherits into <textPath> per the SVG spec,
+               so the hover/force/spent rules below (which target
+               .retry-label) keep working unchanged. -->
+          <path id="retry-label-arc" d={lowerArcPath(CX, CY, 62)} fill="none" />
+          <text class="retry-label" text-anchor="middle"
+            ><textPath href="#retry-label-arc" startOffset="50%"
+              >{hubRetryState === 'force-retry'
+                ? 'force retry'
+                : hubRetryState === 'reset-only'
+                  ? 'all tried'
+                  : 'retry'}</textPath
+            ></text
+          >
+        </g>
+      {/if}
+
       <!-- Ghost stars (v18 #11): walk members the filters currently hide.
            Layer 8 (see the ordering note above) — real nodes (layer 9)
            painting over this is what lets a track crossing the
@@ -1068,76 +1120,41 @@
         </g>
       {/each}
 
-      <!-- Hub button: target layers 7 (retry group) and 11 (⟲ reset disc,
-           then the hub itself, LAST) — see the ordering note at the top of
-           this group. Not yet relocated to layer 7's position; a later task
-           moves the retry group without touching this section otherwise.
-           Painted after the nodes so edges and nodes never steal its clicks
-           (issue 17), with an oversized transparent hit circle on each part. -->
+      <!-- Gutter tick numbers: layer 10, the convention's rule-10 exception —
+           the one label painted ABOVE the data instead of below it, so the
+           axis stays readable over a stack of stars; pointer-events: none
+           in the halo CSS keeps the stars interactive underneath. -->
+      {#if hasUnkeyed}
+        {#each gridTicks as tick (tick)}
+          <text x={GUTTER_X + 9} y={gutterY(tick) + 3} class="gutter-tick-label">{tick}</text>
+        {/each}
+      {/if}
+
+      <!-- Hub button: layer 11 (⟲ reset disc, then the hub itself, LAST) —
+           see the ordering note at the top of this group. The retry band
+           (layer 7) has moved above, before the ghost/node blocks, so
+           fallback-ring stars win hover/click inside it; hub + ⟲ stay LAST
+           here so edges and nodes never steal their clicks (issue 17),
+           each with an oversized transparent hit circle. -->
       {#if $visibleLibrary.length > 0}
-        {#if hubRetryState !== 'none'}
+        {#if hubRetryState !== 'none' && hubRetryState !== 'retry' && triedIds.length > 0 && originalPickId !== lastHubPick?.trackId}
+          <!-- ⟲ reset-to-original: part of the force-retry morph (issue 3),
+               shown only while the slot actually diverges from the original -->
           <g
-            class="hub-retry"
-            class:force={hubRetryState === 'force-retry'}
-            class:spent={hubRetryState === 'reset-only'}
+            class="hub-reset"
             transition:scale={{ duration: motionMs(250), start: 0.85, easing: cubicOut }}
             role="button"
-            tabindex={hubRetryState === 'reset-only' ? -1 : 0}
-            aria-disabled={hubRetryState === 'reset-only'}
-            aria-label={hubRetryState === 'force-retry'
-              ? 'Force retry: swap the last pick for the closest rule-breaking one'
-              : hubRetryState === 'reset-only'
-                ? 'Every alternative has been tried'
-                : 'Retry: replace the last suggested track with another pick'}
-            onclick={hubRetry}
+            tabindex="0"
+            aria-label="Restore the original pick"
+            onclick={hubReset}
             onkeydown={(e) => {
-              if (e.key === 'Enter') hubRetry()
+              if (e.key === 'Enter') hubReset(e)
             }}
           >
-            <title
-              >{hubRetryState === 'force-retry'
-                ? 'No matching alternative left — retrying knowingly breaks the rules'
-                : hubRetryState === 'reset-only'
-                  ? 'Every alternative has been tried — ⟲ restores the original pick'
-                  : 'Not feeling it? Swap the last suggestion for a different pick'}</title
-            >
-            <circle cx={CX} cy={CY} r="58" class="retry-hit" />
-            <circle cx={CX} cy={CY} r="52" class="retry-ring" vector-effect="non-scaling-stroke" />
-            <!-- First <textPath> in the repo: the label curves along the
-                 ring's lower arc instead of sitting on a straight baseline.
-                 fill on <text> inherits into <textPath> per the SVG spec,
-                 so the hover/force/spent rules below (which target
-                 .retry-label) keep working unchanged. -->
-            <path id="retry-label-arc" d={lowerArcPath(CX, CY, 62)} fill="none" />
-            <text class="retry-label" text-anchor="middle"
-              ><textPath href="#retry-label-arc" startOffset="50%"
-                >{hubRetryState === 'force-retry'
-                  ? 'force retry'
-                  : hubRetryState === 'reset-only'
-                    ? 'all tried'
-                    : 'retry'}</textPath
-              ></text
-            >
+            <title>Restore the original pick and start the cycle over</title>
+            <circle cx={CX} cy={CY - 52} r="11" class="reset-disc" />
+            <text x={CX} y={CY - 48} class="reset-glyph" text-anchor="middle">⟲</text>
           </g>
-          {#if hubRetryState !== 'retry' && triedIds.length > 0 && originalPickId !== lastHubPick?.trackId}
-            <!-- ⟲ reset-to-original: part of the force-retry morph (issue 3),
-                 shown only while the slot actually diverges from the original -->
-            <g
-              class="hub-reset"
-              transition:scale={{ duration: motionMs(250), start: 0.85, easing: cubicOut }}
-              role="button"
-              tabindex="0"
-              aria-label="Restore the original pick"
-              onclick={hubReset}
-              onkeydown={(e) => {
-                if (e.key === 'Enter') hubReset(e)
-              }}
-            >
-              <title>Restore the original pick and start the cycle over</title>
-              <circle cx={CX} cy={CY - 52} r="11" class="reset-disc" />
-              <text x={CX} y={CY - 48} class="reset-glyph" text-anchor="middle">⟲</text>
-            </g>
-          {/if}
         {/if}
         <g
           class="hub"
