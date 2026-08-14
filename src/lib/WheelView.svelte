@@ -739,29 +739,23 @@
     aria-label="Harmonic key wheel of the track library"
   >
     <g class="zoom-layer" transform={zoomTransform}>
-      <!-- Radial grid + tick labels -->
-      {#each gridTicks as tick (tick)}
-        <circle
-          cx={CX}
-          cy={CY}
-          r={radialScale(tick)}
-          class="gridline"
-          vector-effect="non-scaling-stroke"
-        />
-        <text x={CX + 6} y={CY - radialScale(tick) - 4} class="tick-label">{tick}</text>
-      {/each}
-      {#if hasMissingRadial}
-        <circle
-          cx={CX}
-          cy={CY}
-          r={R_FALLBACK}
-          class="gridline dashed"
-          vector-effect="non-scaling-stroke"
-        />
-        <text x={CX} y={CY - R_FALLBACK - 8} class="zone-label" text-anchor="middle">
-          no {AXIS_LABEL[$radialAxis]} value
-        </text>
-      {/if}
+      <!-- SVG paint order is document order, so this group's child order is
+           a deliberate layer stack (bugs 1+2, H2, H3). Target order for the
+           WHOLE file — layers 7-11 are placed by a later task; this task
+           only reorders the chrome (1-5) and inserts the label pass (6):
+             1. sector fills
+             2. spokes
+             3. grid circles + dashed fallback circle
+             4. rim + gutter axis/tick lines
+             5. edges (combo → manual → defs → walk group)
+             6. static labels, haloed (tick, zone ×3, key)
+             7. retry group
+             8. ghost nodes
+             9. real nodes
+             10. gutter tick numbers (sole label above data)
+             11. ⟲ reset disc, then hub (LAST — issue 17)
+           Rule: labels sit above all static geometry and above edges; data
+           (nodes) sits above labels, except the gutter tick numbers. -->
 
       <!-- Key sector backgrounds: subtle minor (A) vs major (B) tint per slot.
            The minor/major filter (v8 issue 10) fades the excluded ring's tint
@@ -791,22 +785,33 @@
         />
       {/each}
 
-      <!-- Key slot labels -->
-      <circle cx={CX} cy={CY} r={R_MAX + 12} class="ring" vector-effect="non-scaling-stroke" />
-      {#each ALL_CAMELOT_KEYS as key (key)}
-        {@const pos = keyLabelPos(key)}
-        <text
-          x={pos.x}
-          y={pos.y}
-          class="key-label"
-          class:major={key.endsWith('B')}
-          class:excluded={keyExcluded(key)}
-          dominant-baseline="middle"
-          text-anchor="middle">{key}</text
-        >
+      <!-- Radial grid -->
+      {#each gridTicks as tick (tick)}
+        <circle
+          cx={CX}
+          cy={CY}
+          r={radialScale(tick)}
+          class="gridline"
+          vector-effect="non-scaling-stroke"
+        />
       {/each}
+      {#if hasMissingRadial}
+        <circle
+          cx={CX}
+          cy={CY}
+          r={R_FALLBACK}
+          class="gridline dashed"
+          vector-effect="non-scaling-stroke"
+        />
+      {/if}
 
-      <!-- No-key gutter: same scale as the wheel radius, vertically -->
+      <!-- Rim -->
+      <circle cx={CX} cy={CY} r={R_MAX + 12} class="ring" vector-effect="non-scaling-stroke" />
+
+      <!-- No-key gutter axis + tick marks: same scale as the wheel radius,
+           vertically. The gutter-tick-label numbers stay here for now
+           (data-adjacent, not chrome) — a later task lifts them above the
+           nodes (layer 10, see the ordering note above). -->
       {#if hasUnkeyed}
         <line x1={GUTTER_X} y1={gutterTop - 10} x2={GUTTER_X} y2={gutterBottom + 10} class="ring" />
         {#each gridTicks as tick (tick)}
@@ -819,15 +824,6 @@
           />
           <text x={GUTTER_X + 9} y={gutterY(tick) + 3} class="gutter-tick-label">{tick}</text>
         {/each}
-        <text x={GUTTER_X} y={gutterTop - 26} class="zone-label" text-anchor="middle">no key</text>
-        <text
-          x={GUTTER_X}
-          y={gutterBottom + GUTTER_MISSING_Y_GAP + 20}
-          class="zone-label"
-          text-anchor="middle"
-        >
-          no value
-        </text>
       {/if}
 
       <!-- Hub button: suggest the next track for the set -->
@@ -866,7 +862,8 @@
         {/if}
       {/each}
 
-      <!-- Walk (current tracklist) drawn above suggestions -->
+      <!-- Walk (current tracklist): layer 5, after the suggestion edges —
+           see the ordering note at the top of this group. -->
       <defs>
         <marker
           id="walk-arrow"
@@ -952,12 +949,51 @@
         </g>
       {/key}
 
-      <!-- Ghost stars (v18 #11): walk members the filters currently hide,
-           drawn UNDER the real nodes so a track crossing the visible/hidden
-           line always shows its star on top mid cross-fade. Non-interactive
-           (no hit target, no tooltip) — the same Task-10 fade wrapper as the
-           real nodes below makes this the star↔ghost cross-fade: one node's
-           <g> outros from the block below while this one's intros here. -->
+      <!-- Static labels, haloed (layer 6, see the ordering note at the top
+           of this group): painted above all static geometry and edges so
+           spokes and the rim never cut through them. The halo CSS
+           (.tick-label, .key-label, .zone-label, .gutter-tick-label) keeps
+           them legible where they now cross live strokes. -->
+      {#each gridTicks as tick (tick)}
+        <text x={CX + 6} y={CY - radialScale(tick) - 4} class="tick-label">{tick}</text>
+      {/each}
+      {#if hasMissingRadial}
+        <text x={CX} y={CY - R_FALLBACK - 8} class="zone-label" text-anchor="middle">
+          no {AXIS_LABEL[$radialAxis]} value
+        </text>
+      {/if}
+      {#each ALL_CAMELOT_KEYS as key (key)}
+        {@const pos = keyLabelPos(key)}
+        <text
+          x={pos.x}
+          y={pos.y}
+          class="key-label"
+          class:major={key.endsWith('B')}
+          class:excluded={keyExcluded(key)}
+          dominant-baseline="middle"
+          text-anchor="middle">{key}</text
+        >
+      {/each}
+      {#if hasUnkeyed}
+        <text x={GUTTER_X} y={gutterTop - 26} class="zone-label" text-anchor="middle">no key</text>
+        <text
+          x={GUTTER_X}
+          y={gutterBottom + GUTTER_MISSING_Y_GAP + 20}
+          class="zone-label"
+          text-anchor="middle"
+        >
+          no value
+        </text>
+      {/if}
+
+      <!-- Ghost stars (v18 #11): walk members the filters currently hide.
+           Layer 8 (see the ordering note above) — real nodes (layer 9)
+           painting over this is what lets a track crossing the
+           visible/hidden line always show its star on top mid cross-fade.
+           Non-interactive (no hit target, no tooltip) — the same Task-10
+           fade wrapper as the real nodes below makes this the star↔ghost
+           cross-fade: one node's <g> outros from the block below while
+           this one's intros here. -->
       {#each ghostNodes as node (node.track.id)}
         <g
           class="ghost-node"
@@ -1032,8 +1068,12 @@
         </g>
       {/each}
 
-      <!-- Hub button, painted LAST so edges and nodes never steal its
-           clicks (issue 17), with an oversized transparent hit circle. -->
+      <!-- Hub button: target layers 7 (retry group) and 11 (⟲ reset disc,
+           then the hub itself, LAST) — see the ordering note at the top of
+           this group. Not yet relocated to layer 7's position; a later task
+           moves the retry group without touching this section otherwise.
+           Painted after the nodes so edges and nodes never steal its clicks
+           (issue 17), with an oversized transparent hit circle on each part. -->
       {#if $visibleLibrary.length > 0}
         {#if hubRetryState !== 'none'}
           <g
@@ -1313,6 +1353,23 @@
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.08em;
+  }
+
+  /* Labels now paint above chrome and edges (bugs 1+2, H2, H3): a text
+     halo keeps them legible where a spoke, gridline, or edge crosses
+     underneath. SVG text is hit-testable by default, so pointer-events:
+     none stops a haloed label from stealing hovers/clicks meant for the
+     geometry below it. --surface flips per theme, matching the wheel
+     background under the ≤6%-alpha sector tints. */
+  .tick-label,
+  .key-label,
+  .zone-label,
+  .gutter-tick-label {
+    paint-order: stroke;
+    stroke: var(--surface);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+    pointer-events: none;
   }
 
   .key-label.major {
