@@ -1,8 +1,9 @@
 # Issues — open
 
-Eleven items from Michiel's UX review of v17 shipped
-in **v18** below (branch `v18-ux-wave`), on top of the legal item plus five
-UX defects from that pass resolved in **v17** (branch `v17-ux-review`), the
+Five z-order paint-order fixes shipped in **v19** below (branch
+`v19-zorder`), on top of the eleven items from Michiel's UX review of v17
+shipped in **v18** (branch `v18-ux-wave`), the legal item plus five UX
+defects from that pass resolved in **v17** (branch `v17-ux-review`), the
 13-item live review resolved in **v16**, the v14 UI review resolved in
 **v15**, and all nineteen v13 items resolved in **v14**
 ([designs/design-v14.md](designs/design-v14.md) has the older per-issue notes).
@@ -10,34 +11,73 @@ Each "Resolved" list records what actually shipped.
 
 ## Open — v19 z-order review
 
-Six z-order paint-order bugs in the wheel discovered during a review of SVG
-rendering in WheelView.svelte. The wheel's layers render ad-hoc (grid, labels,
-sectors, spokes, rim) with no explicit layering, so document order controls
-which elements appear on top.
+One item from a review of SVG rendering in WheelView.svelte carries over:
+the wheel's paint order itself is fixed now (see Resolved in v19 below), but
+labels still don't counter-scale under zoom.
 
-1. **Centre zone label paints under the radial spokes.** The "no … value" label
-   at the wheel's centre renders before the 24 radial spokes whose inner radius
-   (80) its letters cross, causing the spokes to lie over the text.
+1. **Fonts don't counter-scale under zoom.** At high zoom (k up to 8), node
+   radii divide by the zoom factor but font sizes don't, causing labels to
+   grow up to 8×, collide with the rim, and crop at the viewBox.
 
-2. **The rim circle passes through the outermost tick label's digits.** The outer
-   rim (r = R_MAX+12 = 342) paints after the outermost tick label and passes
-   through the top ~1px of its digits.
+## Resolved in v19
 
-3. **Gutter star stacks cover the gutter tick numbers.** Stacks of ≥2 tracks on
-   a single tick value in the gutter paint after and cover the gutter tick
-   numbers.
+Five of the six z-order paint-order bugs found in a review of SVG rendering
+in WheelView.svelte, shipped on `v19-zorder`. A template reorder + CSS, no
+new logic: the wheel's static labels (tick, key, zone, gutter-tick) now
+paint above every static chrome element and edge, wearing a `stroke`-based
+halo (`paint-order: stroke`, `stroke-width: 3px`, `stroke` matching the live
+`--surface` token) so a spoke, gridline, or edge crossing underneath never
+cuts through their glyphs; `pointer-events: none` on the halo stops a label
+from stealing a hover or click meant for the geometry below it.
+**Deviation from the original framing:** the plan for defects 1, 2, 4 and 5
+had imagined moving edges/chrome above labels; the shipped fix goes the other
+way — labels above edges/chrome — because a label that disappears under live
+geometry is a worse failure than a label that occasionally sits over a line
+it was always going to cross anyway.
 
-4. **Edges to missing-value gutter stars cross the gutter "no value" label.**
-   Edges drawn to gutter stars representing tracks with missing values paint
-   after and cross the gutter's "no value" label.
+1. **Centre zone label no longer paints under the radial spokes.** The
+   "no … value" label at the wheel's centre now paints in the static-labels
+   layer, after all 24 spokes, with its halo covering the crossing strokes.
+2. **The rim circle no longer passes through the outermost tick label's
+   digits.** Tick labels paint after the rim (and after the gridlines and
+   dashed fallback circle), so the rim's stroke never crosses their glyphs.
+3. **Gutter star stacks no longer cover the gutter tick numbers.** Gutter
+   tick numbers are the one deliberate exception to "labels above chrome,
+   below data": they paint *above* the node stack, not below it, so the axis
+   stays readable over a dense pile of stars; the halo's `pointer-events:
+   none` keeps the stars underneath fully interactive. **Deviation:**
+   repositioning the numbers off to the side (so data could stay on top
+   everywhere) was considered and rejected — the tick stacks spread
+   symmetrically on both sides of the gutter's vertical axis, so there is no
+   side a repositioned label could move to without colliding with a
+   different stack instead.
+4. **Edges to missing-value gutter stars no longer cross the gutter "no
+   value" label.** Folded into the labels-above-edges reorder (see the
+   section intro) — walk/combo/manual edges all paint before the static
+   labels now.
+5. **Radial edges sweeping to the gutter no longer cross the key labels.**
+   Same fix as 4: key labels paint after every edge class present.
 
-5. **Radial edges sweeping to the gutter cross the key labels.** Edges sweeping
-   from the wheel to the gutter cross the key labels in the 2–4 o'clock region.
+Also part of this reorder, though not one of the six numbered defects: the
+hub retry band now paints *under* the stars instead of above them, so a
+fallback-ring star (r=70) sitting inside the retry hit band (r 46–70) wins
+hover/click there instead of the ring stealing it. The tab-order change this
+causes (retry reachable before the stars) is deliberate — the primary
+next-track control should reach keyboard focus first. Files:
+`lib/WheelView.svelte`.
 
-6. **Fonts don't counter-scale under zoom — explicitly staying open this wave.**
-   At high zoom (k up to 8), node radii divide by the zoom factor but font
-   sizes don't, causing labels to grow up to 8×, collide with the rim, and crop
-   at the viewBox.
+**Verified in the browser** (Playwright over the running dev server, sample
+library loaded across every playlist, fresh `localStorage`): 14/14 checks —
+document-order assertions for all six ordering rules (tick-labels after the
+rim, zone-labels after every spoke, key-labels after every present edge
+class, gutter-tick-labels after every node, the retry band before the first
+ghost/node, the hub last of all interactive groups), the halo's computed
+`paint-order: stroke` / 3px `stroke-width` / `pointer-events: none` / stroke
+colour matching the page's live `--surface` token across all four label
+classes, a fallback-ring star winning `elementFromPoint` over the retry band
+sitting under it, the centre zone label falling through to the geometry
+beneath it instead of intercepting the click, and the ⟲ reset control absent
+before any suggestion — both themes, zero console or page errors.
 
 ## Resolved in v18
 
