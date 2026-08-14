@@ -1,5 +1,13 @@
 # Issues — open
 
+Eleven items from Michiel's UX review of v17 shipped
+in **v18** below (branch `v18-ux-wave`), on top of the legal item plus five
+UX defects from that pass resolved in **v17** (branch `v17-ux-review`), the
+13-item live review resolved in **v16**, the v14 UI review resolved in
+**v15**, and all nineteen v13 items resolved in **v14**
+([designs/design-v14.md](designs/design-v14.md) has the older per-issue notes).
+Each "Resolved" list records what actually shipped.
+
 ## Open — v19 z-order review
 
 Six z-order paint-order bugs in the wheel discovered during a review of SVG
@@ -29,15 +37,7 @@ which elements appear on top.
 6. **Fonts don't counter-scale under zoom — explicitly staying open this wave.**
    At high zoom (k up to 8), node radii divide by the zoom factor but font
    sizes don't, causing labels to grow up to 8×, collide with the rim, and crop
-   at the viewBox. This item is explicitly staying open for the next wave.
-
-Eleven items from Michiel's UX review of v17 shipped
-in **v18** below (branch `v18-ux-wave`), on top of the legal item plus five
-UX defects from that pass resolved in **v17** (branch `v17-ux-review`), the
-13-item live review resolved in **v16**, the v14 UI review resolved in
-**v15**, and all nineteen v13 items resolved in **v14**
-([designs/design-v14.md](designs/design-v14.md) has the older per-issue notes).
-Each "Resolved" list records what actually shipped.
+   at the viewBox.
 
 ## Resolved in v18
 
