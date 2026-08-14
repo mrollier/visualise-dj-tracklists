@@ -39,7 +39,8 @@ lives in [designs/design-v12.md](designs/design-v12.md). Statuses: **done** ·
   **travelled edges** from imported tracklist documents — **v14+**, the "DJ
   fingerprints" roadmap item and the app's namesake.
 - **Edges from musical rhyme (similar melodies in distinct keys)** —
-  **research**: needs audio analysis; parked behind Essentia.js (P5).
+  **research**: needs audio analysis; parked behind Essentia.js (P5); a
+  feasibility report now exists (research/claude-research-audio-analysis.md).
 - **Vinyl mode per node + user input for vinyl-only tracks** — **v12** minimal:
   per-track vinyl flag + manual key/BPM/genre entry; Discogs import lands on top
   in v14+.
@@ -47,7 +48,11 @@ lives in [designs/design-v12.md](designs/design-v12.md). Statuses: **done** ·
   lands (v12 energy), a shared-comment-tag criterion is cheap.
 - **More parameters (energy, melody, …; analyse mp3s directly)** — split:
   **v12** parses Mixed-In-Key-style energy from Comments; direct audio analysis
-  stays the Essentia.js roadmap item (**research**).
+  is now **designed** (2026-08-14, build not started): sidecar-first hybrid —
+  offline Python `essentia-tensorflow` batch (BPM/key/energy/happiness) writing
+  a file-keyed analysis sidecar the app imports, plus an in-app essentia.js
+  WASM gap-fill analyser; full report in
+  research/claude-research-audio-analysis.md.
 
 ## Design ideas
 
