@@ -4,6 +4,7 @@
   import { cubicOut, linear } from 'svelte/easing'
   import { Tween } from 'svelte/motion'
   import { fade, scale } from 'svelte/transition'
+  import { captureDisplaced, numericMapsEqual } from '../core/displaced'
   import { ghostWalkIds } from '../core/ghosts'
   import { classIndexOfTrack } from '../core/iconClasses'
   import { ALL_CAMELOT_KEYS, camelotNumber, wheelSlotAngleDeg, type CamelotKey } from '../core/keys'
@@ -274,85 +275,155 @@
   let morphTo: Map<string, number> | null = $state(null)
   let morphDelays: Map<string, number> | null = $state(null)
 
+  // --- v20 #2: the "displaced scalar" mechanism (src/core/displaced.ts) ---
+  // The slot ANGLE above rode straight off slotAngleById every frame — fine
+  // once settled, but a hard SNAP the instant that map changed: an axis
+  // swap (angle changes too — see slotAngleById's own targetScale), a
+  // radial range-filter edit, a playlist switch, easy-mode, the spread
+  // slider. Unlike the radius above, it had no animation channel of its
+  // own. Fix: angleFrom captures the angle each node was actually SHOWING a
+  // moment before its target moved (captureDisplaced), and nodes glide from
+  // there — displacedProgress/displacedScalar below. displacedChannel picks
+  // which clock drives that glide: 'morph' rides the SAME per-node
+  // radialMorphProgress the radius uses during a swap (angle and radius
+  // arrive together, node by node); 'plain' is a new uniform 0..1 tween for
+  // every other kind of change. null once settled — the byte-identical
+  // steady-state path, same convention as morphFrom above. gutterXFrom (the
+  // gutter x's own displaced channel) arrives in v20 #3, riding the same
+  // two clocks; the merged capture effect and both landing effects below
+  // are shaped to take it as a parallel addition.
+  let angleFrom: Map<string, number> | null = $state(null)
+  let displacedChannel: 'morph' | 'plain' = $state('plain')
+  const displacedTween = new Tween(1, { duration: RADIAL_TWEEN_MS, easing: cubicOut })
+  // Plain-variable mirror of the PREVIOUS slotAngleById — the same
+  // stale-intermediate guard as previousRadialAxis below, needed because
+  // the merged capture effect (below) must compare against what was on
+  // screen a moment ago, not the live $derived value it just read.
+  // svelte-ignore state_referenced_locally
+  let prevSlotAngles: Map<string, number> = slotAngleById
+
   // The axis just before the current one. Plain (non-reactive) variable by
   // design, the same way `insertAnchor` above tracks "the selection before
   // this click": $radialAxis inside the effect below always reads the NEW
   // value, so the old one has to be remembered by hand between runs.
   let previousRadialAxis: RadialAxis = $radialAxis
 
+  // Owns ALL capture for the displaced-scalar mechanism above: one effect,
+  // not two (an angle-only effect and a swap effect would race writing the
+  // shared prevSlotAngles/angleFrom mirrors). It tracks slotAngleById on
+  // EVERY run, not just when the axis changes — the old early-return here
+  // used to sit before that read, so a same-axis angle change (filter edit,
+  // spread slider, playlist switch) never reran this effect at all.
   $effect(() => {
     const axis = $radialAxis
-    if (axis === previousRadialAxis) return // mount, or a filter edit: domainTween alone handles it
+    const slots = slotAngleById
+    const swap = axis !== previousRadialAxis
+    const anglesChanged = !numericMapsEqual(slots, prevSlotAngles)
+    if (!swap && !anglesChanged) {
+      // Same axis, and either nothing about the angles moved, or
+      // slotAngleById merely rebuilt (fresh Map, e.g. from an unrelated
+      // $effectiveSettings emission) with identical values —
+      // numericMapsEqual is load-bearing here: without it, that no-op
+      // rebuild would restart an in-flight glide's clock for nothing.
+      prevSlotAngles = slots
+      return
+    }
     const oldAxis = previousRadialAxis
     previousRadialAxis = axis
 
     const domain = targetDomain // the NEW axis's settled (niced) target
     const trackList = $library
-    const slots = slotAngleById
 
     // Untracked: a snapshot of whatever's on screen this instant, not a
     // dependency of THIS effect — reading any of these live (outside
     // untrack) would make the effect re-fire on every animation frame of
-    // whichever tween is running, instead of once per swap (the `nodes`
-    // $derived below is the intended per-frame reader of both tweens).
-    const {
-      from: liveFrom,
-      to: liveTo,
-      delays: liveDelays,
-      t: liveT,
-      domain: liveDomain,
-    } = untrack(() => ({
+    // whichever tween is running, instead of once per swap/angle change
+    // (the `nodes` $derived below is the intended per-frame reader of every
+    // tween here).
+    const old = untrack(() => ({
       from: morphFrom,
       to: morphTo,
       delays: morphDelays,
       t: morphTween.current,
       domain: domainTween.current,
+      angleFrom,
+      channel: displacedChannel,
+      plainT: displacedTween.current,
     }))
+    /** The displaced channel's OWN old progress for a node — the clock the
+     * captured angle rode a moment ago, whichever one that was. */
+    const oldProgress = (id: string): number =>
+      old.channel === 'morph' && old.delays !== null
+        ? radialMorphProgress(old.t, old.delays.get(id) ?? 0)
+        : old.plainT
 
-    /** Each node's own current on-screen scalar, a moment before this swap. */
-    function currentScalar(track: Track, unkeyed: boolean): number {
-      const fromValue = liveFrom?.get(track.id)
-      const toValue = liveTo?.get(track.id)
-      if (liveFrom && liveTo && fromValue !== undefined && toValue !== undefined) {
-        // Rapid mid-morph swap: restart FROM the interrupted morph's own
-        // live lerp (the currently-rendered position), not its stale
-        // settled value — otherwise the node would jump to where it would
-        // have been at rest, not where it visually is right now.
-        const delay = liveDelays?.get(track.id) ?? 0
-        return lerp(fromValue, toValue, radialMorphProgress(liveT, delay))
+    // Capture BEFORE any new state applies, against the OLD target mirror
+    // (prevSlotAngles): by the time this effect body runs, slotAngleById
+    // itself has already recomputed for whatever just changed — this is
+    // the one place that still remembers what was on screen a moment ago.
+    const capturedAngles = captureDisplaced(prevSlotAngles, old.angleFrom, oldProgress)
+    prevSlotAngles = slots
+
+    if (swap) {
+      /** Each node's own current on-screen RADIUS (or gutter-y) scalar, a
+       * moment before this swap — the angle's own capture already
+       * happened above; this one still only feeds morphFrom/morphTo. */
+      const currentScalar = (track: Track, unkeyed: boolean): number => {
+        const fromValue = old.from?.get(track.id)
+        const toValue = old.to?.get(track.id)
+        if (old.from && old.to && fromValue !== undefined && toValue !== undefined) {
+          // Rapid mid-morph swap: restart FROM the interrupted morph's own
+          // live lerp (the currently-rendered position), not its stale
+          // settled value — otherwise the node would jump to where it would
+          // have been at rest, not where it visually is right now.
+          const delay = old.delays?.get(track.id) ?? 0
+          return lerp(fromValue, toValue, radialMorphProgress(old.t, delay))
+        }
+        // Steady state (or a node the interrupted morph never covered, e.g.
+        // added to the library mid-flight): old.domain is exactly the
+        // domain nodes were rendered with a moment ago, settled or not.
+        return unkeyed
+          ? settledGutterYOf(track, oldAxis, old.domain)
+          : settledRadiusOf(track, oldAxis, old.domain)
       }
-      // Steady state (or a node the interrupted morph never covered, e.g.
-      // added to the library mid-flight): liveDomain is exactly the domain
-      // nodes were rendered with a moment ago, settled or not.
-      return unkeyed
-        ? settledGutterYOf(track, oldAxis, liveDomain)
-        : settledRadiusOf(track, oldAxis, liveDomain)
-    }
 
-    // Built fresh and assigned to morphFrom/morphTo wholesale below, never
-    // mutated in place once stored — same "plain Map on purpose" reasoning
-    // as nodes' byBand above.
-    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- built fresh, assigned wholesale below
-    const from = new Map<string, number>()
-    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- built fresh, assigned wholesale below
-    const to = new Map<string, number>()
-    const angleNodes: { id: string; angleDeg: number | null }[] = []
-    for (const track of trackList) {
-      const unkeyed = track.key === null
-      from.set(track.id, currentScalar(track, unkeyed))
-      to.set(
-        track.id,
-        unkeyed ? settledGutterYOf(track, axis, domain) : settledRadiusOf(track, axis, domain),
-      )
-      angleNodes.push({ id: track.id, angleDeg: unkeyed ? null : (slots.get(track.id) ?? null) })
-    }
+      // Built fresh and assigned to morphFrom/morphTo wholesale below, never
+      // mutated in place once stored — same "plain Map on purpose" reasoning
+      // as nodes' byBand above.
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity -- built fresh, assigned wholesale below
+      const from = new Map<string, number>()
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity -- built fresh, assigned wholesale below
+      const to = new Map<string, number>()
+      const angleNodes: { id: string; angleDeg: number | null }[] = []
+      for (const track of trackList) {
+        const unkeyed = track.key === null
+        from.set(track.id, currentScalar(track, unkeyed))
+        to.set(
+          track.id,
+          unkeyed ? settledGutterYOf(track, axis, domain) : settledRadiusOf(track, axis, domain),
+        )
+        angleNodes.push({ id: track.id, angleDeg: unkeyed ? null : (slots.get(track.id) ?? null) })
+      }
 
-    morphFrom = from
-    morphTo = to
-    morphAxis = axis
-    morphDelays = radialMorphDelays(angleNodes)
-    void morphTween.set(0, { duration: 0 })
-    void morphTween.set(1, { duration: motionMs(RADIAL_MORPH_TOTAL_MS), easing: linear })
+      morphFrom = from
+      morphTo = to
+      morphAxis = axis
+      morphDelays = radialMorphDelays(angleNodes)
+      angleFrom = capturedAngles
+      displacedChannel = 'morph'
+      void displacedTween.set(1, { duration: 0 }) // park the plain clock, settled
+      void morphTween.set(0, { duration: 0 })
+      void morphTween.set(1, { duration: motionMs(RADIAL_MORPH_TOTAL_MS), easing: linear })
+    } else {
+      // Same axis: only the angle moved (a filter edit, the spread slider,
+      // a playlist switch reshaping same-key groups...). Glide it alone, on
+      // the plain uniform clock — the radius/gutter-y morph channel above
+      // is untouched.
+      angleFrom = capturedAngles
+      displacedChannel = 'plain'
+      void displacedTween.set(0, { duration: 0 })
+      void displacedTween.set(1, { duration: motionMs(RADIAL_TWEEN_MS), easing: cubicOut })
+    }
   })
 
   // Landed: hand placement back to the plain radialScale/gutterY path, so it
@@ -364,6 +435,24 @@
       morphTo = null
       morphAxis = null
       morphDelays = null
+      // Only when the displaced channel is STILL 'morph': a filter edit
+      // landing mid-morph moves angleFrom onto displacedTween instead (the
+      // `else` branch of the merged capture effect above), still flying —
+      // the plain twin landing effect below clears it in that case.
+      if (displacedChannel === 'morph') angleFrom = null
+    }
+  })
+
+  // Plain twin of the morph landing above, for the displaced-scalar
+  // mechanism's OTHER clock: clears angleFrom once the plain glide
+  // (displacedTween) reaches 1. Clearing here rather than trusting the lerp
+  // to land exactly on target at t=1 keeps the settled state byte-identical
+  // to before this feature existed — floating-point lerp at t=1 can differ
+  // from the target by the last ulp, and the null-from path is what
+  // guarantees an exact match (see displacedScalar below).
+  $effect(() => {
+    if (displacedChannel === 'plain' && angleFrom !== null && displacedTween.current >= 1) {
+      angleFrom = null
     }
   })
 
@@ -380,6 +469,26 @@
       : settledRadiusOf(track, morphAxis, targetDomain)
     const delay = morphDelays.get(track.id) ?? 0
     return lerp(from, to, radialMorphProgress(morphTween.current, delay))
+  }
+
+  /** This node's own progress along whichever displaced-scalar clock
+   * (src/core/displaced.ts) is currently active: the SAME per-node morph
+   * delay the radius rides during a swap, or the shared plain 0..1 tween
+   * for every other kind of change. */
+  function displacedProgress(id: string): number {
+    if (displacedChannel === 'morph' && morphDelays !== null)
+      return radialMorphProgress(morphTween.current, morphDelays.get(id) ?? 0)
+    return displacedTween.current
+  }
+
+  /** A displaced scalar (the slot angle today; the gutter x arrives in v20
+   * #3) — captured `from` lerped toward the LIVE `target` by this node's own
+   * `displacedProgress`, or `target` directly once settled (`from` null:
+   * the byte-identical steady-state path, same convention as morphedScalar
+   * above). */
+  function displacedScalar(from: Map<string, number> | null, id: string, target: number): number {
+    const captured = from?.get(id)
+    return captured === undefined ? target : lerp(captured, target, displacedProgress(id))
   }
 
   // Placement runs over the FULL library so every track's angle (and gutter
@@ -419,12 +528,14 @@
       })
     }
 
-    // Keyed tracks: the relaxed slot angle (memoised below — issue 17) plus
-    // the tween-animated radius, or — mid-swap — the per-node morph (v18 #11a).
+    // Keyed tracks: the relaxed slot angle (memoised below — issue 17),
+    // glided rather than snapped onto a relayout (v20 #2 — see
+    // displacedScalar above), plus the tween-animated radius, or — mid-swap
+    // — the per-node morph (v18 #11a).
     for (const track of $library) {
       if (track.key === null) continue
       const value = track[$radialAxis]
-      const angle = slotAngleById.get(track.id) ?? 0
+      const angle = displacedScalar(angleFrom, track.id, slotAngleById.get(track.id) ?? 0)
       const plainR = value === null ? R_FALLBACK : radialScale(value)
       const r = morphedScalar(track, false, plainR)
       placed.push({ track, ...polar(angle, r), unkeyed: false, missingRadial: value === null })
