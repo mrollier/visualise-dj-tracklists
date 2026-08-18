@@ -1,13 +1,34 @@
 # Issues — open
 
-Five z-order paint-order fixes shipped in **v19** below (branch
-`v19-zorder`), on top of the eleven items from Michiel's UX review of v17
-shipped in **v18** (branch `v18-ux-wave`), the legal item plus five UX
-defects from that pass resolved in **v17** (branch `v17-ux-review`), the
-13-item live review resolved in **v16**, the v14 UI review resolved in
-**v15**, and all nineteen v13 items resolved in **v14**
+Two wheel-animation defects logged in **v20** below (branch `v20-motion`),
+on top of the five z-order paint-order fixes shipped in **v19** (branch
+`v19-zorder`), the eleven items from Michiel's UX review of v17 shipped in
+**v18** (branch `v18-ux-wave`), the legal item plus five UX defects from
+that pass resolved in **v17** (branch `v17-ux-review`), the 13-item live
+review resolved in **v16**, the v14 UI review resolved in **v15**, and all
+nineteen v13 items resolved in **v14**
 ([designs/design-v14.md](designs/design-v14.md) has the older per-issue notes).
 Each "Resolved" list records what actually shipped.
+
+## Open — v20 motion review
+
+1. **Wheel slot angles snap in one frame while spoke radii glide.** When
+   the radial axis swaps, the radial-property range-filter changes, the
+   playlist switches, easy-mode toggles, or the spread slider moves, the
+   per-slot angle relaxation solves once and lands in the next render
+   frame. Each node's offset within its harmonic key slot snaps to its
+   final position — a shift of a few degrees at default spread, varying
+   with overlap. Meanwhile the radius tween anchored to the domain scale
+   continues easing over 600ms. Mid-animation a track reposition stutters:
+   angle sharp, radius smooth.
+2. **Gutter stars sidestep in discrete 14px jumps during animation.** Stars
+   in the gutter column are grouped into 16px-tall bands based on their
+   y-position, with members fanned 14px apart within each band. Band
+   membership recomputes each frame from the current (animated)
+   y-coordinate during the radius tween. As a star animates across a 16px
+   boundary, it moves to a new band with different member positions,
+   causing its x to jump 14px while y continues to ease — a horizontal
+   stutter over smooth vertical motion.
 
 ## Open — v19 z-order review
 
