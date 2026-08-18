@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import {
   annularSectorPath,
+  gutterSlotX,
   lowerArcPath,
   minAngularGapDeg,
   relaxSlotAngles,
@@ -167,6 +168,122 @@ describe('spreadHalfDeg (v14 W4: slider 0–2)', () => {
     const mid = spreadHalfDeg(1.5, P, 100)
     expect(mid).toBeGreaterThan(4)
     expect(mid).toBeLessThan(spreadHalfDeg(2, P, 100))
+  })
+})
+
+describe('gutterSlotX (v20)', () => {
+  const GX = 500 // an arbitrary gutter x, distinct from 0 to catch sign bugs
+
+  test('a lone band member centres exactly on gutterX', () => {
+    const out = gutterSlotX([{ id: 'a', y: 0 }], GX)
+    expect(out.get('a')).toBe(GX)
+  })
+
+  test('a two-member band fans symmetrically about gutterX (even count)', () => {
+    // Same y, so both land in band 0 together — reproduces the legacy
+    // per-frame fan of ±spacing/2 either side of the gutter axis.
+    const out = gutterSlotX(
+      [
+        { id: 'a', y: 0 },
+        { id: 'b', y: 0 },
+      ],
+      GX,
+    )
+    expect(out.get('a')).toBeCloseTo(GX - 7, 6)
+    expect(out.get('b')).toBeCloseTo(GX + 7, 6)
+    expect(((out.get('a') ?? 0) + (out.get('b') ?? 0)) / 2).toBeCloseTo(GX, 6)
+  })
+
+  test('a three-member band fans symmetrically about gutterX (odd count)', () => {
+    const out = gutterSlotX(
+      [
+        { id: 'a', y: 0 },
+        { id: 'b', y: 0 },
+        { id: 'c', y: 0 },
+      ],
+      GX,
+    )
+    expect(out.get('a')).toBeCloseTo(GX - 14, 6)
+    expect(out.get('b')).toBeCloseTo(GX, 6) // the middle member sits dead-centre
+    expect(out.get('c')).toBeCloseTo(GX + 14, 6)
+  })
+
+  test('input order is within-band fan order, not id or y order', () => {
+    // 'z' listed first, 'a' second — despite the alphabetically-later id,
+    // 'z' takes the leftmost (negative) fan slot because it came first.
+    const out = gutterSlotX(
+      [
+        { id: 'z', y: 5 },
+        { id: 'a', y: 5 },
+      ],
+      GX,
+    )
+    expect(out.get('z')).toBeCloseTo(GX - 7, 6)
+    expect(out.get('a')).toBeCloseTo(GX + 7, 6)
+  })
+
+  test('a band boundary just below vs. just above a round threshold bands separately', () => {
+    // bandHeight=16 (default): band = Math.round(y/16). 8 is the exact
+    // half-way threshold between band 0 and band 1, and Math.round rounds
+    // .5 up — so y just under 8 stays in band 0 with its neighbour, while y
+    // at (or just over) 8 crosses into band 1 alone. This is the exact
+    // legacy grouping rule, now evaluated on settled y instead of animated.
+    const out = gutterSlotX(
+      [
+        { id: 'low', y: 0 },
+        { id: 'justBelow', y: 7.999 }, // rounds to band 0, joins 'low'
+        { id: 'atThreshold', y: 8 }, // rounds to band 1, alone
+      ],
+      GX,
+    )
+    expect(out.get('low')).toBeCloseTo(GX - 7, 6)
+    expect(out.get('justBelow')).toBeCloseTo(GX + 7, 6)
+    expect(out.get('atThreshold')).toBeCloseTo(GX, 6) // solo band, centred
+  })
+
+  test('custom spacing is honoured within a shared band', () => {
+    // y=0 and y=19 both round to band 0 under bandHeight=40 (19/40=0.475),
+    // well clear of the next half-boundary at y=20 — so they fan together,
+    // spaced by the custom 10px rather than the default 14px.
+    const out = gutterSlotX(
+      [
+        { id: 'a', y: 0 },
+        { id: 'b', y: 19 },
+      ],
+      GX,
+      40, // bandHeight
+      10, // spacing
+    )
+    expect(out.get('a')).toBeCloseTo(GX - 5, 6)
+    expect(out.get('b')).toBeCloseTo(GX + 5, 6)
+  })
+
+  test('custom bandHeight is honoured: same ys, different grouping outcome', () => {
+    // y=0 and y=5 share band 0 under the default bandHeight=16
+    // (round(5/16)=0, both fan out, non-centred), but land in separate
+    // bands under bandHeight=4 (round(5/4)=1 vs round(0/4)=0, each solo) —
+    // proving bandHeight actually drives the grouping rather than only
+    // spacing being wired through.
+    const merged = gutterSlotX(
+      [
+        { id: 'a', y: 0 },
+        { id: 'b', y: 5 },
+      ],
+      GX,
+    )
+    expect(merged.get('a')).not.toBe(GX)
+    expect(merged.get('b')).not.toBe(GX)
+
+    const split = gutterSlotX(
+      [
+        { id: 'a', y: 0 },
+        { id: 'b', y: 5 },
+      ],
+      GX,
+      4,
+    )
+    expect(split.get('a')).toBe(GX) // solo band, centred
+    expect(split.get('b')).toBe(GX) // solo band, centred
   })
 })
 

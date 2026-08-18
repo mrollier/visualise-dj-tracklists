@@ -8,7 +8,13 @@
   import { ghostWalkIds } from '../core/ghosts'
   import { classIndexOfTrack } from '../core/iconClasses'
   import { ALL_CAMELOT_KEYS, camelotNumber, wheelSlotAngleDeg, type CamelotKey } from '../core/keys'
-  import { annularSectorPath, lowerArcPath, relaxSlotAngles, spreadHalfDeg } from '../core/layout'
+  import {
+    annularSectorPath,
+    gutterSlotX,
+    lowerArcPath,
+    relaxSlotAngles,
+    spreadHalfDeg,
+  } from '../core/layout'
   import type { Track } from '../core/model'
   import {
     RADIAL_MORPH_TOTAL_MS,
@@ -247,6 +253,33 @@
     return CY - (settledRadiusOf(track, axis, domain) - (R_MIN + R_MAX) / 2)
   }
 
+  /** Sort order for unkeyed (gutter) tracks: missing radial values fall back
+   * to -1 (grouped together, low priority), ties break by id for
+   * determinism. Shared between gutterTargetXById below (which settled band
+   * + fan index a track gets) and the nodes derived's own gutter paint pass
+   * — the two MUST stay identical, or a track's slot index here could
+   * disagree with where it's actually drawn. */
+  function compareGutterTracks(a: Track, b: Track): number {
+    return (b[$radialAxis] ?? -1) - (a[$radialAxis] ?? -1) || a.id.localeCompare(b.id)
+  }
+
+  /** Gutter analogue of slotAngleById (v20 #3): settled x-slot per unkeyed
+   * track, banded on each track's SETTLED gutter y — never the animated one
+   * `nodes` renders each frame. The old per-frame version banded on
+   * animated y, so band membership (and each member's fan index within it)
+   * could flip mid-glide, snapping a settled neighbour sideways in 14px
+   * steps for no reason visible in the data — see gutterSlotX's own doc
+   * comment (src/core/layout.ts) for the full story. Settling the grouping
+   * here and letting the DISPLAYED x glide toward it via displacedScalar
+   * (below) is the fix; y itself is untouched. */
+  const gutterTargetXById = $derived.by(() => {
+    const unkeyed = $library.filter((t) => t.key === null).sort(compareGutterTracks)
+    return gutterSlotX(
+      unkeyed.map((t) => ({ id: t.id, y: settledGutterYOf(t, $radialAxis, targetDomain) })),
+      GUTTER_X,
+    )
+  })
+
   const morphTween = new Tween(0, { duration: RADIAL_MORPH_TOTAL_MS, easing: linear })
   // Per-node from scalar and start delay, all keyed by track id; null
   // outside a swap's morph window, when `nodes` below takes the plain
@@ -288,19 +321,23 @@
   // radialMorphProgress the radius uses during a swap (angle and radius
   // arrive together, node by node); 'plain' is a new uniform 0..1 tween for
   // every other kind of change. null once settled — the byte-identical
-  // steady-state path, same convention as morphFrom above. gutterXFrom (the
-  // gutter x's own displaced channel) arrives in v20 #3, riding the same
-  // two clocks; the merged capture effect and both landing effects below
-  // are shaped to take it as a parallel addition.
+  // steady-state path, same convention as morphFrom above. gutterXFrom (v20
+  // #3) is the gutter x's own displaced channel, riding the SAME two
+  // clocks as angleFrom — see gutterTargetXById above and the unkeyed loop
+  // in `nodes` below.
   let angleFrom: Map<string, number> | null = $state(null)
+  let gutterXFrom: Map<string, number> | null = $state(null)
   let displacedChannel: 'morph' | 'plain' = $state('plain')
   const displacedTween = new Tween(1, { duration: RADIAL_TWEEN_MS, easing: cubicOut })
-  // Plain-variable mirror of the PREVIOUS slotAngleById — the same
-  // stale-intermediate guard as previousRadialAxis below, needed because
-  // the merged capture effect (below) must compare against what was on
-  // screen a moment ago, not the live $derived value it just read.
+  // Plain-variable mirrors of the PREVIOUS target maps (slotAngleById,
+  // gutterTargetXById) — the same stale-intermediate guard as
+  // previousRadialAxis below, needed because the merged capture effect
+  // (below) must compare against what was on screen a moment ago, not the
+  // live $derived value it just read.
   // svelte-ignore state_referenced_locally
   let prevSlotAngles: Map<string, number> = slotAngleById
+  // svelte-ignore state_referenced_locally
+  let prevGutterX: Map<string, number> = gutterTargetXById
 
   // The axis just before the current one. Plain (non-reactive) variable by
   // design, the same way `insertAnchor` above tracks "the selection before
@@ -308,31 +345,33 @@
   // value, so the old one has to be remembered by hand between runs.
   let previousRadialAxis: RadialAxis = $radialAxis
 
-  // Owns ALL capture for the displaced-scalar mechanism above: one effect,
-  // not two (an angle-only effect and a swap effect would race writing the
-  // shared prevSlotAngles/angleFrom mirrors). It tracks slotAngleById on
-  // EVERY run, not just when the axis changes — the old early-return here
-  // used to sit before that read, so a same-axis angle change (filter edit,
-  // spread slider, playlist switch) never reran this effect at all.
+  // Owns ALL capture for the displaced-scalar mechanism above (angle AND
+  // gutter x): one effect, not more (separate effects would race writing
+  // the shared prevSlotAngles/prevGutterX/angleFrom/gutterXFrom mirrors).
+  // It tracks slotAngleById AND
+  // gutterTargetXById on EVERY run, not just when the axis changes — the
+  // old early-return here used to sit before those reads, so a same-axis
+  // change (filter edit, spread slider, playlist switch) never reran this
+  // effect at all.
   $effect(() => {
     const axis = $radialAxis
     const slots = slotAngleById
+    const gutterX = gutterTargetXById
     const swap = axis !== previousRadialAxis
     const anglesChanged = !numericMapsEqual(slots, prevSlotAngles)
-    if (!swap && !anglesChanged) {
-      // Same axis, and either nothing about the angles moved, or
-      // slotAngleById merely rebuilt (fresh Map, e.g. from an unrelated
+    const gutterChanged = !numericMapsEqual(gutterX, prevGutterX)
+    if (!swap && !anglesChanged && !gutterChanged) {
+      // Same axis, and either nothing about the angles/gutter x moved, or
+      // the target maps merely rebuilt (fresh Map, e.g. from an unrelated
       // $effectiveSettings emission) with identical values —
       // numericMapsEqual is load-bearing here: without it, that no-op
       // rebuild would restart an in-flight glide's clock for nothing.
       prevSlotAngles = slots
+      prevGutterX = gutterX
       return
     }
     const oldAxis = previousRadialAxis
     previousRadialAxis = axis
-
-    const domain = targetDomain // the NEW axis's settled (niced) target
-    const trackList = $library
 
     // Untracked: a snapshot of whatever's on screen this instant, not a
     // dependency of THIS effect — reading any of these live (outside
@@ -347,24 +386,32 @@
       t: morphTween.current,
       domain: domainTween.current,
       angleFrom,
+      gutterXFrom,
       channel: displacedChannel,
       plainT: displacedTween.current,
     }))
     /** The displaced channel's OWN old progress for a node — the clock the
-     * captured angle rode a moment ago, whichever one that was. */
+     * captured value (angle or gutter x) rode a moment ago, whichever one
+     * that was. */
     const oldProgress = (id: string): number =>
       old.channel === 'morph' && old.delays !== null
         ? radialMorphProgress(old.t, old.delays.get(id) ?? 0)
         : old.plainT
 
-    // Capture BEFORE any new state applies, against the OLD target mirror
-    // (prevSlotAngles): by the time this effect body runs, slotAngleById
-    // itself has already recomputed for whatever just changed — this is
-    // the one place that still remembers what was on screen a moment ago.
+    // Capture BEFORE any new state applies, against the OLD target mirrors
+    // (prevSlotAngles/prevGutterX): by the time this effect body runs,
+    // slotAngleById/gutterTargetXById themselves have already recomputed
+    // for whatever just changed — these are the one place that still
+    // remembers what was on screen a moment ago.
     const capturedAngles = captureDisplaced(prevSlotAngles, old.angleFrom, oldProgress)
+    const capturedGutterX = captureDisplaced(prevGutterX, old.gutterXFrom, oldProgress)
     prevSlotAngles = slots
+    prevGutterX = gutterX
 
     if (swap) {
+      const domain = targetDomain // the NEW axis's settled (niced) target
+      const trackList = $library
+
       /** Each node's own current on-screen RADIUS (or gutter-y) scalar, a
        * moment before this swap — the angle's own capture already
        * happened above; this one still only feeds morphFrom/morphTo. */
@@ -389,7 +436,8 @@
 
       // Built fresh and assigned to morphFrom/morphTo wholesale below, never
       // mutated in place once stored — same "plain Map on purpose" reasoning
-      // as nodes' byBand above.
+      // as gutterTargetXById/gutterSlotX above (derived-local temporaries,
+      // rebuilt wholesale; reactivity lives in the $derived/$state alone).
       // eslint-disable-next-line svelte/prefer-svelte-reactivity -- built fresh, assigned wholesale below
       const from = new Map<string, number>()
       // eslint-disable-next-line svelte/prefer-svelte-reactivity -- built fresh, assigned wholesale below
@@ -410,16 +458,18 @@
       morphAxis = axis
       morphDelays = radialMorphDelays(angleNodes)
       angleFrom = capturedAngles
+      gutterXFrom = capturedGutterX
       displacedChannel = 'morph'
       void displacedTween.set(1, { duration: 0 }) // park the plain clock, settled
       void morphTween.set(0, { duration: 0 })
       void morphTween.set(1, { duration: motionMs(RADIAL_MORPH_TOTAL_MS), easing: linear })
     } else {
-      // Same axis: only the angle moved (a filter edit, the spread slider,
-      // a playlist switch reshaping same-key groups...). Glide it alone, on
-      // the plain uniform clock — the radius/gutter-y morph channel above
-      // is untouched.
+      // Same axis: only the angle and/or gutter x moved (a filter edit, the
+      // spread slider, a playlist switch reshaping same-key groups or the
+      // gutter order...). Glide them together, on the plain uniform clock —
+      // the radius/gutter-y morph channel above is untouched.
       angleFrom = capturedAngles
+      gutterXFrom = capturedGutterX
       displacedChannel = 'plain'
       void displacedTween.set(0, { duration: 0 })
       void displacedTween.set(1, { duration: motionMs(RADIAL_TWEEN_MS), easing: cubicOut })
@@ -436,23 +486,32 @@
       morphAxis = null
       morphDelays = null
       // Only when the displaced channel is STILL 'morph': a filter edit
-      // landing mid-morph moves angleFrom onto displacedTween instead (the
-      // `else` branch of the merged capture effect above), still flying —
-      // the plain twin landing effect below clears it in that case.
-      if (displacedChannel === 'morph') angleFrom = null
+      // landing mid-morph moves angleFrom/gutterXFrom onto displacedTween
+      // instead (the `else` branch of the merged capture effect above),
+      // still flying — the plain twin landing effect below clears them in
+      // that case.
+      if (displacedChannel === 'morph') {
+        angleFrom = null
+        gutterXFrom = null
+      }
     }
   })
 
   // Plain twin of the morph landing above, for the displaced-scalar
-  // mechanism's OTHER clock: clears angleFrom once the plain glide
-  // (displacedTween) reaches 1. Clearing here rather than trusting the lerp
-  // to land exactly on target at t=1 keeps the settled state byte-identical
-  // to before this feature existed — floating-point lerp at t=1 can differ
-  // from the target by the last ulp, and the null-from path is what
-  // guarantees an exact match (see displacedScalar below).
+  // mechanism's OTHER clock: clears angleFrom/gutterXFrom once the plain
+  // glide (displacedTween) reaches 1. Clearing here rather than trusting
+  // the lerp to land exactly on target at t=1 keeps the settled state
+  // byte-identical to before this feature existed — floating-point lerp at
+  // t=1 can differ from the target by the last ulp, and the null-from path
+  // is what guarantees an exact match (see displacedScalar below).
   $effect(() => {
-    if (displacedChannel === 'plain' && angleFrom !== null && displacedTween.current >= 1) {
+    if (
+      displacedChannel === 'plain' &&
+      (angleFrom !== null || gutterXFrom !== null) &&
+      displacedTween.current >= 1
+    ) {
       angleFrom = null
+      gutterXFrom = null
     }
   })
 
@@ -481,8 +540,8 @@
     return displacedTween.current
   }
 
-  /** A displaced scalar (the slot angle today; the gutter x arrives in v20
-   * #3) — captured `from` lerped toward the LIVE `target` by this node's own
+  /** A displaced scalar (the slot angle, or the gutter x — v20 #2/#3) —
+   * captured `from` lerped toward the LIVE `target` by this node's own
    * `displacedProgress`, or `target` directly once settled (`from` null:
    * the byte-identical steady-state path, same convention as morphedScalar
    * above). */
@@ -507,25 +566,16 @@
 
     // Tracks without a key live in the gutter, still positioned by the radial
     // value (remark 3: a missing key must not hide a known BPM/year/rating).
-    const unkeyed = $library
-      .filter((t) => t.key === null)
-      .sort((a, b) => (b[$radialAxis] ?? -1) - (a[$radialAxis] ?? -1) || a.id.localeCompare(b.id))
-    // Plain Maps on purpose throughout this computation: derived-local
-    // temporaries, rebuilt wholesale — reactivity lives in the $derived.
-    // eslint-disable-next-line svelte/prefer-svelte-reactivity
-    const byBand = new Map<number, Track[]>()
+    // Sort order is paint order only now — band membership and each
+    // member's fan index are decided once, on settled y, by
+    // gutterTargetXById above (v20 #3); this loop just draws x glided
+    // toward that target (displacedScalar) and y unchanged.
+    const unkeyed = $library.filter((t) => t.key === null).sort(compareGutterTracks)
     for (const track of unkeyed) {
-      const band = Math.round(unkeyedY(track) / 16)
-      if (!byBand.has(band)) byBand.set(band, [])
-      byBand.get(band)!.push(track)
-    }
-    for (const [, group] of byBand) {
-      group.forEach((track, i) => {
-        const value = track[$radialAxis]
-        const y = unkeyedY(track)
-        const x = GUTTER_X + (i - (group.length - 1) / 2) * 14
-        placed.push({ track, x, y, unkeyed: true, missingRadial: value === null })
-      })
+      const value = track[$radialAxis]
+      const y = unkeyedY(track) // unchanged: still rides morph/domain tween
+      const x = displacedScalar(gutterXFrom, track.id, gutterTargetXById.get(track.id) ?? GUTTER_X)
+      placed.push({ track, x, y, unkeyed: true, missingRadial: value === null })
     }
 
     // Keyed tracks: the relaxed slot angle (memoised below — issue 17),

@@ -182,6 +182,45 @@ export function spreadHalfDeg(factor: number, nodeRadius: number, r: number): nu
 }
 
 /**
+ * Gutter x-slot per unkeyed track (v20 #3), keyed by id. Tracks band
+ * together when their y falls in the same `bandHeight`-px bucket (rounded,
+ * so a boundary sits exactly between two bands, never inside one), then fan
+ * 14px apart within a band, centred on `gutterX` — the exact grouping
+ * WheelView's gutter loop used to run per animation frame, straight off the
+ * ANIMATED y. Read that way, band membership (and each member's index
+ * within it) flips the instant a track's y crosses a boundary mid-glide,
+ * so already-settled members jump sideways in `spacing`-px steps for no
+ * reason visible in the data. The fix is entirely in the caller: this
+ * function is unchanged maths, just fed the SETTLED target y instead
+ * (WheelView's `gutterTargetXById`) — banding is now a function of where a
+ * track is headed, not where it currently happens to be on screen, so the
+ * grouping itself is stable through a glide and only the displayed x
+ * (via `displacedScalar`) still eases smoothly toward it.
+ *
+ * `entries` are taken in the caller's given order — that order IS each
+ * track's index within its band (and so its fan position), matching the
+ * legacy per-frame code's `Array.push` order exactly for a like-for-like
+ * settled result.
+ */
+export function gutterSlotX(
+  entries: readonly { id: string; y: number }[],
+  gutterX: number,
+  bandHeight = 16,
+  spacing = 14,
+): Map<string, number> {
+  const byBand = new Map<number, string[]>()
+  for (const { id, y } of entries) {
+    const band = Math.round(y / bandHeight)
+    if (!byBand.has(band)) byBand.set(band, [])
+    byBand.get(band)!.push(id)
+  }
+  const out = new Map<string, number>()
+  for (const [, group] of byBand)
+    group.forEach((id, i) => out.set(id, gutterX + (i - (group.length - 1) / 2) * spacing))
+  return out
+}
+
+/**
  * SVG path of an annular (ring) sector between radii r0..r1 spanning angles
  * a0..a1, in degrees clockwise from 12 o'clock — the wheel's convention.
  * Used for the subtle per-key major/minor sector backgrounds.
