@@ -1,6 +1,6 @@
 # Issues — open
 
-Two wheel-animation defects logged in **v20** below (branch `v20-motion`),
+Two wheel-animation defects resolved in **v20** below (branch `v20-motion`),
 on top of the five z-order paint-order fixes shipped in **v19** (branch
 `v19-zorder`), the eleven items from Michiel's UX review of v17 shipped in
 **v18** (branch `v18-ux-wave`), the legal item plus five UX defects from
@@ -9,26 +9,6 @@ review resolved in **v16**, the v14 UI review resolved in **v15**, and all
 nineteen v13 items resolved in **v14**
 ([designs/design-v14.md](designs/design-v14.md) has the older per-issue notes).
 Each "Resolved" list records what actually shipped.
-
-## Open — v20 motion review
-
-1. **Wheel slot angles snap in one frame while spoke radii glide.** When
-   the radial axis swaps, the radial-property range-filter changes, the
-   playlist switches, easy-mode toggles, or the spread slider moves, the
-   per-slot angle relaxation solves once and lands in the next render
-   frame. Each node's offset within its harmonic key slot snaps to its
-   final position — a shift of a few degrees at default spread, varying
-   with overlap. Meanwhile the radius tween anchored to the domain scale
-   continues easing over 600ms. Mid-animation a track reposition stutters:
-   angle sharp, radius smooth.
-2. **Gutter stars sidestep in discrete 14px jumps during animation.** Stars
-   in the gutter column are grouped into 16px-tall bands based on their
-   y-position, with members fanned 14px apart within each band. Band
-   membership recomputes each frame from the current (animated)
-   y-coordinate during the radius tween. As a star animates across a 16px
-   boundary, it moves to a new band with different member positions,
-   causing its x to jump 14px while y continues to ease — a horizontal
-   stutter over smooth vertical motion.
 
 ## Open — v19 z-order review
 
@@ -39,6 +19,65 @@ labels still don't counter-scale under zoom.
 1. **Fonts don't counter-scale under zoom.** At high zoom (k up to 8), node
    radii divide by the zoom factor but font sizes don't, causing labels to
    grow up to 8×, collide with the rim, and crop at the viewBox.
+
+## Resolved in v20
+
+Both wheel-animation defects from the v20 motion review, shipped on
+`v20-motion`: the per-slot angle and the gutter x now ride a real animation
+channel instead of snapping to their relaxed/banded target the instant it
+changes. A new `core/displaced.ts` is the shared, pure "displaced scalar"
+mechanism behind both fixes: `captureDisplaced` freezes each node's currently
+DISPLAYED value — not the stale old target, the actual on-screen position,
+mid-lerp or already settled — the moment a new target map is about to replace
+the old one, so the node glides FROM there TO the new target instead of
+jumping; `numericMapsEqual` skips the capture when a target map is rebuilt (a
+fresh `$derived.by` instance) but lands on identical values, load-bearing
+because an unrelated `$effectiveSettings` emission rebuilds `slotAngleById`
+on every run and would otherwise restart an in-flight glide for nothing.
+Because `target` is always read live, a change landing mid-flight — two
+swaps back to back, a filter edit arriving mid-morph — is just another
+capture against whatever is on screen that instant: this captured-displayed
+retarget needs no special-casing for the interrupted case. During an axis
+swap the angle rides the exact same per-node clock the radius already used
+(`radialMorphProgress` off `morphTween`, staggered by the same clockwise
+`radialMorphDelays` sweep from 12 o'clock), so a node's offset within its key
+slot and its distance from centre arrive together, node by node; everywhere
+else — a range-filter edit, the spread slider, a playlist switch, easy-mode —
+both ride a plain uniform 600ms `displacedTween`.
+
+1. **Wheel slot angles now glide instead of snapping.** The per-slot angle
+   relaxation still solves once per target-map change, but the node's own
+   displayed angle captures its current on-screen value and eases toward the
+   freshly relaxed angle over the shared clock above, so a reposition — an
+   axis swap, a radial range-filter edit, a playlist switch, easy-mode, the
+   spread slider — no longer stutters angle-sharp, radius-smooth. Files:
+   `core/displaced.ts` (new), `lib/WheelView.svelte`.
+2. **Gutter stars now glide across band boundaries instead of sidestepping.**
+   `gutterSlotX` (`core/layout.ts`) computes each unkeyed track's 16px-band
+   membership and 14px fan position from its TARGET y — where the radius
+   tween is headed — instead of the animated y of the moment, so which band
+   a star belongs to, and its neighbours' x positions within that band, are
+   decided once per target-map change and held fixed for the whole glide;
+   only the displayed x itself, via the same captured-displayed retarget as
+   1, still eases smoothly toward that stable target. A star crossing a
+   16px y-band boundary mid-tween no longer jumps its x by 14px out of step
+   with its still-easing y. Files: `core/layout.ts`, `lib/WheelView.svelte`.
+
+**Verified in the browser** (Playwright over the running dev server, sample
+library loaded across every playlist, fresh `localStorage`): 26/26 checks —
+a real BPM range-filter edit on a keyed star sharing a multi-member key slot
+glided its angle smoothly (66 intermediate frames, no single frame over half
+the total move) with its radius still gliding alongside; a BPM→Rating axis
+swap moved both angle and radius gradually for a star at each end of the
+sweep, and the 6 o'clock star measurably started 12 frames after the
+12-o'clock star, confirming the angle rides the radius's own clockwise sweep
+delay; five gutter stars crossing the same axis swap never jumped x by more
+than ~1.5px in one frame (well under the old 14px snap) while y eased
+underneath, and every one settled back onto the 14px grid centred on
+`GUTTER_X`; a fresh reduced-motion context repeated both the range-filter
+and the axis-swap scenarios and settled within 0–1 frames each time; 264
+settled node positions held to sub-pixel stability 300ms apart; both themes
+screenshotted at rest — zero console or page errors across the whole pass.
 
 ## Resolved in v19
 
