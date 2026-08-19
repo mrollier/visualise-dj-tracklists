@@ -1,14 +1,42 @@
 # Issues — open
 
-Two wheel-animation defects resolved in **v20** below (branch `v20-motion`),
-on top of the five z-order paint-order fixes shipped in **v19** (branch
-`v19-zorder`), the eleven items from Michiel's UX review of v17 shipped in
+Two constellation-edge defects logged in **v21** below (branch
+`v21-edges`), on top of the two wheel-animation defects resolved in **v20**
+(branch `v20-motion`), the five z-order paint-order fixes shipped in **v19**
+(branch `v19-zorder`), the eleven items from Michiel's UX review of v17 shipped in
 **v18** (branch `v18-ux-wave`), the legal item plus five UX defects from
 that pass resolved in **v17** (branch `v17-ux-review`), the 13-item live
 review resolved in **v16**, the v14 UI review resolved in **v15**, and all
 nineteen v13 items resolved in **v14**
 ([designs/design-v14.md](designs/design-v14.md) has the older per-issue notes).
 Each "Resolved" list records what actually shipped.
+
+## Open — v21 constellation edges
+
+Two defects in the Constellation edge styling, spotted while scoping the
+v21 restyle:
+
+1. **The out-of-view dash collides with the manual-combo dash.**
+   `WheelView.svelte:1576-1579` dashes edges leaving the viewport
+   (`.walk-edge.ghost`) at `5 5` with `stroke-opacity: 0.4`, and
+   `WheelView.svelte:1581-1584` dashes `.manual-edge` combos at a
+   near-identical `6 5` — the two read as the same broken line at a
+   glance, so "this edge exits the viewport" is visually indistinguishable
+   from "this is a manual combo." Dashing is already a crowded encoding on
+   the wheel before that collision: the genre map's taxonomy method dashes
+   at `6 4` (`GenreMapView.svelte:50`), the fallback hub ring dashes at
+   `4 4` (`WheelView.svelte:1714`), and the grid circles dash at `3 5`
+   (`WheelView.svelte:1469-1471`) — a fifth near-identical pattern for
+   out-of-view state has nothing left to distinguish it by.
+2. **The walk arrowhead is oversized and occluded.** The `#walk-arrow`
+   marker (`WheelView.svelte:1029-1039`) sets `markerWidth="7"` without a
+   `markerUnits` attribute, so it defaults to `strokeWidth` — at the walk
+   edge's stroke-width of 2, that renders a 14-user-unit arrowhead beside
+   an 11-unit star radius. `refX="9"` places the arrow's tip at the
+   target node's centre, but the layer stack documented at
+   `WheelView.svelte:903-922` paints edges at layer 5, under nodes at
+   layer 9, so the tip is painted first and then buried under the star —
+   only the arrow's flanks peek out past the node's edge.
 
 ## Open — v19 z-order review
 
