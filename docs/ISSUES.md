@@ -20,6 +20,19 @@ labels still don't counter-scale under zoom.
    radii divide by the zoom factor but font sizes don't, causing labels to
    grow up to 8×, collide with the rim, and crop at the viewBox.
 
+## Open — tooling
+
+One repository-tooling defect surfaced by the v20 browser-verification pass
+(the probe worked around it; the script itself is untouched):
+
+1. **`scripts/screenshot.mjs` clicks a tour button that no longer exists.**
+   Line 49 targets a button named "Close the tour", but the tour overlay's
+   close button is labelled "Skip the tour" (`TourOverlay.svelte`), so the
+   script stalls at that step on a fresh profile where the guided tour opens.
+   Fix is a one-word selector update — or better, target the overlay's
+   stable `aria-label` and add a short timeout so a future rename fails
+   loudly instead of hanging.
+
 ## Resolved in v20
 
 Both wheel-animation defects from the v20 motion review, shipped on
