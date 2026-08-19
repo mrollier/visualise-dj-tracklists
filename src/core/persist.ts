@@ -2,7 +2,7 @@ import { migrateColumns } from './columns'
 import { DEFAULT_CRITERIA, demandedCount, type CriteriaConfig } from './combos'
 import { migrateFilters, type LibraryFilters } from './filter'
 import { normalizeKey } from './keys'
-import { MARK_FILTER_KEYS } from './marks'
+import { PANEL_FILTER_KEYS, PANEL_FILTERS } from './marks'
 import { energyFromComments, type ManualEdge, type Playlist, type Track } from './model'
 import { DEFAULT_VISIBLE_FILTERS, TRACK_PROPERTIES } from './properties'
 import {
@@ -30,10 +30,14 @@ import { DEFAULT_SETTINGS, type AppSettings } from './settings'
  *  widened to 0–2 — WS7; `manualEdgeWeight` setting — WS5),
  * v7 (F5: filters `keyRing` string enum → `keyRings` {minor,major} toggle
  *  pair; quality range `{quality}` → `{qualities: []}`, where an empty array
- *  is the "both-off" state — old shapes migrate on load).
+ *  is the "both-off" state — old shapes migrate on load),
+ * v8 (v23: ★ Starred, 🔗 Combos and 🎵 Keys become permanent left-panel
+ *  pseudo-rows — a save older than v8 back-fills all three into
+ *  `settings.visibleFilters` on load, since v8+ is trusted verbatim a
+ *  deliberate hide made afterwards sticks).
  */
 export interface Project {
-  version: 7
+  version: 8
   libraryName: string
   tracks: Track[]
   criteria: CriteriaConfig
@@ -231,10 +235,15 @@ export function parseProject(json: string): Project {
     p.version !== 4 &&
     p.version !== 5 &&
     p.version !== 6 &&
-    p.version !== 7
+    p.version !== 7 &&
+    p.version !== 8
   ) {
     throw new Error(`Unsupported project version: ${String(p.version)}`)
   }
+  // v23: threaded through to the visibleFilters back-fill below, gating it
+  // so a save already at schema 8+ is trusted verbatim — re-reading `raw`
+  // there would work too, but this is the value already validated above.
+  const version = Number(p.version)
   const hasSetShape = Array.isArray(p.sets) || Array.isArray(p.tracklist)
   if (!Array.isArray(p.tracks) || !hasSetShape || !isRecord(p.criteria)) {
     throw new Error('Not a valid project file: missing tracks, sets or criteria')
@@ -391,14 +400,14 @@ export function parseProject(json: string): Project {
   // [] is a valid "hide every property filter" choice. Either way, an
   // actively filtering property is forced visible — the hide-clears-filter
   // invariant means nothing may filter invisibly.
-  // v18 (#3/#8): the two marks pseudo-keys join the same whitelist — only
-  // whether their ROW shows in the panel. Filters carry transient `marks`
-  // quick-filters too (LibraryFilters.marks), but that boolean state is
-  // always reset on load (see migrateFilters), so it never reaches the
-  // force-visible loop below, which stays property-only.
+  // v18 (#3/#8), widened v23: the three permanent panel pseudo-keys join
+  // the same whitelist — only whether their ROW shows in the panel. Filters
+  // carry transient `marks` quick-filters too (LibraryFilters.marks), but
+  // that boolean state is always reset on load (see migrateFilters), so it
+  // never reaches the force-visible loop below, which stays property-only.
   const validFilterKeys = new Set<string>([
     ...TRACK_PROPERTIES.filter((prop) => prop.filterable).map((prop) => prop.key),
-    ...MARK_FILTER_KEYS,
+    ...PANEL_FILTER_KEYS,
   ])
   const savedVisible = rawSettings.visibleFilters
   settings.visibleFilters = Array.isArray(savedVisible)
@@ -410,6 +419,14 @@ export function parseProject(json: string): Project {
   for (const prop of TRACK_PROPERTIES) {
     if (filters.properties[prop.key] !== undefined && !settings.visibleFilters.includes(prop.key)) {
       settings.visibleFilters.push(prop.key)
+    }
+  }
+  // v23: saves written before schema 8 predate the permanent pseudo-row
+  // group — back-fill the three so an upgrade never silently removes the
+  // Keys row. Schema 8+ is trusted verbatim, so a deliberate hide sticks.
+  if (version < 8) {
+    for (const m of PANEL_FILTERS) {
+      if (!settings.visibleFilters.includes(m.key)) settings.visibleFilters.push(m.key)
     }
   }
   // Manual edges (v12 WS9): unordered unique pairs between known tracks.
@@ -433,7 +450,7 @@ export function parseProject(json: string): Project {
   }
 
   return {
-    version: 7,
+    version: 8,
     manualEdges,
     libraryName: typeof p.libraryName === 'string' ? p.libraryName : '',
     tracks,

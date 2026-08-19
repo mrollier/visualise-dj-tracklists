@@ -1,5 +1,5 @@
 import { ALL_TRACK_COLUMNS, DEFAULT_HIDDEN_COLUMNS } from './columns'
-import type { MarkFilterKey } from './marks'
+import { PANEL_FILTER_KEYS, type PanelFilterKey } from './marks'
 import { DEFAULT_VISIBLE_FILTERS } from './properties'
 import type { TrackSortField } from './trackSort'
 
@@ -74,11 +74,11 @@ export interface AppSettings {
   /**
    * Which property filters appear in the left panel (v11 issue 1); the rest
    * are hidden until ticked in the advanced "Track properties" table. Since
-   * v18 (#3/#8) also carries the two marks pseudo-keys ('starred'/'combos')
-   * alongside real properties — same show/hide semantics, just not backed
-   * by a `TrackProperty`.
+   * v18 (#3/#8), widened v23, also carries the three permanent panel
+   * pseudo-keys ('starred'/'combos'/'keys') alongside real properties —
+   * same show/hide semantics, just not backed by a `TrackProperty`.
    */
-  visibleFilters: (TrackSortField | MarkFilterKey)[]
+  visibleFilters: (TrackSortField | PanelFilterKey)[]
   /**
    * Which advanced-menu sections the user has opened (v8 issue 17). Empty on
    * first use — every section starts folded; the menu then remembers.
@@ -111,7 +111,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   manualEdgeWeight: 5,
   trackColumns: [...ALL_TRACK_COLUMNS],
   hiddenColumns: [...DEFAULT_HIDDEN_COLUMNS],
-  visibleFilters: [...DEFAULT_VISIBLE_FILTERS],
+  visibleFilters: [...DEFAULT_VISIBLE_FILTERS, ...PANEL_FILTER_KEYS],
   advancedOpen: [],
   uiMode: 'advanced',
 }

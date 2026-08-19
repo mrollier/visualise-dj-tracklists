@@ -2,12 +2,16 @@ import { applyPlaylistFilter } from './filter'
 import type { ManualEdge, Playlist, Track } from './model'
 
 /**
- * The "marks" quick-filters (v18 #3/#8): two library-level toggles that
- * narrow the wheel to tracks carrying a session mark — starred (any
- * non-none star state, `pins.ts`'s `StarState`) or a manual-combo endpoint.
- * Both booleans live on `LibraryFilters.marks` (filter.ts) and AND together
- * with every other filter dimension there. Unlike every other filter field,
- * a saved-active marks filter is never honoured on load — see filter.ts's
+ * The three permanent left-panel pseudo-rows (v18 #3/#8, made permanent and
+ * widened to three v23): quick filters that live in the filter panel but
+ * aren't backed by a `TrackProperty`. ★ Starred and 🔗 Combos narrow the
+ * wheel to tracks carrying a session mark — starred (any non-none star
+ * state, `pins.ts`'s `StarState`) or a manual-combo endpoint. Both booleans
+ * live on `LibraryFilters.marks` (filter.ts) and AND together with every
+ * other filter dimension there. 🎵 Keys is the odd one out: it has no marks
+ * flag of its own and instead drives `filters.keyRings` directly (F5's
+ * minor/major ring toggle pair). Unlike every other filter field, a
+ * saved-active marks filter is never honoured on load — see filter.ts's
  * `migrateFilters` for why.
  */
 export interface MarksFilter {
@@ -17,40 +21,53 @@ export interface MarksFilter {
 
 /**
  * The pseudo-property keys `settings.visibleFilters` and `persist.ts`'s
- * `validFilterKeys` recognize for the two marks rows, alongside every real
- * `TrackSortField`. Order is display order (starred before combos).
+ * `validFilterKeys` recognize for the three permanent panel rows, alongside
+ * every real `TrackSortField`. Order is display order.
  */
-export const MARK_FILTER_KEYS = ['starred', 'combos'] as const
-export type MarkFilterKey = (typeof MARK_FILTER_KEYS)[number]
+export const PANEL_FILTER_KEYS = ['starred', 'combos', 'keys'] as const
+export type PanelFilterKey = (typeof PANEL_FILTER_KEYS)[number]
 
-export function isMarkFilterKey(k: string): k is MarkFilterKey {
-  return (MARK_FILTER_KEYS as readonly string[]).includes(k)
+export function isPanelFilterKey(k: string): k is PanelFilterKey {
+  return (PANEL_FILTER_KEYS as readonly string[]).includes(k)
 }
 
-/** One registry row's shape — see `MARK_FILTERS` below. */
-export interface MarkFilterMeta {
-  key: MarkFilterKey
-  flag: keyof MarksFilter
+/** One registry row's shape — see `PANEL_FILTERS` below. */
+export interface PanelFilterMeta {
+  key: PanelFilterKey
   label: string
   aria: string
+  /** The marks flag this row drives; absent for 'keys', which drives
+   *  `filters.keyRings` instead. */
+  flag?: keyof MarksFilter
 }
 
 /**
- * Single source of truth for the two marks rows, consumed by every UI
- * surface that renders one (v18 #3/#8 review fix — FiltersSection and
- * AdvancedMenu previously hand-rolled their own label/flag maps, which had
- * already drifted: AdvancedMenu's checkbox aria-labels baked the emoji into
- * the accessible name instead of using a clean `aria` string).
+ * Single source of truth for the three permanent panel rows, consumed by
+ * every UI surface that renders one (v18 #3/#8 review fix, widened v23 —
+ * FiltersSection and AdvancedMenu previously hand-rolled their own
+ * label/flag maps, which had already drifted: AdvancedMenu's checkbox
+ * aria-labels baked the emoji into the accessible name instead of using a
+ * clean `aria` string). A second, parallel registry for Keys would risk the
+ * exact same drift the v18 review fixed, so this one widened instead of
+ * growing a sibling.
  *
- * `label` puts the glyph FIRST, not last: FiltersSection's `.filter-label`
- * is a fixed 52px with `text-overflow: ellipsis`, which clips from the
- * right — a trailing glyph (the original "Manual combos 🔗") rendered as
- * "Manual c…", losing the icon entirely.
+ * `label` puts the glyph FIRST, not last — still correct (the glyphs line
+ * up in a column), but no longer BECAUSE of a 52px ellipsis clip: that clip
+ * is what this wave removes from FiltersSection (a later task widens those
+ * labels).
  */
-export const MARK_FILTERS: readonly MarkFilterMeta[] = [
-  { key: 'starred', flag: 'starredOnly', label: '★ Starred', aria: 'Starred' },
-  { key: 'combos', flag: 'comboOnly', label: '🔗 Combos', aria: 'Manual combos' },
+export const PANEL_FILTERS: readonly PanelFilterMeta[] = [
+  { key: 'starred', label: '★ Starred', aria: 'Starred', flag: 'starredOnly' },
+  { key: 'combos', label: '🔗 Combos', aria: 'Manual combos', flag: 'comboOnly' },
+  { key: 'keys', label: '🎵 Keys', aria: 'Key rings' },
 ] as const
+
+/** The subset backed by a `filters.marks` flag — every existing marks call
+ *  site keeps working, and the labels cannot drift from PANEL_FILTERS. */
+export const MARK_FILTERS: readonly (PanelFilterMeta & { flag: keyof MarksFilter })[] =
+  PANEL_FILTERS.filter(
+    (m): m is PanelFilterMeta & { flag: keyof MarksFilter } => m.flag !== undefined,
+  )
 
 /**
  * The live id sets a marks filter checks membership against, resolved from

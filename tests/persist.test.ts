@@ -8,7 +8,7 @@ import { DEFAULT_SETTINGS, type AppSettings } from '../src/core/settings'
 import { SAMPLE_TRACKS } from '../src/data/sample-tracks'
 
 const project: Project = {
-  version: 7,
+  version: 8,
   manualEdges: [],
   libraryName: 'My crate',
   tracks: SAMPLE_TRACKS,
@@ -89,7 +89,7 @@ describe('project persistence (v3)', () => {
       colorAxis: 'auto',
     })
     const parsed = parseProject(v2)
-    expect(parsed.version).toBe(7)
+    expect(parsed.version).toBe(8)
     expect(parsed.sets).toHaveLength(1)
     expect(parsed.sets[0]).toMatchObject({
       name: 'First',
@@ -318,53 +318,89 @@ describe('project persistence (v3)', () => {
     expect(parseProject(JSON.stringify(raw)).settings.focusClusterEdges).toBe(false)
   })
 
-  test('saves from before visibleFilters default to BPM/Year/Rating (v11 revert of v10 4b)', () => {
-    const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
+  test('saves from before visibleFilters default to BPM/Year/Rating, then v23 back-fills the three permanent rows (v11 revert of v10 4b)', () => {
+    const raw = JSON.parse(serializeProject(project)) as Record<string, unknown> & {
+      version: number
+    }
+    raw.version = 7 // pre-v23: a save this old predates the permanent rows too
     Reflect.deleteProperty(raw.settings as Record<string, unknown>, 'visibleFilters')
     // The fixture has an active bpm filter, which the back-fill guard must
-    // keep visible — it is already in the default, so the default stands.
+    // keep visible — it is already in the default, so the default stands;
+    // the v23 back-fill then appends the three permanent panel rows.
     expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual([
       'bpm',
       'year',
       'rating',
+      'starred',
+      'combos',
+      'keys',
     ])
   })
 
-  test('visibleFilters keeps valid keys, drops garbage, allows empty; any property qualifies (v11)', () => {
+  test('visibleFilters keeps valid keys, drops garbage; a pre-v23 (v7) save always gains the three permanent rows (v11)', () => {
     const raw = JSON.parse(serializeProject(project)) as {
+      version: number
       settings: Record<string, unknown>
       filters: Record<string, unknown>
     }
+    raw.version = 7
     raw.filters.properties = {} // keep the active-filter guard out of this test
     raw.settings.visibleFilters = ['bpm', 'nonsense', 'rating']
-    expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual(['bpm', 'rating'])
+    expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual([
+      'bpm',
+      'rating',
+      'starred',
+      'combos',
+      'keys',
+    ])
     raw.settings.visibleFilters = ['artist', 'dateAdded']
     expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual([
       'artist',
       'dateAdded',
+      'starred',
+      'combos',
+      'keys',
     ])
+    // Even an explicit [] (v11's "hide every property filter" choice) gains
+    // the three permanent rows on a pre-v23 save — they aren't optional.
     raw.settings.visibleFilters = []
-    expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual([])
+    expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual([
+      'starred',
+      'combos',
+      'keys',
+    ])
   })
 
-  test('a back-filled visibleFilters always includes the actively filtering properties (v11)', () => {
+  test('a back-filled visibleFilters always includes the actively filtering properties, plus the v23 permanent rows on a pre-v23 save (v11)', () => {
     const raw = JSON.parse(serializeProject(project)) as {
+      version: number
       settings: Record<string, unknown>
       filters: Record<string, unknown>
     }
+    raw.version = 7
     Reflect.deleteProperty(raw.settings, 'visibleFilters')
     raw.filters.properties = { dateAdded: ['2020-01-01', '2024-12-31'] }
-    // dateAdded is filtering but not in the new default — it must be appended
-    // so no filter can act invisibly.
+    // dateAdded is filtering but not in the new default — it must be
+    // appended so no filter can act invisibly; the v23 back-fill then adds
+    // the three permanent panel rows.
     expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual([
       'bpm',
       'year',
       'rating',
       'dateAdded',
+      'starred',
+      'combos',
+      'keys',
     ])
-    // An explicit [] with an active filter gains that filter's row too.
+    // An explicit [] with an active filter gains that filter's row too, plus
+    // the three permanent rows.
     raw.settings.visibleFilters = []
-    expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual(['dateAdded'])
+    expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual([
+      'dateAdded',
+      'starred',
+      'combos',
+      'keys',
+    ])
   })
 
   test('a saved require-zero threshold survives the load (v11 issue 2a)', () => {
@@ -396,7 +432,7 @@ describe('project persistence (v3)', () => {
     expect(parsed.filters.playlists).toEqual(['Openers'])
     // F5: the old string keyRing migrates to the new toggle pair.
     expect(parsed.filters.keyRings).toEqual({ minor: true, major: false })
-    expect(parsed.version).toBe(7)
+    expect(parsed.version).toBe(8)
   })
 
   test('garbage property filters are dropped or clamped (v14 WS2 kinds)', () => {
@@ -455,8 +491,9 @@ describe('project persistence (v3)', () => {
     const parsed = parseProject(JSON.stringify(raw))
     // The old text range fails the new alpha number-checks and drops.
     expect(parsed.filters.properties).toEqual({})
-    // Nothing filters, so the reconciliation never force-adds an artist row.
-    expect(parsed.settings.visibleFilters).toEqual(['bpm'])
+    // Nothing filters, so the reconciliation never force-adds an artist row;
+    // the v23 back-fill still runs (a v5 save predates the permanent rows).
+    expect(parsed.settings.visibleFilters).toEqual(['bpm', 'starred', 'combos', 'keys'])
   })
 
   test('old saves without location in hiddenColumns keep it hidden (v11 issue 1)', () => {
@@ -570,7 +607,7 @@ describe('project persistence (v3)', () => {
       radialAxis: 'bpm',
     })
     const migrated = parseProject(v1)
-    expect(migrated.version).toBe(7)
+    expect(migrated.version).toBe(8)
     expect(migrated.filters).toEqual(EMPTY_FILTERS)
     expect(migrated.settings).toEqual(DEFAULT_SETTINGS)
     expect(migrated.colorAxis).toBe('auto')
@@ -844,7 +881,7 @@ describe('WS6 sanitize round-trip pins (v14.1)', () => {
     }),
   ]
   const buildValid = (settings: AppSettings): Project => ({
-    version: 7,
+    version: 8,
     manualEdges: [{ a: 't1', b: 't2', tag: 'mashup' }],
     libraryName: 'Pin crate',
     tracks: pinTracks,
@@ -962,35 +999,13 @@ describe('vinyl flag removed (v14 WS1)', () => {
   })
 })
 
-// v18 (#3/#8): the marks quick-filters add two pseudo-keys to visibleFilters
+// v18 (#3/#8): the marks quick-filters add pseudo-keys to visibleFilters
 // (which row shows in the panel — an ordinary persisted preference) while the
 // filter STATE (filters.marks itself) stays session-only and always resets;
-// see filter.ts's migrateFilters for why.
+// see filter.ts's migrateFilters for why. Widened v23: 'starred'/'combos'/
+// 'keys' are now permanent panel rows, back-filled into any save older than
+// schema 8 — see the "permanent panel filters persistence" describe below.
 describe('marks quick-filters persistence (v18 #3/#8)', () => {
-  test("a saved visibleFilters keeps the 'starred'/'combos' pseudo-keys", () => {
-    const raw = JSON.parse(serializeProject(project)) as {
-      settings: Record<string, unknown>
-      filters: Record<string, unknown>
-    }
-    raw.filters.properties = {} // keep the active-filter force-visible guard out of this test
-    raw.settings.visibleFilters = ['bpm', 'starred', 'combos']
-    expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual([
-      'bpm',
-      'starred',
-      'combos',
-    ])
-  })
-
-  test('garbage keys still drop alongside the real pseudo-keys', () => {
-    const raw = JSON.parse(serializeProject(project)) as {
-      settings: Record<string, unknown>
-      filters: Record<string, unknown>
-    }
-    raw.filters.properties = {}
-    raw.settings.visibleFilters = ['starred', 'nonsense', 'combos']
-    expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual(['starred', 'combos'])
-  })
-
   test('a saved active marks filter always parses back to both-off', () => {
     const raw = JSON.parse(serializeProject(project)) as { filters: Record<string, unknown> }
     raw.filters.marks = { starredOnly: true, comboOnly: true }
@@ -998,5 +1013,71 @@ describe('marks quick-filters persistence (v18 #3/#8)', () => {
       starredOnly: false,
       comboOnly: false,
     })
+  })
+})
+
+// v23: ★ Starred, 🔗 Combos and 🎵 Keys are permanent panel rows. A save
+// older than schema 8 predates them and back-fills all three into
+// visibleFilters on load; schema 8+ is trusted verbatim, so a deliberate
+// hide made after this wave sticks (Design §3).
+describe('permanent panel filters persistence (v23)', () => {
+  test('a v7 save back-fills all three permanent rows', () => {
+    const raw = JSON.parse(serializeProject(project)) as {
+      version: number
+      settings: Record<string, unknown>
+      filters: Record<string, unknown>
+    }
+    raw.version = 7
+    raw.filters.properties = {} // keep the active-filter force-visible guard out of this test
+    raw.settings.visibleFilters = ['bpm']
+    expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual([
+      'bpm',
+      'starred',
+      'combos',
+      'keys',
+    ])
+  })
+
+  test('a v7 save that already lists all three does not duplicate them', () => {
+    const raw = JSON.parse(serializeProject(project)) as {
+      version: number
+      settings: Record<string, unknown>
+      filters: Record<string, unknown>
+    }
+    raw.version = 7
+    raw.filters.properties = {}
+    raw.settings.visibleFilters = ['starred', 'bpm', 'combos', 'keys']
+    expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual([
+      'starred',
+      'bpm',
+      'combos',
+      'keys',
+    ])
+  })
+
+  test("a v8 save with ['bpm'] keeps exactly ['bpm'] — the deliberate-hide case", () => {
+    const raw = JSON.parse(serializeProject(project)) as {
+      version: number
+      settings: Record<string, unknown>
+      filters: Record<string, unknown>
+    }
+    expect(raw.version).toBe(8) // project already serializes at the current schema
+    raw.filters.properties = {}
+    raw.settings.visibleFilters = ['bpm']
+    expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual(['bpm'])
+  })
+
+  test("'keys' survives validation alongside 'starred'/'combos'; garbage still drops", () => {
+    const raw = JSON.parse(serializeProject(project)) as {
+      settings: Record<string, unknown>
+      filters: Record<string, unknown>
+    }
+    raw.filters.properties = {}
+    raw.settings.visibleFilters = ['starred', 'nonsense', 'combos', 'keys']
+    expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual([
+      'starred',
+      'combos',
+      'keys',
+    ])
   })
 })

@@ -18,9 +18,11 @@ import { genreFamilyClasses, playlistClasses } from './core/iconClasses'
 import {
   comboIdSet,
   MARK_FILTERS,
+  PANEL_FILTERS,
   starredIdSet,
   type MarksContext,
   type MarksFilter,
+  type PanelFilterKey,
 } from './core/marks'
 import type { ImportReport, ManualEdge, Playlist, Track } from './core/model'
 import { canAddSet, freshFirstSet, nextSetName, uniqueSetName, type TrackSet } from './core/sets'
@@ -366,6 +368,21 @@ export function setMarkFilter(flag: keyof MarksFilter, value: boolean): void {
 /** Flip one marks quick-filter — the Tracks-view header ★/🔗 onclick. */
 export function toggleMarkFilter(flag: keyof MarksFilter): void {
   setMarkFilter(flag, !get(filters).marks[flag])
+}
+
+/** Neutralise the filter a pseudo row owns, whatever backs it (v23): a
+ *  hidden control must never keep acting — the same invariant
+ *  `toggleFilterVisible` already keeps for property filters. */
+export function clearPanelFilter(key: PanelFilterKey): void {
+  const meta = PANEL_FILTERS.find((m) => m.key === key)
+  if (meta === undefined) return
+  if (meta.flag !== undefined) {
+    setMarkFilter(meta.flag, false)
+    return
+  }
+  const { minor, major } = get(filters).keyRings
+  if (minor && major) return // already neutral — keep the no-op guard
+  filters.update((f) => ({ ...f, keyRings: { minor: true, major: true } }))
 }
 
 /** The filtered library: what the wheel, edges and suggestions operate on. */

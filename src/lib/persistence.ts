@@ -38,7 +38,7 @@ const STORAGE_KEY = 'visualise-dj-tracklists:project:v1'
 
 export function currentProject(): Project {
   return {
-    version: 7,
+    version: 8,
     libraryName: get(libraryName),
     manualEdges: get(manualEdges),
     tracks: get(library),

@@ -11,7 +11,7 @@
     type PropertyRange,
     type QualityChoice,
   } from '../core/filter'
-  import { isMarkFilterKey, MARK_FILTERS } from '../core/marks'
+  import { isPanelFilterKey, MARK_FILTERS } from '../core/marks'
   import { PROPERTY_BY_KEY, REKORDBOX_COLOURS, type TrackProperty } from '../core/properties'
   import type { TrackSortField } from '../core/trackSort'
   import {
@@ -40,7 +40,7 @@
   // range.
   const rows = $derived(
     $settings.visibleFilters
-      .filter((key): key is TrackSortField => !isMarkFilterKey(key))
+      .filter((key): key is TrackSortField => !isPanelFilterKey(key))
       .map((key) => PROPERTY_BY_KEY.get(key))
       .filter((p): p is TrackProperty => p !== undefined && p.filterable),
   )

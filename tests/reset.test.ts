@@ -29,6 +29,15 @@ describe('reset to defaults (v9 issue 3)', () => {
     expect(reset.advancedOpen).toEqual(['display', 'tracks'])
   })
 
+  test('restores all three permanent panel rows (v23)', () => {
+    const current: AppSettings = {
+      ...structuredClone(DEFAULT_SETTINGS),
+      visibleFilters: ['bpm'], // starred/combos/keys hidden
+    }
+    const reset = resetAdvancedSettings(current)
+    expect(reset.visibleFilters).toEqual(expect.arrayContaining(['starred', 'combos', 'keys']))
+  })
+
   test('criteria reset only the advanced-panel-owned fields', () => {
     const current: CriteriaConfig = structuredClone(DEFAULT_CRITERIA)
     current.key = {

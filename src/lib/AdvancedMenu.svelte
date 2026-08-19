@@ -7,9 +7,9 @@
     bulkScopeIds,
     clearCombosInScope,
     clearStarsInScope,
-    isMarkFilterKey,
+    isPanelFilterKey,
     MARK_FILTERS,
-    type MarkFilterKey,
+    type PanelFilterKey,
   } from '../core/marks'
   import type { Track } from '../core/model'
   import { resetAdvancedCriteria, resetAdvancedSettings } from '../core/reset'
@@ -93,7 +93,7 @@
   // (below, after the trackColumns {#each}) — no column, filter-only; label/
   // flag come from the shared MARK_FILTERS registry (marks.ts), not a
   // locally hand-rolled map (v18 review fix, B2).
-  function toggleFilterVisible(key: TrackSortField | MarkFilterKey) {
+  function toggleFilterVisible(key: TrackSortField | PanelFilterKey) {
     const nowShown = !$settings.visibleFilters.includes(key)
     settings.update((s) => ({
       ...s,
@@ -102,7 +102,7 @@
         : s.visibleFilters.filter((k) => k !== key),
     }))
     if (!nowShown) {
-      if (isMarkFilterKey(key)) {
+      if (isPanelFilterKey(key)) {
         // Hide-clears-filter parity: a hidden marks row can't keep filtering
         // underneath, same as a hidden property filter does below. Routed
         // through the shared mutator (stores.ts) like every other marks

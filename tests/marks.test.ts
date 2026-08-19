@@ -6,15 +6,16 @@ import {
   clearCombosInScope,
   clearStarsInScope,
   comboIdSet,
-  isMarkFilterKey,
-  MARK_FILTER_KEYS,
+  isPanelFilterKey,
   MARK_FILTERS,
+  PANEL_FILTER_KEYS,
+  PANEL_FILTERS,
   starredIdSet,
-  type MarkFilterKey,
+  type PanelFilterKey,
 } from '../src/core/marks'
 import type { ManualEdge, Playlist } from '../src/core/model'
 import { DEFAULT_SETTINGS } from '../src/core/settings'
-import { filters, setMarkFilter, settings, toggleMarkFilter } from '../src/stores'
+import { clearPanelFilter, filters, setMarkFilter, settings, toggleMarkFilter } from '../src/stores'
 import { track } from './helpers'
 
 describe('starredIdSet (v18 #3/#8)', () => {
@@ -50,23 +51,58 @@ describe('comboIdSet (v18 #3/#8)', () => {
   })
 })
 
-describe('MARK_FILTER_KEYS / isMarkFilterKey (v18 #3/#8)', () => {
-  test('the two pseudo-keys are starred and combos, in that order', () => {
-    expect(MARK_FILTER_KEYS).toEqual(['starred', 'combos'])
+describe('PANEL_FILTER_KEYS / isPanelFilterKey (v23: the permanent panel rows)', () => {
+  test('the three pseudo-keys are starred, combos and keys, in that order', () => {
+    expect(PANEL_FILTER_KEYS).toEqual(['starred', 'combos', 'keys'])
   })
 
-  test('recognizes only the two pseudo-keys', () => {
-    const keys: MarkFilterKey[] = ['starred', 'combos']
-    for (const k of keys) expect(isMarkFilterKey(k)).toBe(true)
-    expect(isMarkFilterKey('bpm')).toBe(false)
-    expect(isMarkFilterKey('nonsense')).toBe(false)
-    expect(isMarkFilterKey('')).toBe(false)
+  test('recognizes only the three pseudo-keys', () => {
+    const keys: PanelFilterKey[] = ['starred', 'combos', 'keys']
+    for (const k of keys) expect(isPanelFilterKey(k)).toBe(true)
+    expect(isPanelFilterKey('bpm')).toBe(false)
+    expect(isPanelFilterKey('nonsense')).toBe(false)
+    expect(isPanelFilterKey('')).toBe(false)
   })
 })
 
-describe('MARK_FILTERS (v18 #3/#8 review fix, B2)', () => {
-  test('keys match MARK_FILTER_KEYS, same order — the two registries cannot drift apart', () => {
-    expect(MARK_FILTERS.map((m) => m.key)).toEqual(MARK_FILTER_KEYS)
+describe('PANEL_FILTERS (v23: the permanent panel rows)', () => {
+  test('exactly three rows, in registry order', () => {
+    expect(PANEL_FILTERS.map((m) => m.key)).toEqual(['starred', 'combos', 'keys'])
+  })
+
+  test('every row has a non-empty label and aria string', () => {
+    for (const m of PANEL_FILTERS) {
+      expect(m.label.length).toBeGreaterThan(0)
+      expect(m.aria.length).toBeGreaterThan(0)
+    }
+  })
+
+  test('every label puts the glyph first — a fixed-width column clips from the right', () => {
+    for (const m of PANEL_FILTERS) {
+      expect(m.label.startsWith('★') || m.label.startsWith('🔗') || m.label.startsWith('🎵')).toBe(
+        true,
+      )
+    }
+  })
+
+  test('every aria string carries no emoji (a screen reader speaks its Unicode name otherwise)', () => {
+    for (const m of PANEL_FILTERS) {
+      expect(m.aria).not.toMatch(/[★🔗🎵]/u)
+    }
+  })
+
+  test("only 'keys' has no marks flag — it drives filters.keyRings instead", () => {
+    const withoutFlag = PANEL_FILTERS.filter((m) => m.flag === undefined).map((m) => m.key)
+    expect(withoutFlag).toEqual(['keys'])
+  })
+})
+
+describe('MARK_FILTERS (v18 #3/#8 review fix, B2 — derived from PANEL_FILTERS since v23)', () => {
+  test('is exactly the two flagged rows, in order, v18 labels unchanged', () => {
+    expect(MARK_FILTERS).toEqual([
+      { key: 'starred', label: '★ Starred', aria: 'Starred', flag: 'starredOnly' },
+      { key: 'combos', label: '🔗 Combos', aria: 'Manual combos', flag: 'comboOnly' },
+    ])
   })
 
   test('every label puts the glyph first — a fixed-width column clips from the right', () => {
@@ -143,6 +179,48 @@ describe('setMarkFilter / toggleMarkFilter (v18 #3/#8 review fix, B1)', () => {
     expect(get(filters).marks.comboOnly).toBe(true)
     toggleMarkFilter('comboOnly')
     expect(get(filters).marks.comboOnly).toBe(false)
+  })
+})
+
+describe('clearPanelFilter (v23)', () => {
+  beforeEach(() => {
+    filters.set(structuredClone(EMPTY_FILTERS))
+    settings.set(structuredClone(DEFAULT_SETTINGS))
+  })
+  afterEach(() => {
+    filters.set(structuredClone(EMPTY_FILTERS))
+    settings.set(structuredClone(DEFAULT_SETTINGS))
+  })
+
+  test("'starred' turns the starredOnly marks flag off when it was on", () => {
+    filters.update((f) => ({ ...f, marks: { ...f.marks, starredOnly: true } }))
+    clearPanelFilter('starred')
+    expect(get(filters).marks.starredOnly).toBe(false)
+  })
+
+  test("'combos' turns the comboOnly marks flag off when it was on", () => {
+    filters.update((f) => ({ ...f, marks: { ...f.marks, comboOnly: true } }))
+    clearPanelFilter('combos')
+    expect(get(filters).marks.comboOnly).toBe(false)
+  })
+
+  test("'keys' resets keyRings to both-on when either ring is off", () => {
+    filters.update((f) => ({ ...f, keyRings: { minor: true, major: false } }))
+    clearPanelFilter('keys')
+    expect(get(filters).keyRings).toEqual({ minor: true, major: true })
+  })
+
+  test("'keys' is a no-op (no filters emission) when keyRings is already both-on", () => {
+    let emits = 0
+    const unsubscribe = filters.subscribe(() => {
+      emits += 1
+    })
+    const afterSubscribe = emits // the initial synchronous push on subscribe
+
+    clearPanelFilter('keys') // EMPTY_FILTERS already has both rings on
+
+    expect(emits).toBe(afterSubscribe)
+    unsubscribe()
   })
 })
 
