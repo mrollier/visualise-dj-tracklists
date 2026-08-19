@@ -50,7 +50,10 @@ export function walkRevealPlan(
   const animated = to - from
   const stepMs =
     opts?.stepMs ??
-    Math.min(WALK_REVEAL_STEP_MS, Math.max(MIN_STEP_MS, MAX_REVEAL_TOTAL_MS / Math.max(1, animated)))
+    Math.min(
+      WALK_REVEAL_STEP_MS,
+      Math.max(MIN_STEP_MS, MAX_REVEAL_TOTAL_MS / Math.max(1, animated)),
+    )
 
   const nodeDelays = new Map<string, number>()
   for (let i = from; i < to; i++) {
@@ -59,7 +62,9 @@ export function walkRevealPlan(
   }
   // Edge i (node i → i+1) animates when i is in [origin, to-1]; the seam edge
   // (i = origin) draws first at delay 0, edges outside the window are null.
-  const edgeDelays = ids.slice(1).map((_, i) => (i >= origin && i <= to - 1 ? (i - origin) * stepMs : null))
+  const edgeDelays = ids
+    .slice(1)
+    .map((_, i) => (i >= origin && i <= to - 1 ? (i - origin) * stepMs : null))
   return { nodeDelays, edgeDelays, stepMs, totalMs: (to - origin) * stepMs, from, origin }
 }
 

@@ -102,8 +102,10 @@
     if (rect === null) return null
     const clampX = (x: number) => Math.max(M, Math.min(x, window.innerWidth - CARD_W - M))
     const clampY = (y: number) => Math.max(M, Math.min(y, window.innerHeight - CARD_H - M))
-    if (window.innerHeight - rect.bottom >= CARD_H + M) return { top: rect.bottom + M, left: clampX(rect.left) }
-    if (window.innerWidth - rect.right >= CARD_W + M) return { top: clampY(rect.top), left: rect.right + M }
+    if (window.innerHeight - rect.bottom >= CARD_H + M)
+      return { top: rect.bottom + M, left: clampX(rect.left) }
+    if (window.innerWidth - rect.right >= CARD_W + M)
+      return { top: clampY(rect.top), left: rect.right + M }
     if (rect.top >= CARD_H + M) return { top: rect.top - CARD_H - M, left: clampX(rect.left) }
     if (rect.left >= CARD_W + M) return { top: clampY(rect.top), left: rect.left - CARD_W - M }
     return { top: window.innerHeight - CARD_H - M, left: clampX((window.innerWidth - CARD_W) / 2) }
@@ -142,7 +144,13 @@
     <div class="tour-hole" style={holeStyle}></div>
   {/if}
 
-  <div class="tour-card" style={cardStyle} role="dialog" aria-modal="false" aria-label="Guided tour">
+  <div
+    class="tour-card"
+    style={cardStyle}
+    role="dialog"
+    aria-modal="false"
+    aria-label="Guided tour"
+  >
     <div class="tour-head">
       <strong>{STEPS[step].title}</strong>
       <button class="close" aria-label="Skip the tour" onclick={skip}>✕</button>

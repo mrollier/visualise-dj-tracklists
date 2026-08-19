@@ -109,7 +109,9 @@
         </button>
         <InfoTooltip label="About these marks" align="right">
           <span><strong>Marks for suggested constellations</strong></span>
-          <span>★ — guaranteed to appear in suggested constellations (forcing a transition if it must).</span>
+          <span
+            >★ — guaranteed to appear in suggested constellations (forcing a transition if it must).</span
+          >
           <span>⏮ — open generated constellations with it.</span>
           <span>⏭ — close generated constellations with it.</span>
           <span>🔗 — mark a combo you know works: suggestions treat it as a road.</span>

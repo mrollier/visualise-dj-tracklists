@@ -47,7 +47,10 @@ export default ts.config(
     ...ts.configs.disableTypeChecked,
   },
   {
-    // .claude/ holds editor-agent skill assets, not app code.
-    ignores: ['dist/', 'node_modules/', 'docs/', '.claude/'],
+    // .claude/ holds editor-agent skill assets, not app code; design-mockups/
+    // is gitignored design scratch, so CI never sees it — linting it locally
+    // only made `npm run lint` fail on a machine where those files happen to
+    // exist, which is how the CI break below went unnoticed for months.
+    ignores: ['dist/', 'node_modules/', 'docs/', '.claude/', 'design-mockups/'],
   },
 )

@@ -147,7 +147,10 @@ export function enrichTrack(track: Track, extras: PackExtras): Track {
       ? null
       : Math.max(
           1,
-          Math.min(10, genreEnergyBaseline(track.genre, track.bpm) + Math.round(u('energy-jitter') * 2 - 1)),
+          Math.min(
+            10,
+            genreEnergyBaseline(track.genre, track.bpm) + Math.round(u('energy-jitter') * 2 - 1),
+          ),
         )
   const comments =
     energy === null

@@ -122,7 +122,9 @@ describe('genre-aware energy across the samples (issue #7)', () => {
     // Same BPM, different genre → different energy: proves it is genre-driven,
     // not just a re-skin of the old (bpm-60)/13 formula.
     expect(genreEnergyBaseline('Ambient', 120)).toBeLessThan(genreEnergyBaseline('Gabber', 120))
-    expect(genreEnergyBaseline('Trip Hop', 174)).toBeLessThan(genreEnergyBaseline('Drum & Bass', 174))
+    expect(genreEnergyBaseline('Trip Hop', 174)).toBeLessThan(
+      genreEnergyBaseline('Drum & Bass', 174),
+    )
     for (const g of ['Ambient', 'Techno', 'Gabber', 'House', 'Downtempo', 'Unknown Genre']) {
       const e = genreEnergyBaseline(g, 120)
       expect(e).toBeGreaterThanOrEqual(1)
