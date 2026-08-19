@@ -1,6 +1,6 @@
 # Issues — open
 
-Two constellation-edge defects logged in **v21** below (branch
+Both constellation-edge defects resolved in **v21** (branch
 `v21-edges`), on top of the two wheel-animation defects resolved in
 **v20** (branch `v20-motion`), the five z-order paint-order fixes
 shipped in **v19** (branch `v19-zorder`), the eleven items from
@@ -11,38 +11,6 @@ the v14 UI review resolved in **v15**, and all nineteen v13 items
 resolved in **v14**
 ([designs/design-v14.md](designs/design-v14.md) has the older per-issue notes).
 Each "Resolved" list records what actually shipped.
-
-## Open — v21 constellation edges
-
-Two defects in the Constellation edge styling, spotted while scoping the
-v21 restyle:
-
-1. **The out-of-view dash collides with the manual-combo dash.**
-   `WheelView.svelte:1576-1579` dashes edges leaving the viewport
-   (`.walk-edge.ghost`) at `5 5` with `stroke-opacity: 0.4`, and
-   `WheelView.svelte:1581-1584` dashes `.manual-edge` combos at a
-   near-identical `6 5` — both on the wheel canvas, one walk-coloured and
-   one accent-coloured, so "this edge exits the viewport" is visually
-   indistinguishable from "this is a manual combo." The wheel already
-   dashes two other, unrelated things: the fallback ring drawn when
-   radial data is missing (`.gridline.dashed`, `WheelView.svelte:1469-1471`,
-   drawn at `WheelView.svelte:962-969`) is `3 5`, and the centre hub
-   button's ring (`.hub-circle`, `WheelView.svelte:1710-1715`, drawn at
-   `WheelView.svelte:1344`) is `4 4` — the plain `.gridline` circles
-   themselves (`WheelView.svelte:1463-1467`) carry no dash at all. On a
-   separate canvas, the genre map's taxonomy method also dashes, at `6 4`
-   (`GenreMapView.svelte:50`). That's four dash patterns already live on
-   the wheel alone; a fifth for out-of-view state has nothing left to
-   distinguish it from the closest one, `.manual-edge`'s `6 5`.
-2. **The walk arrowhead is oversized and occluded.** The `#walk-arrow`
-   marker (`WheelView.svelte:1029-1039`) sets `markerWidth="7"` without a
-   `markerUnits` attribute, so it defaults to `strokeWidth` — at the walk
-   edge's stroke-width of 2, that renders a 14-user-unit arrowhead beside
-   an 11-unit star radius. `refX="9"` places the arrow's tip at the
-   target node's centre, but the layer stack documented at
-   `WheelView.svelte:903-922` paints edges at layer 5, under nodes at
-   layer 9, so the tip is painted first and then buried under the star —
-   only the arrow's flanks peek out past the node's edge.
 
 ## Open — v19 z-order review
 
@@ -66,6 +34,100 @@ One repository-tooling defect surfaced by the v20 browser-verification pass
    Fix is a one-word selector update — or better, target the overlay's
    stable `aria-label` and add a short timeout so a future rename fails
    loudly instead of hanging.
+
+## Resolved in v21
+
+Both constellation-edge defects from the v21 edge review, shipped on
+`v21-edges`. A new `core/walkArrow.ts` holds the change's geometry in one
+place — `WALK_CHEVRON_VIEW_BOX`, `_D`, `_SIZE`, `_REF`, `_STROKE`,
+`_MIN_EDGE`, plus `walkChevronMid`, the one piece with behaviour to
+unit-test — because the walk is drawn twice, by `lib/WheelView.svelte` on
+the wheel and by `core/exporters/portrait.ts` in the poster, and each
+carried its own duplicated arrow marker. Both renderers now draw a walk
+edge as a three-point `<polyline>` (`a → mid → b`) wearing a small open
+chevron on `marker-mid`, instead of a `<line>` with a solid `marker-end`
+arrowhead: SVG places and orients a mid-marker at the interior vertex for
+free, and `orient="auto"` on a collinear vertex bisects to exactly the line
+direction, so the direction cue needs no `atan2` (there is none anywhere in
+`src/`), no second element per edge and no per-frame transform. Rejected: a
+separately rotated `<path>` per edge — it doubles the element count and
+needs direction maths the codebase does not have.
+
+1. **Out-of-view walk edges now thin and fade instead of dashing.**
+   `.walk-edge.ghost` (`lib/WheelView.svelte`) drops its `5 5` dash and says
+   "an endpoint is off the filtered wheel" as `stroke-width: 1` with
+   `stroke-opacity: 0.35`, against a normal edge's 2 and 1. The dash was
+   surrendered to manual combos because `.manual-edge`'s `6 5` was
+   near-indistinguishable from it on the same canvas, one walk-coloured and
+   one accent-coloured; dashes on the wheel now mean one thing only, a combo
+   the user marked by hand. Rejected: re-tuning the ghost to a wider,
+   more distinct dash — the wheel already spends `3 5` on the missing-data
+   fallback ring (`.gridline.dashed`) and `4 4` on the centre hub's ring
+   (`.hub-circle`), so a fourth pattern would have had nothing left to tell
+   it apart from those two and `.manual-edge`. `stroke-opacity` rather than
+   plain `opacity` is load-bearing: `.walk-edge.reveal` animates `opacity`
+   with `animation-fill-mode: forwards`, so a dimming parked on that
+   property would not survive the reveal. Files: `lib/WheelView.svelte`.
+2. **The walk's direction mark now sits mid-edge and holds its size under
+   zoom.** `walkChevronMid` (`core/walkArrow.ts`) returns the vertex to hang
+   the chevron on — the plain midpoint — or `null` below
+   `WALK_CHEVRON_MIN_EDGE` (16 user units), where the two r=11 stars already
+   overlap and a marker between them is clutter rather than information; a
+   two-point polyline has no interior vertex, so the unconditionally set
+   `marker-mid` is simply inert there. The midpoint has clear canvas, which
+   the old `#walk-arrow` never did: it pinned its tip to the target node's
+   centre (`refX="9"`) while the wheel paints edges at layer 5 and nodes at
+   layer 9, so the star buried it and only its flanks showed. It was also
+   oversized — `markerWidth="7"` with `markerUnits` left to default to
+   `strokeWidth` is 14 user units beside an 11-unit star. The chevron takes
+   `markerUnits="userSpaceOnUse"` instead, which decouples it from the
+   edge's stroke-width so a ghost's 1px hairline cannot silently halve it,
+   and on the wheel its `markerWidth`/`markerHeight` are
+   `WALK_CHEVRON_SIZE / zoomK`, counter-scaling the way every node there
+   already does (`r={11 / zoomK}`) — the old arrow ballooned at high zoom
+   precisely because it did not. The export needs no counter-scale (a poster
+   has no zoom) and drops the old `trim`/`x2`/`y2` shortening with the
+   arrowhead it existed to protect: the line now simply runs under the r=11
+   badge, which is painted afterwards with an opaque page-coloured ring.
+   `fill: none` on the polyline, in the wheel's CSS and in the export
+   string, is required rather than belt-and-braces — a `<polyline>` defaults
+   to a black fill, and three collinear points only happen to enclose no
+   area. Files: `core/walkArrow.ts` (new), `lib/WheelView.svelte`,
+   `core/exporters/portrait.ts`.
+
+**Deviation:** the plan asked the close-out to confirm the chevron under a
+third of the old arrowhead's footprint "in both dimensions". Measured, it
+is 2.70 × 4.68 user units against the old solid head's 12.6 × 11.2 — 21%
+along the line, but 42% across it (9.0% of the area). That across-line
+figure is exactly what the plan's own design section predicted (~2.7 × 4.7
+user units), and no value in the sanctioned 8–12 tuning range for
+`WALK_CHEVRON_SIZE` reaches a third across — that would need 7.2 or less —
+so the constants shipped untouched and the bar, not the mark, is what was
+wrong.
+
+**Verified in the browser** (Playwright over the running dev server, sample
+library loaded across every playlist, fresh `localStorage`): 13/13 checks —
+a rating filter pushed walk members off the wheel and their eight ghost
+edges computed `stroke-dasharray: none` at `stroke-width: 1px` and
+`stroke-opacity: 0.35` while the solid ones held 2px and 1; all 14 walk
+edges rendered as `<polyline>` with computed `fill: none`, no element
+anywhere in the wheel's SVG carried a `marker-end`, and the 13 edges at or
+over the 16-unit threshold each carried three points and a `marker-mid`
+against the one shorter edge's two; the chevron measured 2.70 × 4.68 user
+units, 9.0% of the old arrowhead's area, with 3.62 user units of clearance
+between its leading tip and the nearest endpoint star's r=11 rim; a
+pointer-anchored zoom to k=4 shrank `markerWidth` from 9 to 2.25 user units
+and left the chevron's measured screen ink unchanged at 2.73 × 4.73px (0.0%
+drift); `.manual-edge` still computed `6px 5px`, and the whole wheel now
+carries exactly three dash patterns, none of them a walk edge
+(`.gridline.dashed` 3 5, `.hub-circle` 4 4, `.manual-edge` 6 5); the reveal
+still dash-draws, `stroke-dashoffset` sampled over 298 rAF frames running
+1 → 0 through 15 intermediate values, while a fresh reduced-motion context
+held it at 0 with opacity 1 in every sampled frame; and the portrait
+exporter's SVG, rendered into a page and screenshotted, showed 14
+chevron-carrying walk polylines, zero `marker-end` holders and lines meeting
+the numbered badges cleanly — both themes, zoomed in and out, zero console
+or page errors.
 
 ## Resolved in v20
 
