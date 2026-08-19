@@ -170,7 +170,10 @@ Your library never leaves your machine — there is no backend, no account, no u
   node by node across the wheel** — each hop lights up as the tracklist cascades
   in sync, a shimmer runs down a full-length walk as it completes, and the button
   throws a little spark burst (long walks compress to ~4 s; everything obeys
-  reduced-motion). The selected-track card carries a hands-on tool: **🔗 link
+  reduced-motion). Each hop carries a small chevron at its midpoint to show
+  which way it runs, and a hop whose track the filters have hidden thins and
+  fades rather than dashing — on the wheel a dashed line means a manual road
+  and nothing else. The selected-track card carries a hands-on tool: **🔗 link
   mode** marks a combo _you_ know works — a dashed, always-visible road that the
   suggester treats like a strong edge and the walk may travel (forward-looking
   planning marks, never a play log). Link mode works from the **wheel and the
