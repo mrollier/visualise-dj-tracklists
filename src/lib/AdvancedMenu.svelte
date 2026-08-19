@@ -7,8 +7,7 @@
     bulkScopeIds,
     clearCombosInScope,
     clearStarsInScope,
-    isPanelFilterKey,
-    MARK_FILTERS,
+    PANEL_FILTERS,
     type PanelFilterKey,
   } from '../core/marks'
   import type { Track } from '../core/model'
@@ -24,6 +23,7 @@
   import { startTour } from './tour'
   import { withOneUndoStep } from './undoStore'
   import {
+    clearPanelFilter,
     criteria,
     filters,
     library,
@@ -34,7 +34,6 @@
     playlists,
     rightPanel,
     selectedId,
-    setMarkFilter,
     settings,
     trackById,
     viewMode,
@@ -76,24 +75,18 @@
   function resetToDefaults() {
     settings.update(resetAdvancedSettings)
     criteria.update(resetAdvancedCriteria)
-    // v18 #3/#8 review fix (B4): resetAdvancedSettings resets visibleFilters
-    // to its default (marks rows hidden), but never touches filters.marks
-    // itself — without this, an active marks flag would end up hidden but
-    // still filtering, breaking the "an active filter is never invisible"
-    // invariant, and contradicting this button's own dialog copy ("Filters
-    // … are kept" — a marks flag silently surviving as an invisible filter
-    // isn't "kept", it's lost track of).
-    for (const m of MARK_FILTERS) setMarkFilter(m.flag, false)
   }
 
   // --- Track properties (v11 issue 1): one table decides, per property,
   // whether it shows as a Tracks-view column and as a left-panel filter.
   // Hiding a filter also clears it, so a hidden filter never keeps acting.
-  // Since v18 (#3/#8) the same table also carries the two marks pseudo-rows
-  // (below, after the trackColumns {#each}) — no column, filter-only; label/
-  // flag come from the shared MARK_FILTERS registry (marks.ts), not a
-  // locally hand-rolled map (v18 review fix, B2).
-  function toggleFilterVisible(key: TrackSortField | PanelFilterKey) {
+  // Since v23 the same table also carries the three panel pseudo-rows
+  // (below, after the trackColumns {#each}) — no column, filter-only, one
+  // shared tick spanning both cells; label/aria come from the shared
+  // PANEL_FILTERS registry (marks.ts). The two toggle functions are split
+  // cleanly by key type: toggleFilterVisible only ever sees a
+  // TrackSortField, togglePanelVisible only ever sees a PanelFilterKey.
+  function toggleFilterVisible(key: TrackSortField) {
     const nowShown = !$settings.visibleFilters.includes(key)
     settings.update((s) => ({
       ...s,
@@ -102,21 +95,27 @@
         : s.visibleFilters.filter((k) => k !== key),
     }))
     if (!nowShown) {
-      if (isPanelFilterKey(key)) {
-        // Hide-clears-filter parity: a hidden marks row can't keep filtering
-        // underneath, same as a hidden property filter does below. Routed
-        // through the shared mutator (stores.ts) like every other marks
-        // write site, for its no-op guard.
-        const meta = MARK_FILTERS.find((m) => m.key === key)
-        if (meta !== undefined) setMarkFilter(meta.flag, false)
-      } else {
-        filters.update((f) => {
-          const properties = { ...f.properties }
-          Reflect.deleteProperty(properties, key)
-          return { ...f, properties }
-        })
-      }
+      filters.update((f) => {
+        const properties = { ...f.properties }
+        Reflect.deleteProperty(properties, key)
+        return { ...f, properties }
+      })
     }
+  }
+
+  // Hide-clears-filter parity: a hidden panel row can't keep filtering
+  // underneath, same as a hidden property filter does above. Routed through
+  // the shared mutator (stores.ts) like every other marks/keyRings write
+  // site, for its no-op guard.
+  function togglePanelVisible(key: PanelFilterKey) {
+    const nowShown = !$settings.visibleFilters.includes(key)
+    settings.update((s) => ({
+      ...s,
+      visibleFilters: nowShown
+        ? [...s.visibleFilters, key]
+        : s.visibleFilters.filter((k) => k !== key),
+    }))
+    if (!nowShown) clearPanelFilter(key)
   }
 
   // Column checkboxes list the columns in the user's own order and toggle
@@ -532,7 +531,9 @@
     <summary>Track properties</summary>
     <p class="hint">
       Column = shown in the Tracks view (drag the table headers to reorder; a hidden column
-      remembers its place). Filter = shown in the left panel; hiding a filter also clears it.
+      remembers its place). Filter = shown in the left panel; hiding a filter also clears it. The
+      last three rows carry a single tick that shows the row in the left panel and its control in
+      the Tracks view together, and clears the filter when unticked.
     </p>
     <div class="scroll-list">
       <!-- The header lives INSIDE the scroll list (sticky) so it shares the
@@ -564,20 +565,23 @@
           {/if}
         </div>
       {/each}
-      <!-- The two marks quick-filters (v18 #3/#8): filter-only, no column —
-           starred/combo membership lives on the tracks themselves, not a
-           table cell. aria-label uses `aria` (no emoji), not `label` — a
-           screen reader would otherwise speak the glyph's Unicode name
-           (v18 review fix, D). -->
-      {#each MARK_FILTERS as m (m.key)}
-        <div class="prop-row">
+      <!-- The three panel quick-filters (v18 #3/#8, v23): filter-only, no
+           column of their own — starred/combo membership and key-ring
+           visibility live elsewhere, not a table cell. One shared tick
+           spans both the column and filter cells (v23): it governs both the
+           left-panel row and the Tracks-view control at once, so it's not
+           pretending to be two independent settings. aria-label uses `aria`
+           (no emoji), not `label` — a screen reader would otherwise speak
+           the glyph's Unicode name (v18 review fix, D). -->
+      {#each PANEL_FILTERS as m, i (m.key)}
+        <div class="prop-row pseudo" class:group-top={i === 0}>
           <span class="prop-name">{m.label}</span>
-          <span></span>
           <input
+            class="shared"
             type="checkbox"
-            aria-label="{m.aria} filter"
+            aria-label="{m.aria} filter and column"
             checked={$settings.visibleFilters.includes(m.key)}
-            onchange={() => toggleFilterVisible(m.key)}
+            onchange={() => togglePanelVisible(m.key)}
           />
         </div>
       {/each}
@@ -925,6 +929,19 @@
 
   .prop-row {
     padding: 2px 0;
+  }
+
+  /* v23: one checkbox governs both the left-panel row and the Tracks-view
+     control for these three, so it spans the column+filter pair rather than
+     pretending to be two independent settings. */
+  .prop-row.pseudo .shared {
+    grid-column: 2 / 4;
+  }
+
+  .prop-row.group-top {
+    border-top: 1px solid var(--grid);
+    margin-top: 4px;
+    padding-top: 6px;
   }
 
   .prop-name {

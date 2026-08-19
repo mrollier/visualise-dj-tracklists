@@ -11,7 +11,7 @@
     type PropertyRange,
     type QualityChoice,
   } from '../core/filter'
-  import { isPanelFilterKey, MARK_FILTERS } from '../core/marks'
+  import { isPanelFilterKey, PANEL_FILTERS } from '../core/marks'
   import { PROPERTY_BY_KEY, REKORDBOX_COLOURS, type TrackProperty } from '../core/properties'
   import type { TrackSortField } from '../core/trackSort'
   import {
@@ -33,18 +33,18 @@
 
   // The rows on show: the user's visibleFilters selection (advanced "Track
   // properties" table), resolved through the registry (v11 issue 1). Since
-  // v18 (#3/#8) visibleFilters can also carry the 'starred'/'combos' marks
-  // pseudo-keys, filtered out here — those two render as their own gated
-  // rows below the property {#each} (markRows, from the MARK_FILTERS
-  // registry), bound to filters.marks directly rather than a per-property
-  // range.
+  // v18 (#3/#8) visibleFilters can also carry the starred/combos/keys panel
+  // pseudo-keys, filtered out here — those three render as their own gated
+  // group below the property {#each} (panelRows, from the PANEL_FILTERS
+  // registry, in registry order — v23), bound to filters.marks/keyRings
+  // directly rather than a per-property range.
   const rows = $derived(
     $settings.visibleFilters
       .filter((key): key is TrackSortField => !isPanelFilterKey(key))
       .map((key) => PROPERTY_BY_KEY.get(key))
       .filter((p): p is TrackProperty => p !== undefined && p.filterable),
   )
-  const markRows = $derived(MARK_FILTERS.filter((m) => $settings.visibleFilters.includes(m.key)))
+  const panelRows = $derived(PANEL_FILTERS.filter((m) => $settings.visibleFilters.includes(m.key)))
 
   // Extents of the playlist-scoped library for the numeric-ish rows: the
   // defaults follow the playlists you work in, not the whole collection.
@@ -393,43 +393,43 @@
     </div>
   {/each}
 
-  {#each markRows as m (m.key)}
-    <div class="filter-row">
+  {#each panelRows as m, i (m.key)}
+    <div class="filter-row pseudo" class:group-top={i === 0 && rows.length > 0}>
       <span class="filter-label">{m.label}</span>
-      <!-- Two-button segmented switch, exactly like the Keys row below —
-           not a single morphing button (v18 #3/#8 review fix, B3): a
-           single button showing "all" while pressed=false announces
-           nothing useful, and its width jumps between the two labels. No
-           ↺ reset either: clicking "all" IS the reset. -->
-      <div class="ring-switch" role="group" aria-label="{m.aria} filter">
-        <button
-          class:on={!$filters.marks[m.flag]}
-          aria-pressed={!$filters.marks[m.flag]}
-          onclick={() => setMarkFilter(m.flag, false)}>all</button
-        >
-        <button
-          class:on={$filters.marks[m.flag]}
-          aria-pressed={$filters.marks[m.flag]}
-          onclick={() => setMarkFilter(m.flag, true)}>only</button
-        >
-      </div>
+      {#if m.flag !== undefined}
+        {@const flag = m.flag}
+        <!-- Two-button segmented switch, exactly like the Keys row below —
+             not a single morphing button (v18 #3/#8 review fix, B3): a
+             single button showing "all" while pressed=false announces
+             nothing useful, and its width jumps between the two labels. No
+             ↺ reset either: clicking "all" IS the reset. -->
+        <div class="ring-switch" role="group" aria-label="{m.aria} filter">
+          <button
+            class:on={!$filters.marks[flag]}
+            aria-pressed={!$filters.marks[flag]}
+            onclick={() => setMarkFilter(flag, false)}>all</button
+          >
+          <button
+            class:on={$filters.marks[flag]}
+            aria-pressed={$filters.marks[flag]}
+            onclick={() => setMarkFilter(flag, true)}>only</button
+          >
+        </div>
+      {:else}
+        <div class="ring-switch" role="group" aria-label="{m.aria} filter">
+          {#each RING_TOGGLES as choice (choice.key)}
+            <button
+              class:on={$filters.keyRings[choice.key]}
+              aria-pressed={$filters.keyRings[choice.key]}
+              onclick={() => toggleRing(choice.key)}
+            >
+              {choice.label}
+            </button>
+          {/each}
+        </div>
+      {/if}
     </div>
   {/each}
-
-  <div class="filter-row">
-    <span class="filter-label">Keys</span>
-    <div class="ring-switch" role="group" aria-label="Show keys">
-      {#each RING_TOGGLES as choice (choice.key)}
-        <button
-          class:on={$filters.keyRings[choice.key]}
-          aria-pressed={$filters.keyRings[choice.key]}
-          onclick={() => toggleRing(choice.key)}
-        >
-          {choice.label}
-        </button>
-      {/each}
-    </div>
-  </div>
 </details>
 
 <style>
@@ -574,5 +574,29 @@
   .ring-switch button.on {
     background: color-mix(in srgb, var(--accent) 18%, transparent);
     color: var(--ink);
+  }
+
+  /* v23: the pseudo rows are wider-labelled than BPM/Year/Rating and carry no
+     ↺, so they opt out of the 52px label column rather than widening it for
+     everyone — at 250px the panel has ~12px of slack and the number boxes are
+     already at their 52px min-width. The switch takes .range-reset's
+     margin-left:auto instead, so all three right-align on the row's edge. */
+  .filter-row.pseudo .filter-label {
+    width: auto;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .filter-row.pseudo .ring-switch {
+    margin-left: auto;
+  }
+
+  /* The one rule dividing metadata ranges above from the marks/ring group
+     below. --grid is the intra-section token (--border is for panel edges);
+     suppressed when nothing is above it. */
+  .filter-row.group-top {
+    border-top: 1px solid var(--grid);
+    margin-top: 4px;
+    padding-top: 8px;
   }
 </style>
