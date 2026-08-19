@@ -61,6 +61,14 @@
     walkRevealTick,
     selectOrLink,
   } from '../stores'
+  import {
+    WALK_CHEVRON_D,
+    WALK_CHEVRON_REF,
+    WALK_CHEVRON_SIZE,
+    WALK_CHEVRON_STROKE,
+    WALK_CHEVRON_VIEW_BOX,
+    walkChevronMid,
+  } from '../core/walkArrow'
   import { walkRevealPlan } from '../core/walkReveal'
 
   const SIZE = 820
@@ -1026,31 +1034,51 @@
       <!-- Walk (current tracklist): layer 5, after the suggestion edges —
            see the ordering note at the top of this group. -->
       <defs>
+        <!-- Direction chevron (v21 #2): a mid-edge marker instead of an
+             end-of-edge arrowhead — the old head sat where the target star
+             (layer 9) painted over it. See core/walkArrow.ts for the shared
+             geometry and the layer-order note. -->
         <marker
-          id="walk-arrow"
-          viewBox="0 0 10 10"
-          refX="9"
-          refY="5"
-          markerWidth="7"
-          markerHeight="7"
-          orient="auto-start-reverse"
+          id="walk-chevron"
+          viewBox={WALK_CHEVRON_VIEW_BOX}
+          refX={WALK_CHEVRON_REF}
+          refY={WALK_CHEVRON_REF}
+          markerWidth={WALK_CHEVRON_SIZE / zoomK}
+          markerHeight={WALK_CHEVRON_SIZE / zoomK}
+          markerUnits="userSpaceOnUse"
+          orient="auto"
         >
-          <path d="M 0 1 L 9 5 L 0 9 z" fill="var(--walk)" />
+          <path
+            d={WALK_CHEVRON_D}
+            fill="none"
+            stroke="var(--walk)"
+            stroke-width={WALK_CHEVRON_STROKE}
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
         </marker>
         <!-- Ghost edges (v18 #11) point at a marker of their own: a marker's
              content doesn't inherit the referencing line's stroke-opacity,
-             so the dimming has to live here too. fill-opacity, not opacity —
-             the plain paint property, no extra compositing layer. -->
+             so the dimming has to live here too. -->
         <marker
-          id="walk-arrow-ghost"
-          viewBox="0 0 10 10"
-          refX="9"
-          refY="5"
-          markerWidth="7"
-          markerHeight="7"
-          orient="auto-start-reverse"
+          id="walk-chevron-ghost"
+          viewBox={WALK_CHEVRON_VIEW_BOX}
+          refX={WALK_CHEVRON_REF}
+          refY={WALK_CHEVRON_REF}
+          markerWidth={WALK_CHEVRON_SIZE / zoomK}
+          markerHeight={WALK_CHEVRON_SIZE / zoomK}
+          markerUnits="userSpaceOnUse"
+          orient="auto"
         >
-          <path d="M 0 1 L 9 5 L 0 9 z" fill="var(--walk)" fill-opacity="0.4" />
+          <path
+            d={WALK_CHEVRON_D}
+            fill="none"
+            stroke="var(--walk)"
+            stroke-opacity="0.35"
+            stroke-width={WALK_CHEVRON_STROKE}
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
         </marker>
       </defs>
       <!-- Keyed by position: the same ordered pair can occur twice when a
@@ -1069,11 +1097,11 @@
             {@const b = walkNodeById.get(toId)}
             {@const ghost = ghostIds.has(fromId) || ghostIds.has(toId)}
             {#if a && b}
-              <line
-                x1={a.x}
-                y1={a.y}
-                x2={b.x}
-                y2={b.y}
+              {@const mid = walkChevronMid(a.x, a.y, b.x, b.y)}
+              <polyline
+                points={mid === null
+                  ? `${a.x},${a.y} ${b.x},${b.y}`
+                  : `${a.x},${a.y} ${mid.x},${mid.y} ${b.x},${b.y}`}
                 class="walk-edge"
                 class:ghost
                 class:reveal={revealing && revealPlan.edgeDelays[pairIndex] !== null}
@@ -1084,7 +1112,7 @@
                 style:animation-duration={revealing && revealPlan.edgeDelays[pairIndex] !== null
                   ? `${revealPlan.stepMs}ms`
                   : undefined}
-                marker-end={ghost ? 'url(#walk-arrow-ghost)' : 'url(#walk-arrow)'}
+                marker-mid={ghost ? 'url(#walk-chevron-ghost)' : 'url(#walk-chevron)'}
                 vector-effect="non-scaling-stroke"
               />
             {/if}
@@ -1560,22 +1588,19 @@
   }
 
   .walk-edge {
+    fill: none; /* polyline defaults to a black fill */
     stroke: var(--walk);
     stroke-width: 2;
   }
 
-  /* Ghost edges (v18 #11): a hidden endpoint dashes and dims instead of
-     vanishing. stroke-opacity, NOT opacity — .walk-edge.reveal below
-     animates `opacity` with animation-fill-mode: forwards, so dimming on a
-     separate property is the only way it survives that animation. Placed
-     BEFORE .walk-edge.reveal in the cascade on purpose: same specificity,
-     so during a reveal the later .reveal rule's dash-draw (`1`) wins the
-     stroke-dasharray tie over this rule's `5 5`, letting the line still
-     draw itself in; once the reveal ends and .reveal is unset, the dashed
-     ghost pattern here takes back over. */
+  /* Out-of-view edges (v18 #11, restyled v21 #1): a hidden endpoint thins and
+     fades instead of dashing. Dashes on the wheel now mean one thing only —
+     a manual combo (.manual-edge below). stroke-opacity, NOT opacity —
+     .walk-edge.reveal animates `opacity` with animation-fill-mode: forwards,
+     so the dimming has to live on a separate property to survive it. */
   .walk-edge.ghost {
-    stroke-opacity: 0.4;
-    stroke-dasharray: 5 5;
+    stroke-width: 1;
+    stroke-opacity: 0.35;
   }
 
   .manual-edge {
@@ -1594,8 +1619,9 @@
 
   /* Walk-draw reveal (v12 WS1): each edge dash-draws in turn. pathLength=1
      normalises every edge to the same dash space; the element stays hidden
-     until its inline delay, then the arrowhead marks the destination while
-     the stroke travels toward it. */
+     until its inline delay. Markers ignore the dash pattern, so the chevron
+     shows the direction from the first frame while the stroke travels
+     through it. */
   .walk-edge.reveal {
     stroke-dasharray: 1;
     stroke-dashoffset: 1;
