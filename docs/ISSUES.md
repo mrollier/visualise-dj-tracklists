@@ -1,13 +1,14 @@
 # Issues — open
 
 Two constellation-edge defects logged in **v21** below (branch
-`v21-edges`), on top of the two wheel-animation defects resolved in **v20**
-(branch `v20-motion`), the five z-order paint-order fixes shipped in **v19**
-(branch `v19-zorder`), the eleven items from Michiel's UX review of v17 shipped in
-**v18** (branch `v18-ux-wave`), the legal item plus five UX defects from
-that pass resolved in **v17** (branch `v17-ux-review`), the 13-item live
-review resolved in **v16**, the v14 UI review resolved in **v15**, and all
-nineteen v13 items resolved in **v14**
+`v21-edges`), on top of the two wheel-animation defects resolved in
+**v20** (branch `v20-motion`), the five z-order paint-order fixes
+shipped in **v19** (branch `v19-zorder`), the eleven items from
+Michiel's UX review of v17 shipped in **v18** (branch `v18-ux-wave`),
+the legal item plus five UX defects from that pass resolved in **v17**
+(branch `v17-ux-review`), the 13-item live review resolved in **v16**,
+the v14 UI review resolved in **v15**, and all nineteen v13 items
+resolved in **v14**
 ([designs/design-v14.md](designs/design-v14.md) has the older per-issue notes).
 Each "Resolved" list records what actually shipped.
 
@@ -20,14 +21,19 @@ v21 restyle:
    `WheelView.svelte:1576-1579` dashes edges leaving the viewport
    (`.walk-edge.ghost`) at `5 5` with `stroke-opacity: 0.4`, and
    `WheelView.svelte:1581-1584` dashes `.manual-edge` combos at a
-   near-identical `6 5` — the two read as the same broken line at a
-   glance, so "this edge exits the viewport" is visually indistinguishable
-   from "this is a manual combo." Dashing is already a crowded encoding on
-   the wheel before that collision: the genre map's taxonomy method dashes
-   at `6 4` (`GenreMapView.svelte:50`), the fallback hub ring dashes at
-   `4 4` (`WheelView.svelte:1714`), and the grid circles dash at `3 5`
-   (`WheelView.svelte:1469-1471`) — a fifth near-identical pattern for
-   out-of-view state has nothing left to distinguish it by.
+   near-identical `6 5` — both on the wheel canvas, one walk-coloured and
+   one accent-coloured, so "this edge exits the viewport" is visually
+   indistinguishable from "this is a manual combo." The wheel already
+   dashes two other, unrelated things: the fallback ring drawn when
+   radial data is missing (`.gridline.dashed`, `WheelView.svelte:1469-1471`,
+   drawn at `WheelView.svelte:962-969`) is `3 5`, and the centre hub
+   button's ring (`.hub-circle`, `WheelView.svelte:1710-1715`, drawn at
+   `WheelView.svelte:1344`) is `4 4` — the plain `.gridline` circles
+   themselves (`WheelView.svelte:1463-1467`) carry no dash at all. On a
+   separate canvas, the genre map's taxonomy method also dashes, at `6 4`
+   (`GenreMapView.svelte:50`). That's four dash patterns already live on
+   the wheel alone; a fifth for out-of-view state has nothing left to
+   distinguish it from the closest one, `.manual-edge`'s `6 5`.
 2. **The walk arrowhead is oversized and occluded.** The `#walk-arrow`
    marker (`WheelView.svelte:1029-1039`) sets `markerWidth="7"` without a
    `markerUnits` attribute, so it defaults to `strokeWidth` — at the walk
