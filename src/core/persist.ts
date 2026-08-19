@@ -4,7 +4,7 @@ import { migrateFilters, type LibraryFilters } from './filter'
 import { normalizeKey } from './keys'
 import { PANEL_FILTER_KEYS, PANEL_FILTERS } from './marks'
 import { energyFromComments, type ManualEdge, type Playlist, type Track } from './model'
-import { DEFAULT_VISIBLE_FILTERS, TRACK_PROPERTIES } from './properties'
+import { TRACK_PROPERTIES } from './properties'
 import {
   freshFirstSet,
   MAX_SETS,
@@ -415,7 +415,7 @@ export function parseProject(json: string): Project {
         (k): k is (typeof settings.visibleFilters)[number] =>
           typeof k === 'string' && validFilterKeys.has(k),
       )
-    : [...DEFAULT_VISIBLE_FILTERS]
+    : [...DEFAULT_SETTINGS.visibleFilters]
   for (const prop of TRACK_PROPERTIES) {
     if (filters.properties[prop.key] !== undefined && !settings.visibleFilters.includes(prop.key)) {
       settings.visibleFilters.push(prop.key)

@@ -53,8 +53,10 @@ export interface PanelFilterMeta {
  *
  * `label` puts the glyph FIRST, not last — still correct (the glyphs line
  * up in a column), but no longer BECAUSE of a 52px ellipsis clip: that clip
- * is what this wave removes from FiltersSection (a later task widens those
- * labels).
+ * is what this wave removes from FiltersSection. FiltersSection.svelte's
+ * `.filter-row.pseudo .filter-label { width: auto }` opts the three pseudo
+ * rows out of the shared 52px label column instead of widening it for
+ * everyone.
  */
 export const PANEL_FILTERS: readonly PanelFilterMeta[] = [
   { key: 'starred', label: '★ Starred', aria: 'Starred', flag: 'starredOnly' },

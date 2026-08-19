@@ -288,10 +288,11 @@
       <tr>
         <!-- Tags + position lead the row (v9 issue 13); the header ★ is a
              quick filter now (v18 #3/#8 — the old mark-all-★ action
-             retired). The button (not the column — the row-level ★ still
-             cycles) hides in easy mode and in-set-only mode, like the 🔗
-             toggle below: both modes' rows bypass or hide the filtered
-             view the header controls act on. -->
+             retired). `showStarCol` hides the whole column, header and row
+             ★s alike; within a shown column, the button (not the row-level
+             ★, which still cycles) hides in easy mode and in-set-only mode,
+             like the 🔗 toggle below: both modes' rows bypass or hide the
+             filtered view the header controls act on. -->
         {#if showStarCol}
           <th class="tags-col">
             {#if !easy && !inSetOnly}
@@ -698,8 +699,9 @@
   .key-ring {
     flex-shrink: 0;
     width: 26px;
-    padding-left: 2px;
-    padding-right: 2px;
+    /* shorthand, not padding-left/right: .header-toggle's equal-specificity
+       "padding: 8px 6px" would otherwise override a longhand side-padding */
+    padding: 8px 2px;
     display: inline-flex;
     justify-content: center;
   }

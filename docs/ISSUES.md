@@ -55,10 +55,14 @@ itself is untouched):
    be re-pointed at `th.tags-col .header-toggle` and its null-guard turned
    into a failure rather than a skip.
 3. **`scripts/screenshot.mjs:540` asserts exactly 28 `.prop-row` elements in
-   the advanced Track-properties table.** v23 adds a 29th row — the new
-   🎵 Keys pseudo row (`marks.ts`'s `PANEL_FILTERS`, widened from two entries
-   to three) — so that hardcoded count is now stale and the assertion fails
-   on a fresh run. Not a gate, and deliberately left for a separate tooling
+   the advanced Track-properties table, and `scripts/screenshot.mjs:84`
+   compares filter labels against the bare string `'Keys'`.** v23 adds a
+   29th row — the new 🎵 Keys pseudo row (`marks.ts`'s `PANEL_FILTERS`,
+   widened from two entries to three) — so the hardcoded row count is now
+   stale. The same wave also renamed the label itself to `'🎵 Keys'`
+   (`PANEL_FILTERS`'s glyph-first `label`), so line 84's `l.trim() ===
+   expected` no longer matches and that assertion fails too on a fresh run.
+   Neither is a gate, and both are deliberately left for a separate tooling
    pass rather than folded into this wave (do not fix the script here).
 
 ## Resolved in v23

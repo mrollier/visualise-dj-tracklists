@@ -380,20 +380,20 @@ describe('project persistence (v3)', () => {
     raw.version = 7
     Reflect.deleteProperty(raw.settings, 'visibleFilters')
     raw.filters.properties = { dateAdded: ['2020-01-01', '2024-12-31'] }
-    // dateAdded is filtering but not in the new default — it must be
-    // appended so no filter can act invisibly; the v23 back-fill then adds
-    // the three permanent panel rows.
+    // dateAdded is filtering but not in the new default (which already
+    // carries the three permanent panel rows via DEFAULT_SETTINGS) — it
+    // must be appended so no filter can act invisibly.
     expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual([
       'bpm',
       'year',
       'rating',
-      'dateAdded',
       'starred',
       'combos',
       'keys',
+      'dateAdded',
     ])
     // An explicit [] with an active filter gains that filter's row too, plus
-    // the three permanent rows.
+    // the three permanent rows the version<8 back-fill adds.
     raw.settings.visibleFilters = []
     expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual([
       'dateAdded',
@@ -1075,6 +1075,25 @@ describe('permanent panel filters persistence (v23)', () => {
     raw.filters.properties = {}
     raw.settings.visibleFilters = ['starred', 'nonsense', 'combos', 'keys']
     expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual([
+      'starred',
+      'combos',
+      'keys',
+    ])
+  })
+
+  test('a v8 save with visibleFilters missing (not just empty) falls back to all six default keys, not just the three permanent rows', () => {
+    const raw = JSON.parse(serializeProject(project)) as {
+      version: number
+      settings: Record<string, unknown>
+      filters: Record<string, unknown>
+    }
+    expect(raw.version).toBe(8) // project already serializes at the current schema
+    raw.filters.properties = {}
+    Reflect.deleteProperty(raw.settings, 'visibleFilters')
+    expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual([
+      'bpm',
+      'year',
+      'rating',
       'starred',
       'combos',
       'keys',
