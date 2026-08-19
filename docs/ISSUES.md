@@ -1,14 +1,15 @@
 # Issues — open
 
-Both constellation-edge defects resolved in **v21** (branch
-`v21-edges`), on top of the two wheel-animation defects resolved in
-**v20** (branch `v20-motion`), the five z-order paint-order fixes
-shipped in **v19** (branch `v19-zorder`), the eleven items from
-Michiel's UX review of v17 shipped in **v18** (branch `v18-ux-wave`),
-the legal item plus five UX defects from that pass resolved in **v17**
-(branch `v17-ux-review`), the 13-item live review resolved in **v16**,
-the v14 UI review resolved in **v15**, and all nineteen v13 items
-resolved in **v14**
+The Tracks-header visibility defect resolved in **v22** (branch
+`v22-tracks-header`), on top of both constellation-edge defects
+resolved in **v21** (branch `v21-edges`), the two wheel-animation
+defects resolved in **v20** (branch `v20-motion`), the five z-order
+paint-order fixes shipped in **v19** (branch `v19-zorder`), the eleven
+items from Michiel's UX review of v17 shipped in **v18** (branch
+`v18-ux-wave`), the legal item plus five UX defects from that pass
+resolved in **v17** (branch `v17-ux-review`), the 13-item live review
+resolved in **v16**, the v14 UI review resolved in **v15**, and all
+nineteen v13 items resolved in **v14**
 ([designs/design-v14.md](designs/design-v14.md) has the older per-issue notes).
 Each "Resolved" list records what actually shipped.
 
@@ -24,8 +25,9 @@ labels still don't counter-scale under zoom.
 
 ## Open — tooling
 
-One repository-tooling defect surfaced by the v20 browser-verification pass
-(the probe worked around it; the script itself is untouched):
+Two defects in `scripts/screenshot.mjs`, surfaced by the v20 and v22
+browser-verification passes (each probe worked around its own; the script
+itself is untouched):
 
 1. **`scripts/screenshot.mjs` clicks a tour button that no longer exists.**
    Line 49 targets a button named "Close the tour", but the tour overlay's
@@ -33,7 +35,112 @@ One repository-tooling defect surfaced by the v20 browser-verification pass
    script stalls at that step on a fresh profile where the guided tour opens.
    Fix is a one-word selector update — or better, target the overlay's
    stable `aria-label` and add a short timeout so a future rename fails
-   loudly instead of hanging.
+   loudly instead of hanging. _v22 addition:_ a corrected selector is not
+   enough on its own. The tour card animates in, so a real Playwright click
+   never passes actionability against it and hangs on the stability retry —
+   the v22 probe had to `dispatchEvent('click')` on
+   `button[aria-label="Skip the tour"]`, the same idiom this script already
+   uses for the wheel's overlapping hit circles. Fix both halves together.
+2. **`scripts/screenshot.mjs` measures a `.header-star` that no longer
+   exists.** Line 617 takes `page.locator('.header-star').boundingBox()` and
+   compares its centre against the first row star's, guarding the v11 issue
+   11 header/column alignment. No element has carried that class since v18
+   #3/#8 renamed the header ★ to `tag header-toggle` (and v22 to plain
+   `header-toggle`), so `boundingBox()` returns `null`, the `if
+   (headerStarBox && rowStarBox)` guard short-circuits, and the assertion
+   has been silently testing nothing ever since. The alignment it guards is
+   in fact fine — the v22 probe re-measured it directly and the header ★ and
+   the row stars share a centre to 0.0px in both themes — but the check must
+   be re-pointed at `th.tags-col .header-toggle` and its null-guard turned
+   into a failure rather than a skip.
+
+## Resolved in v22
+
+The Tracks-view header defect Michiel reported, shipped on
+`v22-tracks-header`. One CSS idiom moved: the header's ★ and 🔗 quick
+filters stop riding `.tag`, the shared row-icon base, and get a
+self-contained `.header-toggle` ruleset modelled on the ☰ set-only toggle
+that sits between them and never had the problem. Nothing else in the
+header changed — every `{#if}` gate, `class:on`, `disabled`, `title`,
+`aria-*` and `onclick` is untouched. Which controls render (`!easy`,
+`!inSetOnly`) and when they disable (`starToggleDisabled`,
+`comboToggleDisabled`) were already right; only their visibility while
+enabled was wrong.
+
+1. **The header ★ and 🔗 quick filters now stay visible the moment they
+   become usable, instead of vanishing exactly then.** Both buttons in
+   `lib/TracksView.svelte` carried `class="tag header-toggle"`, and `.tag`
+   is the _row_-icon idiom: `opacity: 0`, revealed by `tbody tr:hover` so a
+   dense table is not a wall of glyphs. A `<th>` never matches `tbody
+   tr:hover`, so the header's only three escapes from that zero were
+   `.tag.on` (opacity 1 while the filter is lit), `:disabled` (0.4), and a
+   `thead:hover / :focus-within` reveal rule — which produced the exact
+   inversion reported. With nothing starred, `starToggleDisabled` is true,
+   so the button is _disabled_ and paints at 0.4: **visible**. Star one
+   track and it becomes _enabled_, falls back to `.tag`'s `opacity: 0`, and
+   **disappears**, returning only while the pointer sits on the column
+   headers. Same story for 🔗 against `$manualEdges.length`. The control was
+   visible only while it was useless. The fix takes `.tag` off the two
+   buttons rather than patching a resting opacity onto it, because that
+   `opacity: 0` is load-bearing for everything else `.tag` serves — up to
+   500 row stars, plus a `.tag` 🔗 in every manual-combo cell once a row is
+   selected — and a resting opacity on the shared base would have made every
+   one of them permanently visible, which is the thing `.tag` exists to
+   prevent. It would also have been a patch on top of a patch: the header
+   buttons already needed `.tag.header-toggle {
+   padding: 8px 6px }` to undo `.tag`'s dense-row padding, and
+   `.tag.header-toggle:disabled` to out-specify the hover reveal. All three
+   reconciliation blocks were deleted with the class; the one thing worth
+   keeping from `.tag`, the springy `var(--bounce-transition)` press, is
+   restated explicitly along with the `:active { transform: scale(0.75) }`
+   that `.tag` kept in a separate rule — without it the transition would
+   animate nothing. Ordering inside the new ruleset is deliberate:
+   `:disabled` follows `:hover` at equal specificity, so a disabled toggle
+   never picks up the accent colour. Against the global button reset in
+   `app.css`, `.header-toggle` (0,1,0) beats `button` (0,0,1) and
+   `.header-toggle:disabled` (0,2,0) beats `button:disabled { opacity: 0.45
+   }` (0,1,1), and `border: none` makes `button:hover:not(:disabled)`'s
+   border rule inert. Resulting progression, the same one the ☰ already had:
+   nothing to filter → dim 0.4 and inert; something to filter → full
+   `--ink-muted` and live; filter lit → `--accent`. `table.has-selection
+   td.manual .tag:not(.on)` is scoped to `td.manual` and never reached the
+   header 🔗 in `th.manual-col`, so it stays exactly as it is. The README's
+   Tracks-view sentence was stale twice over and is rewritten to match: it
+   described a header ★ "revealed on header hover" — the reveal this wave
+   deletes — that "stars the whole view at once", the bulk action retired
+   in v18 when the header became a filter toggle, and it omitted the header
+   🔗 entirely. Files: `lib/TracksView.svelte`, `README.md` (outside
+   `src/`).
+
+**Verified in the browser** (standalone Playwright probe over the running
+dev server, sample library loaded, fresh `localStorage`, guided tour
+dismissed by its real `aria-label` with a dispatched click): 86/86 checks —
+with the pointer parked at the bottom-left corner and
+`document.activeElement` blurred after every click, so that `thead:hover`
+and `thead:focus-within` were asserted to match zero elements at all 17
+measurement points — the two escapes that used to mask the bug. Measured,
+per theme: the header ★ with
+nothing starred, `disabled` at `opacity: 0.4`, hit-testable via
+`elementFromPoint`; the same button after one row star was clicked,
+`opacity: 1` — never 0 — enabled, painting `--ink-muted` exactly
+(`rgb(138, 136, 128)` dark, `rgb(125, 123, 114)` light); lit by a click,
+`.on` at `--accent` (`rgb(39, 166, 196)` / `rgb(13, 125, 153)`) and still
+`opacity: 1`; cleared again and still `opacity: 1` back at `--ink-muted`;
+all six of those repeated for the header 🔗, disabled first, then with a
+manual combo created by selecting a row and clicking a partner's 🔗 cell;
+the ☰ `.pos-toggle` snapshotted at all seven measurement points per theme
+and identical every time (`opacity: 0.4`, `--ink-muted`, disabled — the set
+stays empty throughout); no row regression, an unmarked row ★ still
+`opacity: 0` at rest, 0.65 on row hover and 1 when `.on` at rest; the
+header ★ still centred over the row stars to 0.0px with no element
+anywhere carrying the stale `.header-star` class; and cleanup between the
+two theme runs returning both toggles to disabled. The load-bearing check
+(b) was shown to discriminate rather than merely pass: re-injecting the
+pre-v22 cascade (`.header-toggle { opacity: 0 }` plus the three escapes)
+into the live page made that same enabled header ★ measure `opacity: 0`
+while everything else held, and the control screenshot reproduces the
+reported symptom with the ★ gone and the ☰ and 🔗 still in place — both
+themes, zero console errors and zero page errors.
 
 ## Resolved in v21
 
