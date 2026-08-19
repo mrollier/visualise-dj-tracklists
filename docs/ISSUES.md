@@ -1,8 +1,9 @@
 # Issues — open
 
-The Tracks-header visibility defect resolved in **v22** (branch
-`v22-tracks-header`), on top of both constellation-edge defects
-resolved in **v21** (branch `v21-edges`), the two wheel-animation
+The permanent filter-group wave resolved in **v23** (branch
+`v23-filter-group`), on top of the Tracks-header visibility defect
+resolved in **v22** (branch `v22-tracks-header`), both constellation-edge
+defects resolved in **v21** (branch `v21-edges`), the two wheel-animation
 defects resolved in **v20** (branch `v20-motion`), the five z-order
 paint-order fixes shipped in **v19** (branch `v19-zorder`), the eleven
 items from Michiel's UX review of v17 shipped in **v18** (branch
@@ -25,7 +26,7 @@ labels still don't counter-scale under zoom.
 
 ## Open — tooling
 
-Two defects in `scripts/screenshot.mjs`, surfaced by the v20 and v22
+Three defects in `scripts/screenshot.mjs`, surfaced by the v20, v22 and v23
 browser-verification passes (each probe worked around its own; the script
 itself is untouched):
 
@@ -53,6 +54,112 @@ itself is untouched):
    the row stars share a centre to 0.0px in both themes — but the check must
    be re-pointed at `th.tags-col .header-toggle` and its null-guard turned
    into a failure rather than a skip.
+3. **`scripts/screenshot.mjs:540` asserts exactly 28 `.prop-row` elements in
+   the advanced Track-properties table.** v23 adds a 29th row — the new
+   🎵 Keys pseudo row (`marks.ts`'s `PANEL_FILTERS`, widened from two entries
+   to three) — so that hardcoded count is now stale and the assertion fails
+   on a fresh run. Not a gate, and deliberately left for a separate tooling
+   pass rather than folded into this wave (do not fix the script here).
+
+## Resolved in v23
+
+The permanent panel-filter wave shipped on `v23-filter-group`: ★ Starred and
+🔗 Combos, previously ad-hoc marks filters, join 🎵 Keys as three permanent
+rows in the left panel and gain matching visibility controls in the
+Tracks-view header — all three driven off one new registry,
+`core/marks.ts`'s `PANEL_FILTERS`, with the older marks-only `MARK_FILTERS`
+now *derived* from it instead of hand-rolled a second time. **Rejected:** a
+second, parallel registry just for the Keys row — it would re-create the
+exact label/aria drift the v18 review already fixed once; widening the
+shared `.filter-label` column to fit the longer pseudo-row labels — the
+250px panel has only ~12px of slack and the property number boxes already
+sit at their 52px `min-width` floor, so the pseudo rows opt out of that
+column instead; a dedicated ♪ column in the Tracks view — it would repeat
+the A/B ring the Key cell's glyph already carries; and folding the sort
+direction into the ♪ cycle — a fourth cycle stop would make "sorted by key
+descending, minor only" unreachable and give the Key header a different
+shape than the other 27.
+
+1. **`core/marks.ts` gains a single registry, `PANEL_FILTERS`, for the three
+   permanent panel rows.** `PANEL_FILTER_KEYS = ['starred', 'combos',
+   'keys']`, `PanelFilterKey`, `isPanelFilterKey` and `PanelFilterMeta` back
+   it; each entry carries a `label` (`'★ Starred'`, `'🔗 Combos'`, `'🎵
+   Keys'`), a glyph-free `aria` string (`'Starred'`, `'Manual combos'`,
+   `'Key rings'`), and an optional `flag` naming the `MarksFilter` boolean
+   it drives (`starredOnly` / `comboOnly`; absent for `keys`, which drives
+   `filters.keyRings` instead). `MARK_FILTERS` is now the subset of
+   `PANEL_FILTERS` carrying a `flag`, computed with a type-narrowing
+   `.filter()`, not a second literal list — `MARK_FILTER_KEYS`,
+   `MarkFilterKey` and `isMarkFilterKey` are retired. `DEFAULT_SETTINGS.
+   visibleFilters` becomes `['bpm', 'year', 'rating', 'starred', 'combos',
+   'keys']`. The project schema bumps 7 → 8: `persist.ts:427`'s
+   `parseProject` back-fills any of the three pseudo-keys missing from a
+   save's `visibleFilters` when `version < 8`, and trusts schema 8+ saves
+   verbatim, so a deliberate hide made after this wave survives a reload.
+   `stores.ts` gains `clearPanelFilter(key)`, the one function every
+   hide-path (panel checkbox, header toggle) now routes through to
+   neutralise whichever mechanism a row drives before it disappears — a
+   marks flag via the existing `setMarkFilter`, or `keyRings` reset to
+   `{minor: true, major: true}` directly.
+   Files: `core/marks.ts`, `core/persist.ts`, `stores.ts`.
+2. **The left panel and the advanced menu both render the three rows from
+   `PANEL_FILTERS`, not their own hand-rolled copies.** `FiltersSection.
+   svelte` replaces its old `markRows` `{#each}` and the hardcoded Keys row
+   with one `{#each panelRows as m}` over the registry, wearing a `.pseudo`
+   class (opts the row out of the shared 52px `.filter-label` width — the
+   panel has no slack left to widen it for everyone) and `.group-top` on
+   the first row (the single divider between the property ranges above and
+   the marks/ring group below). `AdvancedMenu.svelte`'s "Track properties"
+   table grows one `.prop-row.pseudo` per registry entry, each a single
+   shared checkbox spanning the column and filter cells (`aria-label="{aria}
+   filter and column"`, never the emoji — a screen reader would otherwise
+   speak its Unicode name, the same v18 review fix `PANEL_FILTERS`'s own
+   doc comment records) wired through `togglePanelVisible`, which calls
+   `clearPanelFilter` on hide. The old `resetToDefaults` loop that
+   hand-cleared the marks flags is gone — resetting `visibleFilters` to the
+   registry-derived default now does the same job.
+   Files: `lib/FiltersSection.svelte`, `lib/AdvancedMenu.svelte`.
+3. **The Tracks view gates its ★/🔗 columns on `visibleFilters` and gains a
+   ♪ ring quick filter in the Key column header.** `showStarCol`,
+   `showComboCol` and `showKeyRings` read `$settings.visibleFilters`
+   directly (not `effectiveFilters` — easy mode neutralising the underlying
+   filter must not also hide the column-visibility choice); `<th
+   class="tags-col">` and `<th class="manual-col">` (and their matching
+   `<td>`s) wrap in those flags, and `colCount` follows: `(showStarCol ? 1
+   : 0) + 1 + (!easy && showComboCol ? 1 : 0) + columns.length`, so the
+   `.empty-row`'s `colspan` always matches however many `<th>`s the header
+   actually renders. The ♪ button sits beside `.sort` inside the Key
+   column's `<th>`, gated on `showKeyRings && !easy && !inSetOnly`, and
+   cycles `filters.keyRings` through three named stops — `♪` (both rings,
+   not `.on`), `♪A` (minor only, `.on`), `♪B` (major only, `.on`) — back to
+   `♪`; a fourth, panel-only state (both rings off) is reachable from the
+   left panel's independent toggles and rejoins the cycle at its start
+   rather than stopping on it. A follow-up fix commit replaced the button's
+   original absolutely-positioned overlay with a `.th-inner` normal-flow
+   flex wrapper around `.sort` and `.key-ring`, matching the `.lock`
+   precedent in `CriteriaPanel.svelte:330-336` — an in-flow flex sibling
+   with a fixed 26px width, so the ♪ ↔ ♪A ↔ ♪B glyph swap never shifts the
+   sort label or the ▲/▼ triangle beside it.
+   Files: `lib/TracksView.svelte`.
+
+**Verified in the browser**: this wave's browser pass was deliberately
+scoped down to the one silent-failure mode a review flagged — a `colCount`
+miscount, whose only symptom is a misaligned empty-state row — rather than
+the full (a)-(h) checklist originally drafted for this task. Standalone
+Playwright probe (`task4-probe-colspan.mjs`, launched against `npm run dev`
+on `http://localhost:5173`, chromium via the chrome-channel fallback, fresh
+`localStorage`, the sample library loaded, guided tour dismissed by its
+real `aria-label` with a dispatched click) drove the Tracks view into its
+empty state (every playlist deselected) in four configurations and
+compared the `.empty-row` `<td>`'s `colspan` against the live `<thead th>`
+count: both ★ and 🔗 shown, 10 vs 10; ★ hidden alone, 9 vs 9; 🔗 hidden
+alone, 9 vs 9; both hidden, 8 vs 8 — 5/5 checks (the four colspan
+comparisons plus a zero-console/page-error check), one theme only, no
+discrimination step run. Everything else in the wave — the panel row order
+and divider, the switch alignment, the ♪ cycle's three stops, the ★/🔗/♪
+visibility toggles themselves, the schema-8 back-fill, the ♪-button fit
+beside the Key sort label, and the light theme — was reviewed by eye rather
+than measured in this pass.
 
 ## Resolved in v22
 
@@ -884,3 +991,15 @@ threshold re-floored to the locked count), the WS1 `isVinyl` drop, the WS7
 became `{qualities: []}`, where an empty array is a real both-off state and is
 preserved on load, not dropped. `migrateFilters` maps both old shapes;
 `parseProject` accepts v1–v7.
+
+**v8** (v23) — ★ Starred, 🔗 Combos and 🎵 Keys became permanent left-panel
+rows instead of ad-hoc controls, so `settings.visibleFilters` can now carry
+their three pseudo-keys alongside every real `TrackSortField`. The back-fill
+is version-gated rather than unconditional: `parseProject` (`persist.ts:427`)
+only pushes a missing pseudo-key when `version < 8`, trusting a schema-8+
+save's `visibleFilters` verbatim. Without the gate, a returning user's
+deliberate hide of, say, 🎵 Keys could never survive a reload — every load
+would silently re-add it; without the back-fill itself, every pre-v23 save
+would silently lose the Keys row (and, before this wave, ★/🔗 could already
+be hidden as ordinary marks filters) on its first load under the new code.
+`parseProject` accepts v1–v8.

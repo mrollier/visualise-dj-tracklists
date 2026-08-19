@@ -82,38 +82,48 @@ Your library never leaves your machine — there is no backend, no account, no u
   sort survives view switches. Every track property — **28 of them, everything the
   Rekordbox XML carries**, from Artist to Play count to file Location — has a row
   in the advanced **"Track properties" table** with two checkboxes: **shown as a
-  column** here, and **shown as a filter** in the left panel. **Drag the headers**
-  to reorder columns; a hidden column remembers its place. Clicking a row selects
-  it everywhere and highlights its combo neighbours. Two leading cells: a **single
-  star that cycles on click** — essential (must-include) → opener ⏮ → closer ⏭ →
-  off, skipping the opener/closer stage when another track already holds it
-  (tagged tracks wear a subtle ring on the wheel); and a **＋ cell that appends to
-  the set and turns into the track's position number(s)** — hover it for a ✕ that
-  takes the track out again. The header ★ (aligned over the row stars) is a
-  quick filter for starred tracks, and the header 🔗 (aligned over the
-  manual-combo column) is a quick filter for tracks with a manual combo —
-  both sit dim and inert until there's something to filter, and a ☰ toggle on
+  column** here, and **shown as a filter** in the left panel — except its last
+  three rows (★ Starred, 🔗 Combos, 🎵 Keys), which carry a **single shared tick**
+  governing the left-panel filter row and the Tracks-view control together.
+  **Drag the headers** to reorder columns; a hidden column remembers its place.
+  Clicking a row selects it everywhere and highlights its combo neighbours. Two
+  leading cells: a **single star that cycles on click** — essential (must-include)
+  → opener ⏮ → closer ⏭ → off, skipping the opener/closer stage when another
+  track already holds it (tagged tracks wear a subtle ring on the wheel); and a
+  **＋ cell that appends to the set and turns into the track's position
+  number(s)** — hover it for a ✕ that takes the track out again. The header ★
+  (aligned over the row stars) is a quick filter for starred tracks, and the
+  header 🔗 (aligned over the manual-combo column) is a quick filter for tracks
+  with a manual combo — both sit dim and inert until there's something to
+  filter, both columns can be hidden entirely from the Track-properties table
+  above (unticking clears the filter along with the column), and a ☰ toggle on
   the position header flips the table to **just this set, in order, with
   every metadata column** — the set panel's list, fleshed out (it disables
   while the set is empty, and the sort triangle hides while set order
   rules).
-- **Filter on anything**: BPM / year / rating ranges show by default; **any other
-  property** joins them via the Track-properties table (hiding a filter also
-  clears it). Each control matches the **nature** of its field: numeric ranges
-  step through their values with the spinner arrows sitting clear of the digits;
-  name-like text (artist, title, genre, …) filters by a **first-letter A–Z
-  range** — a bounded, ordered domain with a single `#` catch-all bucket for
-  non-letter starts, stepped just like BPM, so A–M keeps Kraftwerk and drops ZZ
-  Top; free-form fields (**Location**, **Comments**) take a **"contains"**
-  substring search; **Colour** is a **chip multi-select** offering only the
-  Rekordbox tags present in the selected playlists; and **Kind** collapses to a
-  **lossy / lossless / both** quality selector (choose "lossless" to keep only
-  the tracks you have a lossless file for). Dates filter by range (undated tracks
-  hide while a date filter is active), and the key by **Camelot number** (8–12
-  hits both rings), composing with the **both/minor/major** ring switch — the
+- **Filter on anything**: BPM / year / rating ranges show by default, and now so
+  do the three mark/ring filters — ★ Starred, 🔗 Combos, 🎵 Keys — grouped below
+  them under a subtle rule; **any other property** joins them via the
+  Track-properties table (hiding a filter also clears it). Each control matches
+  the **nature** of its field: numeric ranges step through their values with the
+  spinner arrows sitting clear of the digits; name-like text (artist, title,
+  genre, …) filters by a **first-letter A–Z range** — a bounded, ordered domain
+  with a single `#` catch-all bucket for non-letter starts, stepped just like
+  BPM, so A–M keeps Kraftwerk and drops ZZ Top; free-form fields (**Location**,
+  **Comments**) take a **"contains"** substring search; **Colour** is a **chip
+  multi-select** offering only the Rekordbox tags present in the selected
+  playlists; and **Kind** collapses to a **lossy / lossless / both** quality
+  selector (choose "lossless" to keep only the tracks you have a lossless file
+  for). Dates filter by range (undated tracks hide while a date filter is
+  active), and the key by **Camelot number** (8–12 hits both rings), composing
+  with the left panel's **independent minor and major ring toggles** — either
+  can be on or off on its own, and both off shows only keyless tracks — the
   excluded ring's sector tint fades out, and narrowing the key range fades away
-  the whole angular wedge of each dropped key, so the wheel visibly answers. A
-  **Genres section** of its own — a
+  the whole angular wedge of each dropped key, so the wheel visibly answers. The
+  Tracks view's own **Key** column header carries a quick **♪ ring cycle** of
+  its own (both rings → minor only → major only → back to both), composing with
+  that column's sort exactly like the ★/🔗 header filters above compose with
+  theirs. A **Genres section** of its own — a
   checklist **scoped to the selected playlists** with a live count — decides what
   participates in the graph at all. Numeric ranges pre-fill with the whole
   numbers just outside the selected playlists' actual extremes, reset to them
