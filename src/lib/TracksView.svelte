@@ -241,7 +241,7 @@
         <th class="tags-col">
           {#if !easy && !inSetOnly}
             <button
-              class="tag header-toggle"
+              class="header-toggle"
               class:on={$filters.marks.starredOnly}
               disabled={starToggleDisabled}
               title={starToggleDisabled
@@ -284,7 +284,7 @@
           <th class="manual-col">
             {#if !inSetOnly}
               <button
-                class="tag header-toggle"
+                class="header-toggle"
                 class:on={$filters.marks.comboOnly}
                 disabled={comboToggleDisabled}
                 title={comboToggleDisabled
@@ -753,34 +753,33 @@
     text-align: center;
   }
 
-  /* The header ★/🔗 quick filters appear on header hover, like the row tags
-     on row hover (v10 issue 14); each stays lit while its marks filter is
-     active. v18 #3/#8 review fix (C3): that's the ONLY non-dead rule this
-     block needs — .tag below already gives any element carrying both
-     classes the identical base opacity:0 and .on opacity:1/accent colour;
-     the one thing .tag can't provide is revealing on *header* hover/focus
-     (.tag only reveals on `tbody tr:hover`, which never matches a <th>). */
-  thead:hover .header-toggle,
-  thead:focus-within .header-toggle {
-    opacity: 1;
-  }
-
-  /* C2: restores the ~26×30 hit area the old pos-toggle-styled mark-all/
-     clear-all buttons had — .tag alone (padding 0 3px) is sized for a
-     dense row icon, too small for a primary header control. The compound
-     selector (not bare .header-toggle) has higher specificity than .tag's
-     own padding, so it wins regardless of each rule's position in the
-     file. */
-  .tag.header-toggle {
+  /* The header ★/🔗 quick filters (v18 #3/#8) are permanent controls, not row
+     icons: self-contained like .pos-toggle below rather than riding .tag,
+     which sets opacity:0 for the row stars and hid these until the header was
+     hovered — visible only while disabled, gone the moment starring a track
+     made them usable (v22). Order matters: :disabled must follow :hover, same
+     specificity, so a disabled toggle never picks up the accent colour. */
+  .header-toggle {
+    background: none;
+    border: none;
     padding: 8px 6px;
+    font-size: 12px;
+    color: var(--ink-muted);
+    /* Springy press (v12 WS2), the one thing worth keeping from .tag. */
+    transition: var(--bounce-transition);
   }
 
-  /* Dimmed + inert while there's nothing to filter (never true while the
-     flag is ON — see TracksView's starToggleDisabled/comboToggleDisabled).
-     Same values as .pos-toggle:disabled. Specificity (0,3,0) unconditionally
-     beats the thead:hover reveal rule above (0,2,1), so a disabled toggle
-     stays dim even while the header is hovered. */
-  .tag.header-toggle:disabled {
+  .header-toggle:active {
+    transform: scale(0.75);
+  }
+
+  .header-toggle:hover,
+  .header-toggle.on {
+    color: var(--accent);
+  }
+
+  .header-toggle:disabled {
+    color: var(--ink-muted);
     opacity: 0.4;
     cursor: default;
   }

@@ -89,11 +89,14 @@ Your library never leaves your machine — there is no backend, no account, no u
   off, skipping the opener/closer stage when another track already holds it
   (tagged tracks wear a subtle ring on the wheel); and a **＋ cell that appends to
   the set and turns into the track's position number(s)** — hover it for a ✕ that
-  takes the track out again. The header ★ (revealed on header hover, aligned over
-  the row stars) stars the whole view at once, and a ☰ toggle on the position
-  header flips the table to **just this set, in order, with every metadata
-  column** — the set panel's list, fleshed out (it disables while the set is
-  empty, and the sort triangle hides while set order rules).
+  takes the track out again. The header ★ (aligned over the row stars) is a
+  quick filter for starred tracks, and the header 🔗 (aligned over the
+  manual-combo column) is a quick filter for tracks with a manual combo —
+  both sit dim and inert until there's something to filter, and a ☰ toggle on
+  the position header flips the table to **just this set, in order, with
+  every metadata column** — the set panel's list, fleshed out (it disables
+  while the set is empty, and the sort triangle hides while set order
+  rules).
 - **Filter on anything**: BPM / year / rating ranges show by default; **any other
   property** joins them via the Track-properties table (hiding a filter also
   clears it). Each control matches the **nature** of its field: numeric ranges
