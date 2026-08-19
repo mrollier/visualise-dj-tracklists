@@ -62,25 +62,29 @@ needs direction maths the codebase does not have.
    one accent-coloured; dashes on the wheel now mean one thing only, a combo
    the user marked by hand. Rejected: re-tuning the ghost to a wider,
    more distinct dash — the wheel already spends `3 5` on the missing-data
-   fallback ring (`.gridline.dashed`) and `4 4` on the centre hub's ring
-   (`.hub-circle`), so a fourth pattern would have had nothing left to tell
-   it apart from those two and `.manual-edge`. `stroke-opacity` rather than
-   plain `opacity` is load-bearing: `.walk-edge.reveal` animates `opacity`
-   with `animation-fill-mode: forwards`, so a dimming parked on that
+   fallback ring (`.gridline.dashed`), `4 4` on the centre hub's ring
+   (`.hub-circle`), and `2 5` on the retry ring (`.retry-ring`, tightening
+   to `2 3` on hover or force-retry) whenever a hub suggestion is live, so
+   a fifth pattern — sixth counting that hover state — would have had
+   nothing left to tell it apart from those three and `.manual-edge`.
+   `stroke-opacity` rather than plain `opacity` is load-bearing:
+   `.walk-edge.reveal` animates `opacity` with `animation-fill-mode:
+   forwards`, so a dimming parked on that
    property would not survive the reveal. Files: `lib/WheelView.svelte`.
 2. **The walk's direction mark now sits mid-edge and holds its size under
    zoom.** `walkChevronMid` (`core/walkArrow.ts`) returns the vertex to hang
    the chevron on — the plain midpoint — or `null` below
-   `WALK_CHEVRON_MIN_EDGE` (16 user units), where the two r=11 stars already
-   overlap and a marker between them is clutter rather than information; a
+   `WALK_CHEVRON_MIN_EDGE` (16 user units), where the two nodes' r=11 hit
+   discs already overlap and a marker between them is clutter rather than
+   information (the drawn star itself is r=5, or 7 selected); a
    two-point polyline has no interior vertex, so the unconditionally set
    `marker-mid` is simply inert there. The midpoint has clear canvas, which
    the old `#walk-arrow` never did: it pinned its tip to the target node's
    centre (`refX="9"`) while the wheel paints edges at layer 5 and nodes at
    layer 9, so the star buried it and only its flanks showed. It was also
    oversized — `markerWidth="7"` with `markerUnits` left to default to
-   `strokeWidth` is 14 user units beside an 11-unit star. The chevron takes
-   `markerUnits="userSpaceOnUse"` instead, which decouples it from the
+   `strokeWidth` is 14 user units beside the r=11 hit disc. The chevron
+   takes `markerUnits="userSpaceOnUse"` instead, which decouples it from the
    edge's stroke-width so a ghost's 1px hairline cannot silently halve it,
    and on the wheel its `markerWidth`/`markerHeight` are
    `WALK_CHEVRON_SIZE / zoomK`, counter-scaling the way every node there
@@ -96,14 +100,16 @@ needs direction maths the codebase does not have.
    `core/exporters/portrait.ts`.
 
 **Deviation:** the plan asked the close-out to confirm the chevron under a
-third of the old arrowhead's footprint "in both dimensions". Measured, it
-is 2.70 × 4.68 user units against the old solid head's 12.6 × 11.2 — 21%
-along the line, but 42% across it (9.0% of the area). That across-line
-figure is exactly what the plan's own design section predicted (~2.7 × 4.7
-user units), and no value in the sanctioned 8–12 tuning range for
-`WALK_CHEVRON_SIZE` reaches a third across — that would need 7.2 or less —
-so the constants shipped untouched and the bar, not the mark, is what was
-wrong.
+third of the old arrowhead's footprint "in both dimensions". The chevron's
+path spans 2.70 × 4.68 user units against the old solid head's 12.6 × 11.2
+— 21% along the line, 42% across it, exactly what the plan's own design
+section predicted (~2.7 × 4.7 user units); no value in the sanctioned 8–12
+tuning range for `WALK_CHEVRON_SIZE` reaches a third across (that would
+need 7.2 or less), so the constants shipped untouched and the bar, not the
+mark, is what was wrong. Including the chevron's ~1.53-unit round-capped
+stroke, its visual bounding box runs roughly 4.2 × 6.2 user units against
+the old head's 12.6 × 11.2 — about 19% of its area by bounding box, about
+13% by actual ink.
 
 **Verified in the browser** (Playwright over the running dev server, sample
 library loaded across every playlist, fresh `localStorage`): 13/13 checks —
@@ -113,21 +119,23 @@ edges computed `stroke-dasharray: none` at `stroke-width: 1px` and
 edges rendered as `<polyline>` with computed `fill: none`, no element
 anywhere in the wheel's SVG carried a `marker-end`, and the 13 edges at or
 over the 16-unit threshold each carried three points and a `marker-mid`
-against the one shorter edge's two; the chevron measured 2.70 × 4.68 user
-units, 9.0% of the old arrowhead's area, with 3.62 user units of clearance
-between its leading tip and the nearest endpoint star's r=11 rim; a
-pointer-anchored zoom to k=4 shrank `markerWidth` from 9 to 2.25 user units
-and left the chevron's measured screen ink unchanged at 2.73 × 4.73px (0.0%
-drift); `.manual-edge` still computed `6px 5px`, and the whole wheel now
-carries exactly three dash patterns, none of them a walk edge
-(`.gridline.dashed` 3 5, `.hub-circle` 4 4, `.manual-edge` 6 5); the reveal
-still dash-draws, `stroke-dashoffset` sampled over 298 rAF frames running
-1 → 0 through 15 intermediate values, while a fresh reduced-motion context
-held it at 0 with opacity 1 in every sampled frame; and the portrait
-exporter's SVG, rendered into a page and screenshotted, showed 14
-chevron-carrying walk polylines, zero `marker-end` holders and lines meeting
-the numbered badges cleanly — both themes, zoomed in and out, zero console
-or page errors.
+against the one shorter edge's two; the chevron's path measured 2.70 × 4.68
+user units — about 19% of the old arrowhead's area by bounding box (~4.2 ×
+6.2 user units including its stroke), about 13% by ink — with 3.62 user
+units of clearance between its leading tip and the nearest endpoint node's
+r=11 hit-disc rim; a pointer-anchored zoom to k=4 shrank `markerWidth` from
+9 to 2.25 user units and left the chevron's measured screen ink unchanged
+at 2.73 × 4.73px (0.0% drift); `.manual-edge` still computed `6px 5px`, and
+the wheel carried four dash patterns at rest — `.gridline.dashed` 3 5,
+`.manual-edge` 6 5, `.hub-circle` 4 4, and `.retry-ring` 2 5 (tightening to
+2 3 on hover or force-retry, five counting that state) — none of them a
+walk edge; the reveal still dash-draws, `stroke-dashoffset` sampled over
+298 rAF frames running 1 → 0 through 15 intermediate values, while a fresh
+reduced-motion context held it at 0 with opacity 1 in every sampled frame;
+and the portrait exporter's SVG, rendered into a page and screenshotted,
+showed 14 chevron-carrying walk polylines, zero `marker-end` holders and
+lines meeting the numbered badges cleanly — both themes, zoomed in and out,
+zero console or page errors.
 
 ## Resolved in v20
 

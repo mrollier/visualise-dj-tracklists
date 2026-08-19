@@ -16,8 +16,10 @@ export const WALK_CHEVRON_REF = 5
 /** Stroke width in viewBox units; × SIZE/10 gives ~1.5 user units, a shade
  *  thinner than the 2-unit edge it sits on. */
 export const WALK_CHEVRON_STROKE = 1.7
-/** Below this edge length (user units) the two stars (r=11) already overlap
- *  and a marker between them is clutter, not information. */
+/** Below this edge length (user units) the two nodes' r=11 hit discs
+ *  (the invisible click target, not the drawn star — that's r=5, or 7
+ *  selected) already overlap, and a marker between them is clutter, not
+ *  information. */
 export const WALK_CHEVRON_MIN_EDGE = 16
 
 /** The vertex to hang the chevron on, or null when the edge is too short to

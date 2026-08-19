@@ -87,6 +87,19 @@ describe('buildSetPortrait (v12 WS3)', () => {
     }
   })
 
+  test('the chevron marker itself pins its size and stays unfilled', () => {
+    const svg = buildSetPortrait(options())
+    // userSpaceOnUse decouples the chevron from the edge's stroke-width —
+    // without it the default (strokeWidth) would scale the marker by the
+    // export's 2.4 stroke, ballooning it past the arrowhead it replaced.
+    const markerOpen = svg.match(/<marker id="pa"[^>]*>/)?.[0]
+    expect(markerOpen).toContain('markerUnits="userSpaceOnUse"')
+    // fill="none" on the marker's own path — a <path> defaults to a black
+    // fill, which would ship a filled wedge instead of an open chevron.
+    const markerPath = svg.match(/<marker id="pa"[^>]*>(<path[^>]*>)/)?.[1]
+    expect(markerPath).toContain('fill="none"')
+  })
+
   test('escapes XML in titles and artists', () => {
     const svg = buildSetPortrait(
       options({
