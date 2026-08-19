@@ -8,6 +8,14 @@ import {
 import { annularSectorPath, relaxSlotAngles, type SlotNode } from '../layout'
 import type { Track } from '../model'
 import { ACCENT_TOKENS, radialDomain, type ColorScheme, type ThemeName } from '../scales'
+import {
+  WALK_CHEVRON_D,
+  WALK_CHEVRON_REF,
+  WALK_CHEVRON_SIZE,
+  WALK_CHEVRON_STROKE,
+  WALK_CHEVRON_VIEW_BOX,
+  walkChevronMid,
+} from '../walkArrow'
 
 /**
  * The set portrait (v12 WS3): the walk over the wheel as a standalone SVG
@@ -241,19 +249,22 @@ export function buildSetPortrait(o: PortraitOptions): string {
     parts.push(`<circle cx="${p.x}" cy="${p.y}" r="3" fill="${S.inkMuted}" fill-opacity="0.45"/>`)
   }
 
-  // The walk: shortened edges with arrowheads, then numbered badges on top.
+  // The walk: edges with a mid-edge direction chevron, then numbered badges
+  // on top — the badges' opaque page-coloured ring already covers where a
+  // line meets a node, the same relationship the wheel has between edges
+  // and stars.
   for (let i = 0; i < walkPositions.length - 1; i++) {
     const a = walkPositions[i]
     const b = walkPositions[i + 1]
-    const dx = b.x - a.x
-    const dy = b.y - a.y
-    const len = Math.hypot(dx, dy)
+    const len = Math.hypot(b.x - a.x, b.y - a.y)
     if (len < 1) continue
-    const trim = Math.min(14, len / 3)
-    const x2 = b.x - (dx / len) * trim
-    const y2 = b.y - (dy / len) * trim
+    const mid = walkChevronMid(a.x, a.y, b.x, b.y)
+    const points =
+      mid === null
+        ? `${a.x.toFixed(1)},${a.y.toFixed(1)} ${b.x.toFixed(1)},${b.y.toFixed(1)}`
+        : `${a.x.toFixed(1)},${a.y.toFixed(1)} ${mid.x.toFixed(1)},${mid.y.toFixed(1)} ${b.x.toFixed(1)},${b.y.toFixed(1)}`
     parts.push(
-      `<line class="walk-edge" x1="${a.x}" y1="${a.y}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${walkColor}" stroke-width="2.4" marker-end="url(#pa)"/>`,
+      `<polyline class="walk-edge" points="${points}" fill="none" stroke="${walkColor}" stroke-width="2.4" marker-mid="url(#pa)"/>`,
     )
   }
   o.walk.forEach((_t, i) => {
@@ -312,8 +323,8 @@ export function buildSetPortrait(o: PortraitOptions): string {
 
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="${FONT}">` +
-    `<defs><marker id="pa" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">` +
-    `<path d="M 0 1 L 9 5 L 0 9 z" fill="${walkColor}"/></marker></defs>` +
+    `<defs><marker id="pa" viewBox="${WALK_CHEVRON_VIEW_BOX}" refX="${WALK_CHEVRON_REF}" refY="${WALK_CHEVRON_REF}" markerWidth="${WALK_CHEVRON_SIZE}" markerHeight="${WALK_CHEVRON_SIZE}" markerUnits="userSpaceOnUse" orient="auto">` +
+    `<path d="${WALK_CHEVRON_D}" fill="none" stroke="${walkColor}" stroke-width="${WALK_CHEVRON_STROKE}" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>` +
     `<rect width="${W}" height="${H}" fill="${S.page}"/>` +
     parts.filter((p) => p !== '').join('\n') +
     `</svg>`

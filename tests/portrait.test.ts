@@ -76,6 +76,17 @@ describe('buildSetPortrait (v12 WS3)', () => {
     expect(svg).toContain('2026-07-18')
   })
 
+  test('walk edges are mid-chevron polylines, not end-arrow lines', () => {
+    const svg = buildSetPortrait(options())
+    expect(svg).toContain('marker-mid')
+    expect(svg).not.toContain('marker-end')
+    const edges = [...svg.matchAll(/<polyline class="walk-edge"[^>]*>/g)]
+    expect(edges.length).toBe(2)
+    for (const [edge] of edges) {
+      expect(edge).toContain('fill="none"')
+    }
+  })
+
   test('escapes XML in titles and artists', () => {
     const svg = buildSetPortrait(
       options({
