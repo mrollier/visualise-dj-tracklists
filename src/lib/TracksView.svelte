@@ -106,13 +106,26 @@
   // machinery (E1 — link mode is out of sight and inert there).
   const easy = $derived($settings.uiMode === 'easy')
 
-  // Total header/body columns, incl. the tags/pos/manual leads (v18 #3/#8
-  // review fix, A1): the empty-state row spans all of them via colspan, so
-  // <thead> — and its ★/🔗 filter toggles — stays mounted even when the
+  // Whether the ★/🔗 columns and the Key column's ♪ ring filter render at
+  // all (v23): the same `settings.visibleFilters` list the left panel's ★
+  // Starred/🔗 Combos/🎵 Keys rows and the advanced "Track properties"
+  // checkboxes drive. Read the raw setting, not `effectiveFilters` — easy
+  // mode neutralising the underlying filter shouldn't also hide the column
+  // gate, which is a separate, user-controlled visibility choice.
+  const showStarCol = $derived($settings.visibleFilters.includes('starred'))
+  const showComboCol = $derived($settings.visibleFilters.includes('combos'))
+  const showKeyRings = $derived($settings.visibleFilters.includes('keys'))
+
+  // Total header/body columns, incl. the pos lead which always renders (v18
+  // #3/#8 review fix, A1; formula widened v23 for the ★/🔗 columns' new
+  // visibility gate): the empty-state row spans all of them via colspan, so
+  // <thead> — and its ★/🔗/♪ filter toggles — stays mounted even when the
   // filtered view is empty. The old version replaced the whole <table> with
   // a plain hint div, unmounting the only control that could turn an active
   // header filter back off.
-  const colCount = $derived(2 + (easy ? 0 : 1) + columns.length)
+  const colCount = $derived(
+    (showStarCol ? 1 : 0) + 1 + (!easy && showComboCol ? 1 : 0) + columns.length,
+  )
 
   // Whether the header ★/🔗 toggles have anything to show if turned on
   // (v18 #3/#8 review fix, A2) — disabled otherwise, since clicking would
@@ -133,6 +146,47 @@
   // maps to which filters.marks flag.
   const starredFlag = MARK_FILTERS.find((m) => m.key === 'starred')?.flag ?? 'starredOnly'
   const comboFlag = MARK_FILTERS.find((m) => m.key === 'combos')?.flag ?? 'comboOnly'
+
+  // The Key column's ♪ ring quick filter (Design §6, v23): same easy/
+  // in-set-only gates as the ★/🔗 header toggles above, for the same
+  // reasons (easy mode neutralises keyRings through effectiveFilters, so
+  // the button would be inert; in-set-only rows bypass visibleLibrary, so
+  // there'd be nothing for the filter to act on) plus the visibility flag.
+  const keyRingButtonVisible = $derived(showKeyRings && !easy && !inSetOnly)
+  // Three named stops plus a defensive fourth (both rings off, reachable
+  // only from the left panel's independent minor/major toggles): .on is
+  // true whenever a ring is actually excluded, i.e. whenever the state
+  // isn't "both on".
+  const keyRingOn = $derived(!($filters.keyRings.minor && $filters.keyRings.major))
+  const keyRingGlyph = $derived.by(() => {
+    const { minor, major } = $filters.keyRings
+    if (minor && !major) return '♪A'
+    if (major && !minor) return '♪B'
+    return '♪'
+  })
+  const keyRingTitle = $derived.by(() => {
+    const { minor, major } = $filters.keyRings
+    if (minor && major) return 'Show minor keys only'
+    if (minor && !major) return 'Showing minor keys only — click for major only'
+    if (major && !minor) return 'Showing major keys only — click to show both'
+    return 'Click to show both rings'
+  })
+  // Cycle both → minor only → major only → both (the same direct
+  // filters.update FiltersSection's toggleRing uses — there's no store
+  // helper for this). Both off (the panel-only fourth state) rejoins the
+  // cycle at its start rather than stopping on it.
+  function cycleKeyRings() {
+    filters.update((f) => {
+      const { minor, major } = f.keyRings
+      const next =
+        minor && major
+          ? { minor: true, major: false }
+          : minor
+            ? { minor: false, major: true }
+            : { minor: true, major: true }
+      return { ...f, keyRings: next }
+    })
+  }
 
   // No selection: each row shows how many manual combos it's part of at all.
   const manualCountById = $derived.by(() => {
@@ -238,23 +292,25 @@
              cycles) hides in easy mode and in-set-only mode, like the 🔗
              toggle below: both modes' rows bypass or hide the filtered
              view the header controls act on. -->
-        <th class="tags-col">
-          {#if !easy && !inSetOnly}
-            <button
-              class="header-toggle"
-              class:on={$filters.marks.starredOnly}
-              disabled={starToggleDisabled}
-              title={starToggleDisabled
-                ? 'Nothing is starred yet'
-                : $filters.marks.starredOnly
-                  ? 'Showing only ★ tracks — click to show all'
-                  : 'Show only ★ tracks'}
-              aria-label="Toggle showing only starred tracks"
-              aria-pressed={$filters.marks.starredOnly}
-              onclick={() => toggleMarkFilter(starredFlag)}>★</button
-            >
-          {/if}
-        </th>
+        {#if showStarCol}
+          <th class="tags-col">
+            {#if !easy && !inSetOnly}
+              <button
+                class="header-toggle"
+                class:on={$filters.marks.starredOnly}
+                disabled={starToggleDisabled}
+                title={starToggleDisabled
+                  ? 'Nothing is starred yet'
+                  : $filters.marks.starredOnly
+                    ? 'Showing only ★ tracks — click to show all'
+                    : 'Show only ★ tracks'}
+                aria-label="Toggle showing only starred tracks"
+                aria-pressed={$filters.marks.starredOnly}
+                onclick={() => toggleMarkFilter(starredFlag)}>★</button
+              >
+            {/if}
+          </th>
+        {/if}
         <th class="pos-col">
           <!-- Toggle a metadata-rich, set-only, position-ordered view (v10
                issue 15). Disabled while the set is empty — an empty
@@ -273,7 +329,7 @@
             onclick={() => (inSetOnly = !inSetOnly)}>☰</button
           >
         </th>
-        {#if !easy}
+        {#if !easy && showComboCol}
           <!-- Manual (🔗) combos, list-view analogue of the wheel's dashed
                links: unselected shows a per-row count, a selection swaps
                that for a lit/clickable icon on the actual partners. The
@@ -328,7 +384,11 @@
                 : 'descending'
               : undefined}
           >
-            <button class="sort" onclick={() => toggleSort(field)}>
+            <button
+              class="sort"
+              class:has-ring={keyRingButtonVisible && field === 'key'}
+              onclick={() => toggleSort(field)}
+            >
               {COLUMN_LABEL[field]}
               <!-- Set order supersedes column sorting in set-only mode, so
                    the triangle hides there (v11 issue 12b); the stored
@@ -337,6 +397,32 @@
                   >{$trackSort.dir === 'asc' ? '▲' : '▼'}</span
                 >{/if}
             </button>
+            {#if keyRingButtonVisible && field === 'key'}
+              <!-- ♪ ring quick filter (Design §6, v23): a sibling of .sort,
+                   not nested inside it — nested buttons are invalid HTML —
+                   and not a new <th>, per the brief. Absolutely positioned
+                   over the cell's right edge: the <th> is already a valid
+                   containing block (position: sticky), so no extra
+                   positioning property is needed there, and .sort.has-ring
+                   reserves room so the label/sort-arrow never runs under
+                   it. draggable="false" + a cancelled dragstart keep a
+                   click-drag on this button from being read as a column
+                   reorder of the draggable <th> it sits inside. -->
+              <button
+                type="button"
+                class="header-toggle key-ring"
+                class:on={keyRingOn}
+                title={keyRingTitle}
+                aria-label="Toggle filtering tracks by key ring"
+                aria-pressed={keyRingOn}
+                draggable="false"
+                onclick={(e) => {
+                  e.stopPropagation()
+                  cycleKeyRings()
+                }}
+                ondragstart={(e) => e.preventDefault()}>{keyRingGlyph}</button
+              >
+            {/if}
           </th>
         {/each}
       </tr>
@@ -369,21 +455,23 @@
             class:link-armed={$linkArmed}
             onclick={() => selectRow(track.id)}
           >
-            <td class="tags">
-              <!-- One star per row cycles must-include → opener → closer (v10
-                   issue 13); the four-icon cluster is retired. -->
-              <button
-                class="tag star"
-                class:on={starState !== 'none'}
-                title={STAR_TITLE[starState]}
-                aria-label="Cycle essential / opener / closer"
-                aria-pressed={starState !== 'none'}
-                onclick={(e) => {
-                  e.stopPropagation()
-                  cycleStar(track.id)
-                }}>{STAR_GLYPH[starState]}</button
-              >
-            </td>
+            {#if showStarCol}
+              <td class="tags">
+                <!-- One star per row cycles must-include → opener → closer
+                     (v10 issue 13); the four-icon cluster is retired. -->
+                <button
+                  class="tag star"
+                  class:on={starState !== 'none'}
+                  title={STAR_TITLE[starState]}
+                  aria-label="Cycle essential / opener / closer"
+                  aria-pressed={starState !== 'none'}
+                  onclick={(e) => {
+                    e.stopPropagation()
+                    cycleStar(track.id)
+                  }}>{STAR_GLYPH[starState]}</button
+                >
+              </td>
+            {/if}
             <td class="pos">
               <!-- ＋ appends; once in the set the cell reads as the track's
                    slot number(s), and clicking removes the track from the
@@ -409,7 +497,7 @@
                 {/if}
               </button>
             </td>
-            {#if !easy}
+            {#if !easy && showComboCol}
               {@const sel = $selectedId}
               <td class="manual">
                 {#if sel === null}
@@ -587,6 +675,30 @@
 
   .sort:hover {
     color: var(--ink);
+  }
+
+  /* Reserves room for the ♪ ring button below, which sits absolutely
+     positioned over the Key header's right edge — without this, a long
+     label/sort-arrow could run underneath it (v23). */
+  .sort.has-ring {
+    padding-right: 32px;
+  }
+
+  /* The ♪ ring quick filter (Design §6, v23): the <th> it lives in is
+     already position: sticky, a valid containing block, so this floats
+     over the cell's right edge without any structural change to every
+     other header. Fixed width — the CriteriaPanel.svelte:330-336 .lock
+     precedent — so the ♪ ↔ ♪A ↔ ♪B glyph swap never shifts anything. */
+  .key-ring {
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    transform: translateY(-50%);
+    width: 26px;
+    padding-left: 2px;
+    padding-right: 2px;
+    display: inline-flex;
+    justify-content: center;
   }
 
   .dir {
