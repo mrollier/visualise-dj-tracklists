@@ -384,45 +384,45 @@
                 : 'descending'
               : undefined}
           >
-            <button
-              class="sort"
-              class:has-ring={keyRingButtonVisible && field === 'key'}
-              onclick={() => toggleSort(field)}
-            >
-              {COLUMN_LABEL[field]}
-              <!-- Set order supersedes column sorting in set-only mode, so
-                   the triangle hides there (v11 issue 12b); the stored
-                   sort is untouched and returns on toggle-back. -->
-              {#if !inSetOnly && $trackSort.field === field}<span class="dir"
-                  >{$trackSort.dir === 'asc' ? '▲' : '▼'}</span
-                >{/if}
-            </button>
-            {#if keyRingButtonVisible && field === 'key'}
-              <!-- ♪ ring quick filter (Design §6, v23): a sibling of .sort,
-                   not nested inside it — nested buttons are invalid HTML —
-                   and not a new <th>, per the brief. Absolutely positioned
-                   over the cell's right edge: the <th> is already a valid
-                   containing block (position: sticky), so no extra
-                   positioning property is needed there, and .sort.has-ring
-                   reserves room so the label/sort-arrow never runs under
-                   it. draggable="false" + a cancelled dragstart keep a
-                   click-drag on this button from being read as a column
-                   reorder of the draggable <th> it sits inside. -->
-              <button
-                type="button"
-                class="header-toggle key-ring"
-                class:on={keyRingOn}
-                title={keyRingTitle}
-                aria-label="Toggle filtering tracks by key ring"
-                aria-pressed={keyRingOn}
-                draggable="false"
-                onclick={(e) => {
-                  e.stopPropagation()
-                  cycleKeyRings()
-                }}
-                ondragstart={(e) => e.preventDefault()}>{keyRingGlyph}</button
-              >
-            {/if}
+            <!-- v23 review fix: a normal-flow flex row, not an absolutely
+                 positioned overlay — the .lock precedent
+                 (CriteriaPanel.svelte:330-336) is a flex child, not an
+                 overlay, and that's the layout being followed here, not
+                 just its fixed width. Wrapping only touches this <th>'s own
+                 contents, not the <th> or any other column's markup. -->
+            <span class="th-inner">
+              <button class="sort" onclick={() => toggleSort(field)}>
+                {COLUMN_LABEL[field]}
+                <!-- Set order supersedes column sorting in set-only mode, so
+                     the triangle hides there (v11 issue 12b); the stored
+                     sort is untouched and returns on toggle-back. -->
+                {#if !inSetOnly && $trackSort.field === field}<span class="dir"
+                    >{$trackSort.dir === 'asc' ? '▲' : '▼'}</span
+                  >{/if}
+              </button>
+              {#if keyRingButtonVisible && field === 'key'}
+                <!-- ♪ ring quick filter (Design §6, v23): a sibling of
+                     .sort, not nested inside it — nested buttons are
+                     invalid HTML — and not a new <th>, per the brief.
+                     draggable="false" + a cancelled dragstart keep a
+                     click-drag on this button from being read as a column
+                     reorder of the draggable <th> it sits inside. -->
+                <button
+                  type="button"
+                  class="header-toggle key-ring"
+                  class:on={keyRingOn}
+                  title={keyRingTitle}
+                  aria-label="Toggle filtering tracks by key ring"
+                  aria-pressed={keyRingOn}
+                  draggable="false"
+                  onclick={(e) => {
+                    e.stopPropagation()
+                    cycleKeyRings()
+                  }}
+                  ondragstart={(e) => e.preventDefault()}>{keyRingGlyph}</button
+                >
+              {/if}
+            </span>
           </th>
         {/each}
       </tr>
@@ -658,8 +658,20 @@
     padding: 0;
   }
 
+  /* v23 review fix: a normal-flow flex row wrapping .sort and the ♪ ring
+     button (present only on the Key column), replacing an earlier
+     absolutely-positioned overlay — this is what makes .key-ring's fixed
+     width below a genuine in-flow neighbour of .sort rather than a floated
+     box guessing at reserved padding. Scoped to this <th>'s own contents;
+     every other column still renders a single flex child, pixel-identical
+     to the old block layout. */
+  .th-inner {
+    display: flex;
+    align-items: center;
+  }
+
   .sort {
-    width: 100%;
+    flex: 1 1 auto;
     background: none;
     border: none;
     border-radius: 0;
@@ -677,23 +689,14 @@
     color: var(--ink);
   }
 
-  /* Reserves room for the ♪ ring button below, which sits absolutely
-     positioned over the Key header's right edge — without this, a long
-     label/sort-arrow could run underneath it (v23). */
-  .sort.has-ring {
-    padding-right: 32px;
-  }
-
-  /* The ♪ ring quick filter (Design §6, v23): the <th> it lives in is
-     already position: sticky, a valid containing block, so this floats
-     over the cell's right edge without any structural change to every
-     other header. Fixed width — the CriteriaPanel.svelte:330-336 .lock
-     precedent — so the ♪ ↔ ♪A ↔ ♪B glyph swap never shifts anything. */
+  /* The ♪ ring quick filter (Design §6, v23): a normal-flow flex sibling of
+     .sort inside .th-inner, not an overlay — the CriteriaPanel.svelte:
+     330-336 .lock precedent for BOTH its layout technique (an in-flow flex
+     child) and its fixed width, so the ♪ ↔ ♪A ↔ ♪B glyph swap never shifts
+     .sort's label or the ▲/▼ sort arrow beside it. flex-shrink: 0 keeps it
+     from being squeezed by .sort's flex-grow in a narrow column. */
   .key-ring {
-    position: absolute;
-    top: 50%;
-    right: 4px;
-    transform: translateY(-50%);
+    flex-shrink: 0;
     width: 26px;
     padding-left: 2px;
     padding-right: 2px;
