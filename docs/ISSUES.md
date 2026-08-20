@@ -99,6 +99,18 @@ on Chromium (`startIn`), and everywhere else shows the library's own deepest
 shared folder as a copy button, because `<input webkitdirectory>` accepts no
 start location at all — a platform limit, not an omission.
 
+**Polished in v28.2**: the fader column stays reserved while unlocked so
+pinning never shifts the transport; the fader thumb paints above the
+centre-tick nubs; double-click centres it; both decks are always named, with
+an overflow marquee that cycles long titles (`src/lib/marquee.ts`); the
+audible tracks breathe in the wheel (dot opacity) and the Tracks view (row
+tint); and `engine.dispose()` no longer clears the deck-event listener set —
+it belongs to the store, which registers once at app start, so toggling the
+preview off/on had killed duration and seek on the rebuilt graph. The same
+wave fixed the collapsed Artist column: the measured colgroup's one elastic
+`<col>` (Artist, not Title as its comment claimed) was squeezed to nothing
+under table-layout: fixed; every column is measured now.
+
 **Still open:** `scripts/screenshot.mjs` gained no probe for the bar. The
 script has three stale selectors already recorded under "Open — tooling" and
 is not a CI gate, so adding to it would not have been checked by anything —

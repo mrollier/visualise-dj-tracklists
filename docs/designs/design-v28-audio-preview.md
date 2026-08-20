@@ -231,6 +231,32 @@ the two cannot drift apart.
 - **A setting for latch-versus-clear.** One behaviour, chosen; a toggle here
   would be clutter over a distinction most users would never articulate.
 
+### Polish, second pass (v28.2)
+
+Seven follow-ups from continued use, none of which changed the architecture:
+
+- **The fader column is reserved even while empty**, so pinning a track no
+  longer shifts the transport sideways; the input paints above the centre-tick
+  nubs (they and the positioned input paint in DOM order, which had put the
+  right nub in front of the thumb); and double-clicking snaps to centre.
+- **Both decks are always named.** Deck B was anonymous until something was
+  pinned. A name longer than the label column cycles: glide to the end, hold,
+  glide home, forever — distance-proportional duration, plain ellipsis under
+  reduced motion (`src/lib/marquee.ts`).
+- **The audible tracks breathe** in the wheel (dot opacity — the path's
+  transform attribute carries its position, so opacity is the safe channel)
+  and in the Tracks view (row tint). Driven by the decks/playing stores,
+  all-false when the preview is off.
+- **`dispose()` no longer clears the deck-event listener set.** playerStore
+  registers its listener once at app start, so toggling the preview off and on
+  left the rebuilt graph emitting metadata/time events to nobody: duration
+  missing, seek dead, play/pause deceptively fine. The set belongs to the
+  store's lifetime, not the graph's.
+- A neighbour, not the player: the Tracks view's Artist column had collapsed —
+  the measured colgroup left the first alpha column (Artist, not Title as its
+  comment claimed) as a bare `<col>` that fixed layout squeezed to nothing
+  once the pinned columns outgrew the pane. Every column is measured now.
+
 ## Known limitation
 
 AIFF and ALAC. Chrome plays neither; Safari plays both. A Rekordbox library
