@@ -32,6 +32,7 @@
   import { createViewZoom } from './viewZoom'
   import { effectiveTheme } from './theme'
   import { motionMs } from './motion'
+  import { decks as playerDecks, playing as playerPlaying } from './audio/playerStore'
   import { nextExhausted, retryState, suggestNext, type NextSuggestion } from '../core/suggest'
   import {
     addTrackToSet,
@@ -883,6 +884,16 @@
   const taggedIds = $derived(
     new Set([...$mustInclude, $pinnedFirst, $pinnedLast].filter((id) => id !== null)),
   )
+
+  // Tracks the player is actually sounding right now (v28.2). All-false when
+  // the preview is off or disposed, so no settings gate is needed.
+  const audibleIds = $derived(
+    new Set(
+      [$playerPlaying.a ? $playerDecks.a : null, $playerPlaying.b ? $playerDecks.b : null].filter(
+        (id) => id !== null,
+      ),
+    ),
+  )
 </script>
 
 <svelte:window
@@ -1302,6 +1313,7 @@
               class="dot"
               class:selected={node.track.id === $selectedId}
               class:in-walk={$tracklist.includes(node.track.id)}
+              class:playing={audibleIds.has(node.track.id)}
               vector-effect="non-scaling-stroke"
             />
           </g>
@@ -1694,6 +1706,10 @@
     .sector {
       transition: none;
     }
+
+    .dot.playing {
+      animation: none;
+    }
   }
 
   /* Ghost stars (v18 #11): non-interactive placeholders for walk members the
@@ -1955,6 +1971,24 @@
   .node:focus-visible .dot {
     stroke: var(--accent);
     stroke-width: 3;
+  }
+
+  /* The audible track breathes (v28.2). Opacity only: the path's transform
+     attribute carries its translate+scale, so a CSS transform animation would
+     tear the dot off its wheel position. */
+  .dot.playing {
+    animation: dot-breathe 2.6s ease-in-out infinite;
+  }
+
+  @keyframes dot-breathe {
+    0%,
+    100% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.45;
+    }
   }
 
   .zoom-controls {

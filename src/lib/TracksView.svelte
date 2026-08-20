@@ -13,6 +13,7 @@
   import { formatPropertyValue, PROPERTY_BY_KEY, REKORDBOX_COLOURS } from '../core/properties'
   import { removeAllOccurrences } from '../core/sets'
   import { sortTracks, type TrackSortField } from '../core/trackSort'
+  import { decks as playerDecks, playing as playerPlaying } from './audio/playerStore'
   import {
     addTrackToSet,
     comboComplete,
@@ -106,6 +107,16 @@
     }
     return widths
   })
+
+  // Tracks the player is actually sounding right now (v28.2). All-false when
+  // the preview is off or disposed, so no settings gate is needed.
+  const audibleIds = $derived(
+    new Set(
+      [$playerPlaying.a ? $playerDecks.a : null, $playerPlaying.b ? $playerDecks.b : null].filter(
+        (id) => id !== null,
+      ),
+    ),
+  )
 
   // Rekordbox stores colour as a raw `0xRRGGBB` string; turn it into a CSS hex
   // for the swatch, or null if it isn't a recognisable 6-digit hex (#8).
@@ -555,6 +566,7 @@
           {@const starState = starStateOf(track.id)}
           <tr
             class:selected={track.id === $selectedId}
+            class:playing={audibleIds.has(track.id)}
             class:connected={connectedIds?.has(track.id) === true}
             class:set-hovered={track.id === $hoveredId}
             class:link-armed={$linkArmed}
@@ -948,6 +960,50 @@
 
   tbody tr.selected {
     background: color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+
+  /* The audible track's row breathes (v28.2); a selected one breathes between
+     stronger mixes so selection stays visibly darker throughout. */
+  tbody tr.playing {
+    animation: row-breathe 2.6s ease-in-out infinite;
+  }
+
+  tbody tr.playing.selected {
+    animation-name: row-breathe-selected;
+  }
+
+  @keyframes row-breathe {
+    0%,
+    100% {
+      background-color: color-mix(in srgb, var(--accent) 12%, transparent);
+    }
+
+    50% {
+      background-color: color-mix(in srgb, var(--accent) 4%, transparent);
+    }
+  }
+
+  @keyframes row-breathe-selected {
+    0%,
+    100% {
+      background-color: color-mix(in srgb, var(--accent) 28%, transparent);
+    }
+
+    50% {
+      background-color: color-mix(in srgb, var(--accent) 16%, transparent);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    tbody tr.playing {
+      animation: none;
+      background: color-mix(in srgb, var(--accent) 8%, transparent);
+    }
+
+    tbody tr.playing.selected {
+      animation: none;
+      background: color-mix(in srgb, var(--accent) 22%, transparent);
+    }
   }
 
   td {
