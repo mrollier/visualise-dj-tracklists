@@ -14,19 +14,36 @@ describe('crossfadeGains', () => {
     expect(b).toBeCloseTo(1, 10)
   })
 
-  test('centre is equal power, not equal amplitude', () => {
+  test('centre is both decks at unity', () => {
+    // Not equal power. This is a comparison tool, not a transition: the centre
+    // is where you listen, so neither candidate may be turned down there.
     const { a, b } = crossfadeGains(0)
-    expect(a).toBeCloseTo(Math.SQRT1_2, 10)
-    expect(b).toBeCloseTo(Math.SQRT1_2, 10)
+    expect(a).toBeCloseTo(1, 10)
+    expect(b).toBeCloseTo(1, 10)
   })
 
-  test('total power is constant across the whole sweep', () => {
-    // A linear fader would dip to half power at centre — an audible hole
-    // exactly where an A/B comparison sits.
+  test('the fader never attenuates the deck it points at', () => {
+    for (let i = 0; i <= 100; i++) {
+      const position = -1 + i / 50
+      const { a, b } = crossfadeGains(position)
+      if (position <= 0) expect(a).toBeCloseTo(1, 10)
+      if (position >= 0) expect(b).toBeCloseTo(1, 10)
+    }
+  })
+
+  test('no gain ever exceeds unity', () => {
     for (let i = 0; i <= 100; i++) {
       const { a, b } = crossfadeGains(-1 + i / 50)
-      expect(a * a + b * b).toBeCloseTo(1, 10)
+      expect(a).toBeLessThanOrEqual(1)
+      expect(b).toBeLessThanOrEqual(1)
     }
+  })
+
+  test('a deck only reaches silence at the far end', () => {
+    expect(crossfadeGains(-0.99).b).toBeGreaterThan(0)
+    expect(crossfadeGains(0.99).a).toBeGreaterThan(0)
+    expect(crossfadeGains(-0.5).b).toBeCloseTo(Math.SQRT1_2, 10)
+    expect(crossfadeGains(0.5).a).toBeCloseTo(Math.SQRT1_2, 10)
   })
 
   test('A falls and B rises monotonically', () => {

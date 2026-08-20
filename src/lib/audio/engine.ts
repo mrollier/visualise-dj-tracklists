@@ -4,7 +4,7 @@ import type { DeckId } from '../../core/audio/decks'
  * The audio graph, as a module singleton:
  *
  *   audio0 ─ MediaElementAudioSourceNode ─ gain0 ─┐
- *                                                 ├─ destination
+ *                                                 ├─ limiter ─ destination
  *   audio1 ─ MediaElementAudioSourceNode ─ gain1 ─┘
  *
  * `<audio>` + createMediaElementSource rather than decodeAudioData: decoding a
@@ -24,6 +24,7 @@ let roles: Record<DeckId, 0 | 1> = { a: 0, b: 1 }
 let context: AudioContext | null = null
 let elements: [HTMLAudioElement, HTMLAudioElement] | null = null
 let gains: [GainNode, GainNode] | null = null
+let limiter: DynamicsCompressorNode | null = null
 const urls: [string | null, string | null] = [null, null]
 
 export type DeckEventKind = 'time' | 'meta' | 'ended' | 'error'
@@ -50,6 +51,20 @@ function emit(slot: 0 | 1, kind: DeckEventKind) {
 export function ensureContext(): void {
   if (context === null) {
     context = new AudioContext()
+    // The crossfade curve holds BOTH decks at unity in the centre, so the sum
+    // of two modern club masters is well over full scale and would hard-clip
+    // at the destination — audible crunch at exactly the position the fader
+    // exists for. A near-brickwall limiter on the output bus answers that
+    // without a trim, which would have undone the curve. One deck alone only
+    // touches it on true peaks. Both decks share the node, so its ~6 ms of
+    // latency cannot pull them out of alignment with each other.
+    limiter = context.createDynamicsCompressor()
+    limiter.threshold.value = -1
+    limiter.knee.value = 0
+    limiter.ratio.value = 20
+    limiter.attack.value = 0.003
+    limiter.release.value = 0.1
+    limiter.connect(context.destination)
     const built: HTMLAudioElement[] = []
     const builtGains: GainNode[] = []
     for (const slot of [0, 1] as const) {
@@ -64,7 +79,7 @@ export function ensureContext(): void {
       // permanently bricks the element — which is why loading a track only
       // ever swaps `src` and never builds a new one.
       context.createMediaElementSource(element).connect(gain)
-      gain.connect(context.destination)
+      gain.connect(limiter)
       built.push(element)
       builtGains.push(gain)
     }
@@ -162,6 +177,7 @@ export function dispose(): void {
   context = null
   elements = null
   gains = null
+  limiter = null
   roles = { a: 0, b: 1 }
 }
 
