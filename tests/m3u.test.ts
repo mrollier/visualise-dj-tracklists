@@ -183,3 +183,22 @@ describe('rematchAfterImport', () => {
     expect(result.matched).toBe(2)
   })
 })
+
+describe('unicode-insensitive basename matching (v28)', () => {
+  // macOS writes filenames in NFD; Rekordbox's XML carries NFC. Before the
+  // shared location fold these were different strings, so an accented file
+  // name imported as a brand-new track instead of matching the library.
+  const accented = track({
+    id: 'j',
+    title: 'Jóga',
+    artist: 'Björk',
+    location: `file://localhost/Users/dj/Music/${'Jóga'.normalize('NFC')}.mp3`,
+  })
+
+  test('matches an NFD playlist entry against an NFC library location', () => {
+    const playlist = `#EXTM3U\n/Volumes/DJ/${'Jóga'.normalize('NFD')}.mp3\n`
+    const result = importM3u(playlist, [accented])
+    expect(result.newTracks).toEqual([])
+    expect(result.tracklist).toEqual(['j'])
+  })
+})

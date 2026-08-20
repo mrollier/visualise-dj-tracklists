@@ -1,0 +1,54 @@
+/**
+ * Shared parsing for the `Location` string every importer stores verbatim on
+ * `Track.location` — Rekordbox writes `file://localhost/Users/…/Track.mp3`,
+ * percent-encoded and NOT decoded at import (importers/rekordbox.ts).
+ *
+ * Extracted in v28 from the two private copies that had drifted apart
+ * (exporters/m3u.ts and importers/m3u.ts) so the audio-preview matcher, the
+ * M3U exporter and the M3U importer all fold names the same way.
+ */
+
+/** Turn a Rekordbox-style location URL into a plain filesystem path. */
+export function locationToPath(location: string): string {
+  const withoutScheme = location.replace(/^file:\/\/(localhost)?/, '')
+  try {
+    return decodeURIComponent(withoutScheme)
+  } catch {
+    // A stray '%' is not an escape — keep the raw path rather than throwing.
+    return withoutScheme
+  }
+}
+
+/**
+ * The decoded path as non-empty segments. A Windows `file:///C:/…` keeps `C:`
+ * as an ordinary segment: it never matches a granted folder's contents, so it
+ * simply drops out of suffix scoring instead of needing a special case.
+ */
+export function locationSegments(location: string): string[] {
+  return locationToPath(location)
+    .split('/')
+    .filter((segment) => segment !== '')
+}
+
+/**
+ * The comparison form of one path segment. NFC matters: macOS APFS hands
+ * filenames to the File API in NFD while Rekordbox's XML carries NFC, so
+ * without this every accented artist silently fails to match. Case folds to
+ * match macOS/Windows defaults. Punctuation and whitespace are deliberately
+ * left alone — stripping them manufactures false positives, and playing the
+ * wrong file is the one failure this feature cannot afford.
+ */
+export function foldSegment(segment: string): string {
+  return segment.normalize('NFC').toLowerCase()
+}
+
+export function foldSegments(segments: readonly string[]): string[] {
+  return segments.map(foldSegment)
+}
+
+/** The folded final segment of a location — the file name, ready to compare. */
+export function basenameOf(location: string): string {
+  const segments = locationSegments(location)
+  const last = segments[segments.length - 1]
+  return last === undefined ? '' : foldSegment(last)
+}

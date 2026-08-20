@@ -1,3 +1,4 @@
+import { basenameOf as basename } from '../location'
 import { buildReport, EMPTY_TRACK_FIELDS, type ImportReport, type Track } from '../model'
 
 /**
@@ -15,17 +16,6 @@ interface M3uImportResult {
   /** Minimal tracks created for unmatched entries; add these to the library. */
   newTracks: Track[]
   report: ImportReport
-}
-
-function basename(path: string): string {
-  const clean = path.replace(/^file:\/\/(localhost)?/, '')
-  let decoded = clean
-  try {
-    decoded = decodeURIComponent(clean)
-  } catch {
-    // keep the raw path
-  }
-  return decoded.split('/').pop()?.toLowerCase() ?? decoded.toLowerCase()
 }
 
 function stem(fileName: string): string {

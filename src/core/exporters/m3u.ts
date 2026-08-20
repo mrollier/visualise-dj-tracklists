@@ -1,14 +1,5 @@
+import { locationToPath } from '../location'
 import type { Track } from '../model'
-
-/** Turn a Rekordbox-style location URL into a plain filesystem path. */
-function locationToPath(location: string): string {
-  const withoutScheme = location.replace(/^file:\/\/(localhost)?/, '')
-  try {
-    return decodeURIComponent(withoutScheme)
-  } catch {
-    return withoutScheme
-  }
-}
 
 /**
  * Export an ordered tracklist as an extended M3U8 playlist (UTF-8), which
