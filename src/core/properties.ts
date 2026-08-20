@@ -39,7 +39,7 @@ export interface TrackProperty {
   format?: (value: string | number) => string
 }
 
-function formatDuration(value: string | number): string {
+export function formatDuration(value: string | number): string {
   const secs = Math.round(Number(value))
   return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`
 }

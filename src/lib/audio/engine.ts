@@ -164,3 +164,8 @@ export function dispose(): void {
   gains = null
   roles = { a: 0, b: 1 }
 }
+
+/** Whether the graph exists yet — it only can once a gesture has paid for it. */
+export function hasContext(): boolean {
+  return context !== null
+}

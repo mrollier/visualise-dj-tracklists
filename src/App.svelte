@@ -2,7 +2,9 @@
   import AdvancedMenu from './lib/AdvancedMenu.svelte'
   import CriteriaPanel from './lib/CriteriaPanel.svelte'
   import GenreMapView from './lib/GenreMapView.svelte'
+  import { startPlayer } from './lib/audio/playerStore'
   import { restoreAutosave, startAutosave } from './lib/persistence'
+  import PlayerBar from './lib/PlayerBar.svelte'
   import SelectedTrackCard from './lib/SelectedTrackCard.svelte'
   import { startTheme } from './lib/theme'
   import TopBar from './lib/TopBar.svelte'
@@ -21,6 +23,7 @@
   startTheme()
   startAutosave()
   startUndo()
+  startPlayer()
 
   // The deliberately small hotkey set (issue 2; v12 WS14, ISSUES.md stub):
   // Cmd/Ctrl+Z undoes set edits, selection AND settings changes (+Shift
@@ -50,6 +53,7 @@
 <svelte:window onkeydown={onKeydown} />
 
 <TopBar />
+<PlayerBar />
 <TourOverlay />
 
 <main>
