@@ -76,15 +76,6 @@
     return measureCtx.measureText(text).width
   }
 
-  // The one column left unpinned — it absorbs whatever space the fixed
-  // columns don't use, the way Title (the first alpha-kind column, by
-  // default) already visually dominates the row. No fallback special-case
-  // if the visible set happens to have no alpha-kind column; the fixed
-  // columns then simply may not fill the full row width.
-  const flexField: TrackSortField | null = $derived(
-    columns.find((f) => PROPERTY_BY_KEY.get(f)?.kind === 'alpha') ?? null,
-  )
-
   // Every column reserves ▲/▼ space unconditionally (v25 review revert),
   // even though it isn't currently sorted — so clicking a different column
   // header to sort by it never reflows anything either, the same guarantee
@@ -94,7 +85,6 @@
     const widths: Partial<Record<TrackSortField, number>> = {}
     const arrowWidth = measureWidth('▲', HEADER_FONT) + 3 // .dir's margin-left
     for (const field of columns) {
-      if (field === flexField) continue
       const label = COLUMN_LABEL[field].toUpperCase()
       let header = measureWidth(label, HEADER_FONT, '0.09em') + HEADER_PAD + arrowWidth
       if (field === 'key') header += KEY_RING_RESERVE
@@ -371,8 +361,7 @@
     <!-- table-layout: fixed, driven by these widths (v24): mirrors the
          header row's column order exactly. columnWidths is computed once
          from the full library, not the filtered view, so no filter/mark
-         toggle ever reflows a column — see columnWidths above. flexField
-         gets no width and absorbs whatever space the rest don't use. -->
+         toggle ever reflows a column — see columnWidths above. -->
     <colgroup>
       {#if showStarCol}
         <col style="width: 26px" />
@@ -382,11 +371,7 @@
         <col style="width: 26px" />
       {/if}
       {#each columns as field (field)}
-        {#if field === flexField}
-          <col />
-        {:else}
-          <col style="width: {columnWidths[field]}px" />
-        {/if}
+        <col style="width: {columnWidths[field]}px" />
       {/each}
     </colgroup>
     <thead>
@@ -766,7 +751,12 @@
     width: 100%;
     /* Widths come from the <colgroup> above, computed once from the full
        library (v24) — this is what stops a filter/mark toggle from
-       reflowing any column, not just the ♪ ring one. */
+       reflowing any column, not just the ♪ ring one. Every column gets a
+       measured width (v28.2): the first alpha column used to render as a
+       bare <col> meant to absorb leftover space, but at the pane's 680px
+       floor the pinned columns alone exceed the table width and fixed
+       layout squeezed that one column — Artist, not Title as the old
+       comment claimed — to nothing. The wrapper scrolls instead. */
     table-layout: fixed;
     border-collapse: collapse;
     font-size: 12.5px;
