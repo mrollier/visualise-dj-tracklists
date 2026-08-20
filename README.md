@@ -250,6 +250,19 @@ Your library never leaves your machine — there is no backend, no account, no u
   the slate. The app is also a **PWA**: install it from the browser and it opens
   like a double-click application, offline included (from the second visit on).
 
+- **Check it by ear**: switch on **Listen to tracks** (Advanced settings → Preview,
+  off by default) and a small player appears under the top bar. Selecting a track
+  loads it; pin one with the padlock and a second row appears below it, with a
+  crossfader between them — so you can hear whether a combo actually works instead
+  of trusting the key and BPM alone. A browser cannot open a file from the path in
+  your library, so you point the app at your music folder once: Chrome and Edge
+  remember it, Firefox and Safari ask again each session. It then reports what it
+  found — _2043 of 2080 playable · 31 unsupported format · 6 not found_ — and any
+  track it can't play says why rather than failing silently. The audio is read on
+  your machine and never uploaded, **and nothing you play is recorded**: no play
+  counts are written, no history is kept, and none of it is saved into the project.
+  The sample collection has no audio behind it, so this needs your own library.
+
 ![A Rekordbox collection with the playlists panel](docs/screenshots/playlists.png)
 
 ![The Tracks table view with set tags](docs/screenshots/tracks-view.png)
@@ -282,7 +295,8 @@ Spotify audio-features API shut down in 2024 it froze or killed the tools built 
 it; nothing here can break that way, because nothing leaves your machine.
 
 One boundary is a hard non-goal: **this app plans, it doesn't remember**. It will
-never log the transitions you actually played or keep a play history — the roadmap's
+never log the transitions you actually played or keep a play history — the audio
+preview added in v28 is bound by exactly this: it plays, and records nothing — the roadmap's
 "DJ fingerprints" analyse tracklists you _import_, they never record you. If you
 want a memory for the combos you've played and loved, that is exactly what
 [Mixlog](https://mixlog.app) is for — a logbook for your DJ brain, and the perfect

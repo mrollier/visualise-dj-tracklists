@@ -65,6 +65,31 @@ itself is untouched):
    Neither is a gate, and both are deliberately left for a separate tooling
    pass rather than folded into this wave (do not fix the script here).
 
+## Resolved in v28
+
+Audio preview shipped on `v28-audio-preview`: a two-deck audition bar under
+the top bar, off by default behind Advanced settings → Preview → **Listen to
+tracks**. Selecting a track loads deck B; the padlock pins it to deck A and
+reveals a second row plus an equal-power crossfader. Full rationale and the
+declined alternatives are in `designs/design-v28-audio-preview.md`.
+
+**Reverses a recorded decision:** `designs/design-v12.md:127` listed "No local
+audio preview (declined)". That was a scope call, not a principled one — the
+POSITIONING boundary is about *remembering*, and this records nothing.
+
+Three bugs were found by driving a real browser against a folder of generated
+audio and a library whose paths point at a different machine, none of which
+unit tests could have reached: the play button gated on a duration that cannot
+be known before the first play (a deadlock); unplayable tracks showed a dead
+progress line because the bar consulted only errors the media element had
+raised, never the static resolution; and promoting a deck swapped the elements
+without swapping the UI state describing them.
+
+**Still open:** `scripts/screenshot.mjs` gained no probe for the bar. The
+script has three stale selectors already recorded under "Open — tooling" and
+is not a CI gate, so adding to it would not have been checked by anything —
+it belongs in the same separate tooling pass.
+
 ## Resolved in v23
 
 The permanent panel-filter wave shipped on `v23-filter-group`: ★ Starred and

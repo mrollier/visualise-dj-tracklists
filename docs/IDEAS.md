@@ -70,6 +70,12 @@ lives in [designs/design-v12.md](designs/design-v12.md). Statuses: **done** ·
   offline); Tauri only if the PWA disappoints.
 - **Single-toggle easy mode / advanced mode** — **v12**: hard toggle, minimal
   surface (wheel + playlists + ✨ + set panel).
+- **Listen to the tracks to check a combo by ear** — **v28**: two-deck audition
+  bar, off by default. Reverses the v12 "no local audio preview (declined)"
+  line, which was a scope call rather than a principled one. A browser cannot
+  open a file from `Track.location`, so it needs a granted music folder;
+  Chromium remembers the grant, Firefox re-asks once a session. Tauri stays
+  parked — revisit only if that per-session pick proves genuinely annoying.
 
 ## Genre similarity ideas
 

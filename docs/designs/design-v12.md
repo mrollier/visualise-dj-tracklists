@@ -124,8 +124,9 @@ during the workstream, favouring ✨, view switching, and Escape consistency.
 - No play logging, play history, or personal combo database — manual edges are planning
   marks, not records of performed transitions (the POSITIONING boundary).
 - No runtime LLM calls, no backend, no accounts, no upload — ever.
-- No local audio preview (declined), no Essentia.js analysis yet (roadmap), no CLAP pack
-  (gated behind P2 in the science doc).
+- No local audio preview (declined — **superseded 2026-08: shipped in v28**, see
+  `designs/design-v28-audio-preview.md`), no Essentia.js analysis yet (roadmap), no CLAP
+  pack (gated behind P2 in the science doc).
 - No importer wave in v12 (flexible column mapping, VirtualDJ, Discogs, Traktor/Serato
   are shaped for v13); no Rekordbox-XML export yet (roadmap).
 - No Tauri unless the PWA disappoints.
