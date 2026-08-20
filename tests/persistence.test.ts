@@ -44,7 +44,7 @@ beforeEach(() => {
     genres: ['techno'],
     playlists: [],
     keyRings: { minor: true, major: true },
-    marks: { starredOnly: false, comboOnly: false },
+    marks: { starredOnly: false, comboOnly: false, constellationOnly: false },
   })
   selectedId.set('rb-1')
   pinnedFirst.set('rb-1')
@@ -306,12 +306,19 @@ describe('applyProject resets marks on restore (v18 #3/#8 review fix, B5)', () =
     // that snapshot later must not resurrect an active starredOnly/comboOnly
     // over the stars/combos applyProject's resetSuggestions() just emptied —
     // that would filter the whole library out from under the returning user.
-    filters.update((f) => ({ ...f, marks: { starredOnly: true, comboOnly: true } }))
+    filters.update((f) => ({
+      ...f,
+      marks: { starredOnly: true, comboOnly: true, constellationOnly: true },
+    }))
     const snapshot = currentProject()
 
     applyProject(snapshot)
 
-    expect(get(filters).marks).toEqual({ starredOnly: false, comboOnly: false })
+    expect(get(filters).marks).toEqual({
+      starredOnly: false,
+      comboOnly: false,
+      constellationOnly: false,
+    })
   })
 
   test('the rest of the snapshot restores untouched', () => {

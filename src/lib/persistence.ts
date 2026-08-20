@@ -38,7 +38,7 @@ const STORAGE_KEY = 'visualise-dj-tracklists:project:v1'
 
 export function currentProject(): Project {
   return {
-    version: 8,
+    version: 10,
     libraryName: get(libraryName),
     manualEdges: get(manualEdges),
     tracks: get(library),
@@ -69,7 +69,10 @@ export function applyProject(project: Project): void {
   // moment, filters.set(project.filters) would restore it active over the
   // now-empty stars/combos resetSuggestions() is about to produce, filtering
   // the whole library out from under the user the moment they return.
-  filters.set({ ...project.filters, marks: { starredOnly: false, comboOnly: false } })
+  filters.set({
+    ...project.filters,
+    marks: { starredOnly: false, comboOnly: false, constellationOnly: false },
+  })
   settings.set(project.settings)
   sets.set(project.sets)
   activeSetId.set(project.activeSetId)

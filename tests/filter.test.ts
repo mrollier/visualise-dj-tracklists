@@ -138,12 +138,13 @@ describe('marks quick-filters (v18 #3/#8)', () => {
   const marks: MarksContext = {
     starredIds: new Set(['a', 'b']),
     comboIds: new Set(['b', 'c']),
+    constellationIds: new Set(['a', 'c']),
   }
 
   test('starredOnly keeps only starred ids, including a pinned one', () => {
     const out = applyFilters(
       marked,
-      filters({ marks: { starredOnly: true, comboOnly: false } }),
+      filters({ marks: { starredOnly: true, comboOnly: false, constellationOnly: false } }),
       [],
       marks,
     )
@@ -153,41 +154,64 @@ describe('marks quick-filters (v18 #3/#8)', () => {
   test('comboOnly keeps only the edge endpoints', () => {
     const out = applyFilters(
       marked,
-      filters({ marks: { starredOnly: false, comboOnly: true } }),
+      filters({ marks: { starredOnly: false, comboOnly: true, constellationOnly: false } }),
       [],
       marks,
     )
     expect(out.map((t) => t.id)).toEqual(['b', 'c'])
   })
 
-  test('both flags compose with AND, not OR', () => {
+  test('constellationOnly keeps only the tracklist ids', () => {
     const out = applyFilters(
       marked,
-      filters({ marks: { starredOnly: true, comboOnly: true } }),
+      filters({ marks: { starredOnly: false, comboOnly: false, constellationOnly: true } }),
       [],
       marks,
     )
-    expect(out.map((t) => t.id)).toEqual(['b'])
+    expect(out.map((t) => t.id)).toEqual(['a', 'c'])
+  })
+
+  test('all three flags compose with AND, not OR', () => {
+    const out = applyFilters(
+      marked,
+      filters({ marks: { starredOnly: true, comboOnly: true, constellationOnly: true } }),
+      [],
+      marks,
+    )
+    expect(out.map((t) => t.id)).toEqual([])
   })
 
   test('flags on with no context filters nothing — safe for stray callers', () => {
-    const out = applyFilters(marked, filters({ marks: { starredOnly: true, comboOnly: true } }))
+    const out = applyFilters(
+      marked,
+      filters({ marks: { starredOnly: true, comboOnly: true, constellationOnly: true } }),
+    )
     expect(out).toHaveLength(3)
   })
 
-  test('both flags off is inert even when a context is supplied', () => {
+  test('all flags off is inert even when a context is supplied', () => {
     expect(applyFilters(marked, EMPTY_FILTERS, [], marks)).toHaveLength(3)
   })
 })
 
 describe('migrateFilters and marks (v18 #3/#8: session-only, always loads off)', () => {
-  test('EMPTY_FILTERS.marks is both-off', () => {
-    expect(EMPTY_FILTERS.marks).toEqual({ starredOnly: false, comboOnly: false })
+  test('EMPTY_FILTERS.marks is all-off', () => {
+    expect(EMPTY_FILTERS.marks).toEqual({
+      starredOnly: false,
+      comboOnly: false,
+      constellationOnly: false,
+    })
   })
 
-  test('a saved active marks filter loads with both flags false', () => {
-    const migrated = migrateFilters({ marks: { starredOnly: true, comboOnly: true } })
-    expect(migrated.marks).toEqual({ starredOnly: false, comboOnly: false })
+  test('a saved active marks filter loads with all flags false', () => {
+    const migrated = migrateFilters({
+      marks: { starredOnly: true, comboOnly: true, constellationOnly: true },
+    })
+    expect(migrated.marks).toEqual({
+      starredOnly: false,
+      comboOnly: false,
+      constellationOnly: false,
+    })
   })
 })
 

@@ -18,6 +18,7 @@
   import type { TrackSortField } from '../core/trackSort'
   import ConfirmDialog from './ConfirmDialog.svelte'
   import InfoTooltip from './InfoTooltip.svelte'
+  import PanelFilterIcon from './PanelFilterIcon.svelte'
   import { sampleLoadNeedsConfirmation } from './persistence'
   import SliderRow from './SliderRow.svelte'
   import { startTour } from './tour'
@@ -573,9 +574,14 @@
            pretending to be two independent settings. aria-label uses `aria`
            (no emoji), not `label` — a screen reader would otherwise speak
            the glyph's Unicode name (v18 review fix, D). -->
-      {#each PANEL_FILTERS as m, i (m.key)}
-        <div class="prop-row pseudo" class:group-top={i === 0}>
-          <span class="prop-name">{m.label}</span>
+      <!-- A divider of its own, not a border on the first row below it (v27):
+           a border sits inside that row's box, so the row was 1px taller than
+           its three siblings and the space under the line could only be
+           bought with padding, which made it taller still. -->
+      <div class="group-divider"></div>
+      {#each PANEL_FILTERS as m (m.key)}
+        <div class="prop-row pseudo">
+          <span class="prop-name"><PanelFilterIcon key={m.key} />{m.text}</span>
           <input
             class="shared"
             type="checkbox"
@@ -938,10 +944,11 @@
     grid-column: 2 / 4;
   }
 
-  .prop-row.group-top {
+  /* Equal margins (v27): with the rows' own 2px padding that's the same 8px
+     of air above and below the line, and none of it inside a row's box. */
+  .group-divider {
     border-top: 1px solid var(--grid);
-    margin-top: 4px;
-    padding-top: 6px;
+    margin: 6px 0;
   }
 
   .prop-name {
@@ -950,6 +957,16 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     max-width: 100%;
+  }
+
+  /* flex, so the vector icon and the word are two items with one exact gap
+     between them (v27) — see FiltersSection, which pairs these same four
+     rows with the same icons. */
+  .prop-row.pseudo .prop-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow: visible;
   }
 
   label.off-view {

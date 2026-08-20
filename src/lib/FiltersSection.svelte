@@ -13,6 +13,7 @@
   } from '../core/filter'
   import { isPanelFilterKey, PANEL_FILTERS } from '../core/marks'
   import { PROPERTY_BY_KEY, REKORDBOX_COLOURS, type TrackProperty } from '../core/properties'
+  import PanelFilterIcon from './PanelFilterIcon.svelte'
   import type { TrackSortField } from '../core/trackSort'
   import {
     filters,
@@ -393,9 +394,19 @@
     </div>
   {/each}
 
-  {#each panelRows as m, i (m.key)}
-    <div class="filter-row pseudo" class:group-top={i === 0 && rows.length > 0}>
-      <span class="filter-label">{m.label}</span>
+  {#if panelRows.length > 0 && rows.length > 0}
+    <!-- A divider of its own, not a border on the first row below it (v27):
+         a border sits inside that row's box, so the row was 1px taller than
+         its three siblings and the space under the line could only be bought
+         with padding, which made it taller still. Standalone, its equal
+         margins put the same 12px above and below the line. -->
+    <div class="group-divider"></div>
+  {/if}
+  {#each panelRows as m (m.key)}
+    <div class="filter-row pseudo">
+      <span class="filter-label">
+        <PanelFilterIcon key={m.key} />{m.text}
+      </span>
       {#if m.flag !== undefined}
         {@const flag = m.flag}
         <!-- Two-button segmented switch, exactly like the Keys row below —
@@ -469,14 +480,16 @@
     padding: 2px 6px;
   }
 
-  /* F1/#10: number boxes are a fixed 58px — enough for a 4-digit year and the
-     hover spinner (macOS Chrome + Safari), but no wider. grow:0 stops them
+  /* F1/#10: number boxes are wide enough for a 4-digit year plus the hover
+     spinner (macOS Chrome + Safari) without clipping. grow:0 stops them
      ballooning to fill the row (which read as too wide); the reset button
-     right-aligns so it still hugs the row's edge. */
+     right-aligns so it still hugs the row's edge. Shared by every numeric
+     filter row (BPM, Rating, Energy, Year, …), not Year-specific, so all
+     number boxes stay a uniform width. */
   .filter-row input[type='number'] {
     width: auto;
-    flex: 0 1 58px;
-    min-width: 52px;
+    flex: 0 1 64px;
+    min-width: 58px;
     padding: 2px 2px 2px 6px;
     font-variant-numeric: tabular-nums;
   }
@@ -581,7 +594,15 @@
      everyone — at 250px the panel has ~12px of slack and the number boxes are
      already at their 52px min-width. The switch takes .range-reset's
      margin-left:auto instead, so all three right-align on the row's edge. */
+  /* flex, not the inline flow the property rows use: the icon and the word
+     are then two flex items with one exact `gap` between them (v27), instead
+     of an inline box whose trailing space is whatever the glyph's advance
+     width happened to leave over. align-items centres the icon against the
+     text without any vertical-align/line-height tuning. */
   .filter-row.pseudo .filter-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     width: auto;
     overflow: visible;
     text-overflow: clip;
@@ -592,11 +613,15 @@
   }
 
   /* The one rule dividing metadata ranges above from the marks/ring group
-     below. --grid is the intra-section token (--border is for panel edges);
-     suppressed when nothing is above it. */
-  .filter-row.group-top {
-    border-top: 1px solid var(--grid);
-    margin-top: 4px;
-    padding-top: 8px;
+     below. --baseline is the intra-section divider token, shared by every
+     sub-divider inside the left panel's dropdowns (a bit darker than
+     --grid, which divides the dropdowns themselves); suppressed when
+     nothing is above it. Equal margins (v27): with the rows' own 4px
+     padding that reads as 12px of air on each side of the line — the same
+     12px the Genres divider below the group already has above it, so the
+     group sits symmetrically between the two. */
+  .group-divider {
+    border-top: 1px solid var(--baseline);
+    margin: 8px 0;
   }
 </style>

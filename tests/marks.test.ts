@@ -51,13 +51,13 @@ describe('comboIdSet (v18 #3/#8)', () => {
   })
 })
 
-describe('PANEL_FILTER_KEYS / isPanelFilterKey (v23: the permanent panel rows)', () => {
-  test('the three pseudo-keys are starred, combos and keys, in that order', () => {
-    expect(PANEL_FILTER_KEYS).toEqual(['starred', 'combos', 'keys'])
+describe('PANEL_FILTER_KEYS / isPanelFilterKey (v23: the permanent panel rows, widened v25)', () => {
+  test('the four pseudo-keys are starred, constellation, combos and keys, in that order', () => {
+    expect(PANEL_FILTER_KEYS).toEqual(['starred', 'constellation', 'combos', 'keys'])
   })
 
-  test('recognizes only the three pseudo-keys', () => {
-    const keys: PanelFilterKey[] = ['starred', 'combos', 'keys']
+  test('recognizes only the four pseudo-keys', () => {
+    const keys: PanelFilterKey[] = ['starred', 'combos', 'keys', 'constellation']
     for (const k of keys) expect(isPanelFilterKey(k)).toBe(true)
     expect(isPanelFilterKey('bpm')).toBe(false)
     expect(isPanelFilterKey('nonsense')).toBe(false)
@@ -65,29 +65,24 @@ describe('PANEL_FILTER_KEYS / isPanelFilterKey (v23: the permanent panel rows)',
   })
 })
 
-describe('PANEL_FILTERS (v23: the permanent panel rows)', () => {
-  test('exactly three rows, in registry order', () => {
-    expect(PANEL_FILTERS.map((m) => m.key)).toEqual(['starred', 'combos', 'keys'])
+describe('PANEL_FILTERS (v23: the permanent panel rows, widened v25)', () => {
+  test('exactly four rows, in registry order', () => {
+    expect(PANEL_FILTERS.map((m) => m.key)).toEqual(['starred', 'constellation', 'combos', 'keys'])
   })
 
-  test('every row has a non-empty label and aria string', () => {
+  test('every row has a non-empty text and aria string', () => {
     for (const m of PANEL_FILTERS) {
-      expect(m.label.length).toBeGreaterThan(0)
+      expect(m.text.length).toBeGreaterThan(0)
       expect(m.aria.length).toBeGreaterThan(0)
     }
   })
 
-  test('every label puts the glyph first — a fixed-width column clips from the right', () => {
-    for (const m of PANEL_FILTERS) {
-      expect(m.label.startsWith('★') || m.label.startsWith('🔗') || m.label.startsWith('🎵')).toBe(
-        true,
-      )
-    }
-  })
+  // The icons themselves moved out of the registry in v27 (PanelFilterIcon
+  // draws them from `key`, exhaustively by type) — nothing to assert here.
 
   test('every aria string carries no emoji (a screen reader speaks its Unicode name otherwise)', () => {
     for (const m of PANEL_FILTERS) {
-      expect(m.aria).not.toMatch(/[★🔗🎵]/u)
+      expect(m.aria).not.toMatch(/[★🔗♪☰]/u)
     }
   })
 
@@ -97,23 +92,23 @@ describe('PANEL_FILTERS (v23: the permanent panel rows)', () => {
   })
 })
 
-describe('MARK_FILTERS (v18 #3/#8 review fix, B2 — derived from PANEL_FILTERS since v23)', () => {
-  test('is exactly the two flagged rows, in order, v18 labels unchanged', () => {
+describe('MARK_FILTERS (v18 #3/#8 review fix, B2 — derived from PANEL_FILTERS since v23, widened v25)', () => {
+  test('is exactly the three flagged rows, in order, v18 labels unchanged', () => {
     expect(MARK_FILTERS).toEqual([
-      { key: 'starred', label: '★ Starred', aria: 'Starred', flag: 'starredOnly' },
-      { key: 'combos', label: '🔗 Combos', aria: 'Manual combos', flag: 'comboOnly' },
+      { key: 'starred', text: 'Starred', aria: 'Starred', flag: 'starredOnly' },
+      {
+        key: 'constellation',
+        text: 'Constellation',
+        aria: 'Constellation',
+        flag: 'constellationOnly',
+      },
+      { key: 'combos', text: 'Combos', aria: 'Manual combos', flag: 'comboOnly' },
     ])
-  })
-
-  test('every label puts the glyph first — a fixed-width column clips from the right', () => {
-    for (const m of MARK_FILTERS) {
-      expect(m.label.startsWith('★') || m.label.startsWith('🔗')).toBe(true)
-    }
   })
 
   test('every aria string carries no emoji (a screen reader speaks its Unicode name otherwise)', () => {
     for (const m of MARK_FILTERS) {
-      expect(m.aria).not.toMatch(/[★🔗]/u)
+      expect(m.aria).not.toMatch(/[★🔗☰]/u)
     }
   })
 })

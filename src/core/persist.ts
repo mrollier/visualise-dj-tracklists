@@ -34,10 +34,19 @@ import { DEFAULT_SETTINGS, type AppSettings } from './settings'
  * v8 (v23: ★ Starred, 🔗 Combos and 🎵 Keys become permanent left-panel
  *  pseudo-rows — a save older than v8 back-fills all three into
  *  `settings.visibleFilters` on load, since v8+ is trusted verbatim a
- *  deliberate hide made afterwards sticks).
+ *  deliberate hide made afterwards sticks),
+ * v9 (Energy joins Key/BPM/Genre/Year as a 5th combo criterion — a save
+ *  older than v9 has no `criteria.energy`; migrateCriteria fills it from
+ *  DEFAULT_CRITERIA.energy, so an old save gains the field enabled with
+ *  the default 2-step tolerance rather than failing to evaluate it),
+ * v10 (v25: ☰ Constellation joins ★ Starred/🔗 Combos/♪ Keys as a fourth
+ *  permanent left-panel pseudo-row — a save older than v10 back-fills it
+ *  into `settings.visibleFilters` on load, same as v8's three-row
+ *  back-fill; `filters.marks.constellationOnly` needs no migration since
+ *  marks are always reset to both/all-off on load regardless of version).
  */
 export interface Project {
-  version: 8
+  version: 10
   libraryName: string
   tracks: Track[]
   criteria: CriteriaConfig
@@ -96,6 +105,7 @@ function migrateCriteria(raw: Record<string, unknown>): CriteriaConfig {
   // it explicitly with `=== true` coercion so a non-boolean in a hand-edited
   // save (or its absence in an old one) becomes a clean false, never leaks.
   const bpm = (raw.bpm ?? {}) as Partial<CriteriaConfig['bpm']>
+  const energy = (raw.energy ?? {}) as Partial<CriteriaConfig['energy']>
   const year = (raw.year ?? {}) as Partial<CriteriaConfig['year']>
   const criteria: CriteriaConfig = {
     key: {
@@ -112,6 +122,11 @@ function migrateCriteria(raw: Record<string, unknown>): CriteriaConfig {
       halfDouble: bpm.halfDouble ?? defaults.bpm.halfDouble,
       twoThirds: bpm.twoThirds ?? defaults.bpm.twoThirds,
       demanded: bpm.demanded === true,
+    },
+    energy: {
+      enabled: energy.enabled ?? defaults.energy.enabled,
+      maxSteps: energy.maxSteps ?? defaults.energy.maxSteps,
+      demanded: energy.demanded === true,
     },
     genre: {
       enabled: genre.enabled ?? defaults.genre.enabled,
@@ -131,7 +146,7 @@ function migrateCriteria(raw: Record<string, unknown>): CriteriaConfig {
     threshold: typeof raw.threshold === 'number' ? raw.threshold : defaults.threshold,
   }
   // 0 is a deliberate "require nothing" since v11 (issue 2a).
-  criteria.threshold = Math.max(0, Math.min(4, criteria.threshold))
+  criteria.threshold = Math.max(0, Math.min(5, criteria.threshold))
   // v14 C2: a demanded criterion is mandatory, so the threshold can never sit
   // below the demanded count — floor it after the clamp.
   criteria.threshold = Math.max(criteria.threshold, demandedCount(criteria))
@@ -236,7 +251,9 @@ export function parseProject(json: string): Project {
     p.version !== 5 &&
     p.version !== 6 &&
     p.version !== 7 &&
-    p.version !== 8
+    p.version !== 8 &&
+    p.version !== 9 &&
+    p.version !== 10
   ) {
     throw new Error(`Unsupported project version: ${String(p.version)}`)
   }
@@ -429,6 +446,13 @@ export function parseProject(json: string): Project {
       if (!settings.visibleFilters.includes(m.key)) settings.visibleFilters.push(m.key)
     }
   }
+  // v25: saves written before schema 10 predate the fourth permanent row
+  // (☰ Constellation) — a narrower, separate back-fill from the one above,
+  // since a save already at v8/v9 has the first three rows but not this
+  // one. Schema 10+ is trusted verbatim.
+  if (version < 10 && !settings.visibleFilters.includes('constellation')) {
+    settings.visibleFilters.push('constellation')
+  }
   // Manual edges (v12 WS9): unordered unique pairs between known tracks.
   const manualEdges: ManualEdge[] = []
   {
@@ -450,7 +474,7 @@ export function parseProject(json: string): Project {
   }
 
   return {
-    version: 8,
+    version: 10,
     manualEdges,
     libraryName: typeof p.libraryName === 'string' ? p.libraryName : '',
     tracks,

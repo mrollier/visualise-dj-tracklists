@@ -48,6 +48,7 @@ describe('reset to defaults (v9 issue 3)', () => {
       vinylMode: true,
     }
     current.bpm = { ...current.bpm, maxPercent: 0, unitTime: false, halfDouble: true }
+    current.energy = { ...current.energy, enabled: false, maxSteps: 9 }
     current.genre = { ...current.genre, enabled: false, method: 'lexical', k: 15, threshold: 0.9 }
     current.threshold = 4
 
@@ -61,9 +62,11 @@ describe('reset to defaults (v9 issue 3)', () => {
     expect(reset.genre.method).toBe(DEFAULT_CRITERIA.genre.method)
     expect(reset.genre.k).toBe(DEFAULT_CRITERIA.genre.k)
     expect(reset.genre.threshold).toBe(DEFAULT_CRITERIA.genre.threshold)
-    // …but the combo panel's own knobs are untouched.
+    // …but the combo panel's own knobs are untouched. Energy has no
+    // advanced-owned sub-fields (same as year), so it's untouched wholesale.
     expect(reset.key.enabled).toBe(false)
     expect(reset.bpm.maxPercent).toBe(0)
+    expect(reset.energy).toEqual({ enabled: false, maxSteps: 9, demanded: false })
     expect(reset.genre.enabled).toBe(false)
     expect(reset.threshold).toBe(4)
   })

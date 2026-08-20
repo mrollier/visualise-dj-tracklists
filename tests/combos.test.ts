@@ -831,6 +831,26 @@ describe('individual criteria', () => {
     ).not.toContain('year')
   })
 
+  test('energy matches within its configured tolerance', () => {
+    const cfg = config()
+    const a = track({ id: 'a', key: '8A', bpm: 128, genre: 'Techno', year: 2020, energy: 5 })
+    // default tolerance is 2: 5 → 7 matches, 5 → 8 doesn't.
+    expect(
+      evaluateCombo(
+        a,
+        track({ id: 'b', key: '8A', bpm: 128, genre: 'Techno', year: 2020, energy: 7 }),
+        cfg,
+      ).matched,
+    ).toContain('energy')
+    expect(
+      evaluateCombo(
+        a,
+        track({ id: 'c', key: '8A', bpm: 128, genre: 'Techno', year: 2020, energy: 8 }),
+        cfg,
+      ).matched,
+    ).not.toContain('energy')
+  })
+
   test('rating is a library filter, not a combo criterion', () => {
     // Wildly different ratings must not affect the combo evaluation at all.
     const cfg = config({ threshold: 4 })
@@ -1107,7 +1127,11 @@ describe('toggleCriterion (v14 C1: enabling ALWAYS requires the new criterion)',
 
   test('require-all survives a disable/re-enable round-trip unchanged (C1)', () => {
     // 3-of-3 → disable → 2-of-2 → re-enable → 3-of-3.
-    const cfg = config({ year: { ...DEFAULT_CRITERIA.year, enabled: false }, threshold: 3 })
+    const cfg = config({
+      energy: { ...DEFAULT_CRITERIA.energy, enabled: false },
+      year: { ...DEFAULT_CRITERIA.year, enabled: false },
+      threshold: 3,
+    })
     const dropped = toggleCriterion(cfg, 'genre', false) // 2 of 2
     expect(dropped.threshold).toBe(2)
     const restored = toggleCriterion(dropped, 'genre', true) // 3 of 3
@@ -1121,7 +1145,8 @@ describe('toggleCriterion (v14 C1: enabling ALWAYS requires the new criterion)',
   })
 
   test('disabling clamps the threshold to the remaining count', () => {
-    const cfg = config({ threshold: 4 }) // all four enabled
+    // all four [original] enabled — energy sits this one out.
+    const cfg = config({ energy: { ...DEFAULT_CRITERIA.energy, enabled: false }, threshold: 4 })
     const next = toggleCriterion(cfg, 'genre', false)
     expect(next.genre.enabled).toBe(false)
     expect(next.threshold).toBe(3)
@@ -1131,6 +1156,7 @@ describe('toggleCriterion (v14 C1: enabling ALWAYS requires the new criterion)',
     const cfg = config({
       key: { ...DEFAULT_CRITERIA.key, enabled: false },
       bpm: { ...DEFAULT_CRITERIA.bpm, enabled: false },
+      energy: { ...DEFAULT_CRITERIA.energy, enabled: false },
       genre: { ...DEFAULT_CRITERIA.genre, enabled: false },
       year: { ...DEFAULT_CRITERIA.year, enabled: false },
       threshold: 3,

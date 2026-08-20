@@ -19,6 +19,7 @@
     effectiveManualEdges,
     filters,
     hoveredId,
+    library,
     linkArmed,
     manualEdges,
     mustInclude,
@@ -46,6 +47,76 @@
     return kind === 'alpha' || kind === 'contains' || kind === 'colour' || kind === 'quality'
   }
 
+  // Column widths (v24): computed once from the FULL library, not the
+  // filtered/sorted view, then locked in via a <colgroup> below
+  // (table-layout: fixed) — so toggling a filter or mark (♪ ring, ★, 🔗,
+  // playlists…) never reflows a column, only the visible row set changes.
+  // Must mirror the real fonts/padding in the style block below or the
+  // locked width will be wrong.
+  const FONT_STACK = "system-ui, -apple-system, 'Segoe UI', sans-serif"
+  const HEADER_FONT = `600 10.5px ${FONT_STACK}` // .sort
+  const BODY_FONT = `12.5px ${FONT_STACK}` // td
+  const HEADER_PAD = 20 // .sort's padding: 8px 10px
+  const BODY_PAD = 20 // td's padding: 5px 10px
+  const ELLIPSIS_CAP = 220 // matches .ellipsis { max-width: 220px }
+  const KEY_RING_RESERVE = 20 // .key-ring's 18px + .th-inner's 2px gap
+  const RATING_REFERENCE = '★'.repeat(5) // rating renders 5 star glyphs, not formatPropertyValue's text
+  // Canvas text measurement can be a hair narrower than the DOM's own text
+  // layout (font hinting/kerning differences); a fixed column has no
+  // overflow: hidden safety net outside .ellipsis, so pad every width
+  // slightly rather than risk a sub-pixel clip.
+  const SAFETY_MARGIN = 2
+
+  let measureCtx: CanvasRenderingContext2D | null = null
+  function measureWidth(text: string, font: string, letterSpacing = '0'): number {
+    measureCtx ??= document.createElement('canvas').getContext('2d')
+    if (measureCtx === null) return 0
+    measureCtx.font = font
+    measureCtx.letterSpacing = letterSpacing
+    return measureCtx.measureText(text).width
+  }
+
+  // The one column left unpinned — it absorbs whatever space the fixed
+  // columns don't use, the way Title (the first alpha-kind column, by
+  // default) already visually dominates the row. No fallback special-case
+  // if the visible set happens to have no alpha-kind column; the fixed
+  // columns then simply may not fill the full row width.
+  const flexField: TrackSortField | null = $derived(
+    columns.find((f) => PROPERTY_BY_KEY.get(f)?.kind === 'alpha') ?? null,
+  )
+
+  // Every column reserves ▲/▼ space unconditionally (v25 review revert),
+  // even though it isn't currently sorted — so clicking a different column
+  // header to sort by it never reflows anything either, the same guarantee
+  // filter/mark toggles already get. columnWidths' only dependencies are
+  // $library/columns, deliberately excluding $trackSort.
+  const columnWidths = $derived.by(() => {
+    const widths: Partial<Record<TrackSortField, number>> = {}
+    const arrowWidth = measureWidth('▲', HEADER_FONT) + 3 // .dir's margin-left
+    for (const field of columns) {
+      if (field === flexField) continue
+      const label = COLUMN_LABEL[field].toUpperCase()
+      let header = measureWidth(label, HEADER_FONT, '0.09em') + HEADER_PAD + arrowWidth
+      if (field === 'key') header += KEY_RING_RESERVE
+
+      let body: number
+      if (field === 'rating') {
+        body = measureWidth(RATING_REFERENCE, BODY_FONT) + BODY_PAD
+      } else {
+        let maxText = 0
+        for (const track of $library) {
+          const w = measureWidth(formatPropertyValue(track, field), BODY_FONT)
+          if (w > maxText) maxText = w
+        }
+        body = maxText + BODY_PAD
+        if (isTextColumn(field)) body = Math.min(body, ELLIPSIS_CAP)
+      }
+
+      widths[field] = Math.ceil(Math.max(header, body)) + SAFETY_MARGIN
+    }
+    return widths
+  })
+
   // Rekordbox stores colour as a raw `0xRRGGBB` string; turn it into a CSS hex
   // for the swatch, or null if it isn't a recognisable 6-digit hex (#8).
   function colourHex(raw: string): string | null {
@@ -69,22 +140,27 @@
   // (ranges, genres, key ring), not just the playlist scope.
   const sorted = $derived(sortTracks($visibleLibrary, $trackSort))
 
-  // In-set-only view (v10 issue 15): show only the active set's tracks, in
-  // set order (deduped by first occurrence), with all metadata columns —
-  // the right panel's set, fleshed out. Column sorting is suspended here.
-  let inSetOnly = $state(false)
-  // If the set empties while set-only mode is on (clear, deletions), exit
-  // the mode — otherwise the table dead-ends on the empty hint with the
-  // toggle disabled (v11 issue 12a).
-  $effect(() => {
-    if ($tracklist.length === 0 && inSetOnly) inSetOnly = false
-  })
+  // In-set-only view (v10 issue 15, unified with the ☰ Constellation panel
+  // filter v25): show only the active set's tracks, in set order (deduped
+  // by first occurrence), with all metadata columns — the right panel's
+  // set, fleshed out. Column sorting is suspended here. Backed by
+  // `filters.marks.constellationOnly` (not local state) so it's persisted,
+  // reachable from the Filters panel/Advanced Settings, and also narrows
+  // the Wheel/Genres via `visibleLibrary` — kept under this name since it
+  // still reads everywhere below as a display-mode flag, unrelated to the
+  // unification.
+  const inSetOnly = $derived($filters.marks.constellationOnly)
+  // Constellation members that also pass every OTHER active filter (v25):
+  // a track can be in the constellation but excluded here by e.g. a BPM
+  // range, exactly like it would be dropped from visibleLibrary itself —
+  // the walk-ordered view and the rest of the app agree on membership.
+  const visibleIdSet = $derived(new Set($visibleLibrary.map((t) => t.id)))
   const inSetRows = $derived.by(() => {
     // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived-local
     const seen = new Set<string>()
     const out: Track[] = []
     for (const id of $tracklist) {
-      if (seen.has(id)) continue
+      if (seen.has(id) || !visibleIdSet.has(id)) continue
       seen.add(id)
       const found = $trackById.get(id)
       if (found !== undefined) out.push(found)
@@ -108,13 +184,19 @@
 
   // Whether the ★/🔗 columns and the Key column's ♪ ring filter render at
   // all (v23): the same `settings.visibleFilters` list the left panel's ★
-  // Starred/🔗 Combos/🎵 Keys rows and the advanced "Track properties"
+  // Starred/🔗 Combos/♪ Keys rows and the advanced "Track properties"
   // checkboxes drive. Read the raw setting, not `effectiveFilters` — easy
   // mode neutralising the underlying filter shouldn't also hide the column
   // gate, which is a separate, user-controlled visibility choice.
   const showStarCol = $derived($settings.visibleFilters.includes('starred'))
   const showComboCol = $derived($settings.visibleFilters.includes('combos'))
   const showKeyRings = $derived($settings.visibleFilters.includes('keys'))
+  // Same gate for the ☰ pos-toggle button (v25) — unlike the other three,
+  // this one stays mounted regardless (no !easy here): the ＋/position-
+  // number cells in .pos-col are a separate, always-on affordance, and the
+  // button keeps local value (the walk-ordered table) even when easy mode
+  // neutralises its library-wide effect.
+  const showConstellationCol = $derived($settings.visibleFilters.includes('constellation'))
 
   // Total header/body columns, incl. the pos lead which always renders (v18
   // #3/#8 review fix, A1; formula widened v23 for the ★/🔗 columns' new
@@ -137,6 +219,7 @@
   const anyStarred = $derived(mustSet.size > 0 || $pinnedFirst !== null || $pinnedLast !== null)
   const starToggleDisabled = $derived(!$filters.marks.starredOnly && !anyStarred)
   const comboToggleDisabled = $derived(!$filters.marks.comboOnly && $manualEdges.length === 0)
+  const constellationToggleDisabled = $derived(!inSetOnly && $tracklist.length === 0)
 
   // The two flags the header buttons drive, read from the shared registry
   // (v18 #3/#8 review fix, B2) rather than bare string literals — the two
@@ -147,12 +230,13 @@
   const starredFlag = MARK_FILTERS.find((m) => m.key === 'starred')?.flag ?? 'starredOnly'
   const comboFlag = MARK_FILTERS.find((m) => m.key === 'combos')?.flag ?? 'comboOnly'
 
-  // The Key column's ♪ ring quick filter (Design §6, v23): same easy/
-  // in-set-only gates as the ★/🔗 header toggles above, for the same
-  // reasons (easy mode neutralises keyRings through effectiveFilters, so
-  // the button would be inert; in-set-only rows bypass visibleLibrary, so
-  // there'd be nothing for the filter to act on) plus the visibility flag.
-  const keyRingButtonVisible = $derived(showKeyRings && !easy && !inSetOnly)
+  // The Key column's ♪ ring quick filter (Design §6, v23): same easy-mode
+  // gate as the ★/🔗 header toggles above (easy mode neutralises keyRings
+  // through effectiveFilters, so the button would be inert there) plus the
+  // visibility flag. No longer gated on constellation-only mode (v25): that
+  // mode is just another AND-ed condition inside visibleLibrary now, not a
+  // bypass of it, so this filter stays meaningful while it's active.
+  const keyRingButtonVisible = $derived(showKeyRings && !easy)
   // Three named stops plus a defensive fourth (both rings off, reachable
   // only from the left panel's independent minor/major toggles): .on is
   // true whenever a ring is actually excluded, i.e. whenever the state
@@ -284,18 +368,38 @@
 
 <section class="tracks-view">
   <table class:has-selection={$selectedId !== null}>
+    <!-- table-layout: fixed, driven by these widths (v24): mirrors the
+         header row's column order exactly. columnWidths is computed once
+         from the full library, not the filtered view, so no filter/mark
+         toggle ever reflows a column — see columnWidths above. flexField
+         gets no width and absorbs whatever space the rest don't use. -->
+    <colgroup>
+      {#if showStarCol}
+        <col style="width: 26px" />
+      {/if}
+      <col style="width: 34px" />
+      {#if !easy && showComboCol}
+        <col style="width: 26px" />
+      {/if}
+      {#each columns as field (field)}
+        {#if field === flexField}
+          <col />
+        {:else}
+          <col style="width: {columnWidths[field]}px" />
+        {/if}
+      {/each}
+    </colgroup>
     <thead>
       <tr>
         <!-- Tags + position lead the row (v9 issue 13); the header ★ is a
              quick filter now (v18 #3/#8 — the old mark-all-★ action
              retired). `showStarCol` hides the whole column, header and row
              ★s alike; within a shown column, the button (not the row-level
-             ★, which still cycles) hides in easy mode and in-set-only mode,
-             like the 🔗 toggle below: both modes' rows bypass or hide the
-             filtered view the header controls act on. -->
+             ★, which still cycles) hides in easy mode, like the 🔗 toggle
+             below: easy mode neutralises the marks filter it drives. -->
         {#if showStarCol}
           <th class="tags-col">
-            {#if !easy && !inSetOnly}
+            {#if !easy}
               <button
                 class="header-toggle"
                 class:on={$filters.marks.starredOnly}
@@ -314,46 +418,61 @@
         {/if}
         <th class="pos-col">
           <!-- Toggle a metadata-rich, set-only, position-ordered view (v10
-               issue 15). Disabled while the set is empty — an empty
-               set-only table is a dead end (v11 issue 12a). -->
-          <button
-            class="pos-toggle"
-            class:on={inSetOnly}
-            disabled={$tracklist.length === 0}
-            title={$tracklist.length === 0
-              ? 'Add tracks to the constellation first'
-              : inSetOnly
-                ? 'Show all tracks'
-                : 'Show only this constellation, in order'}
-            aria-label="Toggle the constellation-only view"
-            aria-pressed={inSetOnly}
-            onclick={() => (inSetOnly = !inSetOnly)}>☰</button
-          >
+               issue 15; unified with the ☰ Constellation panel filter v25 —
+               see `inSetOnly` above). Disabled while the set is empty — an
+               empty set-only table is a dead end (v11 issue 12a). Stays
+               mounted regardless of easy mode (unlike ★/🔗 above): it keeps
+               local value here even when easy mode neutralises its
+               library-wide effect. `showConstellationCol` mirrors
+               `showStarCol`/`showComboCol` — the shared Advanced Settings
+               tick that hides this row also hides this button. -->
+          {#if showConstellationCol}
+            <button
+              class="pos-toggle"
+              class:on={inSetOnly}
+              disabled={constellationToggleDisabled}
+              title={constellationToggleDisabled
+                ? 'Add tracks to the constellation first'
+                : inSetOnly
+                  ? 'Show all tracks'
+                  : 'Show only this constellation, in order'}
+              aria-label="Toggle the constellation-only view"
+              aria-pressed={inSetOnly}
+              onclick={() => toggleMarkFilter('constellationOnly')}
+            >
+              <!-- An SVG, not the ☰ character (v24 review fix): a text
+                   glyph's baseline sits at a font-/platform-dependent offset
+                   that two rounds of padding tuning couldn't pin down
+                   reliably — a vector box centers by construction, immune to
+                   font metrics. -->
+              <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
+                <rect y="2.5" width="16" height="2" rx="1" fill="currentColor" />
+                <rect y="7" width="16" height="2" rx="1" fill="currentColor" />
+                <rect y="11.5" width="16" height="2" rx="1" fill="currentColor" />
+              </svg>
+            </button>
+          {/if}
         </th>
         {#if !easy && showComboCol}
           <!-- Manual (🔗) combos, list-view analogue of the wheel's dashed
                links: unselected shows a per-row count, a selection swaps
                that for a lit/clickable icon on the actual partners. The
                header 🔗 is a quick filter (v18 #3/#8), same idiom as the
-               header ★ — the old clear-all-combos action retired; also
-               in-set-only-gated (its rows bypass visibleLibrary entirely,
-               so the filter would have nothing to act on there). -->
+               header ★ — the old clear-all-combos action retired. -->
           <th class="manual-col">
-            {#if !inSetOnly}
-              <button
-                class="header-toggle"
-                class:on={$filters.marks.comboOnly}
-                disabled={comboToggleDisabled}
-                title={comboToggleDisabled
-                  ? 'No manual combos yet'
-                  : $filters.marks.comboOnly
-                    ? 'Showing only manual-combo tracks — click to show all'
-                    : 'Show only tracks with a manual combo'}
-                aria-label="Toggle showing only tracks with a manual combo"
-                aria-pressed={$filters.marks.comboOnly}
-                onclick={() => toggleMarkFilter(comboFlag)}>🔗</button
-              >
-            {/if}
+            <button
+              class="header-toggle"
+              class:on={$filters.marks.comboOnly}
+              disabled={comboToggleDisabled}
+              title={comboToggleDisabled
+                ? 'No manual combos yet'
+                : $filters.marks.comboOnly
+                  ? 'Showing only manual-combo tracks — click to show all'
+                  : 'Show only tracks with a manual combo'}
+              aria-label="Toggle showing only tracks with a manual combo"
+              aria-pressed={$filters.marks.comboOnly}
+              onclick={() => toggleMarkFilter(comboFlag)}>🔗</button
+            >
           </th>
         {/if}
         {#each columns as field (field)}
@@ -392,7 +511,7 @@
                  just its fixed width. Wrapping only touches this <th>'s own
                  contents, not the <th> or any other column's markup. -->
             <span class="th-inner">
-              <button class="sort" onclick={() => toggleSort(field)}>
+              <button class="sort" class:key={field === 'key'} onclick={() => toggleSort(field)}>
                 {COLUMN_LABEL[field]}
                 <!-- Set order supersedes column sorting in set-only mode, so
                      the triangle hides there (v11 issue 12b); the stored
@@ -645,6 +764,10 @@
 
   table {
     width: 100%;
+    /* Widths come from the <colgroup> above, computed once from the full
+       library (v24) — this is what stops a filter/mark toggle from
+       reflowing any column, not just the ♪ ring one. */
+    table-layout: fixed;
     border-collapse: collapse;
     font-size: 12.5px;
   }
@@ -669,6 +792,7 @@
   .th-inner {
     display: flex;
     align-items: center;
+    gap: 2px;
   }
 
   .sort {
@@ -690,17 +814,29 @@
     color: var(--ink);
   }
 
+  /* The Key column has a second interactive control (.key-ring) beside its
+     label — shrink the sort button to its own text so the ♪ icon sits
+     right next to "Key" instead of at the column's far edge (v24 review).
+     Every other column keeps the full-width flex:1 1 auto click target. */
+  .sort.key {
+    flex: 0 1 auto;
+  }
+
   /* The ♪ ring quick filter (Design §6, v23): a normal-flow flex sibling of
      .sort inside .th-inner, not an overlay — the CriteriaPanel.svelte:
      330-336 .lock precedent for BOTH its layout technique (an in-flow flex
      child) and its fixed width, so the ♪ ↔ ♪A ↔ ♪B glyph swap never shifts
      .sort's label or the ▲/▼ sort arrow beside it. flex-shrink: 0 keeps it
      from being squeezed by .sort's flex-grow in a narrow column. */
-  .key-ring {
+  /* button.key-ring, not .key-ring alone (v25 review fix): same
+     specificity as .header-toggle's own "padding: 8px 6px" resolved by
+     source order before, silently overriding this padding — the element
+     qualifier wins outright, regardless of order. Width fits "♪A"/"♪B"'s
+     ~14px ink plus 2px each side — the previous 26px was carrying ~8px of
+     dead space no glyph ever used. */
+  button.key-ring {
     flex-shrink: 0;
-    width: 26px;
-    /* shorthand, not padding-left/right: .header-toggle's equal-specificity
-       "padding: 8px 6px" would otherwise override a longhand side-padding */
+    width: 18px;
     padding: 8px 2px;
     display: inline-flex;
     justify-content: center;
@@ -902,10 +1038,12 @@
   }
 
   .pos-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background: none;
     border: none;
     padding: 8px 6px;
-    font-size: 12px;
     color: var(--ink-muted);
   }
 

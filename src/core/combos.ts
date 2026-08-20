@@ -40,6 +40,8 @@ export interface CriteriaConfig {
     twoThirds: boolean
     demanded: boolean
   }
+  /** Mixed-In-Key-style energy (1–10); "within" is an absolute step count. */
+  energy: { enabled: boolean; maxSteps: number; demanded: boolean }
   genre: {
     enabled: boolean
     method: GenreMethod
@@ -77,6 +79,8 @@ export const DEFAULT_CRITERIA: CriteriaConfig = {
     twoThirds: false,
     demanded: false,
   },
+  // ±2 energy steps mirrors BPM's fairly tight default tolerance.
+  energy: { enabled: true, maxSteps: 2, demanded: false },
   genre: { enabled: true, method: 'hybrid', mode: 'topk', k: 5, threshold: 0.2, demanded: false },
   year: { enabled: true, maxYears: 5, demanded: false },
   threshold: 3,
@@ -92,13 +96,14 @@ export const DEFAULT_CRITERIA: CriteriaConfig = {
  */
 export const EASY_CRITERIA: CriteriaConfig = {
   ...DEFAULT_CRITERIA,
+  energy: { ...DEFAULT_CRITERIA.energy, enabled: false },
   genre: { ...DEFAULT_CRITERIA.genre, enabled: false },
   year: { ...DEFAULT_CRITERIA.year, enabled: false },
   threshold: 2,
 }
 
 /** The metadata fields that act as pairwise combo criteria. */
-export type CriterionField = 'key' | 'bpm' | 'genre' | 'year'
+export type CriterionField = 'key' | 'bpm' | 'energy' | 'genre' | 'year'
 
 interface ComboEvaluation {
   /** Criteria that were enabled and had values on both sides. */
@@ -223,12 +228,13 @@ const PREDICATES: Record<CriterionField, Predicate> = {
     return keysMatch(a.key!, transposeCamelot(b.key!, shift), opts)
   },
   bpm: (a, b, criteria) => bpmCompatibleRatio(a, b, criteria) !== null,
+  energy: (a, b, criteria) => Math.abs(a.energy! - b.energy!) <= criteria.energy.maxSteps,
   // genre is handled in evaluateCombo: it needs the library-wide matcher.
   genre: () => false,
   year: (a, b, criteria) => Math.abs(a.year! - b.year!) <= criteria.year.maxYears,
 }
 
-const FIELDS = Object.keys(PREDICATES) as CriterionField[]
+export const CRITERION_FIELDS = Object.keys(PREDICATES) as CriterionField[]
 
 /**
  * How many criteria are locked as mandatory (v14 C2): enabled AND demanded.
@@ -236,7 +242,7 @@ const FIELDS = Object.keys(PREDICATES) as CriterionField[]
  * N-of-M threshold (threshold ≥ demandedCount).
  */
 export function demandedCount(criteria: CriteriaConfig): number {
-  return FIELDS.filter((f) => criteria[f].enabled && criteria[f].demanded).length
+  return CRITERION_FIELDS.filter((f) => criteria[f].enabled && criteria[f].demanded).length
 }
 
 /**
@@ -273,7 +279,7 @@ export function evaluateCombo(
   // rather than returning early, so `matched` stays fully populated — the
   // forced picker scores pairs off it even when they never form an edge.
   let demandedFailed = false
-  for (const field of FIELDS) {
+  for (const field of CRITERION_FIELDS) {
     if (!criteria[field].enabled) continue
     if (a[field] === null || b[field] === null) {
       if (criteria[field].demanded) demandedFailed = true
@@ -363,7 +369,7 @@ export function toggleCriterion(
   enabled: boolean,
 ): CriteriaConfig {
   const enabledCount = (criteria: CriteriaConfig): number =>
-    [criteria.key, criteria.bpm, criteria.genre, criteria.year].filter((c) => c.enabled).length
+    CRITERION_FIELDS.filter((f) => criteria[f].enabled).length
   // Disabling drops the lock too: a re-enable must come back unlocked, not
   // silently still demanded (must-match is a per-session commitment, not a
   // property that survives the criterion being switched off).

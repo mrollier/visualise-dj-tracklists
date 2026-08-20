@@ -17,6 +17,7 @@ import {
   pinnedFirst,
   pinnedLast,
   settings,
+  tracklist,
   visibleLibrary,
 } from '../src/stores'
 
@@ -66,11 +67,12 @@ describe('effective stores — easy mode computes with defaults', () => {
   // v15: easy mode's fixed criteria are key + BPM only, both required —
   // genre and year (DEFAULT_CRITERIA's other two enabled fields) are too
   // loose for a hands-off default.
-  test('easy criteria require key AND bpm, with genre/year disabled', () => {
+  test('easy criteria require key AND bpm, with energy/genre/year disabled', () => {
     settings.update((s) => ({ ...s, uiMode: 'easy' }))
     const eff = get(effectiveCriteria)
     expect(eff.key.enabled).toBe(true)
     expect(eff.bpm.enabled).toBe(true)
+    expect(eff.energy.enabled).toBe(false)
     expect(eff.genre.enabled).toBe(false)
     expect(eff.year.enabled).toBe(false)
     expect(eff.threshold).toBe(2)
@@ -89,7 +91,7 @@ describe('effective stores — easy mode computes with defaults', () => {
       genres: ['house'],
       playlists: ['Warmup', 'Peak'],
       keyRings: { minor: false, major: true },
-      marks: { starredOnly: true, comboOnly: true },
+      marks: { starredOnly: true, comboOnly: true, constellationOnly: true },
     })
     settings.update((s) => ({ ...s, uiMode: 'easy' }))
 
@@ -141,7 +143,7 @@ describe('effective stores — easy mode computes with defaults', () => {
       genres: ['house'],
       playlists: ['Peak'],
       keyRings: { minor: false, major: true },
-      marks: { starredOnly: true, comboOnly: false },
+      marks: { starredOnly: true, comboOnly: false, constellationOnly: false },
     }
     const storedSettings = {
       ...structuredClone(DEFAULT_SETTINGS),
@@ -213,6 +215,7 @@ describe('marksContext — perf gate (v18 #3/#8)', () => {
     pinnedFirst.set(null)
     pinnedLast.set(null)
     manualEdges.set([])
+    tracklist.set([])
   })
   afterEach(() => {
     filters.set(structuredClone(EMPTY_FILTERS))
@@ -221,9 +224,10 @@ describe('marksContext — perf gate (v18 #3/#8)', () => {
     pinnedFirst.set(null)
     pinnedLast.set(null)
     manualEdges.set([])
+    tracklist.set([])
   })
 
-  test('with both mark flags off, cycling mustInclude/pins/manualEdges does not re-emit visibleLibrary', () => {
+  test('with all three mark flags off, cycling mustInclude/pins/manualEdges/tracklist does not re-emit visibleLibrary', () => {
     let emits = 0
     const unsubscribe = visibleLibrary.subscribe(() => {
       emits += 1
@@ -239,13 +243,18 @@ describe('marksContext — perf gate (v18 #3/#8)', () => {
     pinnedLast.set(null)
     manualEdges.set([{ a: SAMPLE_TRACKS[0].id, b: SAMPLE_TRACKS[1].id }])
     manualEdges.set([])
+    tracklist.set([SAMPLE_TRACKS[0].id, SAMPLE_TRACKS[1].id])
+    tracklist.set([])
 
     expect(emits).toBe(afterSubscribe)
     unsubscribe()
   })
 
   test('turning starredOnly on makes visibleLibrary shrink to the starred ids and react to mustInclude', () => {
-    filters.update((f) => ({ ...f, marks: { starredOnly: true, comboOnly: false } }))
+    filters.update((f) => ({
+      ...f,
+      marks: { starredOnly: true, comboOnly: false, constellationOnly: false },
+    }))
     expect(get(visibleLibrary)).toEqual([]) // nothing starred yet — everything hides
 
     let emits = 0
@@ -261,6 +270,26 @@ describe('marksContext — perf gate (v18 #3/#8)', () => {
     unsubscribe()
   })
 
+  test('turning constellationOnly on makes visibleLibrary shrink to the tracklist and react to it', () => {
+    filters.update((f) => ({
+      ...f,
+      marks: { starredOnly: false, comboOnly: false, constellationOnly: true },
+    }))
+    expect(get(visibleLibrary)).toEqual([]) // empty constellation — everything hides
+
+    let emits = 0
+    const unsubscribe = visibleLibrary.subscribe(() => {
+      emits += 1
+    })
+    const afterSubscribe = emits
+
+    tracklist.set([SAMPLE_TRACKS[0].id])
+
+    expect(emits).toBeGreaterThan(afterSubscribe)
+    expect(get(visibleLibrary).map((t) => t.id)).toEqual([SAMPLE_TRACKS[0].id])
+    unsubscribe()
+  })
+
   // The two tests above don't actually pin `distinct`'s own contribution:
   // Svelte's own dedup already collapses null→null (both-off) transitions
   // regardless of `distinct`, and the "reacts" test only proves recompute
@@ -270,7 +299,10 @@ describe('marksContext — perf gate (v18 #3/#8)', () => {
   // `distinct`, Svelte's `safe_not_equal` treats any new object as "changed"
   // and would re-emit anyway.
   test('with starredOnly on, reordering mustInclude to the same id set does not re-emit visibleLibrary', () => {
-    filters.update((f) => ({ ...f, marks: { starredOnly: true, comboOnly: false } }))
+    filters.update((f) => ({
+      ...f,
+      marks: { starredOnly: true, comboOnly: false, constellationOnly: false },
+    }))
     mustInclude.set([SAMPLE_TRACKS[0].id, SAMPLE_TRACKS[1].id])
     expect(get(visibleLibrary).map((t) => t.id)).toEqual([SAMPLE_TRACKS[0].id, SAMPLE_TRACKS[1].id])
 

@@ -161,8 +161,11 @@
     font-size: 11px;
   }
 
+  /* --baseline is the intra-section divider token, shared by every
+     sub-divider inside the left panel's dropdowns (a bit darker than
+     --grid, which divides the dropdowns themselves). */
   .leftover {
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--baseline);
     margin-top: 4px;
     padding-top: 4px;
     color: var(--ink-secondary);

@@ -2,14 +2,16 @@ import { applyPlaylistFilter } from './filter'
 import type { ManualEdge, Playlist, Track } from './model'
 
 /**
- * The three permanent left-panel pseudo-rows (v18 #3/#8, made permanent and
- * widened to three v23): quick filters that live in the filter panel but
- * aren't backed by a `TrackProperty`. ★ Starred and 🔗 Combos narrow the
- * wheel to tracks carrying a session mark — starred (any non-none star
- * state, `pins.ts`'s `StarState`) or a manual-combo endpoint. Both booleans
- * live on `LibraryFilters.marks` (filter.ts) and AND together with every
- * other filter dimension there. 🎵 Keys is the odd one out: it has no marks
- * flag of its own and instead drives `filters.keyRings` directly (F5's
+ * The four permanent left-panel pseudo-rows (v18 #3/#8, made permanent and
+ * widened to three v23, widened to four v25): quick filters that live in
+ * the filter panel but aren't backed by a `TrackProperty`. ★ Starred,
+ * 🔗 Combos and ☰ Constellation narrow the wheel to tracks carrying a
+ * session mark — starred (any non-none star state, `pins.ts`'s
+ * `StarState`), a manual-combo endpoint, or a member of the current
+ * constellation (`stores.ts`'s `tracklist`). All three booleans live on
+ * `LibraryFilters.marks` (filter.ts) and AND together with every other
+ * filter dimension there. ♪ Keys is the odd one out: it has no marks flag
+ * of its own and instead drives `filters.keyRings` directly (F5's
  * minor/major ring toggle pair). Unlike every other filter field, a
  * saved-active marks filter is never honoured on load — see filter.ts's
  * `migrateFilters` for why.
@@ -17,14 +19,15 @@ import type { ManualEdge, Playlist, Track } from './model'
 export interface MarksFilter {
   starredOnly: boolean
   comboOnly: boolean
+  constellationOnly: boolean
 }
 
 /**
  * The pseudo-property keys `settings.visibleFilters` and `persist.ts`'s
- * `validFilterKeys` recognize for the three permanent panel rows, alongside
+ * `validFilterKeys` recognize for the four permanent panel rows, alongside
  * every real `TrackSortField`. Order is display order.
  */
-export const PANEL_FILTER_KEYS = ['starred', 'combos', 'keys'] as const
+export const PANEL_FILTER_KEYS = ['starred', 'constellation', 'combos', 'keys'] as const
 export type PanelFilterKey = (typeof PANEL_FILTER_KEYS)[number]
 
 export function isPanelFilterKey(k: string): k is PanelFilterKey {
@@ -34,7 +37,7 @@ export function isPanelFilterKey(k: string): k is PanelFilterKey {
 /** One registry row's shape — see `PANEL_FILTERS` below. */
 export interface PanelFilterMeta {
   key: PanelFilterKey
-  label: string
+  text: string
   aria: string
   /** The marks flag this row drives; absent for 'keys', which drives
    *  `filters.keyRings` instead. */
@@ -42,7 +45,7 @@ export interface PanelFilterMeta {
 }
 
 /**
- * Single source of truth for the three permanent panel rows, consumed by
+ * Single source of truth for the four permanent panel rows, consumed by
  * every UI surface that renders one (v18 #3/#8 review fix, widened v23 —
  * FiltersSection and AdvancedMenu previously hand-rolled their own
  * label/flag maps, which had already drifted: AdvancedMenu's checkbox
@@ -51,17 +54,21 @@ export interface PanelFilterMeta {
  * exact same drift the v18 review fixed, so this one widened instead of
  * growing a sibling.
  *
- * `label` puts the glyph FIRST, not last — still correct (the glyphs line
- * up in a column), but no longer BECAUSE of a 52px ellipsis clip: that clip
- * is what this wave removes from FiltersSection. FiltersSection.svelte's
- * `.filter-row.pseudo .filter-label { width: auto }` opts the three pseudo
- * rows out of the shared 52px label column instead of widening it for
- * everyone.
+ * No icon field: each row's glyph used to live here as a ★/☰/🔗/♪ string,
+ * but four glyphs from three fonts can't share a fixed-width slot without
+ * staggering (v27) — `lib/PanelFilterIcon.svelte` draws them as vectors,
+ * keyed off `key`, so the icon set stays exhaustive by type.
  */
 export const PANEL_FILTERS: readonly PanelFilterMeta[] = [
-  { key: 'starred', label: '★ Starred', aria: 'Starred', flag: 'starredOnly' },
-  { key: 'combos', label: '🔗 Combos', aria: 'Manual combos', flag: 'comboOnly' },
-  { key: 'keys', label: '🎵 Keys', aria: 'Key rings' },
+  { key: 'starred', text: 'Starred', aria: 'Starred', flag: 'starredOnly' },
+  {
+    key: 'constellation',
+    text: 'Constellation',
+    aria: 'Constellation',
+    flag: 'constellationOnly',
+  },
+  { key: 'combos', text: 'Combos', aria: 'Manual combos', flag: 'comboOnly' },
+  { key: 'keys', text: 'Keys', aria: 'Key rings' },
 ] as const
 
 /** The subset backed by a `filters.marks` flag — every existing marks call
@@ -75,14 +82,16 @@ export const MARK_FILTERS: readonly (PanelFilterMeta & { flag: keyof MarksFilter
  * The live id sets a marks filter checks membership against, resolved from
  * the session stores just before filtering (`stores.ts`'s `marksContext`).
  * A context is deliberately NOT part of `LibraryFilters` itself — the ids
- * come from session-only stores (mustInclude, the pins, manualEdges), so
- * threading them through as a separate, optional argument to `applyFilters`
- * keeps a stray caller (a test, a future one-off filter preview) safe: no
- * context simply means the marks flags are inert, never "everything hides".
+ * come from session-only stores (mustInclude, the pins, manualEdges,
+ * tracklist), so threading them through as a separate, optional argument
+ * to `applyFilters` keeps a stray caller (a test, a future one-off filter
+ * preview) safe: no context simply means the marks flags are inert, never
+ * "everything hides".
  */
 export interface MarksContext {
   starredIds: ReadonlySet<string>
   comboIds: ReadonlySet<string>
+  constellationIds: ReadonlySet<string>
 }
 
 /**

@@ -294,19 +294,24 @@ function marksContextEqual(a: MarksContext | null, b: MarksContext | null): bool
   if (a === null || b === null) return a === b
   const setEqual = (x: ReadonlySet<string>, y: ReadonlySet<string>): boolean =>
     x.size === y.size && [...x].every((id) => y.has(id))
-  return setEqual(a.starredIds, b.starredIds) && setEqual(a.comboIds, b.comboIds)
+  return (
+    setEqual(a.starredIds, b.starredIds) &&
+    setEqual(a.comboIds, b.comboIds) &&
+    setEqual(a.constellationIds, b.constellationIds)
+  )
 }
 
 /**
- * The marks quick-filters' live context (v18 #3/#8): `null` while both
- * `starredOnly`/`comboOnly` are off, so `visibleLibrary` stays inert to
- * mustInclude/pin/manualEdges churn — the perf gate, since `visibleLibrary`
- * feeds `computeComboView`, which is O(n²), and would otherwise recompute on
- * every star click even with the filters off. Wrapped in `distinct` so an
- * on-flag recompute that lands on the same id SET (not just a new object)
- * doesn't cascade either. Reads `effectiveFilters` (not raw `filters`) so
- * easy mode's forced-off marks (stores.ts's `effectiveFilters`) also gate
- * this, not just the persisted layer.
+ * The marks quick-filters' live context (v18 #3/#8, widened v25): `null`
+ * while `starredOnly`/`comboOnly`/`constellationOnly` are all off, so
+ * `visibleLibrary` stays inert to mustInclude/pin/manualEdges/tracklist
+ * churn — the perf gate, since `visibleLibrary` feeds `computeComboView`,
+ * which is O(n²), and would otherwise recompute on every star click (or
+ * constellation edit) even with the filters off. Wrapped in `distinct` so
+ * an on-flag recompute that lands on the same id SET (not just a new
+ * object) doesn't cascade either. Reads `effectiveFilters` (not raw
+ * `filters`) so easy mode's forced-off marks (stores.ts's
+ * `effectiveFilters`) also gate this, not just the persisted layer.
  *
  * On a null↔non-null boundary transition (first flag on or last flag off),
  * `visibleLibrary` recomputes twice — once with the new flags against the
@@ -318,13 +323,21 @@ function marksContextEqual(a: MarksContext | null, b: MarksContext | null): bool
  */
 const marksContext: Readable<MarksContext | null> = distinct(
   derived(
-    [effectiveFilters, mustInclude, pinnedFirst, pinnedLast, manualEdges],
-    ([$filters, $mustInclude, $pinnedFirst, $pinnedLast, $manualEdges]): MarksContext | null => {
-      const { starredOnly, comboOnly } = $filters.marks
-      if (!starredOnly && !comboOnly) return null
+    [effectiveFilters, mustInclude, pinnedFirst, pinnedLast, manualEdges, tracklist],
+    ([
+      $filters,
+      $mustInclude,
+      $pinnedFirst,
+      $pinnedLast,
+      $manualEdges,
+      $tracklist,
+    ]): MarksContext | null => {
+      const { starredOnly, comboOnly, constellationOnly } = $filters.marks
+      if (!starredOnly && !comboOnly && !constellationOnly) return null
       return {
         starredIds: starredIdSet($mustInclude, $pinnedFirst, $pinnedLast),
         comboIds: comboIdSet($manualEdges),
+        constellationIds: new Set($tracklist),
       }
     },
   ),

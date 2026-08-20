@@ -105,7 +105,7 @@ export const EMPTY_FILTERS: LibraryFilters = {
   genres: null,
   playlists: null,
   keyRings: { minor: true, major: true },
-  marks: { starredOnly: false, comboOnly: false },
+  marks: { starredOnly: false, comboOnly: false, constellationOnly: false },
 }
 
 /** A saved entry that must be a two-number tuple; null otherwise. */
@@ -351,17 +351,18 @@ function passesProperty(track: Track, prop: TrackProperty, range: PropertyRange)
 }
 
 /**
- * The marks-quick-filter pass test (v18 #3/#8): true unless a flag is on AND
- * a context is present that excludes the track. A missing context makes
- * BOTH flags inert, not "hide everything" — the safe default for a stray
- * caller (existing tests, a future one-off filter preview) that never passed
- * one.
+ * The marks-quick-filter pass test (v18 #3/#8, widened v25): true unless a
+ * flag is on AND a context is present that excludes the track. A missing
+ * context makes ALL THREE flags inert, not "hide everything" — the safe
+ * default for a stray caller (existing tests, a future one-off filter
+ * preview) that never passed one.
  */
 function passesMarks(track: Track, flags: MarksFilter, context: MarksContext | undefined): boolean {
   if (context === undefined) return true
   return (
     (!flags.starredOnly || context.starredIds.has(track.id)) &&
-    (!flags.comboOnly || context.comboIds.has(track.id))
+    (!flags.comboOnly || context.comboIds.has(track.id)) &&
+    (!flags.constellationOnly || context.constellationIds.has(track.id))
   )
 }
 

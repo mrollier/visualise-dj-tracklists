@@ -61,6 +61,7 @@
   const FIELD_SHORT: Record<CriterionField, string> = {
     key: 'key',
     bpm: 'bpm',
+    energy: 'energy',
     genre: 'genre',
     year: 'year',
   }

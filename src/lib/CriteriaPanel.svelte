@@ -1,5 +1,6 @@
 <script lang="ts">
   import {
+    CRITERION_FIELDS,
     demandedCount,
     toggleCriterion,
     toggleDemanded,
@@ -9,6 +10,7 @@
   import FiltersSection from './FiltersSection.svelte'
   import GenresSection from './GenresSection.svelte'
   import InfoTooltip from './InfoTooltip.svelte'
+  import LockIcon from './LockIcon.svelte'
   import PlaylistsSection from './PlaylistsSection.svelte'
   import RatingBoxes from './RatingBoxes.svelte'
   import {
@@ -24,9 +26,7 @@
   // genres and the criteria machinery hide behind their current values.
   const easy = $derived($settings.uiMode === 'easy')
 
-  const enabledCount = $derived(
-    [$criteria.key, $criteria.bpm, $criteria.genre, $criteria.year].filter((c) => c.enabled).length,
-  )
+  const enabledCount = $derived(CRITERION_FIELDS.filter((f) => $criteria[f].enabled).length)
 
   // Demanded (locked) criteria are mandatory and floor the threshold (v14 C2).
   const floor = $derived(demandedCount($criteria))
@@ -134,7 +134,7 @@
               class:on={$criteria.key.demanded}
               aria-pressed={$criteria.key.demanded}
               title="Must match"
-              onclick={() => toggleLock('key')}>{$criteria.key.demanded ? '🔒' : '🔓'}</button
+              onclick={() => toggleLock('key')}><LockIcon locked={$criteria.key.demanded} /></button
             >
           {/if}
         </div>
@@ -158,7 +158,7 @@
               class:on={$criteria.bpm.demanded}
               aria-pressed={$criteria.bpm.demanded}
               title="Must match"
-              onclick={() => toggleLock('bpm')}>{$criteria.bpm.demanded ? '🔒' : '🔓'}</button
+              onclick={() => toggleLock('bpm')}><LockIcon locked={$criteria.bpm.demanded} /></button
             >
           {/if}
         </div>
@@ -177,6 +177,31 @@
             {#if !$criteria.bpm.unitTime}— unit time off{/if}
           </p>
         {/if}
+      </div>
+
+      <div class="criterion">
+        <div class="criterion-head">
+          <label>
+            <input
+              type="checkbox"
+              checked={$criteria.energy.enabled}
+              onchange={(e) => setEnabled('energy', e)}
+            />
+            Energy within
+            <input type="number" min="0" max="9" bind:value={$criteria.energy.maxSteps} />
+          </label>
+          {#if $criteria.energy.enabled}
+            <button
+              type="button"
+              class="lock"
+              class:on={$criteria.energy.demanded}
+              aria-pressed={$criteria.energy.demanded}
+              title="Must match"
+              onclick={() => toggleLock('energy')}
+              ><LockIcon locked={$criteria.energy.demanded} /></button
+            >
+          {/if}
+        </div>
       </div>
 
       <div class="criterion">
@@ -210,7 +235,8 @@
               class:on={$criteria.genre.demanded}
               aria-pressed={$criteria.genre.demanded}
               title="Must match"
-              onclick={() => toggleLock('genre')}>{$criteria.genre.demanded ? '🔒' : '🔓'}</button
+              onclick={() => toggleLock('genre')}
+              ><LockIcon locked={$criteria.genre.demanded} /></button
             >
           {/if}
         </div>
@@ -234,7 +260,8 @@
               class:on={$criteria.year.demanded}
               aria-pressed={$criteria.year.demanded}
               title="Must match"
-              onclick={() => toggleLock('year')}>{$criteria.year.demanded ? '🔒' : '🔓'}</button
+              onclick={() => toggleLock('year')}
+              ><LockIcon locked={$criteria.year.demanded} /></button
             >
           {/if}
         </div>
@@ -286,6 +313,27 @@
     opacity: 0.45;
   }
 
+  /* Separators between the panel's top-level dropdown sections
+     (Playlists/Filters/Genres/Combo criteria) — same colour and spacing as
+     Advanced Settings' .section divider (AdvancedMenu.svelte: padding: 8px 0,
+     border-bottom var(--grid)), just realized as a border-top here since it
+     reaches into each child component's root <details> instead of wrapping
+     them in a shared .section div. :first-of-type (not :first-child) skips
+     the .stats div and naturally lands on whichever section renders first
+     (Easy mode's lone Playlists, or Filters when no playlists are loaded),
+     so no divider ever appears with nothing above it. */
+  aside > :global(details) {
+    border-top: 1px solid var(--grid);
+    margin-top: 8px;
+    padding-top: 8px;
+  }
+
+  aside > :global(details:first-of-type) {
+    border-top: none;
+    margin-top: 0;
+    padding-top: 0;
+  }
+
   .stats {
     display: flex;
     gap: 18px;
@@ -318,31 +366,44 @@
 
   .criterion {
     position: relative;
-    padding: 7px 0;
-    border-top: 1px solid var(--grid);
+    /* Matches .filter-row's 4px 0 rhythm (Filters section) so the two
+       dropdowns' row spacing reads as identical. */
+    padding: 4px 0;
+  }
+
+  /* --baseline is the intra-section divider token, shared by every
+     sub-divider inside the left panel's dropdowns (a bit darker than
+     --grid, which divides the dropdowns themselves). */
+  .criterion.threshold {
+    border-top: 1px solid var(--baseline);
   }
 
   /* The lock affordance: a small toggle at the row's right edge that pins the
      criterion as mandatory (v14 C2). Muted when open, accent when locked — so
      a demanded criterion reads at a glance. Last child of its row's flex
-     head, pushed to the edge by margin-left: auto; fixed width so 🔒 ↔ 🔓
-     can't shift the row (ISSUES.md #6). */
+     head, pushed to the edge by margin-left: auto; fixed width so the
+     LockIcon swap can't shift the row (ISSUES.md #6).
+
+     Width is the icon plus a hair of chrome (v27): at rest the icon is the
+     only thing visible, so every px of padding is a px the padlock sits
+     short of the right edge that the track counts, the ↺ buttons and the
+     all/only switches all share — 4px of it, plus 3px of slack inside the
+     old icon's viewBox, read as "not aligned with the rest". The locked
+     state's pill still ends exactly on that shared edge. */
   .lock {
     margin-left: auto;
-    margin-top: 1px;
     flex-shrink: 0;
-    width: 26px;
+    width: 20px;
     display: inline-flex;
     justify-content: center;
-    padding: 1px 4px;
+    align-items: center;
+    padding: 2px 1px;
     border: 1px solid transparent;
     border-radius: 4px;
     background: transparent;
-    font-size: 12px;
     line-height: 1;
     cursor: pointer;
     opacity: 0.45;
-    filter: grayscale(1);
     transition:
       opacity 0.12s ease,
       border-color 0.12s ease;
@@ -354,7 +415,6 @@
 
   .lock.on {
     opacity: 1;
-    filter: none;
     border-color: var(--accent);
     background: color-mix(in srgb, var(--accent) 18%, transparent);
   }
@@ -371,12 +431,11 @@
   }
 
   /* Every criterion row's head: the label (+ info icon on Key/Genre) and the
-     lock share one line (ISSUES.md #2). flex-start anchors the lock to this
-     first line even when BPM grows a second line below for the ratio note
-     (ISSUES.md #6). */
+     lock share one line (ISSUES.md #2), vertically centered against the
+     label text so the icons don't read as top-offset. */
   .criterion-head {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 6px;
   }
 
