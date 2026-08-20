@@ -67,7 +67,15 @@ lives in [designs/design-v12.md](designs/design-v12.md). Statuses: **done** ·
 - **Easily insertable in my website** — **v12**: static deploy with the guided
   demo as the public-facing default.
 - **Stand-alone double-click application** — **v12**: PWA first (installable,
-  offline); Tauri only if the PWA disappoints.
+  offline); Tauri only if the PWA disappoints. Fully investigated 2026-08-21
+  (research/claude-research-standalone-app.md, report only): "disappoints" now
+  means concretely — AIFF/ALAC playback (Chromium can never play them; WebKit
+  can), zero-prompt real-path folder access, or bundled one-click analysis.
+  Staged answer: (0) install the existing PWA — Chrome 122+ auto-persists the
+  folder grant for installed PWAs, untested here; (1) AIFF fallback decoder in
+  shared code, fixes web too; (2) only then a Tauri v2 shell (WKWebView plays
+  AIFF natively, third AudioSource impl). Electron and a native rewrite are
+  rejected in the report.
 - **Single-toggle easy mode / advanced mode** — **v12**: hard toggle, minimal
   surface (wheel + playlists + ✨ + set panel).
 - **Listen to the tracks to check a combo by ear** — **v28**: two-deck audition
