@@ -74,10 +74,11 @@
 
 {#if $settings.audioPreview && $library.length > 0}
   <section class="player" aria-label="Audio preview">
-    <div class="decks" class:locked={$decks.aLocked}>
-      {#if $decks.aLocked}
-        <!-- Placed first so it owns column 1; the two rows auto-place beside it. -->
-        <div class="fader">
+    <div class="decks">
+      <!-- Always rendered, input or not: the empty column is what keeps the
+           play buttons from shifting sideways the moment a track is pinned. -->
+      <div class="fader" class:live={$decks.aLocked}>
+        {#if $decks.aLocked}
           <input
             type="range"
             min="-1"
@@ -85,11 +86,14 @@
             step="0.01"
             value={$crossfade}
             aria-label="Balance between the pinned track and the selection"
-            title="Balance between the pinned track and the selection"
+            title="Balance between the pinned track and the selection — double-click to centre"
             oninput={(e) => setCrossfade(e.currentTarget.valueAsNumber)}
+            ondblclick={() => setCrossfade(0)}
           />
-        </div>
+        {/if}
+      </div>
 
+      {#if $decks.aLocked}
         <DeckRow
           deck="a"
           label={titleOf($decks.a)}
@@ -137,21 +141,15 @@
     border-bottom: 1px solid var(--border);
   }
 
-  /* The decks stack; the source chip sits beside them all, so every seek line
-     is the same width and the two locks line up. */
+  /* The deck rows beside a narrow fader column; the source chip sits beside
+     them all, so every seek line is the same width and the locks line up. One
+     grid for both states (v28.2) — the fader cell is reserved even while
+     empty, so pinning never shifts the transport sideways. */
   .decks {
     flex: 1;
     min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  /* Pinned: a narrow fader column beside both rows. A grid rather than an
-     if/else around a wrapper, so deck B's markup is written once. */
-  .decks.locked {
     display: grid;
-    grid-template-columns: auto 1fr;
+    grid-template-columns: 22px 1fr;
     align-items: center;
     column-gap: 8px;
     row-gap: 4px;
@@ -166,7 +164,9 @@
      minimal; this costs no height at all. */
   .fader {
     grid-column: 1;
-    grid-row: 1 / 3;
+    /* One row while nothing is pinned — spanning two would drag an empty
+       implicit row (and its row-gap) into the single-deck bar's height. */
+    grid-row: 1;
     position: relative;
     align-self: stretch;
     width: 22px;
@@ -192,13 +192,20 @@
     width: 18px;
     margin: 0;
     padding: 0;
+    /* Above the centre-tick nubs: the pseudos and this positioned input paint
+       in DOM order, which put the right-hand nub in front of the thumb. */
+    z-index: 1;
   }
 
   /* Centre tick: two hairline nubs flanking the track, so "both tracks at full
      level" is findable by eye. Beside the track rather than across it — a mark
      drawn on the native track would sit behind it or paint over the thumb. */
-  .fader::before,
-  .fader::after {
+  .fader.live {
+    grid-row: 1 / 3;
+  }
+
+  .fader.live::before,
+  .fader.live::after {
     content: '';
     position: absolute;
     top: 50%;
@@ -208,11 +215,11 @@
     pointer-events: none;
   }
 
-  .fader::before {
+  .fader.live::before {
     left: 0;
   }
 
-  .fader::after {
+  .fader.live::after {
     right: 0;
   }
 </style>
