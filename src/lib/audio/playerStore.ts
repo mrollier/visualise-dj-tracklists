@@ -183,7 +183,11 @@ export function startPlayer(): void {
     }))
   })
 
-  selectedId.subscribe((id) => dispatch({ type: 'select', id }))
+  selectedId.subscribe((id) =>
+    // engine.isPlaying is the ground truth the reducer needs: it already
+    // reports false for an element that reached its end.
+    dispatch({ type: 'select', id, bPlaying: engine.isPlaying('b') }),
+  )
   library.subscribe((tracks) => {
     dispatch({ type: 'library', knownIds: new Set(tracks.map((t) => t.id)) })
     reindex()

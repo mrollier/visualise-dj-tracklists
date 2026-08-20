@@ -20,7 +20,12 @@ export interface DeckState {
 export const EMPTY_DECKS: DeckState = { a: null, aLocked: false, b: null }
 
 export type DeckEvent =
-  | { type: 'select'; id: string | null }
+  /**
+   * The selection changed. `bPlaying` is the caller's report of whether deck B
+   * is actually making sound right now — the reducer stays pure, so it cannot
+   * ask the engine itself.
+   */
+  | { type: 'select'; id: string | null; bPlaying: boolean }
   | { type: 'lock' }
   | { type: 'unlock' }
   /** Library replaced or reloaded: ids that still exist. */
@@ -46,8 +51,16 @@ export function reduceDecks(state: DeckState, event: DeckEvent): DeckTransition 
   switch (event.type) {
     case 'select': {
       if (event.id === state.b) return { state, effects: [] }
-      if (event.id === null)
+      if (event.id === null) {
+        // Latch (v28.1). Clicking bare wheel background (WheelView) or empty
+        // left-panel space (CriteriaPanel) clears selectedId, and re-clicking a
+        // node to dismiss its focus star is a constant gesture — none of which
+        // may cut audio the user is in the middle of judging. A silent deck has
+        // nothing to interrupt, so it still clears, which is what lets the bar
+        // return to its empty state.
+        if (event.bPlaying) return { state, effects: [] }
         return { state: { ...state, b: null }, effects: [{ kind: 'clear', deck: 'b' }] }
+      }
       return {
         state: { ...state, b: event.id },
         effects: [{ kind: 'load', deck: 'b', trackId: event.id }],

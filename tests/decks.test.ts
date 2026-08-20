@@ -5,37 +5,52 @@ const loadedB: DeckState = { a: null, aLocked: false, b: 'x' }
 
 describe('selection drives deck B', () => {
   test('selecting a track loads it into B', () => {
-    const { state, effects } = reduceDecks(EMPTY_DECKS, { type: 'select', id: 'x' })
+    const { state, effects } = reduceDecks(EMPTY_DECKS, {
+      type: 'select',
+      id: 'x',
+      bPlaying: false,
+    })
     expect(state).toEqual({ a: null, aLocked: false, b: 'x' })
     expect(effects).toEqual([{ kind: 'load', deck: 'b', trackId: 'x' }])
   })
 
   test('re-selecting the track already in B changes nothing', () => {
-    const { state, effects } = reduceDecks(loadedB, { type: 'select', id: 'x' })
+    const { state, effects } = reduceDecks(loadedB, { type: 'select', id: 'x', bPlaying: false })
     expect(state).toEqual(loadedB)
     expect(effects).toEqual([])
   })
 
-  test('selecting a different track replaces B', () => {
-    const { state, effects } = reduceDecks(loadedB, { type: 'select', id: 'y' })
+  test('selecting a different track replaces B even mid-play', () => {
+    const { state, effects } = reduceDecks(loadedB, { type: 'select', id: 'y', bPlaying: true })
     expect(state.b).toBe('y')
     expect(effects).toEqual([{ kind: 'load', deck: 'b', trackId: 'y' }])
   })
 
-  test('deselecting stops and clears B', () => {
-    const { state, effects } = reduceDecks(loadedB, { type: 'select', id: null })
+  test('deselecting while B plays latches — the music survives a stray click', () => {
+    // Clicking bare wheel background or empty panel space clears selectedId,
+    // and re-clicking a node to dismiss the focus star is a constant gesture.
+    // Neither may cut the audio you are in the middle of judging.
+    const { state, effects } = reduceDecks(loadedB, { type: 'select', id: null, bPlaying: true })
+    expect(state).toEqual(loadedB)
+    expect(effects).toEqual([])
+  })
+
+  test('deselecting while B is paused still clears it', () => {
+    // Latching costs nothing when there is nothing to interrupt, and this is
+    // what lets the bar return to its empty state.
+    const { state, effects } = reduceDecks(loadedB, { type: 'select', id: null, bPlaying: false })
     expect(state.b).toBe(null)
     expect(effects).toEqual([{ kind: 'clear', deck: 'b' }])
   })
 
   test('deselecting when B is already empty does nothing', () => {
-    const { effects } = reduceDecks(EMPTY_DECKS, { type: 'select', id: null })
+    const { effects } = reduceDecks(EMPTY_DECKS, { type: 'select', id: null, bPlaying: false })
     expect(effects).toEqual([])
   })
 
   test('selecting the locked track still loads it into B', () => {
     const locked: DeckState = { a: 'x', aLocked: true, b: null }
-    const { state } = reduceDecks(locked, { type: 'select', id: 'x' })
+    const { state } = reduceDecks(locked, { type: 'select', id: 'x', bPlaying: false })
     expect(state).toEqual({ a: 'x', aLocked: true, b: 'x' })
   })
 })
