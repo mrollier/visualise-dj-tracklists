@@ -1,6 +1,5 @@
 <script lang="ts">
   import type { DeckId } from '../core/audio/decks'
-  import { reasonLabel, type UnplayableReason } from '../core/audio/reasons'
   import { formatDuration } from '../core/properties'
   import LockIcon from './LockIcon.svelte'
   import PlayIcon from './PlayIcon.svelte'
@@ -12,8 +11,10 @@
     playing: boolean
     position: number
     duration: number | null
-    reason: UnplayableReason | null
-    reasonContext: { sampleLibrary: boolean; rootName: string | null }
+    /** Why this deck cannot play, already worded. Null when it can. */
+    reasonText: string | null
+    /** Shown when the deck holds no track at all. */
+    emptyText: string | null
     locked: boolean
     onToggle: () => void
     onSeek: (seconds: number) => void
@@ -25,15 +26,20 @@
     playing,
     position,
     duration,
-    reason,
-    reasonContext,
+    reasonText,
+    emptyText,
     locked,
     onToggle,
     onSeek,
     onLock,
   }: Props = $props()
 
-  const disabled = $derived(duration === null || reason !== null)
+  // The transport must NOT wait on duration: there is no AudioContext until a
+  // click pays for one, so nothing knows the duration until after the first
+  // play. Gating play on it would deadlock the deck. Duration gates the seek
+  // line alone, which genuinely cannot work without a length.
+  const transportDisabled = $derived(emptyText !== null || reasonText !== null)
+  const seekDisabled = $derived(transportDisabled || duration === null)
   // While the thumb is held, the playhead must not write back or the two fight.
   let dragging = $state(false)
   let dragValue = $state(0)
@@ -43,7 +49,7 @@
 <div class="deck" class:is-a={deck === 'a'}>
   <button
     class="transport"
-    {disabled}
+    disabled={transportDisabled}
     onclick={onToggle}
     aria-label={playing ? 'Pause' : 'Play'}
     title={playing ? 'Pause' : 'Play'}
@@ -55,8 +61,10 @@
     <span class="label" title={label}>{label}</span>
   {/if}
 
-  {#if reason !== null}
-    <span class="reason">{reasonLabel(reason, reasonContext)}</span>
+  {#if emptyText !== null}
+    <span class="reason">{emptyText}</span>
+  {:else if reasonText !== null}
+    <span class="reason">{reasonText}</span>
   {:else}
     <span class="clock tabular">{formatDuration(shown)}</span>
     <input
@@ -66,7 +74,7 @@
       max={duration ?? 1}
       step="0.01"
       value={shown}
-      {disabled}
+      disabled={seekDisabled}
       aria-label="Position"
       onpointerdown={() => (dragging = true)}
       onpointerup={() => (dragging = false)}
@@ -82,19 +90,17 @@
     <span class="clock tabular">{duration === null ? '–:––' : formatDuration(duration)}</span>
   {/if}
 
-  {#if deck === 'b'}
-    <button
-      class="lock"
-      class:on={locked}
-      disabled={duration === null && reason !== null}
-      onclick={onLock}
-      aria-pressed={locked}
-      aria-label={locked ? 'Unpin the top track' : 'Pin this track to compare against'}
-      title={locked ? 'Unpin the top track' : 'Pin this track to compare against'}
-    >
-      <LockIcon {locked} />
-    </button>
-  {/if}
+  <button
+    class="lock"
+    class:on={locked}
+    disabled={emptyText !== null}
+    onclick={onLock}
+    aria-pressed={locked}
+    aria-label={locked ? 'Unpin the top track' : 'Pin this track to compare against'}
+    title={locked ? 'Unpin the top track' : 'Pin this track to compare against'}
+  >
+    <LockIcon {locked} />
+  </button>
 </div>
 
 <style>
@@ -119,10 +125,10 @@
     color: var(--on-accent);
   }
 
+  /* A fixed column, so deck A's and deck B's seek lines start at the same x. */
   .label {
-    flex-shrink: 1;
+    flex: 0 0 22ch;
     min-width: 0;
-    max-width: 22ch;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

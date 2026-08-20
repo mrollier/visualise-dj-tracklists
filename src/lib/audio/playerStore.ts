@@ -53,6 +53,15 @@ function applyGains(state: DeckState): void {
   }
 }
 
+/** The roles swapped, so everything the UI knows about a deck swaps with them. */
+function swapDeckUi(): void {
+  const flip = <T>(v: Record<DeckId, T>): Record<DeckId, T> => ({ a: v.b, b: v.a })
+  playing.update(flip)
+  positions.update(flip)
+  durations.update(flip)
+  deckError.update(flip)
+}
+
 function resetDeckUi(deck: DeckId): void {
   playing.update((p) => ({ ...p, [deck]: false }))
   positions.update((p) => ({ ...p, [deck]: 0 }))
@@ -66,6 +75,7 @@ function apply(effects: readonly DeckEffect[]): void {
       engine.promote()
       materialised.a = materialised.b
       materialised.b = null
+      swapDeckUi()
     } else if (effect.kind === 'clear') {
       engine.clearDeck(effect.deck)
       materialised[effect.deck] = null

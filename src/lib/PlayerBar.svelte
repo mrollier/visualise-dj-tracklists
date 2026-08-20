@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { reasonLabel, type UnplayableReason } from '../core/audio/reasons'
+  import { reasonLabel } from '../core/audio/reasons'
   import type { Track } from '../core/model'
-  import { library, selectedId, settings } from '../stores'
+  import { library, settings } from '../stores'
   import {
     crossfade,
     deckError,
@@ -21,6 +21,7 @@
     indexedCount,
     linkFolder,
     reconnect,
+    resolutionFor,
     rootName,
     sourceState,
     usePickedFiles,
@@ -39,7 +40,6 @@
   let folderInput = $state<HTMLInputElement | undefined>()
 
   const sampleLibrary = $derived(isSampleLibrary($library))
-  const reasonContext = $derived({ sampleLibrary, rootName: $rootName })
 
   function titleOf(id: string | null): string | null {
     if (id === null) return null
@@ -49,18 +49,39 @@
   }
 
   /**
-   * Why deck B cannot play, most specific cause first. A per-deck error set by
-   * the element itself beats the static guess; the folder state beats both,
-   * because without a folder nothing is resolvable at all.
+   * Why a deck cannot play, most specific cause first. An error the element
+   * itself raised beats the static guess; the folder state beats both, since
+   * without a folder nothing is resolvable at all.
    */
-  function reasonFor(deck: 'a' | 'b'): UnplayableReason | null {
-    if ($deckError[deck] !== null) return $deckError[deck]
-    if ($decks[deck] === null) return null
-    if (sampleLibrary) return 'no-location'
-    if ($sourceState === 'needs-permission') return 'needs-permission'
-    if ($sourceState !== 'ready') return 'no-source'
-    return null
+  function reasonTextFor(deck: 'a' | 'b'): string | null {
+    // Read the coverage store so this re-evaluates when the resolution map is
+    // rebuilt — the map itself is plain module state, not reactive.
+    void $coverage
+    const trackId = $decks[deck]
+    if (trackId === null) return null
+    const context = { sampleLibrary, rootName: $rootName }
+    const raised = $deckError[deck]
+    if (raised !== null) return reasonLabel(raised, context)
+    if (sampleLibrary) return reasonLabel('no-location', context)
+    if ($sourceState === 'needs-permission') return reasonLabel('needs-permission', context)
+    if ($sourceState !== 'ready') return reasonLabel('no-source', context)
+    const resolution = resolutionFor(trackId)
+    if (resolution === undefined || resolution.kind === 'playable') return null
+    return reasonLabel(resolution.reason, {
+      ...context,
+      ambiguousCount: resolution.ambiguousCount,
+      extension: resolution.extension,
+    })
   }
+
+  /** What the empty deck says: the folder is the blocker before the selection is. */
+  const emptyHint = $derived.by(() => {
+    const context = { sampleLibrary, rootName: $rootName }
+    if (sampleLibrary) return reasonLabel('no-location', context)
+    if ($sourceState === 'needs-permission') return reasonLabel('needs-permission', context)
+    if ($sourceState !== 'ready') return reasonLabel('no-source', context)
+    return 'select a track to load it'
+  })
 
   function pickFolder() {
     if (canLinkPersistently()) void linkFolder()
@@ -70,67 +91,67 @@
 
 {#if $settings.audioPreview && $library.length > 0}
   <section class="player" aria-label="Audio preview">
-    {#if $decks.aLocked}
-      <DeckRow
-        deck="a"
-        label={titleOf($decks.a)}
-        playing={$playing.a}
-        position={$positions.a}
-        duration={$durations.a}
-        reason={reasonFor('a')}
-        {reasonContext}
-        locked={true}
-        onToggle={() => void togglePlay('a')}
-        onSeek={(s) => seekDeck('a', s)}
-        onLock={unlockDeck}
-      />
-    {/if}
+    <div class="decks">
+      {#if $decks.aLocked}
+        <DeckRow
+          deck="a"
+          label={titleOf($decks.a)}
+          playing={$playing.a}
+          position={$positions.a}
+          duration={$durations.a}
+          reasonText={reasonTextFor('a')}
+          emptyText={null}
+          locked={true}
+          onToggle={() => void togglePlay('a')}
+          onSeek={(s) => seekDeck('a', s)}
+          onLock={unlockDeck}
+        />
+      {/if}
 
-    <div class="row">
       <DeckRow
         deck="b"
         label={$decks.aLocked ? titleOf($decks.b) : null}
         playing={$playing.b}
         position={$positions.b}
         duration={$durations.b}
-        reason={reasonFor('b')}
-        {reasonContext}
-        locked={$decks.aLocked}
+        reasonText={reasonTextFor('b')}
+        emptyText={$decks.b === null ? emptyHint : null}
+        locked={false}
         onToggle={() => void togglePlay('b')}
         onSeek={(s) => seekDeck('b', s)}
-        onLock={$decks.aLocked ? unlockDeck : lockDeck}
+        onLock={lockDeck}
       />
 
-      <div class="source">
-        {#if $sourceState === 'indexing'}
-          <span class="status">Scanning{$rootName ? ` “${$rootName}”` : ''}… {$indexedCount}</span>
-        {:else if $sourceState === 'needs-permission'}
-          <button onclick={() => void reconnect()}>Reconnect “{$rootName}”</button>
-        {:else if $sourceState === 'no-source'}
-          <button onclick={pickFolder} disabled={sampleLibrary}>Link music folder…</button>
-        {:else if $coverage !== null}
-          <button class="coverage" onclick={pickFolder} title="Change the linked music folder">
-            ✓ {coverageLine($coverage)}
-          </button>
-        {/if}
-      </div>
+      {#if $decks.aLocked}
+        <label class="fader">
+          <span class="end">A</span>
+          <input
+            type="range"
+            min="-1"
+            max="1"
+            step="0.01"
+            value={$crossfade}
+            aria-label="Crossfade between the pinned track and the selection"
+            oninput={(e) => setCrossfade(e.currentTarget.valueAsNumber)}
+          />
+          <span class="end">B</span>
+        </label>
+      {/if}
     </div>
 
-    {#if $decks.aLocked}
-      <label class="fader">
-        <span class="end">A</span>
-        <input
-          type="range"
-          min="-1"
-          max="1"
-          step="0.01"
-          value={$crossfade}
-          aria-label="Crossfade between the pinned track and the selection"
-          oninput={(e) => setCrossfade(e.currentTarget.valueAsNumber)}
-        />
-        <span class="end">B</span>
-      </label>
-    {/if}
+    <div class="source">
+      {#if $sourceState === 'indexing'}
+        <span class="status">Scanning{$rootName ? ` “${$rootName}”` : ''}… {$indexedCount}</span>
+      {:else if $sourceState === 'needs-permission'}
+        <button onclick={() => void reconnect()}>Reconnect “{$rootName}”</button>
+      {:else if $sourceState === 'no-source'}
+        <button onclick={pickFolder} disabled={sampleLibrary}>Link music folder…</button>
+      {:else if $coverage !== null}
+        <button class="coverage" onclick={pickFolder} title="Change the linked music folder">
+          ✓ {coverageLine($coverage)}
+        </button>
+      {/if}
+    </div>
 
     <!-- Firefox and Safari have no persistent grant to offer, so they fall
          back to a folder pick that lasts the session. -->
@@ -142,9 +163,6 @@
       hidden
       onchange={(e) => usePickedFiles(Array.from(e.currentTarget.files ?? []))}
     />
-    {#if $selectedId === null && $decks.b === null && $sourceState === 'ready'}
-      <span class="hint">{reasonLabel('no-source', reasonContext)}</span>
-    {/if}
   </section>
 {/if}
 
@@ -152,31 +170,28 @@
   .player {
     flex: 0 0 auto;
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    align-items: center;
+    gap: 14px;
     padding: 6px 14px;
     background: var(--surface-raised);
     border-bottom: 1px solid var(--border);
   }
 
-  .row {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    min-width: 0;
-  }
-
-  .row > :global(.deck) {
+  /* The decks stack; the source chip sits beside them all, so every seek line
+     is the same width and the two locks line up. */
+  .decks {
     flex: 1;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
   }
 
   .source {
     flex-shrink: 0;
   }
 
-  .status,
-  .hint {
+  .status {
     font-size: 11.5px;
     color: var(--ink-muted);
   }
