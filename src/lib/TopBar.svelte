@@ -1,5 +1,6 @@
 <script lang="ts">
   import { get } from 'svelte/store'
+  import { AUDIO_EXTENSIONS } from '../core/audio/formats'
   import { importCsv } from '../core/importers/csv'
   import { trackFromTags } from '../core/importers/id3'
   import { importM3u, rematchAfterImport } from '../core/importers/m3u'
@@ -35,8 +36,6 @@
   } from './persistence'
   import { effectiveTheme, toggleTheme } from './theme'
   import { maybeStartTour, startTour } from './tour'
-
-  const AUDIO_EXTENSIONS = /\.(mp3|wav|flac|aiff?|m4a|ogg)$/i
 
   let fileInput: HTMLInputElement
   let resetDialog: ResetDialog
