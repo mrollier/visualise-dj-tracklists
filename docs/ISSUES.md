@@ -70,7 +70,7 @@ itself is untouched):
 Audio preview shipped on `v28-audio-preview`: a two-deck audition bar under
 the top bar, off by default behind Advanced settings → Preview → **Listen to
 tracks**. Selecting a track loads deck B; the padlock pins it to deck A and
-reveals a second row plus an equal-power crossfader. Full rationale and the
+reveals a second row plus a small vertical crossfader. Full rationale and the
 declined alternatives are in `designs/design-v28-audio-preview.md`.
 
 **Reverses a recorded decision:** `designs/design-v12.md:127` listed "No local
@@ -84,6 +84,20 @@ be known before the first play (a deadlock); unplayable tracks showed a dead
 progress line because the bar consulted only errors the media element had
 raised, never the static resolution; and promoting a deck swapped the elements
 without swapping the UI state describing them.
+
+**Revised in v28.1**, after living with it. The standing stray-click
+objection recorded when v28 shipped was correct and is resolved: deselection
+now *latches* while deck B is playing, and only clears a paused deck. The
+crossfader shrank to a small vertical fader beside both rows (costing no bar
+height, where the horizontal one cost a whole row) and stopped attenuating the
+centre — the deck it points at now holds unity across its half, since this is
+a comparison tool and the centre is the listening position, not a transition
+to pass through. Two decks at unity clip, so the output bus gained a
+non-adjustable limiter; a master trim was declined because -3 dB reproduces
+the old centre level exactly. Finally, the folder picker now opens at ~/Music
+on Chromium (`startIn`), and everywhere else shows the library's own deepest
+shared folder as a copy button, because `<input webkitdirectory>` accepts no
+start location at all — a platform limit, not an omission.
 
 **Still open:** `scripts/screenshot.mjs` gained no probe for the bar. The
 script has three stale selectors already recorded under "Open — tooling" and

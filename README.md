@@ -252,11 +252,13 @@ Your library never leaves your machine — there is no backend, no account, no u
 
 - **Check it by ear**: switch on **Listen to tracks** (Advanced settings → Preview,
   off by default) and a small player appears under the top bar. Selecting a track
-  loads it; pin one with the padlock and a second row appears below it, with a
-  crossfader between them — so you can hear whether a combo actually works instead
-  of trusting the key and BPM alone. A browser cannot open a file from the path in
+  loads it; pin one with the padlock and a second row appears below it, with a small
+  crossfader beside them — so you can hear whether a combo actually works instead
+  of trusting the key and BPM alone. Centred, it plays both at full volume; slide it
+  either way to fade the other out. A browser cannot open a file from the path in
   your library, so you point the app at your music folder once: Chrome and Edge
-  remember it, Firefox and Safari ask again each session. It then reports what it
+  remember it and open the picker at your music, Firefox and Safari ask again each
+  session and show you the folder to paste. It then reports what it
   found — _2043 of 2080 playable · 31 unsupported format · 6 not found_ — and any
   track it can't play says why rather than failing silently. The audio is read on
   your machine and never uploaded, **and nothing you play is recorded**: no play

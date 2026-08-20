@@ -95,8 +95,9 @@ Three traps worth recording:
   track's duration before its first play. Gating the play button on a known
   duration deadlocks the deck — found in the browser, not in tests.
 
-Crossfade is equal-power (`cos`/`sin`), not linear. A linear fader delivers
-half the power at centre, and centre is exactly where an A/B comparison sits.
+Crossfade is a **unity plateau** (v28.1, see below): the deck the fader points
+at stays at 1.0 across its whole half and only the far deck tapers away, so
+centre is both tracks at full level.
 
 Pinning emits a **role swap**, not a reload: the playing element keeps going
 at its exact position. Reloading deck A from deck B's file at 0:00 would
@@ -133,10 +134,102 @@ bug — none of which unit tests could have reached.
 - **Keyboard shortcuts.** The global handler (`App.svelte:29-50`) guards form
   fields only, so a global Space would break activation of every `<button>`
   and `<summary>` in the app. Click-only sidesteps it entirely.
-- **A master gain / volume slider.** When the crossfader exists it *is* the
-  level control. The OS has a volume knob.
+- **A master gain / volume slider.** The OS has a volume knob. This is about
+  a *user-facing* level control; the output-bus limiter added in v28.1 is a
+  non-adjustable safety net with no UI, and is not the same thing. A master
+  *trim* is separately declined below, for a stronger reason.
 - **Driving the player from the set panel, combo edges or the constellation.**
   Selection-driven only for now.
+
+## Revised after first use (v28.1)
+
+Four things the first version got wrong, or as right as the platform then
+allowed.
+
+### The crossfader was attenuating the listening position
+
+Equal power (`cos`/`sin`) puts each deck at -3 dB in the centre, so a track
+only reached full level with the fader hard over. That curve is correct for a
+DJ **transition**, where the two signals are meant to sum to one constant
+programme and the move passes *through* the middle. This is a **comparison**
+tool: the centre is where you sit, and both candidates belong at their own
+level there.
+
+The deck the fader points at now holds 1.0 across its whole half; only the far
+deck tapers. `cos` is even, so one term serves both, and its zero derivative at
+the origin joins taper to plateau without an audible kink.
+
+**Consequence, and why the fix is not a trim.** Two modern club masters summed
+at unity run well past full scale and hard-clip at the destination — crunch at
+exactly the position the change exists to make usable. A -3 dB master trim
+would reproduce the old centre level *exactly* and undo the whole change, so
+the answer belongs at the output stage: one `DynamicsCompressorNode` between
+the gains and the destination (threshold -1, knee 0, ratio 20, attack 3 ms,
+release 100 ms). A single deck only touches it on true peaks. Both decks share
+the node, so its few milliseconds of latency cannot pull them out of alignment
+with each other.
+
+### The crossfader was too loud a UI element
+
+A full-width horizontal slider with `A`/`B` end letters took a whole row under
+a bar specified as minimal. It is now a small vertical fader in its own 22px
+column, spanning both deck rows, so it costs **no height at all** — the pinned
+bar went from three rows to two. Two hairline nubs flank the track at centre
+so "both at full level" is findable by eye.
+
+`writing-mode: vertical-lr` is the standard recipe and now the only one needed
+(Chrome 124+, Firefox 120+, Safari 16.5+, all shipped by 2023 — no
+`orient="vertical"` legacy attribute). Default `direction: ltr` puts the
+*lowest* value at the top, and `min="-1"` is deck A, which is the top row, so
+nothing inverts.
+
+*Trap, found in the browser:* `height: 100%` on that input resolves against a
+grid row whose own height depends on the input, and Chromium settles the
+circularity by stretching the fader to the full viewport — a 913px bar. The
+input is absolutely positioned with `top: 0; bottom: 0` instead, which takes it
+out of flow so it cannot feed back into row sizing.
+
+### Deselecting killed playback
+
+Shipped as a recorded standing objection, and it was right: clicking bare wheel
+background (`WheelView.svelte:901`) or empty left-panel space
+(`CriteriaPanel.svelte:79`) clears `selectedId`, and re-clicking a node to
+dismiss its focus star is a constant gesture. All three cut deck B mid-listen.
+
+Deselection now **latches** while deck B is playing. A paused deck still
+clears, which is what keeps the bar able to return to its empty state. The
+reducer stays pure — the caller reports `engine.isPlaying('b')` on the event.
+
+### The picker opened nowhere
+
+Chromium's `showDirectoryPicker` accepts only well-known directory names, so
+it gets `startIn: 'music'` for the first pick (`id` already made it reopen
+where the app last picked). `<input type="file" webkitdirectory>` — all that
+Firefox and Safari offer — accepts **no hint of any kind**. There is no API;
+this is a platform limit, not an omission.
+
+What is left is to show the path, since the library already carries it.
+`commonAncestorPath` folds every `Track.location` down to the deepest folder
+they share, and it appears as a copy button beside the link control — paste it
+with ⌘⇧G in the macOS open panel, Ctrl+L in GTK and Windows dialogs. Folded
+comparison with original spelling for display, so a library whose XML
+disagrees about case or Unicode form still resolves to one hint. Below two
+shared segments it returns null: one outlier track on the Desktop collapses
+the prefix, and `/Users` helps nobody.
+
+The control itself moved into `FolderLinkControl.svelte`, used by both the bar
+(the discovery path) and Advanced → Preview (the one you can come back to), so
+the two cannot drift apart.
+
+### Also declined in v28.1
+
+- **A master trim to buy headroom.** -3 dB reproduces the old centre level
+  exactly. It would undo the change it was meant to support.
+- **An eject button on deck B.** Latching removes the only way to empty the
+  deck, but pausing then clicking away already does it, and the bar was
+  specified as minimal.
+- **A setting for latch-versus-clear.** One behaviour, chosen; a toggle here
+  would be clutter over a distinction most users would never articulate.
 
 ## Known limitation
 
