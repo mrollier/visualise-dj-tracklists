@@ -29,6 +29,13 @@ describe('reset to defaults (v9 issue 3)', () => {
     expect(reset.advancedOpen).toEqual(['display', 'tracks'])
   })
 
+  test('audio preview survives a reset, like the theme (v28)', () => {
+    // Silently unlinking someone's music folder from "return to defaults" is
+    // the same class of surprise as flipping their theme.
+    const current: AppSettings = { ...structuredClone(DEFAULT_SETTINGS), audioPreview: true }
+    expect(resetAdvancedSettings(current).audioPreview).toBe(true)
+  })
+
   test('restores all three permanent panel rows (v23)', () => {
     const current: AppSettings = {
       ...structuredClone(DEFAULT_SETTINGS),

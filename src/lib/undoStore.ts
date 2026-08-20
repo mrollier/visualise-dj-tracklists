@@ -65,6 +65,9 @@ function tuningOf($settings: AppSettings, $criteria: CriteriaConfig): string {
   delete behavioural.theme
   delete behavioural.uiMode
   delete behavioural.advancedOpen
+  // v28: undoing this would tear down a live AudioContext and stop the
+  // music as a side effect of a Cmd+Z pressed for something else.
+  delete behavioural.audioPreview
   return JSON.stringify({ settings: behavioural, criteria: $criteria })
 }
 

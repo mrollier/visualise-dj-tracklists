@@ -961,6 +961,7 @@ describe('WS6 sanitize round-trip pins (v14.1)', () => {
     manualEdgeWeight: 7.5,
     advancedOpen: ['genres', 'display'],
     uiMode: 'easy',
+    audioPreview: false,
   }
 
   // A second fixture with a DIFFERENT valid value on every field.
@@ -981,6 +982,7 @@ describe('WS6 sanitize round-trip pins (v14.1)', () => {
     visibleFilters: ['bpm', 'year'],
     advancedOpen: [],
     uiMode: 'advanced',
+    audioPreview: true,
   }
 
   test('fixture A (every settings field non-default) round-trips byte-identically', () => {

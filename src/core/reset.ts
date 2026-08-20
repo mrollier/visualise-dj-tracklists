@@ -5,13 +5,16 @@ import { DEFAULT_SETTINGS, type AppSettings } from './settings'
  * "Return to default settings" (v9 issue 3): reset everything the Advanced
  * panel owns and nothing else. Filters, playlists, sets and pins are never
  * touched; the theme lives in the top bar and the section-fold memory is UI
- * chrome, so both survive.
+ * chrome, so both survive. Audio preview (v28) survives too: silently
+ * unlinking someone's music folder is the same class of surprise as flipping
+ * their theme.
  */
 export function resetAdvancedSettings(current: AppSettings): AppSettings {
   return {
     ...structuredClone(DEFAULT_SETTINGS),
     theme: current.theme,
     advancedOpen: [...current.advancedOpen],
+    audioPreview: current.audioPreview,
   }
 }
 

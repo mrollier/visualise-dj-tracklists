@@ -129,4 +129,16 @@ describe('undo wiring (v12 WS9/WS14)', () => {
     undoOnce()
     expect(get(settings).edgeOpacity).toBe(before)
   })
+
+  test('toggling audio preview is not an undo step (v28)', () => {
+    // Undo already skips chrome. Cmd+Z pressed for something else must not
+    // tear down a live AudioContext and stop the music as a side effect.
+    settings.update((s) => ({ ...s, edgeOpacity: 0.7 }))
+    vi.advanceTimersByTime(500)
+    settings.update((s) => ({ ...s, audioPreview: true }))
+    vi.advanceTimersByTime(500)
+    undoOnce()
+    expect(get(settings).audioPreview).toBe(true)
+    expect(get(settings).edgeOpacity).not.toBe(0.7)
+  })
 })

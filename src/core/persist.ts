@@ -407,6 +407,12 @@ export function parseProject(json: string): Project {
       rawSettings.uiMode === 'easy' || rawSettings.uiMode === 'advanced'
         ? rawSettings.uiMode
         : DEFAULT_SETTINGS.uiMode,
+    // v28: additive boolean, no version bump — an older save with no key
+    // resolves to false, which is exactly the wanted "preview off".
+    audioPreview:
+      typeof rawSettings.audioPreview === 'boolean'
+        ? rawSettings.audioPreview
+        : DEFAULT_SETTINGS.audioPreview,
   }
   // v11 (issue 1): filters normalize into the per-property map, whatever
   // their vintage; migrateFilters lifts v3 top-level ranges and drops

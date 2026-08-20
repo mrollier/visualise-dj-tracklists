@@ -268,7 +268,7 @@
   // attribute (reactive or static) permanently slams the sections shut.
   // 'filters' merged into 'tracks' in v11 (issue 1) — the surviving id keeps
   // old saves' fold memory for the section that remains.
-  const SECTION_IDS = ['genre', 'keybpm', 'display', 'tracks', 'set'] as const
+  const SECTION_IDS = ['genre', 'keybpm', 'display', 'tracks', 'set', 'audio'] as const
   type SectionId = (typeof SECTION_IDS)[number]
   // One-time init from the store: settings is a svelte store, not runes state.
   const initiallyOpen = get(settings).advancedOpen
@@ -707,6 +707,24 @@
     </div>
   </details>
 
+  <details
+    class="section"
+    bind:open={sectionState.audio}
+    ontoggle={(e) => persistToggle('audio', e)}
+  >
+    <summary>Preview</summary>
+    <label class="row">
+      <input type="checkbox" bind:checked={$settings.audioPreview} />
+      Listen to tracks
+      <InfoTooltip label="About audio preview">
+        Adds a player under the top bar so you can hear a track, pin one and crossfade a second
+        against it — checking a combo by ear rather than by metadata. A browser cannot open a file
+        from the path in your library, so you also have to point the app at your music folder. The
+        audio is read on your machine and never uploaded, and nothing you play is recorded.
+      </InfoTooltip>
+    </label>
+  </details>
+
   <!-- The guided tour otherwise only replays from a link buried in the
        header's import-details tooltip, which needs a live $lastImportReport
        to even render — gone again after a reload. This is the reliable,
@@ -726,8 +744,8 @@
   />
 
   <!-- v9 issue 3: everything this panel owns, back to its default value.
-       Filters, playlists, sets, pins, and the theme are deliberately not
-       touched — they live elsewhere. Confirmed first (v11 issue 14): it
+       Filters, playlists, sets, pins, the theme and (v28) the audio-preview
+       toggle are deliberately not touched — they live elsewhere. Confirmed first (v11 issue 14): it
        changes a lot at once and sits where a stray click can reach it. -->
   <button class="reset-defaults" onclick={() => resetConfirm.open(resetToDefaults)}>
     ↺ Return to default settings
@@ -735,7 +753,7 @@
   <ConfirmDialog
     bind:this={resetConfirm}
     title="Reset all advanced settings?"
-    body="Genre matching, key & BPM moves, display options and suggestion settings all return to their defaults. Filters, playlists and your sets are kept."
+    body="Genre matching, key & BPM moves, display options and suggestion settings all return to their defaults. Filters, playlists, your sets and your music-folder link are kept."
     confirmLabel="Reset settings"
     danger
   />

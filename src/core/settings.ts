@@ -94,6 +94,13 @@ export interface AppSettings {
    * exactly.
    */
   uiMode: 'advanced' | 'easy'
+  /**
+   * Audio preview (v28): show the two-deck audition bar under the top bar.
+   * Off by default. A browser cannot open a file from `Track.location`, so
+   * turning this on only reveals the bar — hearing anything additionally
+   * needs the user to grant a music folder.
+   */
+  audioPreview: boolean
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -114,4 +121,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   visibleFilters: [...DEFAULT_VISIBLE_FILTERS, ...PANEL_FILTER_KEYS],
   advancedOpen: [],
   uiMode: 'advanced',
+  audioPreview: false,
 }
