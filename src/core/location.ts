@@ -52,3 +52,47 @@ export function basenameOf(location: string): string {
   const last = segments[segments.length - 1]
   return last === undefined ? '' : foldSegment(last)
 }
+
+/**
+ * The deepest folder every track in the library sits under, as a path a person
+ * can read and paste (v28.1).
+ *
+ * A browser will not let a page pre-open a folder picker at a path: Chromium's
+ * `showDirectoryPicker` takes only well-known names, and `<input
+ * webkitdirectory>` takes nothing at all. So on Firefox and Safari the only
+ * help we can offer is to SHOW the user where their music is and let them
+ * paste it — ⌘⇧G in the macOS open panel, the path field in a Windows dialog.
+ *
+ * Folded comparison, original spelling for display: the folder exists exactly
+ * once on disk, so a library whose XML disagrees about case or Unicode form
+ * still resolves to one hint.
+ *
+ * Returns null below two shared segments — one outlier track on the Desktop
+ * collapses the prefix, and `/Users` helps nobody. It is a hint, not a
+ * contract; a majority-covering variant is not worth the code.
+ */
+export function commonAncestorPath(locations: readonly (string | null)[]): string | null {
+  let prefix: string[] | null = null
+  for (const location of locations) {
+    if (location === null || location === '') continue
+    const directory = locationSegments(location).slice(0, -1)
+    if (directory.length === 0) continue
+    if (prefix === null) {
+      prefix = directory
+      continue
+    }
+    let shared = 0
+    while (
+      shared < prefix.length &&
+      shared < directory.length &&
+      foldSegment(prefix[shared]) === foldSegment(directory[shared])
+    )
+      shared++
+    prefix = prefix.slice(0, shared)
+    if (prefix.length === 0) return null
+  }
+  if (prefix === null || prefix.length < 2) return null
+  // `C:` is an ordinary segment to locationSegments, but `/C:/Users` is not
+  // what a Windows dialog accepts pasted back.
+  return /^[A-Za-z]:$/.test(prefix[0]) ? prefix.join('\\') : `/${prefix.join('/')}`
+}

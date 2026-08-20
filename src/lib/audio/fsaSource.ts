@@ -11,7 +11,13 @@ export function supportsDirectoryPicker(): boolean {
 export async function pickDirectory(): Promise<FileSystemDirectoryHandle | null> {
   if (!supportsDirectoryPicker()) return null
   try {
-    return (await window.showDirectoryPicker?.({ id: 'music', mode: 'read' })) ?? null
+    // `id` makes the browser reopen wherever this app last picked; `startIn`
+    // only decides the very first time, when there is nothing remembered. It is
+    // the only aiming any browser offers — there is no way to pass a path, and
+    // <input webkitdirectory> takes no hint at all.
+    return (
+      (await window.showDirectoryPicker?.({ id: 'music', mode: 'read', startIn: 'music' })) ?? null
+    )
   } catch {
     return null
   }

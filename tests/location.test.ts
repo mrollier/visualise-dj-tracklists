@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import {
   basenameOf,
+  commonAncestorPath,
   foldSegment,
   foldSegments,
   locationSegments,
@@ -91,5 +92,75 @@ describe('basenameOf', () => {
 
   test('returns an empty string for a location with no segments', () => {
     expect(basenameOf('file:///')).toBe('')
+  })
+})
+
+describe('commonAncestorPath', () => {
+  const at = (path: string) => `file://localhost${path}`
+
+  test('is null with nothing to go on', () => {
+    expect(commonAncestorPath([])).toBe(null)
+    expect(commonAncestorPath([null, ''])).toBe(null)
+  })
+
+  test('a single track yields its own folder', () => {
+    expect(commonAncestorPath([at('/Users/mich/Music/DJ/House/Track.mp3')])).toBe(
+      '/Users/mich/Music/DJ/House',
+    )
+  })
+
+  test('several tracks yield the deepest folder they share', () => {
+    expect(
+      commonAncestorPath([
+        at('/Users/mich/Music/DJ/House/A.mp3'),
+        at('/Users/mich/Music/DJ/House/B.mp3'),
+        at('/Users/mich/Music/DJ/Techno/C.mp3'),
+      ]),
+    ).toBe('/Users/mich/Music/DJ')
+  })
+
+  test('a library spread across volumes has no useful ancestor', () => {
+    expect(commonAncestorPath([at('/Users/mich/Music/A.mp3'), at('/Volumes/DJ/Crate/B.mp3')])).toBe(
+      null,
+    )
+  })
+
+  test('a single shared segment is too shallow to be a hint', () => {
+    expect(commonAncestorPath([at('/Users/mich/A.mp3'), at('/Users/other/B.mp3')])).toBe(null)
+  })
+
+  test('matches case-insensitively but shows the first spelling', () => {
+    // The folder exists exactly once on disk; only the XML's casing varies.
+    expect(commonAncestorPath([at('/Users/Mich/Music/A.mp3'), at('/users/mich/MUSIC/B.mp3')])).toBe(
+      '/Users/Mich/Music',
+    )
+  })
+
+  test('matches across NFD and NFC, as macOS and Rekordbox disagree', () => {
+    const nfc = at('/Users/mich/Musique/Björk/A.mp3')
+    const nfd = at('/Users/mich/Musique/Björk/B.mp3')
+    expect(commonAncestorPath([nfc, nfd])).toBe('/Users/mich/Musique/Björk')
+  })
+
+  test('decodes percent-escapes so the path is pasteable', () => {
+    expect(
+      commonAncestorPath([at('/Users/mich/My%20Music/A.mp3'), at('/Users/mich/My%20Music/B.mp3')]),
+    ).toBe('/Users/mich/My Music')
+  })
+
+  test('renders a Windows drive the way a Windows dialog wants it', () => {
+    expect(
+      commonAncestorPath(['file:///C:/Users/dj/Music/A.mp3', 'file:///C:/Users/dj/Music/B.mp3']),
+    ).toBe('C:\\Users\\dj\\Music')
+  })
+
+  test('ignores a location that is nothing but a file name', () => {
+    expect(
+      commonAncestorPath([
+        'Track.mp3',
+        at('/Users/mich/Music/A.mp3'),
+        at('/Users/mich/Music/B.mp3'),
+      ]),
+    ).toBe('/Users/mich/Music')
   })
 })
