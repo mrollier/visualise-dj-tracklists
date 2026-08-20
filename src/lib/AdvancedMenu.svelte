@@ -17,6 +17,7 @@
   import { PROPERTY_BY_KEY } from '../core/properties'
   import type { TrackSortField } from '../core/trackSort'
   import ConfirmDialog from './ConfirmDialog.svelte'
+  import FolderLinkControl from './FolderLinkControl.svelte'
   import InfoTooltip from './InfoTooltip.svelte'
   import PanelFilterIcon from './PanelFilterIcon.svelte'
   import { sampleLoadNeedsConfirmation } from './persistence'
@@ -723,6 +724,11 @@
         audio is read on your machine and never uploaded, and nothing you play is recorded.
       </InfoTooltip>
     </label>
+    {#if $settings.audioPreview}
+      <!-- The bar is the discovery path for this; the panel is the one you can
+           come back to. Same component, so they cannot drift apart. -->
+      <FolderLinkControl layout="panel" />
+    {/if}
   </details>
 
   <!-- The guided tour otherwise only replays from a link buried in the
