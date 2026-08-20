@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { DeckId } from '../core/audio/decks'
   import { formatDuration } from '../core/properties'
+  import { marquee } from './marquee'
   import LockIcon from './LockIcon.svelte'
   import PlayIcon from './PlayIcon.svelte'
 
@@ -58,7 +59,11 @@
   </button>
 
   {#if label !== null}
-    <span class="label" title={label}>{label}</span>
+    <!-- The action flags overflow; the inner span carries the cycling motion,
+         so the full title is readable if you watch for a moment. -->
+    <span class="label" title={label} use:marquee={label}>
+      <span class="scroll">{label}</span>
+    </span>
   {/if}
 
   {#if emptyText !== null}
@@ -134,6 +139,45 @@
     white-space: nowrap;
     font-size: 12px;
     color: var(--ink-secondary);
+  }
+
+  .scroll {
+    display: inline-block;
+  }
+
+  /* A translated child and a static ellipsis fight, so the ellipsis goes while
+     the label is cycling — the motion is what reveals the tail instead. */
+  .label:global(.overflowing) {
+    text-overflow: clip;
+  }
+
+  .label:global(.overflowing) .scroll {
+    animation: label-cycle var(--marquee-duration, 8s) ease-in-out infinite;
+  }
+
+  /* Hold, glide to the far end, hold, glide home. */
+  @keyframes label-cycle {
+    0%,
+    20% {
+      transform: translateX(0);
+    }
+    55%,
+    70% {
+      transform: translateX(var(--marquee-shift, 0px));
+    }
+    100% {
+      transform: translateX(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .label:global(.overflowing) .scroll {
+      animation: none;
+    }
+
+    .label:global(.overflowing) {
+      text-overflow: ellipsis;
+    }
   }
 
   .clock {

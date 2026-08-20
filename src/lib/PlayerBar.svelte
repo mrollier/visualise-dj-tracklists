@@ -111,7 +111,7 @@
 
       <DeckRow
         deck="b"
-        label={$decks.aLocked ? titleOf($decks.b) : null}
+        label={titleOf($decks.b)}
         playing={$playing.b}
         position={$positions.b}
         duration={$durations.b}
