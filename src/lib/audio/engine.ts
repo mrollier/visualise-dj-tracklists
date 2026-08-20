@@ -168,11 +168,19 @@ export function setGains(a: number, b: number): void {
   gains[roles.b].gain.setTargetAtTime(b, context.currentTime, 0.01)
 }
 
-/** Turning the feature off must genuinely silence it, not just hide the bar. */
+/**
+ * Turning the feature off must genuinely silence it, not just hide the bar.
+ *
+ * `listeners` deliberately survives: the set belongs to the STORE's lifetime,
+ * not the graph's — playerStore registers its deck-event listener exactly once
+ * at app start, so clearing it here left the rebuilt graph emitting
+ * loadedmetadata/timeupdate to nobody after the feature was toggled back on.
+ * The symptom (v28.2): duration missing and the seek line dead, while
+ * play/pause still worked because togglePlay writes the playing store itself.
+ */
 export function dispose(): void {
   clearDeck('a')
   clearDeck('b')
-  listeners.clear()
   void context?.close()
   context = null
   elements = null
