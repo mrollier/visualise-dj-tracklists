@@ -5,7 +5,7 @@
   import {
     canLinkPersistently,
     coverage,
-    indexedCount,
+    indexProgress,
     linkFolder,
     reconnect,
     rootName,
@@ -13,6 +13,7 @@
     usePickedFiles,
   } from './audio/sourceStore'
   import { isSampleLibrary } from './persistence'
+  import ProgressBar from './ProgressBar.svelte'
 
   /**
    * The one control that links a music folder, in both the places it appears:
@@ -53,6 +54,22 @@
     else folderInput?.click()
   }
 
+  /**
+   * What the scan is doing, in words (v29 #2). Both passes are named, because
+   * the second one — matching the library against what the walk found — used
+   * to run in silence after the count stopped moving.
+   */
+  const scanText = $derived.by(() => {
+    const p = $indexProgress
+    if (p === null) return 'Linking…'
+    const where = $rootName === null ? '' : ` “${$rootName}”`
+    if (p.phase === 'scanning')
+      return p.total === null
+        ? `Scanning${where}… ${p.done.toLocaleString()} files`
+        : `Scanning${where}… ${p.done.toLocaleString()} of ${p.total.toLocaleString()}`
+    return `Matching ${p.total?.toLocaleString() ?? ''} tracks…`
+  })
+
   function copyPath() {
     const path = suggestedPath
     if (path === null) return
@@ -71,8 +88,19 @@
 </script>
 
 <div class="link" class:panel={layout === 'panel'}>
-  {#if $sourceState === 'indexing'}
-    <span class="status">Scanning{$rootName ? ` “${$rootName}”` : ''}… {$indexedCount}</span>
+  <!-- `indexProgress` alone covers the re-match that follows a library import
+       while a folder is already linked: the state is 'ready' throughout, but
+       the pass is just as long as the one after a fresh link. -->
+  {#if $sourceState === 'indexing' || $indexProgress !== null}
+    <span class="scan">
+      <span class="status">{scanText}</span>
+      <ProgressBar
+        label={scanText}
+        value={$indexProgress?.total === null ? undefined : $indexProgress?.done}
+        max={$indexProgress?.total ?? undefined}
+        width={layout === 'bar' ? '110px' : '100%'}
+      />
+    </span>
   {:else if $sourceState === 'needs-permission'}
     <button onclick={() => void reconnect()}>Reconnect “{$rootName}”</button>
   {:else if $sourceState === 'ready' && $coverage !== null}
@@ -102,7 +130,7 @@
     webkitdirectory
     multiple
     hidden
-    onchange={(e) => usePickedFiles(Array.from(e.currentTarget.files ?? []))}
+    onchange={(e) => void usePickedFiles(Array.from(e.currentTarget.files ?? []))}
   />
 </div>
 
@@ -126,9 +154,22 @@
     padding: 2px 0;
   }
 
+  /* The bar's column is narrow, so the label sits above the track rather than
+     beside it; in the panel the same stack simply gets the full width. */
+  .scan {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    flex: 1;
+  }
+
   .status {
     font-size: 11.5px;
     color: var(--ink-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .coverage,

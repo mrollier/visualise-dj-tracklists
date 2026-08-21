@@ -252,7 +252,7 @@ export function startPlayer(): void {
   })
   library.subscribe((tracks) => {
     dispatch({ type: 'library', knownIds: new Set(tracks.map((t) => t.id)) })
-    reindex()
+    void reindex()
   })
 
   settings.subscribe((s) => {
