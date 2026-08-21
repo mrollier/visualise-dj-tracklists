@@ -73,8 +73,13 @@ function apply(effects: readonly DeckEffect[]): void {
   for (const effect of effects) {
     if (effect.kind === 'promote') {
       engine.promote()
+      // A symmetric swap, because promote runs in both directions now (v29
+      // #8): lock moves B up, unlock moves A down. `swapDeckUi` was already
+      // symmetric; this was not, and the `clear` effect that always follows
+      // nulls whichever side is being discarded anyway.
+      const held = materialised.a
       materialised.a = materialised.b
-      materialised.b = null
+      materialised.b = held
       swapDeckUi()
     } else if (effect.kind === 'clear') {
       engine.clearDeck(effect.deck)

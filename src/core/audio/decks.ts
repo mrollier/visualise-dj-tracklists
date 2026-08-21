@@ -38,10 +38,12 @@ export type DeckEffect =
   | { kind: 'load'; deck: DeckId; trackId: string }
   | { kind: 'clear'; deck: DeckId }
   /**
-   * Swap which element plays which role. The element that was deck B keeps
-   * playing, uninterrupted, at its exact position — reloading A from B's file
-   * at 0:00 would restart the audio mid-listen, which is precisely wrong for a
-   * "pin this one" gesture.
+   * Swap which element plays which role, in either direction: lock moves deck
+   * B up, unlock moves deck A down (v29 #8). The element being kept goes on
+   * playing, uninterrupted, at its exact position — reloading it from the same
+   * file at 0:00 would restart the audio mid-listen, which is precisely wrong
+   * for both "pin this one" and "keep only this one". The `clear` that always
+   * follows disposes of the side being discarded.
    */
   | { kind: 'promote' }
 
@@ -71,10 +73,15 @@ export function reduceDecks(state: DeckState, event: DeckEvent): DeckTransition 
       }
     }
     case 'unlock': {
-      if (state.a === null && !state.aLocked) return { state, effects: [] }
+      if (state.a === null) return { state, effects: [] }
+      // Unpinning KEEPS the track it is named after (v29 #8). It used to clear
+      // deck A and leave deck B, which threw away the very track the button
+      // says it is acting on. The promote swaps roles so the pinned element
+      // goes on playing, uninterrupted, as the single deck B; whatever deck B
+      // held is what goes.
       return {
-        state: { ...state, a: null, aLocked: false },
-        effects: [{ kind: 'clear', deck: 'a' }],
+        state: { ...state, a: null, aLocked: false, b: state.a },
+        effects: [{ kind: 'promote' }, { kind: 'clear', deck: 'a' }],
       }
     }
     case 'library': {

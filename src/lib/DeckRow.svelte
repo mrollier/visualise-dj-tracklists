@@ -102,7 +102,9 @@
     onclick={onLock}
     aria-pressed={locked}
     aria-label={locked ? 'Unpin the top track' : 'Pin this track to compare against'}
-    title={locked ? 'Unpin the top track' : 'Pin this track to compare against'}
+    title={locked
+      ? 'Unpin — drop the other deck and keep this track playing'
+      : 'Pin this track to compare against'}
   >
     <LockIcon {locked} />
   </button>
