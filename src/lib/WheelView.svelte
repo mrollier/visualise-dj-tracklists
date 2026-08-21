@@ -687,6 +687,11 @@
 
   function nodeOpacity(node: PlacedNode): number {
     const base = node.missingRadial ? 0.55 : 1
+    // The audible track never dims (v29 #4). The focus dim multiplies with the
+    // breathing keyframes below, so a playing star that was not also the
+    // selected one used to pulse between 0.12 and 0.054 — invisible, which is
+    // the opposite of what "you are hearing this one" needs to say.
+    if (audibleIds.has(node.track.id)) return base
     if (focusSet !== null && !focusSet.has(node.track.id)) return 0.12
     return base
   }
@@ -894,6 +899,30 @@
       ),
     ),
   )
+
+  /**
+   * Paint order within the node layer (v29 #4). SVG has no z-index, so the
+   * last star drawn is the one on top — and the one that wins the click, since
+   * hit-testing runs the same order. Nothing raised a star before this, so an
+   * audible or selected one could sit under whichever neighbours happened to
+   * come later in the library.
+   *
+   * A separate derived, used ONLY by the `{#each}` below: `visibleNodes` also
+   * feeds nodeById, walkNodeById and the ghost split, none of which want their
+   * order disturbed. Stable within each band, so nothing else shuffles.
+   */
+  const paintedNodes = $derived.by(() => {
+    const rank = (node: PlacedNode) =>
+      audibleIds.has(node.track.id)
+        ? 3
+        : node.track.id === $selectedId
+          ? 2
+          : node.track.id === $hoveredId
+            ? 1
+            : 0
+    if (!visibleNodes.some((n) => rank(n) > 0)) return visibleNodes
+    return [...visibleNodes].sort((a, b) => rank(a) - rank(b))
+  })
 </script>
 
 <svelte:window
@@ -1261,7 +1290,7 @@
       {/each}
 
       <!-- Nodes -->
-      {#each visibleNodes as node (node.track.id)}
+      {#each paintedNodes as node (node.track.id)}
         <!-- Outer wrapper carries the enter/exit fade (v18 issue 11b): its
              transition sets inline style.opacity, which would otherwise
              clobber the inner opacity ATTRIBUTE if it were on the same
@@ -1291,6 +1320,21 @@
                 cy={node.y}
                 r={12 / zoomK}
                 class="hover-ring"
+                vector-effect="non-scaling-stroke"
+              />
+            {/if}
+            {#if audibleIds.has(node.track.id)}
+              <!-- The breathing's bright half (v29 #4). A star at full opacity
+                   has nowhere brighter to go, so the peak lives in a halo
+                   behind it — the same idiom as .hover-ring and .tag-ring
+                   above. Opacity only, like the dot: the dot's transform
+                   attribute carries its position, and this circle's cx/cy do,
+                   so a CSS transform would tear either off the wheel. -->
+              <circle
+                cx={node.x}
+                cy={node.y}
+                r={15 / zoomK}
+                class="playing-halo"
                 vector-effect="non-scaling-stroke"
               />
             {/if}
@@ -1707,8 +1751,16 @@
       transition: none;
     }
 
+    /* Still identifiable without motion: the halo simply stays lit, which is
+       what the Tracks view's static row tint does too. */
     .dot.playing {
       animation: none;
+      opacity: 1;
+    }
+
+    .playing-halo {
+      animation: none;
+      opacity: 0.4;
     }
   }
 
@@ -1973,11 +2025,14 @@
     stroke-width: 3;
   }
 
-  /* The audible track breathes (v28.2). Opacity only: the path's transform
-     attribute carries its translate+scale, so a CSS transform animation would
-     tear the dot off its wheel position. */
+  /* The audible track breathes (v28.2, louder in v29 #4). Opacity only: the
+     path's transform attribute carries its translate+scale, so a CSS transform
+     animation would tear the dot off its wheel position.
+
+     The dot's own dip is shallow now — it never recedes — and the swell that
+     makes the peak brighter than resting is carried by the halo below. */
   .dot.playing {
-    animation: dot-breathe 2.6s ease-in-out infinite;
+    animation: dot-breathe 1.6s ease-in-out infinite;
   }
 
   @keyframes dot-breathe {
@@ -1987,7 +2042,28 @@
     }
 
     50% {
+      opacity: 0.65;
+    }
+  }
+
+  /* In phase with the dot, so the peak is unambiguous: the star is fullest and
+     the glow widest at the same instant. */
+  .playing-halo {
+    fill: var(--accent);
+    stroke: var(--accent);
+    stroke-width: 1;
+    pointer-events: none;
+    animation: halo-breathe 1.6s ease-in-out infinite;
+  }
+
+  @keyframes halo-breathe {
+    0%,
+    100% {
       opacity: 0.45;
+    }
+
+    50% {
+      opacity: 0;
     }
   }
 

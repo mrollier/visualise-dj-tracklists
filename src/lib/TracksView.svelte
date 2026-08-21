@@ -962,10 +962,12 @@
     background: color-mix(in srgb, var(--accent) 22%, transparent);
   }
 
-  /* The audible track's row breathes (v28.2); a selected one breathes between
-     stronger mixes so selection stays visibly darker throughout. */
+  /* The audible track's row breathes (v28.2; faster and brighter in v29 #4);
+     a selected one breathes between stronger mixes so selection stays visibly
+     darker throughout. The peak sits above the static `tr.selected` tint, so
+     the audible row reads as the loudest thing in the table. */
   tbody tr.playing {
-    animation: row-breathe 2.6s ease-in-out infinite;
+    animation: row-breathe 1.6s ease-in-out infinite;
   }
 
   tbody tr.playing.selected {
@@ -975,7 +977,7 @@
   @keyframes row-breathe {
     0%,
     100% {
-      background-color: color-mix(in srgb, var(--accent) 12%, transparent);
+      background-color: color-mix(in srgb, var(--accent) 22%, transparent);
     }
 
     50% {
@@ -986,7 +988,7 @@
   @keyframes row-breathe-selected {
     0%,
     100% {
-      background-color: color-mix(in srgb, var(--accent) 28%, transparent);
+      background-color: color-mix(in srgb, var(--accent) 40%, transparent);
     }
 
     50% {
@@ -994,15 +996,18 @@
     }
   }
 
+  /* Without motion the tint has to carry the whole signal, so it sits above
+     the static one a merely-selected row wears — 22% used to MATCH it, which
+     made an audible selected row indistinguishable from a silent one. */
   @media (prefers-reduced-motion: reduce) {
     tbody tr.playing {
       animation: none;
-      background: color-mix(in srgb, var(--accent) 8%, transparent);
+      background: color-mix(in srgb, var(--accent) 16%, transparent);
     }
 
     tbody tr.playing.selected {
       animation: none;
-      background: color-mix(in srgb, var(--accent) 22%, transparent);
+      background: color-mix(in srgb, var(--accent) 34%, transparent);
     }
   }
 
