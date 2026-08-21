@@ -51,6 +51,22 @@ export const radialAxis = writable<RadialAxis>('bpm')
 export const colorAxis = writable<ColorAxis>('auto')
 export const selectedId = writable<string | null>(null)
 /**
+ * The last track the user clicked ON DIRECTLY — a wheel star or a Tracks-view
+ * row — as opposed to the many things that move `selectedId` without anyone
+ * clicking a track: the wheel hub's suggest/retry/reset picks, undo and redo
+ * restoring a captured selection, background clicks, Escape, a project load.
+ *
+ * The audio preview listens to THIS, not to `selectedId` (v29 #10). Deck B is
+ * "the track you clicked", which is a thing the user did; it is not "the
+ * selection", which is a thing the app moves around. That is also what retires
+ * the v28.1 deselection latch: a click event can never carry null, so there is
+ * nothing left to latch against.
+ *
+ * Never persisted, and deliberately not cleared alongside `selectedId` — a
+ * deck goes on playing until another track is clicked or the library changes.
+ */
+export const clickedTrackId = writable<string | null>(null)
+/**
  * Track hovered in the set list (v9 issue 20): mirrored as a subtle halo on
  * the wheel node and a tint on the Tracks-view row, so the eye can find the
  * same track across views. Never persisted, cleared on mouse-leave.
@@ -533,6 +549,10 @@ export function selectOrLink(id: string): void {
     if (id !== get(selectedId)) toggleManualEdge(get(selectedId)!, id)
     return
   }
+  // Announced before the toggle, and announced even when the toggle DESELECTS:
+  // clicking a track is still a click on that track, and the audio deck it
+  // feeds (v29 #10) should keep playing it rather than empty itself.
+  clickedTrackId.set(id)
   selectedId.update((current) => (current === id ? null : id))
 }
 

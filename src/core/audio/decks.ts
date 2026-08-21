@@ -1,7 +1,8 @@
 /**
  * The two-deck state machine.
  *
- * Deck A is the track the user pinned; deck B mirrors the current selection.
+ * Deck A is the track the user pinned; deck B holds the last track the user
+ * clicked directly (v29 #10 — it followed `selectedId` until then).
  * The reducer returns EFFECTS rather than touching anything, which is what lets
  * the whole machine — including the element-swap decision — be covered by unit
  * tests in a repo whose vitest runs with no DOM at all. The engine is a dumb
@@ -13,7 +14,7 @@ export interface DeckState {
   /** The pinned track, or null. */
   a: string | null
   aLocked: boolean
-  /** The selected track, or null. */
+  /** The last directly-clicked track, or null. */
   b: string | null
 }
 
@@ -21,11 +22,13 @@ export const EMPTY_DECKS: DeckState = { a: null, aLocked: false, b: null }
 
 export type DeckEvent =
   /**
-   * The selection changed. `bPlaying` is the caller's report of whether deck B
-   * is actually making sound right now — the reducer stays pure, so it cannot
-   * ask the engine itself.
+   * The user clicked a track directly — a wheel star or a Tracks-view row
+   * (v29 #10). NOT "the selection changed": `selectedId` also moves for hub
+   * picks, undo/redo, background clicks and project loads, none of which are
+   * anyone asking to hear something. So `id` is always a real track; there is
+   * no null case to latch against any more.
    */
-  | { type: 'select'; id: string | null; bPlaying: boolean }
+  | { type: 'select'; id: string }
   | { type: 'lock' }
   | { type: 'unlock' }
   /** Library replaced or reloaded: ids that still exist. */
@@ -50,17 +53,9 @@ export interface DeckTransition {
 export function reduceDecks(state: DeckState, event: DeckEvent): DeckTransition {
   switch (event.type) {
     case 'select': {
+      // Re-clicking the loaded track is a no-op, which is what keeps a
+      // click-to-deselect gesture from restarting the audio underneath it.
       if (event.id === state.b) return { state, effects: [] }
-      if (event.id === null) {
-        // Latch (v28.1). Clicking bare wheel background (WheelView) or empty
-        // left-panel space (CriteriaPanel) clears selectedId, and re-clicking a
-        // node to dismiss its focus star is a constant gesture — none of which
-        // may cut audio the user is in the middle of judging. A silent deck has
-        // nothing to interrupt, so it still clears, which is what lets the bar
-        // return to its empty state.
-        if (event.bPlaying) return { state, effects: [] }
-        return { state: { ...state, b: null }, effects: [{ kind: 'clear', deck: 'b' }] }
-      }
       return {
         state: { ...state, b: event.id },
         effects: [{ kind: 'load', deck: 'b', trackId: event.id }],

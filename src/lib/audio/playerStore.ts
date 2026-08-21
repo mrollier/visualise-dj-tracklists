@@ -12,7 +12,7 @@ import {
 import type { UnplayableReason } from '../../core/audio/reasons'
 import { clampSeek, resolveDuration } from '../../core/audio/transport'
 import type { Track } from '../../core/model'
-import { library, selectedId, settings } from '../../stores'
+import { clickedTrackId, library, settings } from '../../stores'
 import * as engine from './engine'
 import {
   coverage,
@@ -183,11 +183,13 @@ export function startPlayer(): void {
     }))
   })
 
-  selectedId.subscribe((id) =>
-    // engine.isPlaying is the ground truth the reducer needs: it already
-    // reports false for an element that reached its end.
-    dispatch({ type: 'select', id, bPlaying: engine.isPlaying('b') }),
-  )
+  // The CLICK, not the selection (v29 #10). `selectedId` also moves for hub
+  // picks, undo/redo, background clicks, Escape and project loads, and none of
+  // those are the user asking to hear something — following it is what made a
+  // stray click cut the music, and what the v28.1 latch was papering over.
+  clickedTrackId.subscribe((id) => {
+    if (id !== null) dispatch({ type: 'select', id })
+  })
   library.subscribe((tracks) => {
     dispatch({ type: 'library', knownIds: new Set(tracks.map((t) => t.id)) })
     reindex()

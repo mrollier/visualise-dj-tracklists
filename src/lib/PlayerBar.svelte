@@ -62,13 +62,13 @@
     })
   }
 
-  /** What the empty deck says: the folder is the blocker before the selection is. */
+  /** What the empty deck says: the folder is the blocker before the click is. */
   const emptyHint = $derived.by(() => {
     const context = { sampleLibrary, rootName: $rootName }
     if (sampleLibrary) return reasonLabel('no-location', context)
     if ($sourceState === 'needs-permission') return reasonLabel('needs-permission', context)
     if ($sourceState !== 'ready') return reasonLabel('no-source', context)
-    return 'select a track to load it'
+    return 'click a track to hear it'
   })
 </script>
 
@@ -85,8 +85,8 @@
             max="1"
             step="0.01"
             value={$crossfade}
-            aria-label="Balance between the pinned track and the selection"
-            title="Balance between the pinned track and the selection — double-click to centre"
+            aria-label="Balance between the pinned track and the clicked track"
+            title="Balance between the pinned track and the clicked one — double-click to centre"
             oninput={(e) => setCrossfade(e.currentTarget.valueAsNumber)}
             ondblclick={() => setCrossfade(0)}
           />
