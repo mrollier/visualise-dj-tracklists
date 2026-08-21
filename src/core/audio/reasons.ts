@@ -104,8 +104,10 @@ export function reasonDetail(reason: UnplayableReason, ctx: ReasonContext): stri
       )
     case 'read-error':
       return (
-        `The file could not be read from “${root}”. It may have been moved, renamed, or on a ` +
-        'volume that has since been unmounted. Re-linking the folder rebuilds the index.'
+        `The browser got no audio out of this file. It may have been moved or renamed since “${root}” ` +
+        'was linked, or be on a volume that has since been unmounted — or the file itself is ' +
+        'damaged, which a browser reports as ending instantly rather than as an error. ' +
+        'Re-linking the folder rebuilds the index.'
       )
   }
 }

@@ -1,7 +1,8 @@
 # Issues — open
 
-The permanent filter-group wave resolved in **v23** (branch
-`v23-filter-group`), on top of the Tracks-header visibility defect
+Michiel's ten-item review of the audio preview resolved in **v29** (branch
+`v29-player-review`), on top of the permanent filter-group wave resolved in
+**v23** (branch `v23-filter-group`), the Tracks-header visibility defect
 resolved in **v22** (branch `v22-tracks-header`), both constellation-edge
 defects resolved in **v21** (branch `v21-edges`), the two wheel-animation
 defects resolved in **v20** (branch `v20-motion`), the five z-order
@@ -13,107 +14,6 @@ resolved in **v16**, the v14 UI review resolved in **v15**, and all
 nineteen v13 items resolved in **v14**
 ([designs/design-v14.md](designs/design-v14.md) has the older per-issue notes).
 Each "Resolved" list records what actually shipped.
-
-## Open — v29 player review
-
-Michiel's review of the v28 audition bar after living with it against a real
-library. Ten items, shipping on `v29-player-review`; the rationale and the
-declined alternatives are in
-[designs/design-v29-player-review.md](designs/design-v29-player-review.md).
-They fall into three groups: the bar misrepresents its own state (1, 2, 3, 7),
-it is aimed at the wrong thing (6, 8, 10), and what you see and hear is not
-good enough (4, 5, 9).
-
-1. **The bar disappears entirely when no library is loaded, so switching
-   "Listen to tracks" on looks broken.** `PlayerBar.svelte:75` gates the whole
-   section on `$settings.audioPreview && $library.length > 0`. The second
-   clause contradicts the component's own stated principle three lines above
-   it (`PlayerBar.svelte:26-28`): _"It renders even when nothing can play, and
-   says why — a hidden bar cannot distinguish 'off' from 'broken'."_ Nothing
-   can play without a library, but a bar that says so is not the same as no
-   bar at all — and linking the music folder before importing is a perfectly
-   reasonable order to do things in.
-2. **Linking a music folder takes a long time behind a bare running integer.**
-   The walk is `O(all directory entries)` with one IPC round-trip per
-   directory (`fsaSource.ts:40-51`), and the only feedback is
-   `FolderLinkControl.svelte:71-72`'s `Scanning “{root}”… {n}`. Three things
-   are wrong with it: `rootName` is only set inside `adopt()`
-   (`sourceStore.ts:51`), i.e. _after_ the walk, so a first link reads
-   `Scanning… 0` with no folder name; `usePickedFiles` (`sourceStore.ts:84-88`)
-   sets `'indexing'` and calls `adopt()` in the same synchronous tick, so on
-   Firefox and Safari the state never paints at all; and `reindex`
-   (`sourceStore.ts:57-68`) is a second, unreported synchronous pass over the
-   whole library afterwards. There is no progress or spinner component
-   anywhere in the repo to reach for.
-3. **It is still not obvious which folder to link.** The only guidance is
-   `commonAncestorPath` (`core/location.ts:74-98`) as a bare copy button in
-   the bar and one paragraph in the panel (`FolderLinkControl.svelte:106-111`).
-   It returns `null` below two shared segments, so one outlier track on the
-   Desktop leaves a library with no hint at all. What is missing is the
-   worked example: _this track sits at that path, so link this folder_.
-4. **The breathing of the audible track is too faint, too slow, and paints
-   behind its neighbours.** Three separate causes, only one of which is the
-   animation. `nodeOpacity` (`WheelView.svelte:677-692`) drops out-of-focus
-   nodes to 0.12 and the `.dot` keyframes multiply against it, so an audible
-   track that is not also the selected one breathes between **0.12 and 0.054**.
-   Node paint order (`WheelView.svelte:565-603`, `:1264`) never depends on
-   selection or playback, so an audible star can sit under later-painted
-   neighbours — and hit-testing follows the same order, so it loses the click
-   too. The period is 2.6s in both views, and the wheel's peak is plain
-   `opacity: 1` (`WheelView.svelte:1976-1992`), i.e. the resting appearance,
-   with nowhere brighter to go.
-5. **Audio cracks.** Two symptoms, reported separately: a click exactly on
-   play / pause / track change, and random dropouts mid-track with no gesture
-   at all. The first is missing gain ramps — `engine.ts` stops and starts
-   audio at arbitrary sample values in `pause()` (`:135`), `loadDeck`'s
-   `element.pause()` before the `src` swap (`:101`), `clearDeck`'s
-   `removeAttribute('src')` (`:117`) and the bare `currentTime =` seek
-   (`:140`). The second points at starvation rather than the limiter: the
-   context is built with the default interactive `latencyHint` (`:53`), the
-   elements stay on `preload = 'metadata'` (`:72`), `loadDeck` calls
-   `element.load()` redundantly after assigning `src` (`:105`), and every
-   selection change speculatively materialises a file into an element
-   underneath whatever is playing (`playerStore.ts:87`).
-6. **The transport is centred over the window, not over the view it
-   describes.** `.player` is a plain flex row (`PlayerBar.svelte:134-160`)
-   while the central pane sits between a 250px left panel
-   (`CriteriaPanel.svelte:295`) and a 280px right rail (`App.svelte:130-138`).
-   The right-hand coverage chip takes whatever width it wants — `✓ 2043 of
-   2080 playable · 31 unsupported format · 6 not found`
-   (`core/audio/coverage.ts:66-75`) — and pushes the decks off centre.
-7. **"format unsupported in this browser" says neither what the format is nor
-   why it fails.** `core/audio/reasons.ts:38-40` appends the extension in
-   brackets and stops. It is the message a Rekordbox library hits most, since
-   Chrome decodes neither AIFF nor ALAC and Safari decodes both
-   (`designs/design-v28-audio-preview.md:260-266`), and the copy explains none
-   of that. Worse, the runtime error codes collapse to two
-   (`playerStore.ts:168-174`): a file the browser _refused outright_ and a
-   file it _started and gave up on_ — a damaged file, or a codec that is not
-   what the extension claims — read identically. `reasons.ts` has no test file.
-8. **The top lock icon throws away the track it is named after.** It reads
-   "Unpin the top track", and `reduceDecks`'s `'unlock'`
-   (`core/audio/decks.ts:78-84`) clears deck A and keeps deck B — so unpinning
-   discards the pinned track and leaves the other one. What it should do is
-   return to the single-row view with **the top track only**.
-9. **The preview is invisible to the guided tour.** No `data-tour` attribute
-   exists on `PlayerBar`, `DeckRow`, `FolderLinkControl` or the Advanced
-   "Preview" section, and no `STEPS` entry mentions it
-   (`TourOverlay.svelte:16-57`). Since `audioPreview` defaults to false
-   (`core/settings.ts:124`) and `enterDemoView()` never touches it
-   (`tour.ts:31-36`), a first-run user is never shown that the feature exists.
-10. **The deck follows the selection, so things that are not a track click
-    change what is playing.** `playerStore.ts:186-190` subscribes to
-    `selectedId`, and selection moves for a dozen reasons that are not "the
-    user clicked a track": the wheel hub's suggest / retry / ⟲ buttons
-    (`WheelView.svelte:829`, `:863`, `:876`), undo and redo restoring a
-    captured selection (`undoStore.ts:91` — and _every_ selection change
-    records an undo step), background clicks (`WheelView.svelte:912`,
-    `CriteriaPanel.svelte:79`, `TracklistPanel.svelte:365`), Escape
-    (`WheelView.svelte:902`), project load and library replacement
-    (`persistence.ts:82`, `:130`, `:267`, `TopBar.svelte:123`). The v28.1
-    deselection latch (`core/audio/decks.ts:54-63`) was a patch over exactly
-    this. The deck should change only on a direct click of a track, in the
-    Wheel view or the Tracks view.
 
 ## Open — v19 z-order review
 
@@ -165,6 +65,158 @@ itself is untouched):
    expected` no longer matches and that assertion fails too on a fresh run.
    Neither is a gate, and both are deliberately left for a separate tooling
    pass rather than folded into this wave (do not fix the script here).
+
+## Resolved in v29
+
+Michiel's review of the v28 audition bar, shipped on `v29-player-review`. Full
+rationale, the declined alternatives and what the browser pass did and did not
+reach are in
+[designs/design-v29-player-review.md](designs/design-v29-player-review.md).
+
+**Supersedes a v28.1 decision.** The deselection *latch* — clearing the
+selection while deck B plays being a no-op — is gone. It existed because the
+deck followed `selectedId`; now that the deck follows the click itself, a
+select event cannot carry null and there is nothing left to latch against.
+`DeckEvent`'s select case loses `bPlaying` with it.
+
+**Not reached by this wave:** whether the cracks are actually gone. A probe can
+prove the de-click ramps exist and the graph is built with a playback-sized
+buffer; only listening on a real library proves the noise stopped. The
+`MEDIA_ERR_DECODE` branch is also unit-tested only — Chrome does not raise it
+for a corrupted FLAC, it decodes the intact header and fires `ended`.
+
+1. **The bar renders with no library loaded.** `PlayerBar.svelte:75` drops
+   `&& $library.length > 0`, which contradicted the component's own principle
+   two lines above it — a hidden bar cannot distinguish "off" from "broken".
+   `emptyHint` gains a first branch naming the missing import, and a second
+   for a folder already linked, since linking before importing works.
+   Files: `lib/PlayerBar.svelte`.
+2. **Linking a folder reports both of its passes, behind the repo's first
+   progress bar.** New `lib/ProgressBar.svelte` (`value`/`max`/`label`/`width`;
+   indeterminate when `value` is absent, because an FSA walk has no total until
+   it finishes). `sourceStore` replaces `indexedCount` with an `indexProgress`
+   store carrying `{phase, done, total}` for `'scanning'` and `'matching'`.
+   Three defects fell out of it: `rootName` was only set inside `adopt()` after
+   the walk, so a first link read `Scanning… 0`; `usePickedFiles` set
+   `'indexing'` and adopted in one synchronous tick, so on Firefox and Safari
+   the state never painted; and `'ready'` was set before the match pass, so the
+   control briefly fell back to "Link music folder…" with a folder linked.
+   `openPickerSource` is async and chunked (merging per-chunk `buildFileIndex`
+   results, so the pure builder stays the builder), `reindex` yields every 2000
+   tracks under a run token, and `adopt` awaits it.
+   Files: `lib/ProgressBar.svelte`, `lib/audio/sourceStore.ts`,
+   `lib/audio/pickerSource.ts`, `lib/FolderLinkControl.svelte`.
+3. **The folder hint is a worked example, not a bare path.** New pure
+   `folderHint(tracks)` in `core/location.ts` returns `{example: {label, path,
+   folder}, suggested, scattered}` — this track, where it claims to live, and
+   therefore the folder to link — falling back to the example's own folder when
+   `commonAncestorPath` collapses (one track on another volume used to leave no
+   hint at all). It renders through the shared ⓘ in both layouts, and again
+   when a link matched nothing, where `✓ 0 of 2080 playable` read like success.
+   `formatPath` is extracted so the example and the ancestor agree about
+   Windows drive letters. Files: `core/location.ts`,
+   `lib/FolderLinkControl.svelte`.
+4. **The audible track breathes where it can be seen.** Three causes, and the
+   animation was the smallest. `nodeOpacity` (`WheelView.svelte`) exempts
+   audible ids from the 0.12 focus dim, which multiplied with the keyframes to
+   breathe an unselected audible star between 0.12 and 0.054. A `paintedNodes`
+   derived — used only by the node `{#each}`, so `nodeById`/`walkNodeById`/the
+   ghost split keep their order — sorts audible above selected above hovered,
+   which wins the click as well as the overlap, since SVG hit-testing follows
+   paint order. And because a dot at opacity 1 has nowhere brighter to go, the
+   peak moves into a `.playing-halo` circle behind the star, in phase with it;
+   the dot's dip softens to 0.65. Both views run at 1.6s. The Tracks view's
+   peak tint rises to 22%/40% and its reduced-motion fallback to 16%/34% — at
+   22% it matched `tr.selected` exactly, so a still audible selected row was
+   indistinguishable from a silent one — and the wheel gains the static
+   fallback it never had. Files: `lib/WheelView.svelte`, `lib/TracksView.svelte`.
+5. **The transport de-clicks, and the graph is built for playback.**
+   `engine.ts` gains `whileSilenced(slot, action)`: fade to zero over 8 ms,
+   act, fade back over 14 ms to the level that slot was *commanded* to — a new
+   per-slot `commanded` array, indexed by slot rather than deck so a promote
+   cannot move it. It wraps `pause`, `seek`, `loadDeck` and `clearDeck`; a
+   paused element is acted on synchronously (it cannot click), and the returned
+   promise lets `materialise` await a load before playing it. `setGains` stops
+   stacking `setTargetAtTime` events that never arrive and ramps explicitly.
+   For the dropouts: `latencyHint: 'playback'`, `preload = 'auto'` on a loaded
+   element, no redundant `element.load()` after assigning `src`, a 200 ms
+   debounce plus a `wanted` token on the speculative pre-load, and a
+   re-entrancy guard on `togglePlay`. Pin and unpin recentre the fader, which
+   was never reset. The limiter is deliberately untouched — see the design doc.
+   Also fixed here: `linkFolder`/`reconnect` had no `try/catch`, so a throw
+   mid-walk stranded `sourceState` on `'indexing'` for the session, and
+   `FolderLinkControl`'s copy timer was never cleared on unmount.
+   Files: `lib/audio/engine.ts`, `lib/audio/playerStore.ts`,
+   `lib/audio/sourceStore.ts`, `lib/FolderLinkControl.svelte`.
+6. **The bar is a three-column grid matching the app's own layout.**
+   `--left-rail: 250px` and `--right-rail: 280px` join `app.css`'s `:root` and
+   replace the bare pixels in `CriteriaPanel.svelte` and `App.svelte`;
+   `.player` becomes `grid-template-columns: var(--left-rail) minmax(0, 1fr)
+   var(--right-rail)` with no horizontal padding of its own, so column 2 starts
+   exactly at the central pane's left edge. Both side columns stay reserved
+   when the right rail is absent. The chip compresses via a new pure
+   `coverageShort` (`2043/2080 playable`), with the breakdown behind an ⓘ, one
+   line per reason; `layout="panel"` keeps `coverageLine` in full. Measured in
+   the browser: the decks share both edges of the central pane to within 1px.
+   Files: `src/app.css`, `lib/PlayerBar.svelte`, `lib/CriteriaPanel.svelte`,
+   `App.svelte`, `core/audio/coverage.ts`, `lib/FolderLinkControl.svelte`.
+7. **Every reason says what happened, why, and what to do.** `reasons.ts`
+   gains `reasonDetail` beside `reasonLabel` and a `decode-failed` reason;
+   `formats.ts` gains `FORMAT_NOTES` and `formatNote(extension)`. The short
+   line names the format (`this browser can’t play AIFF`) and the ⓘ beside it
+   in `DeckRow.svelte` carries the rest — that Chrome and Firefox ship no AIFF
+   decoder while Safari does, that an unplayable `.m4a` is almost certainly
+   ALAC, and what to do about either. `ReasonContext.raised` distinguishes
+   `canPlayType` predicting no decoder from the element opening the file and
+   refusing it, and `playerStore` splits the media error codes it used to
+   collapse: 4 stays `unsupported`, 3 becomes `decode-failed` (a damaged file,
+   not a missing codec), anything else `read-error` — whose copy now admits
+   damage as a cause, since a file that decodes to nothing fires `ended` rather
+   than `error`. New `tests/reasons.test.ts`; the copy checks that lived in
+   `tests/audio-coverage.test.ts` move into it.
+   Files: `core/audio/reasons.ts`, `core/audio/formats.ts`,
+   `lib/PlayerBar.svelte`, `lib/DeckRow.svelte`, `lib/audio/playerStore.ts`.
+8. **Unpinning keeps the top track instead of discarding it.** `reduceDecks`'s
+   `'unlock'` returns `{a: null, aLocked: false, b: state.a}` with `[promote,
+   clear a]` — the mirror of `'lock'` — so the pinned element goes on playing,
+   uninterrupted, as the single deck B. `promote`'s interpretation in
+   `playerStore` becomes a symmetric swap of `materialised`; the old `a = b;
+   b = null` was only correct going up. The lock button's `title` says what
+   unpinning now does. Files: `core/audio/decks.ts`,
+   `lib/audio/playerStore.ts`, `lib/DeckRow.svelte`.
+9. **The preview has a tour step.** `data-tour="preview"` on the bar and a step
+   after "What decides a combo", where the argument for it lives: the criteria
+   decide a combo by metadata, this judges the same combo by ear.
+   `enterDemoView` stashes `audioPreview` and forces it on so there is a real
+   bar to spotlight; `endTour` restores it on both exits, including "keep this
+   demo" where `applyProject` never runs, and leaves alone a switch the user
+   turned off themselves. Files: `lib/TourOverlay.svelte`, `lib/tour.ts`,
+   `lib/PlayerBar.svelte`.
+10. **The deck follows a direct track click, not the selection.** New
+    `clickedTrackId` in `stores.ts`, set by `selectOrLink` — already the one
+    choke point shared by the wheel star, Enter on a focused star and the
+    Tracks-view row — and set even when the click deselects, since clicking a
+    track is still a click on that track. `playerStore` subscribes to it
+    instead of `selectedId`. The set panel's row button
+    (`TracklistPanel.svelte:519`) writes `selectedId` directly and stays out,
+    matching v28's decline of driving the player from the constellation. The
+    copy follows: "select a track to load it" becomes "click a track to hear
+    it", and the fader speaks of the clicked track rather than the selection.
+    Files: `stores.ts`, `lib/audio/playerStore.ts`, `core/audio/decks.ts`,
+    `lib/PlayerBar.svelte`.
+
+**Verified in the browser**: two standalone Playwright probes (not added to
+`scripts/screenshot.mjs`, which has three stale selectors recorded under *Open
+— tooling* and gates nothing). Chromium via the chrome-channel fallback, fresh
+`localStorage`, a generated folder holding one file per format plus a corrupted
+FLAC, and a Rekordbox XML whose paths point at a volume that does not exist, so
+the suffix matcher does real work. 32 checks pass with zero console errors,
+covering items 1, 3, 4, 6, 7, 8 and 10 — including a 1px comparison of the
+decks against the central pane's box, an exact `✓ 5/7 playable`, and a playing
+deck surviving a background click, Escape and two view switches. A second probe
+catches the progress bar mid-scan of a 6,000-file folder (item 2) and drives
+the tour to the preview step and out again (item 9). Both themes and a 3× halo
+capture were reviewed by eye. Item 5 is by ear, on a real library.
 
 ## Resolved in v28
 
