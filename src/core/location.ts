@@ -71,6 +71,12 @@ export function basenameOf(location: string): string {
  * collapses the prefix, and `/Users` helps nobody. It is a hint, not a
  * contract; a majority-covering variant is not worth the code.
  */
+function formatPath(segments: readonly string[]): string {
+  // `C:` is an ordinary segment to locationSegments, but `/C:/Users` is not
+  // what a Windows dialog accepts pasted back.
+  return /^[A-Za-z]:$/.test(segments[0]) ? segments.join('\\') : `/${segments.join('/')}`
+}
+
 export function commonAncestorPath(locations: readonly (string | null)[]): string | null {
   let prefix: string[] | null = null
   for (const location of locations) {
@@ -92,7 +98,49 @@ export function commonAncestorPath(locations: readonly (string | null)[]): strin
     if (prefix.length === 0) return null
   }
   if (prefix === null || prefix.length < 2) return null
-  // `C:` is an ordinary segment to locationSegments, but `/C:/Users` is not
-  // what a Windows dialog accepts pasted back.
-  return /^[A-Za-z]:$/.test(prefix[0]) ? prefix.join('\\') : `/${prefix.join('/')}`
+  return formatPath(prefix)
+}
+
+/**
+ * A track the user will recognise, where it claims to live, and the folder to
+ * link because of it (v29 #3).
+ *
+ * The bare shared-ancestor path was never enough on its own: it says where to
+ * go without saying *why*, and it disappears entirely — `commonAncestorPath`
+ * returns null — the moment one stray track sits somewhere else. A worked
+ * example survives both. The parameter is structural rather than `Track` so
+ * this module stays free of the library model.
+ */
+export interface FolderHint {
+  /** A real track, its full path, and the folder that path sits in. */
+  example: { label: string; path: string; folder: string | null } | null
+  /** The deepest folder every located track shares, when there is one. */
+  suggested: string | null
+  /** No shared folder worth naming, though the library does have paths. */
+  scattered: boolean
+}
+
+export interface HintTrack {
+  title: string
+  artist: string | null
+  location: string | null
+}
+
+export function folderHint(tracks: readonly HintTrack[]): FolderHint {
+  const located = tracks.find((t) => t.location !== null && t.location !== '')
+  const suggested = commonAncestorPath(tracks.map((t) => t.location))
+  if (located === undefined || located.location === null) {
+    return { example: null, suggested, scattered: false }
+  }
+  const segments = locationSegments(located.location)
+  const directory = segments.slice(0, -1)
+  return {
+    example: {
+      label: located.artist === null ? located.title : `${located.artist} — ${located.title}`,
+      path: formatPath(segments),
+      folder: directory.length > 0 ? formatPath(directory) : null,
+    },
+    suggested,
+    scattered: suggested === null,
+  }
 }

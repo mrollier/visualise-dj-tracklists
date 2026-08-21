@@ -1,6 +1,6 @@
 <script lang="ts">
   import { coverageLine } from '../core/audio/coverage'
-  import { commonAncestorPath } from '../core/location'
+  import { folderHint } from '../core/location'
   import { library } from '../stores'
   import {
     canLinkPersistently,
@@ -12,6 +12,7 @@
     sourceState,
     usePickedFiles,
   } from './audio/sourceStore'
+  import InfoTooltip from './InfoTooltip.svelte'
   import { isSampleLibrary } from './persistence'
   import ProgressBar from './ProgressBar.svelte'
 
@@ -41,9 +42,22 @@
    * and `<input webkitdirectory>` takes nothing at all. Showing the path is
    * the whole of what is left, and it is enough: the macOS open panel takes
    * ⌘⇧G and a paste, GTK and Windows dialogs take Ctrl+L.
+   *
+   * v29 #3: the bare path never said *why* it was the right folder, and it
+   * vanished entirely for a library with one track on another volume. The
+   * worked example — this track, that path, so this folder — survives both.
    */
-  const suggestedPath = $derived(
-    sampleLibrary ? null : commonAncestorPath($library.map((t) => t.location)),
+  const hint = $derived(sampleLibrary ? null : folderHint($library))
+  const suggestedPath = $derived(hint?.suggested ?? null)
+  /** What to paste when there is no shared ancestor: the example's own folder. */
+  const fallbackPath = $derived(suggestedPath ?? hint?.example?.folder ?? null)
+
+  /**
+   * A link that resolved nothing is almost always the wrong folder, not a
+   * broken library — and `✓ 0 of 2080 playable` reads like a success.
+   */
+  const matchedNothing = $derived(
+    $coverage !== null && $coverage.total > 0 && $coverage.playable === 0,
   )
 
   const jumpKeys =
@@ -71,7 +85,7 @@
   })
 
   function copyPath() {
-    const path = suggestedPath
+    const path = fallbackPath
     if (path === null) return
     void navigator.clipboard
       ?.writeText(path)
@@ -104,20 +118,32 @@
   {:else if $sourceState === 'needs-permission'}
     <button onclick={() => void reconnect()}>Reconnect “{$rootName}”</button>
   {:else if $sourceState === 'ready' && $coverage !== null}
-    <button class="coverage" onclick={pickFolder} title="Change the linked music folder">
-      ✓ {coverageLine($coverage)}
+    <button
+      class="coverage"
+      class:empty={matchedNothing}
+      onclick={pickFolder}
+      title="Change the linked music folder"
+    >
+      {matchedNothing ? '⚠ nothing matched' : `✓ ${coverageLine($coverage)}`}
     </button>
+    {#if matchedNothing}
+      <!-- Same tip as before linking: the folder is the thing to change. -->
+      {@render folderTip()}
+    {/if}
   {:else}
     <button onclick={pickFolder} disabled={sampleLibrary}>Link music folder…</button>
-    {#if suggestedPath !== null}
+    {#if hint !== null && (hint.example !== null || suggestedPath !== null)}
+      {@render folderTip()}
+    {/if}
+    {#if fallbackPath !== null}
       <!-- Deliberately a separate control from the button above: the picker is
            modal, so the copy has to happen first. -->
       <button
         class="path"
         onclick={copyPath}
-        title="Your library lives in {suggestedPath} — copy it, then press {jumpKeys} in the picker"
+        title="Copy {fallbackPath}, then press {jumpKeys} in the picker"
       >
-        {copied ? '✓ copied' : suggestedPath} ⧉
+        {copied ? '✓ copied' : fallbackPath} ⧉
       </button>
     {/if}
   {/if}
@@ -134,12 +160,38 @@
   />
 </div>
 
-{#if layout === 'panel' && suggestedPath !== null && $sourceState !== 'ready'}
+{#if layout === 'panel' && fallbackPath !== null && $sourceState !== 'ready'}
   <p class="tip">
-    Your library lives in that folder. Copy the path, then press {jumpKeys} in the picker to jump straight
-    there — no browser lets this page open it for you.
+    Copy the path, then press {jumpKeys} in the picker to jump straight there — no browser lets this page
+    open it for you.
   </p>
 {/if}
+
+<!-- The worked example (v29 #3), identical in the bar and the panel: which
+     track, where it claims to live, and therefore which folder to link. -->
+{#snippet folderTip()}
+  <InfoTooltip label="Which folder to link" align={layout === 'bar' ? 'right' : 'left'}>
+    {#if hint?.example != null}
+      <span><strong>{hint.example.label}</strong> is at {hint.example.path}</span>
+    {/if}
+    {#if suggestedPath !== null}
+      <span>So link <strong>{suggestedPath}</strong> — or any folder above it.</span>
+    {:else if hint?.example?.folder != null}
+      <span>
+        Your tracks are spread across several places, so there is no one folder they all sit in.
+        Link
+        <strong>{hint.example.folder}</strong> or a folder above it, and whatever it contains resolves.
+      </span>
+    {/if}
+    <span>
+      Files are matched by name and folder, never by the absolute path in your library — so a parent
+      folder is always safe, and a library that moved machines still resolves.
+    </span>
+    <span>
+      No browser lets this page open the picker at a path. Copy it, then press {jumpKeys} in the picker.
+    </span>
+  </InfoTooltip>
+{/snippet}
 
 <style>
   .link {
@@ -178,6 +230,10 @@
     color: var(--ink-muted);
     background: none;
     border-color: transparent;
+  }
+
+  .coverage.empty {
+    color: var(--walk-bright);
   }
 
   .path {

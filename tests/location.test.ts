@@ -4,6 +4,8 @@ import {
   commonAncestorPath,
   foldSegment,
   foldSegments,
+  folderHint,
+  type HintTrack,
   locationSegments,
   locationToPath,
 } from '../src/core/location'
@@ -162,5 +164,70 @@ describe('commonAncestorPath', () => {
         at('/Users/mich/Music/B.mp3'),
       ]),
     ).toBe('/Users/mich/Music')
+  })
+})
+
+describe('folderHint', () => {
+  const at = (title: string, location: string | null, artist: string | null = null): HintTrack => ({
+    title,
+    artist,
+    location,
+  })
+
+  test('names a real track, its path and the folder that path sits in', () => {
+    const hint = folderHint([
+      at('Nightmares', 'file://localhost/Users/mr/Music/House/2019/Nightmares.mp3', 'Dusky'),
+      at('Aeon', 'file://localhost/Users/mr/Music/Techno/Aeon.aiff'),
+    ])
+    expect(hint.example).toEqual({
+      label: 'Dusky — Nightmares',
+      path: '/Users/mr/Music/House/2019/Nightmares.mp3',
+      folder: '/Users/mr/Music/House/2019',
+    })
+    expect(hint.suggested).toBe('/Users/mr/Music')
+    expect(hint.scattered).toBe(false)
+  })
+
+  test('falls back to the bare title when there is no artist', () => {
+    const hint = folderHint([at('Aeon', 'file://localhost/Users/mr/Music/Techno/Aeon.aiff')])
+    expect(hint.example?.label).toBe('Aeon')
+  })
+
+  test('reports scattered when one outlier collapses the shared ancestor', () => {
+    // The exact case commonAncestorPath refuses to answer: one track on
+    // another volume leaves no shared prefix at all. The example still says
+    // something useful, which is the point of having one.
+    const hint = folderHint([
+      at('Nightmares', 'file://localhost/Users/mr/Music/House/Nightmares.mp3'),
+      at('Stray', 'file://localhost/Volumes/Backup/Stray.mp3'),
+    ])
+    expect(hint.suggested).toBe(null)
+    expect(hint.scattered).toBe(true)
+    expect(hint.example?.folder).toBe('/Users/mr/Music/House')
+  })
+
+  test('skips tracks with no location when choosing the example', () => {
+    const hint = folderHint([
+      at('No path', null),
+      at('Empty path', ''),
+      at('Real', 'file://localhost/Users/mr/Music/House/Real.mp3'),
+    ])
+    expect(hint.example?.label).toBe('Real')
+  })
+
+  test('has no example at all when nothing in the library has a path', () => {
+    const hint = folderHint([at('One', null), at('Two', null)])
+    expect(hint).toEqual({ example: null, suggested: null, scattered: false })
+  })
+
+  test('keeps a Windows path in the form a Windows dialog accepts', () => {
+    const hint = folderHint([at('Track', 'file:///C:/Users/mr/Music/House/Track.mp3')])
+    expect(hint.example?.path).toBe('C:\\Users\\mr\\Music\\House\\Track.mp3')
+    expect(hint.example?.folder).toBe('C:\\Users\\mr\\Music\\House')
+  })
+
+  test('percent-encoded paths are decoded for display', () => {
+    const hint = folderHint([at('Track', 'file://localhost/Users/mr/Music/Deep%20House/T.mp3')])
+    expect(hint.example?.folder).toBe('/Users/mr/Music/Deep House')
   })
 })
