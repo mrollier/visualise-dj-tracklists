@@ -28,6 +28,9 @@
   let folderInput = $state<HTMLInputElement | undefined>()
   let copied = $state(false)
   let copyTimer: ReturnType<typeof setTimeout> | undefined
+  // The bar unmounts whenever the preview is switched off; a pending "copied"
+  // reset would then fire into a destroyed component.
+  $effect(() => () => clearTimeout(copyTimer))
 
   const sampleLibrary = $derived(isSampleLibrary($library))
 

@@ -38,6 +38,30 @@ export const deckError = writable<Record<DeckId, UnplayableReason | null>>({ a: 
 
 /** Which track's bytes are actually in each element right now. */
 const materialised: Record<DeckId, string | null> = { a: null, b: null }
+/**
+ * The most recent load each deck was asked for. `fileFor` is async on the FSA
+ * backend, so without a token a slow resolve can land after a newer click and
+ * leave the deck holding a track nobody asked for.
+ */
+const wanted: Record<DeckId, string | null> = { a: null, b: null }
+/**
+ * Loading a track into an element starts a media pipeline, and doing that
+ * repeatedly underneath a playing deck is one of the ways the audio drops out
+ * (v29 #5). Clicking through the wheel need not pre-load every track it passes
+ * — only the one the pointer settles on.
+ */
+const PRELOAD_DELAY_MS = 200
+const preloadTimers: Record<DeckId, ReturnType<typeof setTimeout> | undefined> = {
+  a: undefined,
+  b: undefined,
+}
+/** togglePlay awaits a load between its own checks; one click at a time. */
+const busy: Record<DeckId, boolean> = { a: false, b: false }
+
+function cancelPreload(deck: DeckId): void {
+  clearTimeout(preloadTimers[deck])
+  preloadTimers[deck] = undefined
+}
 
 export function coverageText(): string {
   const report = get(coverage)
@@ -82,14 +106,21 @@ function apply(effects: readonly DeckEffect[]): void {
       materialised.b = held
       swapDeckUi()
     } else if (effect.kind === 'clear') {
+      cancelPreload(effect.deck)
+      wanted[effect.deck] = null
       engine.clearDeck(effect.deck)
       materialised[effect.deck] = null
       resetDeckUi(effect.deck)
     } else {
       resetDeckUi(effect.deck)
       // Only pre-load once a gesture has paid for the graph; before that the
-      // first play click materialises it.
-      if (engine.hasContext()) void materialise(effect.deck, effect.trackId)
+      // first play click materialises it. Debounced, so a click-storm through
+      // the wheel does not churn the media pipeline under a playing deck.
+      const { deck, trackId } = effect
+      cancelPreload(deck)
+      if (engine.hasContext()) {
+        preloadTimers[deck] = setTimeout(() => void materialise(deck, trackId), PRELOAD_DELAY_MS)
+      }
     }
   }
 }
@@ -103,6 +134,7 @@ function dispatch(event: DeckEvent): void {
 
 async function materialise(deck: DeckId, trackId: string): Promise<boolean> {
   if (materialised[deck] === trackId) return true
+  wanted[deck] = trackId
   const source = currentSource()
   const resolution = resolutionFor(trackId)
   if (source === null || resolution === undefined || resolution.kind !== 'playable') {
@@ -112,11 +144,17 @@ async function materialise(deck: DeckId, trackId: string): Promise<boolean> {
     return false
   }
   try {
-    engine.loadDeck(deck, await source.fileFor(resolution.handle))
+    const file = await source.fileFor(resolution.handle)
+    // A newer click won while this one was reading the disk.
+    if (wanted[deck] !== trackId) return false
+    // Awaited: loadDeck fades a sounding deck down before it swaps `src`, so
+    // the bytes are not in the element the instant the call returns.
+    await engine.loadDeck(deck, file)
   } catch {
     deckError.update((e) => ({ ...e, [deck]: 'read-error' }))
     return false
   }
+  if (wanted[deck] !== trackId) return false
   materialised[deck] = trackId
   return true
 }
@@ -126,18 +164,28 @@ export async function togglePlay(deck: DeckId): Promise<void> {
   engine.ensureContext()
   const trackId = get(decks)[deck]
   if (trackId === null) return
-  if (engine.isPlaying(deck)) {
-    engine.pause(deck)
-    playing.update((p) => ({ ...p, [deck]: false }))
-    return
-  }
-  if (!(await materialise(deck, trackId))) return
-  applyGains(get(decks))
+  // There is an await between the isPlaying check and the play() below, so a
+  // second click during it would see a paused deck and issue a second play().
+  if (busy[deck]) return
+  busy[deck] = true
   try {
+    if (engine.isPlaying(deck)) {
+      engine.pause(deck)
+      playing.update((p) => ({ ...p, [deck]: false }))
+      return
+    }
+    cancelPreload(deck)
+    if (!(await materialise(deck, trackId))) return
+    // Before play(), so the element starts under a gain that is ramping up to
+    // its commanded level rather than snapping to it: the fade-in IS the
+    // de-click on the play side.
+    applyGains(get(decks))
     await engine.play(deck)
     playing.update((p) => ({ ...p, [deck]: true }))
   } catch {
     deckError.update((e) => ({ ...e, [deck]: 'read-error' }))
+  } finally {
+    busy[deck] = false
   }
 }
 
@@ -147,11 +195,18 @@ export function seekDeck(deck: DeckId, seconds: number): void {
   positions.update((p) => ({ ...p, [deck]: landed }))
 }
 
+/**
+ * Both pin and unpin recentre the fader (v29 #5). It was never reset, so
+ * pinning with the fader parked off-centre stepped the surviving deck's level
+ * in one ramp — and centre is the listening position for a comparison anyway.
+ */
 export function lockDeck(): void {
+  crossfade.set(0)
   dispatch({ type: 'lock' })
 }
 
 export function unlockDeck(): void {
+  crossfade.set(0)
   dispatch({ type: 'unlock' })
 }
 
@@ -205,8 +260,12 @@ export function startPlayer(): void {
     // bar. The folder link survives — it is a property of this machine.
     if (!s.audioPreview && engine.hasContext()) {
       engine.dispose()
+      cancelPreload('a')
+      cancelPreload('b')
       materialised.a = null
       materialised.b = null
+      wanted.a = null
+      wanted.b = null
       decks.set(EMPTY_DECKS)
       playing.set({ a: false, b: false })
     }

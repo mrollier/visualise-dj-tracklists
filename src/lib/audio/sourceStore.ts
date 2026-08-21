@@ -75,9 +75,16 @@ export async function linkFolder(): Promise<void> {
   const handle = await pickDirectory()
   if (handle === null) return
   sourceState.set('indexing')
-  const next = await openFsaSource(handle, (n) => indexedCount.set(n))
-  await saveRootHandle(handle)
-  adopt(next)
+  // A folder can be renamed, unmounted or have its permission revoked partway
+  // through the walk. Without this the state stuck on 'indexing' for the rest
+  // of the session and the UI scanned forever.
+  try {
+    const next = await openFsaSource(handle, (n) => indexedCount.set(n))
+    await saveRootHandle(handle)
+    adopt(next)
+  } catch {
+    await forgetFolder()
+  }
 }
 
 /** The webkitdirectory path: files the user has just picked, session-only. */
@@ -92,13 +99,17 @@ export async function reconnect(): Promise<void> {
   const handle = pendingHandle
   if (handle === null) return
   sourceState.set('indexing')
-  const next = await openFsaSource(handle, (n) => indexedCount.set(n))
-  if (!(await next.ensurePermission())) {
+  try {
+    const next = await openFsaSource(handle, (n) => indexedCount.set(n))
+    if (!(await next.ensurePermission())) {
+      await forgetFolder()
+      return
+    }
+    pendingHandle = null
+    adopt(next)
+  } catch {
     await forgetFolder()
-    return
   }
-  pendingHandle = null
-  adopt(next)
 }
 
 export async function forgetFolder(): Promise<void> {
