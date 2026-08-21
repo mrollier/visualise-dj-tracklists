@@ -54,3 +54,44 @@ export function formatVerdict(extension: string | null, probe: CanPlayProbe): Fo
   if (passing < candidates.length && AMBIGUOUS_CONTAINERS.has(extension)) return 'unknown'
   return 'supported'
 }
+
+/**
+ * Why one format does or does not play, in a sentence a person can act on
+ * (v29 #7). "format unsupported in this browser" named neither the format nor
+ * the reason, and this is the message a Rekordbox library hits most often.
+ *
+ * Keyed by extension, because that is all we know: the verdict comes from
+ * `canPlayType` on a MIME string built from the extension, and nothing here
+ * ever opens the file to look inside it.
+ */
+const AIFF_NOTE =
+  'AIFF is uncompressed Apple audio, and the format Rekordbox writes when it converts. ' +
+  'Chrome and Firefox ship no AIFF decoder at all; Safari does. ' +
+  'So: open Zodiac Tracker in Safari, or convert these tracks to FLAC or WAV.'
+
+export const FORMAT_NOTES: Readonly<Record<string, string>> = {
+  aif: AIFF_NOTE,
+  aiff: AIFF_NOTE,
+  m4a:
+    'An .m4a holds either AAC, which every browser plays, or ALAC (Apple Lossless), ' +
+    'which only Safari decodes — the extension is the same either way. ' +
+    'An .m4a that will not play is almost certainly ALAC.',
+  flac:
+    'FLAC plays in Chrome, Firefox and Safari 11 and later, ' +
+    'so a refusal here points at an old browser or a file that is not really FLAC.',
+  wav:
+    'WAV plays everywhere as long as it holds ordinary PCM. ' +
+    'A WAV that will not play usually holds something else — 32-bit float, or ADPCM.',
+  ogg: 'Ogg Vorbis and Opus play in Chrome and Firefox. Safari plays neither.',
+  mp3: 'MP3 plays in every browser, so a refusal here is about this file rather than the format.',
+}
+
+/** The note for an extension, or a general one when the extension is unknown. */
+export function formatNote(extension: string | null): string {
+  if (extension === null)
+    return 'The file has no extension, so nothing can guess what is inside it.'
+  return (
+    FORMAT_NOTES[extension] ??
+    `.${extension} is not an audio extension this app recognises, so it was never indexed.`
+  )
+}

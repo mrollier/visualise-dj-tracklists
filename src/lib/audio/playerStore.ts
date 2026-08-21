@@ -226,10 +226,14 @@ export function startPlayer(): void {
 
   engine.onDeckEvent((deck, kind) => {
     if (kind === 'error') {
-      // MEDIA_ERR_SRC_NOT_SUPPORTED is the authoritative answer canPlayType
-      // could only guess at.
+      // The element's own verdict, which canPlayType could only guess at. The
+      // three outcomes are genuinely different facts and used to collapse into
+      // two (v29 #7): refused outright, decoded halfway and gave up, or never
+      // read at all.
       const code = engine.errorCodeOf(deck)
-      deckError.update((e) => ({ ...e, [deck]: code === 4 ? 'unsupported' : 'read-error' }))
+      const reason: UnplayableReason =
+        code === 4 ? 'unsupported' : code === 3 ? 'decode-failed' : 'read-error'
+      deckError.update((e) => ({ ...e, [deck]: reason }))
       playing.update((p) => ({ ...p, [deck]: false }))
       return
     }

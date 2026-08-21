@@ -1,5 +1,11 @@
 <script lang="ts">
-  import { reasonLabel } from '../core/audio/reasons'
+  import { extensionOf } from '../core/audio/formats'
+  import {
+    reasonDetail,
+    reasonLabel,
+    type ReasonContext,
+    type UnplayableReason,
+  } from '../core/audio/reasons'
   import type { Track } from '../core/model'
   import { library, settings } from '../stores'
   import {
@@ -42,26 +48,39 @@
    * Why a deck cannot play, most specific cause first. An error the element
    * itself raised beats the static guess; the folder state beats both, since
    * without a folder nothing is resolvable at all.
+   *
+   * Returns the short line for the row and the long one for the ⓘ beside it
+   * (v29 #7), from one reason and one context so the two cannot disagree.
    */
-  function reasonTextFor(deck: 'a' | 'b'): string | null {
+  function reasonFor(deck: 'a' | 'b'): { label: string; detail: string } | null {
     // Read the coverage store so this re-evaluates when the resolution map is
     // rebuilt — the map itself is plain module state, not reactive.
     void $coverage
     const trackId = $decks[deck]
     if (trackId === null) return null
-    const context = { sampleLibrary, rootName: $rootName }
+    const said = (reason: UnplayableReason, extra: Partial<ReasonContext> = {}) => {
+      const context = { sampleLibrary, rootName: $rootName, ...extra }
+      return { label: reasonLabel(reason, context), detail: reasonDetail(reason, context) }
+    }
     const raised = $deckError[deck]
-    if (raised !== null) return reasonLabel(raised, context)
-    if (sampleLibrary) return reasonLabel('no-location', context)
-    if ($sourceState === 'needs-permission') return reasonLabel('needs-permission', context)
-    if ($sourceState !== 'ready') return reasonLabel('no-source', context)
+    // `raised` is the element's verdict, not the static resolution's guess, and
+    // the copy says which of the two is speaking.
+    if (raised !== null) return said(raised, { raised: true, extension: extensionFor(trackId) })
+    if (sampleLibrary) return said('no-location')
+    if ($sourceState === 'needs-permission') return said('needs-permission')
+    if ($sourceState !== 'ready') return said('no-source')
     const resolution = resolutionFor(trackId)
     if (resolution === undefined || resolution.kind === 'playable') return null
-    return reasonLabel(resolution.reason, {
-      ...context,
+    return said(resolution.reason, {
       ambiguousCount: resolution.ambiguousCount,
       extension: resolution.extension,
     })
+  }
+
+  /** The library's own extension for a track, for an error the element raised. */
+  function extensionFor(trackId: string): string | null {
+    const track = $library.find((t) => t.id === trackId)
+    return track?.location == null ? null : extensionOf(track.location)
   }
 
   /** What the empty deck says: the folder is the blocker before the click is. */
@@ -109,7 +128,7 @@
           playing={$playing.a}
           position={$positions.a}
           duration={$durations.a}
-          reasonText={reasonTextFor('a')}
+          reason={reasonFor('a')}
           emptyText={null}
           locked={true}
           onToggle={() => void togglePlay('a')}
@@ -124,7 +143,7 @@
         playing={$playing.b}
         position={$positions.b}
         duration={$durations.b}
-        reasonText={reasonTextFor('b')}
+        reason={reasonFor('b')}
         emptyText={$decks.b === null ? emptyHint : null}
         locked={false}
         onToggle={() => void togglePlay('b')}

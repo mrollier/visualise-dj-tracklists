@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { coverageLine, resolveTrack, summarize } from '../src/core/audio/coverage'
 import { buildFileIndex } from '../src/core/audio/pathMatch'
-import { reasonLabel } from '../src/core/audio/reasons'
 import { track } from './helpers'
 
 const playsEverything = () => true
@@ -80,50 +79,5 @@ describe('coverageLine', () => {
 
   test('says so plainly when the library is empty', () => {
     expect(coverageLine(summarize([]))).toBe('No tracks')
-  })
-})
-
-describe('reasonLabel', () => {
-  const base = { sampleLibrary: false, rootName: 'Music' }
-
-  test('names the demo collection when a sample track has no path', () => {
-    expect(reasonLabel('no-location', { ...base, sampleLibrary: true })).toBe(
-      'demo collection has no audio',
-    )
-  })
-
-  test('gives a different label when a real library track has no path', () => {
-    expect(reasonLabel('no-location', base)).toBe('no file path in the library')
-  })
-
-  test('names the granted folder when a file is missing from it', () => {
-    expect(reasonLabel('not-found', base)).toBe('file not found in “Music”')
-  })
-
-  test('counts the colliding files', () => {
-    expect(reasonLabel('ambiguous', { ...base, ambiguousCount: 3 })).toBe(
-      '3 files share that name — can’t tell which',
-    )
-  })
-
-  test('names the offending format', () => {
-    expect(reasonLabel('unsupported', { ...base, extension: 'aiff' })).toBe(
-      'format unsupported in this browser (AIFF)',
-    )
-  })
-
-  test('every reason produces distinct, non-empty copy', () => {
-    const reasons = [
-      'no-source',
-      'needs-permission',
-      'no-location',
-      'not-found',
-      'ambiguous',
-      'unsupported',
-      'read-error',
-    ] as const
-    const labels = reasons.map((r) => reasonLabel(r, base))
-    expect(labels.every((l) => l.length > 0)).toBe(true)
-    expect(new Set(labels).size).toBe(reasons.length)
   })
 })

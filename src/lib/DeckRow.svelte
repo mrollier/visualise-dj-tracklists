@@ -2,6 +2,7 @@
   import type { DeckId } from '../core/audio/decks'
   import { formatDuration } from '../core/properties'
   import { marquee } from './marquee'
+  import InfoTooltip from './InfoTooltip.svelte'
   import LockIcon from './LockIcon.svelte'
   import PlayIcon from './PlayIcon.svelte'
 
@@ -12,8 +13,11 @@
     playing: boolean
     position: number
     duration: number | null
-    /** Why this deck cannot play, already worded. Null when it can. */
-    reasonText: string | null
+    /**
+     * Why this deck cannot play: the short line for the row, and the long one
+     * for the ⓘ beside it. Null when it can play.
+     */
+    reason: { label: string; detail: string } | null
     /** Shown when the deck holds no track at all. */
     emptyText: string | null
     locked: boolean
@@ -27,7 +31,7 @@
     playing,
     position,
     duration,
-    reasonText,
+    reason,
     emptyText,
     locked,
     onToggle,
@@ -39,7 +43,7 @@
   // click pays for one, so nothing knows the duration until after the first
   // play. Gating play on it would deadlock the deck. Duration gates the seek
   // line alone, which genuinely cannot work without a length.
-  const transportDisabled = $derived(emptyText !== null || reasonText !== null)
+  const transportDisabled = $derived(emptyText !== null || reason !== null)
   const seekDisabled = $derived(transportDisabled || duration === null)
   // While the thumb is held, the playhead must not write back or the two fight.
   let dragging = $state(false)
@@ -68,8 +72,13 @@
 
   {#if emptyText !== null}
     <span class="reason">{emptyText}</span>
-  {:else if reasonText !== null}
-    <span class="reason">{reasonText}</span>
+  {:else if reason !== null}
+    <!-- The row has one line of space, and "this browser can't play AIFF" is
+         not the whole story (v29 #7) — the rest is one hover away. -->
+    <span class="reason">
+      <span class="reason-text">{reason.label}</span>
+      <InfoTooltip label="Why this track cannot play">{reason.detail}</InfoTooltip>
+    </span>
   {:else}
     <span class="clock tabular">{formatDuration(shown)}</span>
     <input
@@ -197,8 +206,17 @@
   .reason {
     flex: 1;
     min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 2px;
     font-size: 12px;
     color: var(--ink-muted);
+  }
+
+  /* The ⓘ must stay visible while the sentence beside it truncates, so the
+     ellipsis lives on the text and not on the flex row holding both. */
+  .reason-text {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
