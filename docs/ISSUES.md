@@ -14,6 +14,107 @@ nineteen v13 items resolved in **v14**
 ([designs/design-v14.md](designs/design-v14.md) has the older per-issue notes).
 Each "Resolved" list records what actually shipped.
 
+## Open — v29 player review
+
+Michiel's review of the v28 audition bar after living with it against a real
+library. Ten items, shipping on `v29-player-review`; the rationale and the
+declined alternatives are in
+[designs/design-v29-player-review.md](designs/design-v29-player-review.md).
+They fall into three groups: the bar misrepresents its own state (1, 2, 3, 7),
+it is aimed at the wrong thing (6, 8, 10), and what you see and hear is not
+good enough (4, 5, 9).
+
+1. **The bar disappears entirely when no library is loaded, so switching
+   "Listen to tracks" on looks broken.** `PlayerBar.svelte:75` gates the whole
+   section on `$settings.audioPreview && $library.length > 0`. The second
+   clause contradicts the component's own stated principle three lines above
+   it (`PlayerBar.svelte:26-28`): _"It renders even when nothing can play, and
+   says why — a hidden bar cannot distinguish 'off' from 'broken'."_ Nothing
+   can play without a library, but a bar that says so is not the same as no
+   bar at all — and linking the music folder before importing is a perfectly
+   reasonable order to do things in.
+2. **Linking a music folder takes a long time behind a bare running integer.**
+   The walk is `O(all directory entries)` with one IPC round-trip per
+   directory (`fsaSource.ts:40-51`), and the only feedback is
+   `FolderLinkControl.svelte:71-72`'s `Scanning “{root}”… {n}`. Three things
+   are wrong with it: `rootName` is only set inside `adopt()`
+   (`sourceStore.ts:51`), i.e. _after_ the walk, so a first link reads
+   `Scanning… 0` with no folder name; `usePickedFiles` (`sourceStore.ts:84-88`)
+   sets `'indexing'` and calls `adopt()` in the same synchronous tick, so on
+   Firefox and Safari the state never paints at all; and `reindex`
+   (`sourceStore.ts:57-68`) is a second, unreported synchronous pass over the
+   whole library afterwards. There is no progress or spinner component
+   anywhere in the repo to reach for.
+3. **It is still not obvious which folder to link.** The only guidance is
+   `commonAncestorPath` (`core/location.ts:74-98`) as a bare copy button in
+   the bar and one paragraph in the panel (`FolderLinkControl.svelte:106-111`).
+   It returns `null` below two shared segments, so one outlier track on the
+   Desktop leaves a library with no hint at all. What is missing is the
+   worked example: _this track sits at that path, so link this folder_.
+4. **The breathing of the audible track is too faint, too slow, and paints
+   behind its neighbours.** Three separate causes, only one of which is the
+   animation. `nodeOpacity` (`WheelView.svelte:677-692`) drops out-of-focus
+   nodes to 0.12 and the `.dot` keyframes multiply against it, so an audible
+   track that is not also the selected one breathes between **0.12 and 0.054**.
+   Node paint order (`WheelView.svelte:565-603`, `:1264`) never depends on
+   selection or playback, so an audible star can sit under later-painted
+   neighbours — and hit-testing follows the same order, so it loses the click
+   too. The period is 2.6s in both views, and the wheel's peak is plain
+   `opacity: 1` (`WheelView.svelte:1976-1992`), i.e. the resting appearance,
+   with nowhere brighter to go.
+5. **Audio cracks.** Two symptoms, reported separately: a click exactly on
+   play / pause / track change, and random dropouts mid-track with no gesture
+   at all. The first is missing gain ramps — `engine.ts` stops and starts
+   audio at arbitrary sample values in `pause()` (`:135`), `loadDeck`'s
+   `element.pause()` before the `src` swap (`:101`), `clearDeck`'s
+   `removeAttribute('src')` (`:117`) and the bare `currentTime =` seek
+   (`:140`). The second points at starvation rather than the limiter: the
+   context is built with the default interactive `latencyHint` (`:53`), the
+   elements stay on `preload = 'metadata'` (`:72`), `loadDeck` calls
+   `element.load()` redundantly after assigning `src` (`:105`), and every
+   selection change speculatively materialises a file into an element
+   underneath whatever is playing (`playerStore.ts:87`).
+6. **The transport is centred over the window, not over the view it
+   describes.** `.player` is a plain flex row (`PlayerBar.svelte:134-160`)
+   while the central pane sits between a 250px left panel
+   (`CriteriaPanel.svelte:295`) and a 280px right rail (`App.svelte:130-138`).
+   The right-hand coverage chip takes whatever width it wants — `✓ 2043 of
+   2080 playable · 31 unsupported format · 6 not found`
+   (`core/audio/coverage.ts:66-75`) — and pushes the decks off centre.
+7. **"format unsupported in this browser" says neither what the format is nor
+   why it fails.** `core/audio/reasons.ts:38-40` appends the extension in
+   brackets and stops. It is the message a Rekordbox library hits most, since
+   Chrome decodes neither AIFF nor ALAC and Safari decodes both
+   (`designs/design-v28-audio-preview.md:260-266`), and the copy explains none
+   of that. Worse, the runtime error codes collapse to two
+   (`playerStore.ts:168-174`): a file the browser _refused outright_ and a
+   file it _started and gave up on_ — a damaged file, or a codec that is not
+   what the extension claims — read identically. `reasons.ts` has no test file.
+8. **The top lock icon throws away the track it is named after.** It reads
+   "Unpin the top track", and `reduceDecks`'s `'unlock'`
+   (`core/audio/decks.ts:78-84`) clears deck A and keeps deck B — so unpinning
+   discards the pinned track and leaves the other one. What it should do is
+   return to the single-row view with **the top track only**.
+9. **The preview is invisible to the guided tour.** No `data-tour` attribute
+   exists on `PlayerBar`, `DeckRow`, `FolderLinkControl` or the Advanced
+   "Preview" section, and no `STEPS` entry mentions it
+   (`TourOverlay.svelte:16-57`). Since `audioPreview` defaults to false
+   (`core/settings.ts:124`) and `enterDemoView()` never touches it
+   (`tour.ts:31-36`), a first-run user is never shown that the feature exists.
+10. **The deck follows the selection, so things that are not a track click
+    change what is playing.** `playerStore.ts:186-190` subscribes to
+    `selectedId`, and selection moves for a dozen reasons that are not "the
+    user clicked a track": the wheel hub's suggest / retry / ⟲ buttons
+    (`WheelView.svelte:829`, `:863`, `:876`), undo and redo restoring a
+    captured selection (`undoStore.ts:91` — and _every_ selection change
+    records an undo step), background clicks (`WheelView.svelte:912`,
+    `CriteriaPanel.svelte:79`, `TracklistPanel.svelte:365`), Escape
+    (`WheelView.svelte:902`), project load and library replacement
+    (`persistence.ts:82`, `:130`, `:267`, `TopBar.svelte:123`). The v28.1
+    deselection latch (`core/audio/decks.ts:54-63`) was a patch over exactly
+    this. The deck should change only on a direct click of a track, in the
+    Wheel view or the Tracks view.
+
 ## Open — v19 z-order review
 
 One item from a review of SVG rendering in WheelView.svelte carries over:
