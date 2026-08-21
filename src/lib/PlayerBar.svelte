@@ -25,7 +25,9 @@
    * the crossfader appear once deck A is locked.
    *
    * It renders even when nothing can play, and says why — a hidden bar cannot
-   * distinguish "off" from "broken".
+   * distinguish "off" from "broken". That now includes an empty library
+   * (v29 #1): switching the preview on used to produce nothing at all, which
+   * reads as a broken setting rather than a missing import.
    */
   const sampleLibrary = $derived(isSampleLibrary($library))
 
@@ -65,6 +67,13 @@
   /** What the empty deck says: the folder is the blocker before the click is. */
   const emptyHint = $derived.by(() => {
     const context = { sampleLibrary, rootName: $rootName }
+    // With no library there is nothing to click, but linking the folder first
+    // is a perfectly good order to do things in — so say what is missing
+    // rather than hiding the bar, which is the whole point of it rendering.
+    if ($library.length === 0)
+      return $sourceState === 'ready'
+        ? 'folder linked — import a library to hear its tracks'
+        : 'import a library, then link your music folder'
     if (sampleLibrary) return reasonLabel('no-location', context)
     if ($sourceState === 'needs-permission') return reasonLabel('needs-permission', context)
     if ($sourceState !== 'ready') return reasonLabel('no-source', context)
@@ -72,7 +81,7 @@
   })
 </script>
 
-{#if $settings.audioPreview && $library.length > 0}
+{#if $settings.audioPreview}
   <section class="player" aria-label="Audio preview">
     <div class="decks">
       <!-- Always rendered, input or not: the empty column is what keeps the
