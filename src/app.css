@@ -45,6 +45,13 @@
      shared by every element that uses this bounce (v14.1 WS11). */
   --bounce-transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
 
+  /* The two fixed side rails, so anything that wants to line up with the
+     CENTRAL pane can (v29 #6 — the player bar does). Declared once here
+     rather than repeated as bare pixel values in three components, which is
+     how they would come apart. */
+  --left-rail: 250px;
+  --right-rail: 280px;
+
   font-family:
     system-ui,
     -apple-system,

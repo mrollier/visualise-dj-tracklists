@@ -128,9 +128,10 @@
   }
 
   .right-aside {
-    /* v14 R1: fix the rail at the panels' own 280px so a long selected-track
-       title or link hint can never stretch it wider. */
-    width: 280px;
+    /* v14 R1: fix the rail at the panels' own width so a long selected-track
+       title or link hint can never stretch it wider. The player bar lines its
+       own right-hand column up with this one (v29 #6). */
+    width: var(--right-rail);
     flex-shrink: 0;
     display: flex;
     flex-direction: column;

@@ -73,3 +73,14 @@ export function coverageLine(report: CoverageReport): string {
   if (report.noLocation > 0) clauses.push(`${report.noLocation} without a file path`)
   return clauses.join(' · ')
 }
+
+/**
+ * The same answer at the width the player bar's right column actually has
+ * (v29 #6): `2043/2080 playable`. The clauses `coverageLine` adds move into
+ * the ⓘ beside it, where they can be read in full rather than truncated —
+ * and the reasons a track failed are the interesting half.
+ */
+export function coverageShort(report: CoverageReport): string {
+  if (report.total === 0) return 'No tracks'
+  return `${report.playable}/${report.total} playable`
+}

@@ -292,7 +292,7 @@
 
 <style>
   aside {
-    width: 250px;
+    width: var(--left-rail);
     flex-shrink: 0;
     padding: 14px;
     background: var(--page);

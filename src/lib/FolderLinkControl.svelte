@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { coverageLine } from '../core/audio/coverage'
+  import { coverageLine, coverageShort } from '../core/audio/coverage'
   import { folderHint } from '../core/location'
   import { library } from '../stores'
   import {
@@ -124,11 +124,34 @@
       onclick={pickFolder}
       title="Change the linked music folder"
     >
-      {matchedNothing ? '⚠ nothing matched' : `✓ ${coverageLine($coverage)}`}
+      {#if matchedNothing}
+        ⚠ nothing matched
+      {:else}
+        ✓ {layout === 'bar' ? coverageShort($coverage) : coverageLine($coverage)}
+      {/if}
     </button>
     {#if matchedNothing}
       <!-- Same tip as before linking: the folder is the thing to change. -->
       {@render folderTip()}
+    {:else if layout === 'bar' && $coverage.playable < $coverage.total}
+      <!-- The bar's column is the right rail's width, so the breakdown moves
+           behind the ⓘ rather than truncating (v29 #6) — and WHY a track
+           failed is the half worth keeping. -->
+      <InfoTooltip label="What can and cannot be previewed" align="right">
+        <span><strong>{$coverage.playable} of {$coverage.total} playable</strong></span>
+        {#if $coverage.unsupported > 0}
+          <span>{$coverage.unsupported} in a format this browser cannot play</span>
+        {/if}
+        {#if $coverage.notFound > 0}
+          <span>{$coverage.notFound} not found in “{$rootName}”</span>
+        {/if}
+        {#if $coverage.ambiguous > 0}
+          <span>{$coverage.ambiguous} whose name matches more than one file</span>
+        {/if}
+        {#if $coverage.noLocation > 0}
+          <span>{$coverage.noLocation} with no file path in the library</span>
+        {/if}
+      </InfoTooltip>
     {/if}
   {:else}
     <button onclick={pickFolder} disabled={sampleLibrary}>Link music folder…</button>

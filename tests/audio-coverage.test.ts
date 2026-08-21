@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { coverageLine, resolveTrack, summarize } from '../src/core/audio/coverage'
+import { coverageLine, coverageShort, resolveTrack, summarize } from '../src/core/audio/coverage'
 import { buildFileIndex } from '../src/core/audio/pathMatch'
 import { track } from './helpers'
 
@@ -79,5 +79,33 @@ describe('coverageLine', () => {
 
   test('says so plainly when the library is empty', () => {
     expect(coverageLine(summarize([]))).toBe('No tracks')
+  })
+})
+
+describe('coverageShort', () => {
+  const report = {
+    total: 2080,
+    playable: 2043,
+    unsupported: 31,
+    notFound: 6,
+    ambiguous: 0,
+    noLocation: 0,
+  }
+
+  test('fits the bar: the count, and nothing else', () => {
+    expect(coverageShort(report)).toBe('2043/2080 playable')
+  })
+
+  test('drops the clauses the full line carries', () => {
+    expect(coverageShort(report)).not.toContain('unsupported')
+    expect(coverageLine(report)).toContain('unsupported')
+  })
+
+  test('says so plainly when the library is empty', () => {
+    expect(coverageShort(summarize([]))).toBe('No tracks')
+  })
+
+  test('is honest about matching nothing', () => {
+    expect(coverageShort({ ...report, playable: 0 })).toBe('0/2080 playable')
   })
 })

@@ -159,12 +159,19 @@
 {/if}
 
 <style>
+  /* Three columns matching the app's own layout, so the transport sits over
+     the view it describes rather than over the whole window (v29 #6). The
+     side columns are reserved even when the right rail is absent (an empty
+     library), so importing one cannot shunt the transport sideways.
+
+     No horizontal padding here: column 2 has to start exactly at the central
+     pane's left edge, so what padding there is belongs on the cells. */
   .player {
     flex: 0 0 auto;
-    display: flex;
+    display: grid;
+    grid-template-columns: var(--left-rail) minmax(0, 1fr) var(--right-rail);
     align-items: center;
-    gap: 14px;
-    padding: 6px 14px;
+    padding: 6px 0;
     background: var(--surface-raised);
     border-bottom: 1px solid var(--border);
   }
@@ -174,7 +181,7 @@
      grid for both states (v28.2) — the fader cell is reserved even while
      empty, so pinning never shifts the transport sideways. */
   .decks {
-    flex: 1;
+    grid-column: 2;
     min-width: 0;
     display: grid;
     grid-template-columns: 22px 1fr;
@@ -183,8 +190,14 @@
     row-gap: 4px;
   }
 
+  /* The right rail's width, so whatever it holds has to fit what the panel
+     beside it would: the coverage read-out compresses rather than pushing the
+     decks off centre. */
   .source {
-    flex-shrink: 0;
+    grid-column: 3;
+    min-width: 0;
+    padding: 0 14px;
+    overflow: hidden;
   }
 
   /* Vertical, spanning both rows (v28.1). The old full-width horizontal
