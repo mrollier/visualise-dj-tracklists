@@ -30,6 +30,11 @@
       body: 'These criteria draw the edges. For the demo just Key and BPM are on, so the wheel stays easy to read. Lock one to require it, loosen it, or switch more on anytime.',
     },
     {
+      target: 'preview',
+      title: 'Or judge it by ear',
+      body: 'Those criteria decide a combo by its metadata — which is exactly what you are overriding when you disagree with them. So click a track and this bar loads it: play it, pin one with the padlock, and crossfade a second against it. It needs your own music folder, since the demo has no files behind it, and it lives under Advanced → Preview.',
+    },
+    {
       target: 'playlists',
       title: 'Focus on a crate',
       body: 'Toggle playlists to scope the wheel to part of your library; the filters and genres above narrow it further. The wheel and counts react live.',

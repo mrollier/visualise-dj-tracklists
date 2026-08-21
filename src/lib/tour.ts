@@ -22,17 +22,26 @@ const TOUR_SEEN_KEY = 'visualise-dj-tracklists:tour-seen'
 export const tourSnapshot = writable<Project | null>(null)
 
 /**
+ * The preview switch as it stood before the tour (v29 #9). The tour turns it
+ * on so there is a real audition bar to spotlight, and puts it back at the
+ * end — a guided tour has no business leaving a default-off feature on.
+ */
+let previewBefore: boolean | null = null
+
+/**
  * Put the app in the reproducible teaching view: Key + BPM criteria only (so
  * combos read simply), the wheel centre view, the constellation panel (not
- * advanced), and full mode — so every element a step points at is on screen.
- * Ephemeral view state (viewMode/rightPanel) isn't part of the snapshot, so
- * it isn't restored; the library/criteria/filters/sets are.
+ * advanced), full mode, and the audition bar visible — so every element a step
+ * points at is on screen. Ephemeral view state (viewMode/rightPanel) isn't
+ * part of the snapshot, so it isn't restored; the library/criteria/filters/
+ * sets are, and `audioPreview` is put back by `endTour`.
  */
 function enterDemoView(): void {
   criteria.set(structuredClone(EASY_CRITERIA))
   viewMode.set('wheel')
   rightPanel.set('set')
-  settings.update((s) => ({ ...s, uiMode: 'advanced' }))
+  previewBefore = get(settings).audioPreview
+  settings.update((s) => ({ ...s, uiMode: 'advanced', audioPreview: true }))
 }
 
 /** Load the Classic demo (auto-selected) and drop into the demo view. */
@@ -76,7 +85,18 @@ export function markTourSeen(): void {
 export function endTour(restore: boolean): void {
   markTourSeen()
   const snap = get(tourSnapshot)
-  if (restore && snap !== null) applyProject(snap)
+  const restored = restore && snap !== null
+  if (restored) applyProject(snap)
+  // Put the preview switch back where the tour found it. `applyProject` does
+  // it already on the "return to my work" exit, since settings are part of the
+  // snapshot — but the other exit leaves the demo state standing, and a
+  // first-run tour has no snapshot at all. An explicit switch-off during the
+  // tour is left alone: only a still-on switch is reverted.
+  const before = previewBefore
+  if (!restored && before !== null) {
+    settings.update((s) => (s.audioPreview ? { ...s, audioPreview: before } : s))
+  }
+  previewBefore = null
   tourSnapshot.set(null)
   tourStep.set(null)
 }

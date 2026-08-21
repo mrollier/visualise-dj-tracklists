@@ -101,7 +101,7 @@
 </script>
 
 {#if $settings.audioPreview}
-  <section class="player" aria-label="Audio preview">
+  <section class="player" aria-label="Audio preview" data-tour="preview">
     <div class="decks">
       <!-- Always rendered, input or not: the empty column is what keeps the
            play buttons from shifting sideways the moment a track is pinned. -->
