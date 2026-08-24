@@ -107,7 +107,7 @@
        the pass is just as long as the one after a fresh link. -->
   {#if $sourceState === 'indexing' || $indexProgress !== null}
     <span class="scan">
-      <span class="status">{scanText}</span>
+      <span class="status long">{scanText}</span>
       <ProgressBar
         label={scanText}
         value={$indexProgress?.total === null ? undefined : $indexProgress?.done}
@@ -116,7 +116,9 @@
       />
     </span>
   {:else if $sourceState === 'needs-permission'}
-    <button onclick={() => void reconnect()}>Reconnect “{$rootName}”</button>
+    <button onclick={() => void reconnect()} title="Reconnect “{$rootName}”">
+      <span class="long">Reconnect “{$rootName}”</span><span class="short">Reconnect</span>
+    </button>
   {:else if $sourceState === 'ready' && $coverage !== null}
     <button
       class="coverage"
@@ -125,18 +127,21 @@
       title="Change the linked music folder"
     >
       {#if matchedNothing}
-        ⚠ nothing matched
+        ⚠ <span class="long">nothing matched</span>
       {:else}
-        ✓ {layout === 'bar' ? coverageShort($coverage) : coverageLine($coverage)}
+        ✓ <span class="long">
+          {layout === 'bar' ? coverageShort($coverage) : coverageLine($coverage)}
+        </span>
       {/if}
     </button>
     {#if matchedNothing}
       <!-- Same tip as before linking: the folder is the thing to change. -->
       {@render folderTip()}
-    {:else if layout === 'bar' && $coverage.playable < $coverage.total}
-      <!-- The bar's column is the right rail's width, so the breakdown moves
-           behind the ⓘ rather than truncating (v29 #6) — and WHY a track
-           failed is the half worth keeping. -->
+    {:else if layout === 'bar'}
+      <!-- The breakdown lives behind the ⓘ rather than in the line (v29 #6) —
+           WHY a track failed is the half worth keeping. Unconditional since
+           v30: in a narrow bar the button is a bare ✓, so this is the only
+           place the numbers are, whether or not anything failed. -->
       <InfoTooltip label="What can and cannot be previewed" align="right">
         <span><strong>{$coverage.playable} of {$coverage.total} playable</strong></span>
         {#if $coverage.unsupported > 0}
@@ -154,7 +159,9 @@
       </InfoTooltip>
     {/if}
   {:else}
-    <button onclick={pickFolder} disabled={sampleLibrary}>Link music folder…</button>
+    <button onclick={pickFolder} disabled={sampleLibrary} title="Link music folder…">
+      <span class="long">Link music folder…</span><span class="short">Link…</span>
+    </button>
     {#if hint !== null && (hint.example !== null || suggestedPath !== null)}
       {@render folderTip()}
     {/if}
@@ -162,7 +169,7 @@
       <!-- Deliberately a separate control from the button above: the picker is
            modal, so the copy has to happen first. -->
       <button
-        class="path"
+        class="path long"
         onclick={copyPath}
         title="Copy {fallbackPath}, then press {jumpKeys} in the picker"
       >
@@ -229,14 +236,44 @@
     padding: 2px 0;
   }
 
-  /* The bar's column is narrow, so the label sits above the track rather than
-     beside it; in the panel the same stack simply gets the full width. */
+  /* v30: the bar's height must depend on how many decks are showing and on
+     nothing else — so in the bar the scan label sits BESIDE its progress bar
+     (and disappears entirely when there is no room for it), rather than above
+     it where it made the whole bar taller for the duration of a folder walk.
+     In the panel the stack keeps the full width it always had. */
   .scan {
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
     min-width: 0;
     flex: 1;
+  }
+
+  .link.panel .scan {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+
+  /* How much of itself the chip writes out, answered by the room the PLAYER BAR
+     actually has rather than by the right rail's width (v30) — the two stopped
+     being the same thing the moment a panel could be put away. `player` is the
+     container declared on `.player`; the panel copy of this control is not
+     inside it, so the query simply never applies there and the long form
+     always wins. Whatever the short form drops is in the ⓘ and the `title`. */
+  .short {
+    display: none;
+  }
+
+  @container player (max-width: 700px) {
+    .long {
+      display: none;
+    }
+
+    .short {
+      display: inline;
+    }
   }
 
   .status {

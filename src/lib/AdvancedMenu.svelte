@@ -268,8 +268,13 @@
   // re-asserts the declared value after every user toggle, so a one-way
   // attribute (reactive or static) permanently slams the sections shut.
   // 'filters' merged into 'tracks' in v11 (issue 1) — the surviving id keeps
-  // old saves' fold memory for the section that remains.
-  const SECTION_IDS = ['genre', 'keybpm', 'display', 'tracks', 'set', 'audio'] as const
+  // old saves' fold memory for the section that remains. 'audio' became 'view'
+  // in v30 and deliberately did NOT keep it: the section grew from one switch
+  // into the whole of what is on screen, so an old save's fold memory for the
+  // narrower thing is not memory of this one — and an id called 'audio' on a
+  // section called View misleads whoever reads it next. It costs one click,
+  // once.
+  const SECTION_IDS = ['genre', 'keybpm', 'display', 'tracks', 'set', 'view'] as const
   type SectionId = (typeof SECTION_IDS)[number]
   // One-time init from the store: settings is a svelte store, not runes state.
   const initiallyOpen = get(settings).advancedOpen
@@ -708,20 +713,22 @@
     </div>
   </details>
 
-  <details
-    class="section"
-    bind:open={sectionState.audio}
-    ontoggle={(e) => persistToggle('audio', e)}
-  >
-    <summary>Preview</summary>
+  <!-- v30: what was the Preview section, widened to the whole of what is on
+       screen. The three rows are the app's three panels, each also collapsible
+       from a button on its own edge; the top one has no separate switch,
+       because a bar you cannot see is a bar you cannot stop. -->
+  <details class="section" bind:open={sectionState.view} ontoggle={(e) => persistToggle('view', e)}>
+    <summary>View</summary>
     <label class="row">
       <input type="checkbox" bind:checked={$settings.audioPreview} />
-      Listen to tracks
+      Top panel — listen to tracks
       <InfoTooltip label="About audio preview">
-        Adds a player under the top bar so you can hear a track, pin one and crossfade a second
+        Adds a player above the wheel so you can hear a track, pin one and crossfade a second
         against it — checking a combo by ear rather than by metadata. A browser cannot open a file
         from the path in your library, so you also have to point the app at your music folder. The
-        audio is read on your machine and never uploaded, and nothing you play is recorded.
+        audio is read on your machine and never uploaded, and nothing you play is recorded. Hiding
+        it stops the sound, but keeps what was loaded: showing it again puts both decks back where
+        they were.
       </InfoTooltip>
     </label>
     {#if $settings.audioPreview}
@@ -729,6 +736,17 @@
            come back to. Same component, so they cannot drift apart. -->
       <FolderLinkControl layout="panel" />
     {/if}
+    <label class="row">
+      <input type="checkbox" bind:checked={$settings.showLeftPanel} />
+      Left panel — playlists, filters and criteria
+    </label>
+    <label class="row">
+      <input type="checkbox" bind:checked={$settings.showRightPanel} />
+      Right panel — the constellation
+    </label>
+    <p class="hint">
+      Advanced settings borrow the right panel, so this one only takes effect once you close them.
+    </p>
   </details>
 
   <!-- The guided tour otherwise only replays from a link buried in the

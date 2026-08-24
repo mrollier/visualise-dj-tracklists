@@ -1,6 +1,7 @@
 import { get, writable } from 'svelte/store'
 import { EASY_CRITERIA } from '../core/combos'
 import type { Project } from '../core/persist'
+import type { AppSettings } from '../core/settings'
 import { applyProject, currentProject, loadSampleCollection } from './persistence'
 import { criteria, library, rightPanel, settings, tourStep, viewMode } from '../stores'
 
@@ -22,26 +23,36 @@ const TOUR_SEEN_KEY = 'visualise-dj-tracklists:tour-seen'
 export const tourSnapshot = writable<Project | null>(null)
 
 /**
- * The preview switch as it stood before the tour (v29 #9). The tour turns it
- * on so there is a real audition bar to spotlight, and puts it back at the
- * end — a guided tour has no business leaving a default-off feature on.
+ * The three panel switches as they stood before the tour (v29 #9, widened in
+ * v30). The tour turns all three on, since every step points at something
+ * inside one of them, and puts them back at the end — a guided tour has no
+ * business leaving a default-off feature on, or re-opening a panel someone
+ * deliberately put away.
  */
-let previewBefore: boolean | null = null
+type PanelSwitches = Pick<AppSettings, 'audioPreview' | 'showLeftPanel' | 'showRightPanel'>
+let panelsBefore: PanelSwitches | null = null
 
 /**
  * Put the app in the reproducible teaching view: Key + BPM criteria only (so
  * combos read simply), the wheel centre view, the constellation panel (not
- * advanced), full mode, and the audition bar visible — so every element a step
+ * advanced), full mode, and all three panels showing — so every element a step
  * points at is on screen. Ephemeral view state (viewMode/rightPanel) isn't
  * part of the snapshot, so it isn't restored; the library/criteria/filters/
- * sets are, and `audioPreview` is put back by `endTour`.
+ * sets are, and the panel switches are put back by `endTour`.
  */
 function enterDemoView(): void {
   criteria.set(structuredClone(EASY_CRITERIA))
   viewMode.set('wheel')
   rightPanel.set('set')
-  previewBefore = get(settings).audioPreview
-  settings.update((s) => ({ ...s, uiMode: 'advanced', audioPreview: true }))
+  const { audioPreview, showLeftPanel, showRightPanel } = get(settings)
+  panelsBefore = { audioPreview, showLeftPanel, showRightPanel }
+  settings.update((s) => ({
+    ...s,
+    uiMode: 'advanced',
+    audioPreview: true,
+    showLeftPanel: true,
+    showRightPanel: true,
+  }))
 }
 
 /** Load the Classic demo (auto-selected) and drop into the demo view. */
@@ -87,16 +98,22 @@ export function endTour(restore: boolean): void {
   const snap = get(tourSnapshot)
   const restored = restore && snap !== null
   if (restored) applyProject(snap)
-  // Put the preview switch back where the tour found it. `applyProject` does
-  // it already on the "return to my work" exit, since settings are part of the
-  // snapshot — but the other exit leaves the demo state standing, and a
+  // Put the three panel switches back where the tour found them. `applyProject`
+  // does it already on the "return to my work" exit, since settings are part of
+  // the snapshot — but the other exit leaves the demo state standing, and a
   // first-run tour has no snapshot at all. An explicit switch-off during the
-  // tour is left alone: only a still-on switch is reverted.
-  const before = previewBefore
+  // tour is left alone: only a switch the tour itself still has turned on is
+  // reverted.
+  const before = panelsBefore
   if (!restored && before !== null) {
-    settings.update((s) => (s.audioPreview ? { ...s, audioPreview: before } : s))
+    settings.update((s) => ({
+      ...s,
+      audioPreview: s.audioPreview ? before.audioPreview : s.audioPreview,
+      showLeftPanel: s.showLeftPanel ? before.showLeftPanel : s.showLeftPanel,
+      showRightPanel: s.showRightPanel ? before.showRightPanel : s.showRightPanel,
+    }))
   }
-  previewBefore = null
+  panelsBefore = null
   tourSnapshot.set(null)
   tourStep.set(null)
 }

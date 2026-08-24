@@ -58,6 +58,31 @@ const preloadTimers: Record<DeckId, ReturnType<typeof setTimeout> | undefined> =
 /** togglePlay awaits a load between its own checks; one click at a time. */
 const busy: Record<DeckId, boolean> = { a: false, b: false }
 
+/**
+ * What the bar was holding when it was hidden (v30).
+ *
+ * Hiding the bar really does switch the audio off — the graph is disposed, so
+ * nothing can be playing out of a transport nobody can see. But the SESSION is
+ * not the sound: what was pinned, what was clicked, where each deck stood and
+ * where the fader sat all survive the collapse and are handed back when the bar
+ * returns, paused where they were. It lives here rather than in the project
+ * file for the reason stated at the top: none of this is ever persisted.
+ */
+interface Suspended {
+  decks: DeckState
+  crossfade: number
+  positions: Record<DeckId, number>
+  durations: Record<DeckId, number | null>
+}
+let suspended: Suspended | null = null
+/**
+ * Where a restored deck has to be put back to, once its file is in the element.
+ * Deferred rather than applied at load time because `currentTime` before
+ * `loadedmetadata` is unreliable — the element has no duration to clamp it
+ * against yet, so the write is dropped or throws depending on the browser.
+ */
+const pendingSeek: Record<DeckId, number | null> = { a: null, b: null }
+
 function cancelPreload(deck: DeckId): void {
   clearTimeout(preloadTimers[deck])
   preloadTimers[deck] = undefined
@@ -104,10 +129,14 @@ function apply(effects: readonly DeckEffect[]): void {
       const held = materialised.a
       materialised.a = materialised.b
       materialised.b = held
+      const seek = pendingSeek.a
+      pendingSeek.a = pendingSeek.b
+      pendingSeek.b = seek
       swapDeckUi()
     } else if (effect.kind === 'clear') {
       cancelPreload(effect.deck)
       wanted[effect.deck] = null
+      pendingSeek[effect.deck] = null
       engine.clearDeck(effect.deck)
       materialised[effect.deck] = null
       resetDeckUi(effect.deck)
@@ -117,6 +146,7 @@ function apply(effects: readonly DeckEffect[]): void {
       // first play click materialises it. Debounced, so a click-storm through
       // the wheel does not churn the media pipeline under a playing deck.
       const { deck, trackId } = effect
+      pendingSeek[deck] = null
       cancelPreload(deck)
       if (engine.hasContext()) {
         preloadTimers[deck] = setTimeout(() => void materialise(deck, trackId), PRELOAD_DELAY_MS)
@@ -190,6 +220,8 @@ export async function togglePlay(deck: DeckId): Promise<void> {
 }
 
 export function seekDeck(deck: DeckId, seconds: number): void {
+  // Whatever a restore was about to put back, the user has just overruled it.
+  pendingSeek[deck] = null
   const landed = clampSeek(seconds, get(durations)[deck])
   engine.seek(deck, landed)
   positions.update((p) => ({ ...p, [deck]: landed }))
@@ -215,6 +247,68 @@ export function setCrossfade(position: number): void {
   applyGains(get(decks))
 }
 
+/**
+ * Hiding the bar (v30). Turning the feature off must genuinely silence it, not
+ * just hide the transport — so the graph goes. The folder link survives, being
+ * a property of this machine, and so now does the session.
+ */
+function suspendPreview(): void {
+  suspended = {
+    decks: get(decks),
+    crossfade: get(crossfade),
+    positions: { ...get(positions) },
+    durations: { ...get(durations) },
+  }
+  engine.dispose()
+  cancelPreload('a')
+  cancelPreload('b')
+  for (const deck of ['a', 'b'] as const) {
+    materialised[deck] = null
+    wanted[deck] = null
+    pendingSeek[deck] = null
+  }
+  decks.set(EMPTY_DECKS)
+  playing.set({ a: false, b: false })
+  positions.set({ a: 0, b: 0 })
+  durations.set({ a: null, b: null })
+  deckError.set({ a: null, b: null })
+}
+
+/**
+ * Showing it again. Nothing resumes playing: a deck comes back loaded and
+ * paused at the position it held, which is what "where I left off" means for a
+ * bar that was not on screen to be stopped.
+ */
+function resumePreview(): void {
+  const snap = suspended
+  suspended = null
+  // Nothing was suspended — the feature is simply being switched on, and it
+  // must stay as cheap as it was before v30: no graph until a gesture pays for
+  // one. This is also the branch a project load takes.
+  if (snap === null) return
+  decks.set(snap.decks)
+  crossfade.set(snap.crossfade)
+  // A track that left the library while the bar was away is dropped by the
+  // reducer's own library case, exactly as a real import would drop it.
+  dispatch({ type: 'library', knownIds: new Set(get(library).map((t) => t.id)) })
+  const state = get(decks)
+  for (const deck of ['a', 'b'] as const) {
+    if (state[deck] === null) continue
+    positions.update((p) => ({ ...p, [deck]: snap.positions[deck] }))
+    durations.update((d) => ({ ...d, [deck]: snap.durations[deck] }))
+    pendingSeek[deck] = snap.positions[deck]
+  }
+  // Showing the bar is itself a gesture, so the graph can be rebuilt right
+  // here — which is what lets the decks come back actually loaded instead of as
+  // two titles waiting for a click to mean anything.
+  engine.ensureContext()
+  applyGains(state)
+  for (const deck of ['a', 'b'] as const) {
+    const id = state[deck]
+    if (id !== null) void materialise(deck, id)
+  }
+}
+
 function trackById(tracks: readonly Track[], id: string | null): Track | undefined {
   return id === null ? undefined : tracks.find((t) => t.id === id)
 }
@@ -238,6 +332,14 @@ export function startPlayer(): void {
       return
     }
     if (kind === 'ended') playing.update((p) => ({ ...p, [deck]: false }))
+    // The element now knows its duration, which is the first moment a seek can
+    // land — so this is where a deck restored with the bar goes back to where
+    // it stood when the bar was hidden (v30).
+    if (kind === 'meta') {
+      const at = pendingSeek[deck]
+      pendingSeek[deck] = null
+      if (at !== null && at > 0) engine.seek(deck, at)
+    }
     const { currentTime, duration } = engine.positionOf(deck)
     positions.update((p) => ({ ...p, [deck]: currentTime }))
     const track = trackById(get(library), get(decks)[deck])
@@ -259,20 +361,14 @@ export function startPlayer(): void {
     void reindex()
   })
 
+  // The TRANSITION, not the value: every settings change publishes here, and
+  // suspend/resume must run once each, on the edge.
+  let showing = get(settings).audioPreview
   settings.subscribe((s) => {
-    // Turning the feature off must genuinely silence it, not just hide the
-    // bar. The folder link survives — it is a property of this machine.
-    if (!s.audioPreview && engine.hasContext()) {
-      engine.dispose()
-      cancelPreload('a')
-      cancelPreload('b')
-      materialised.a = null
-      materialised.b = null
-      wanted.a = null
-      wanted.b = null
-      decks.set(EMPTY_DECKS)
-      playing.set({ a: false, b: false })
-    }
+    if (s.audioPreview === showing) return
+    showing = s.audioPreview
+    if (showing) resumePreview()
+    else suspendPreview()
   })
 
   void restoreSavedFolder()

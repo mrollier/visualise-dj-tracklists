@@ -3,7 +3,7 @@
   // Each step dims the app and highlights the real element it describes — the
   // UI stays interactive through the cutout, so every step can be *done*. The
   // controlled demo state (Classic + Key/BPM) is set up in tour.ts.
-  import { tourStep } from '../stores'
+  import { settings, tourStep } from '../stores'
   import { endTour, tourSnapshot } from './tour'
 
   interface Step {
@@ -32,7 +32,7 @@
     {
       target: 'preview',
       title: 'Or judge it by ear',
-      body: 'Those criteria decide a combo by its metadata — which is exactly what you are overriding when you disagree with them. So click a track and this bar loads it: play it, pin one with the padlock, and crossfade a second against it. It needs your own music folder, since the demo has no files behind it, and it lives under Advanced → Preview.',
+      body: 'Those criteria decide a combo by its metadata — which is exactly what you are overriding when you disagree with them. So click a track and this bar loads it: play it, pin one with the padlock, and crossfade a second against it. It needs your own music folder, since the demo has no files behind it, and it lives under Advanced → View — as does putting any of the three panels away.',
     },
     {
       target: 'playlists',
@@ -76,13 +76,22 @@
       return
     }
     const el = document.querySelector(`[data-tour="${sel}"]`)
-    rect = el ? el.getBoundingClientRect() : null
+    const box = el ? el.getBoundingClientRect() : null
+    // A target inside a collapsed panel is clipped to nothing, and an all-zeros
+    // rect is not null — without this the spotlight became a 12px hole in the
+    // top-left corner instead of falling back to the plain dim (v30).
+    rect = box === null || box.width === 0 || box.height === 0 ? null : box
   }
 
   // Re-measure after the DOM settles whenever the step changes (rAF so the
   // demo library / panels have painted), and on resize / any scroll.
   $effect(() => {
     void $tourStep
+    // Collapsing a panel mid-tour moves or clips whatever is spotlighted, and
+    // fires neither resize nor scroll (v30).
+    void $settings.audioPreview
+    void $settings.showLeftPanel
+    void $settings.showRightPanel
     cancelAnimationFrame(raf)
     raf = requestAnimationFrame(measure)
     return () => cancelAnimationFrame(raf)
