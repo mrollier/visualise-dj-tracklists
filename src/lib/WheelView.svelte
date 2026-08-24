@@ -799,6 +799,17 @@
     $visibleLibrary.length > 0 && $visibleLibrary.every((t) => usedIds.has(t.id)),
   )
 
+  /**
+   * v31 #2: `hubExhausted` is derived from `$tracklist`, which is written the
+   * instant a walk is generated — so the hub used to flip to "force" before
+   * the cascade had drawn a single star. The button says nothing, and accepts
+   * nothing, until the constellation stands still.
+   */
+  const hubBusy = $derived(revealing)
+  /** The force morph, once the drawing has settled. */
+  const hubForce = $derived(hubExhausted && !hubAllUsed && !hubBusy)
+  const hubInert = $derived(hubAllUsed || hubBusy)
+
   let lastHubPick = $state<NextSuggestion | null>(null)
   // The FIRST pick made for the slot — what the ⟲ button restores. Survives
   // retries, dies with the retry window (v8 issue 3).
@@ -819,12 +830,13 @@
   )
 
   function hubSuggest() {
-    if (hubAllUsed) return
+    if (hubInert) return
     const suggestion = suggestNext($visibleLibrary, $effectiveCriteria, $tracklist, {
       selectedId: $selectedId,
       randomness: $effectiveSettings.suggestRandomness,
       seed: hubSeed++,
       progression: $effectiveSettings.bpmProgression,
+      avoidSameArtist: $effectiveSettings.avoidSameArtist,
       force: hubExhausted,
       manualEdges: $effectiveManualEdges,
       manualEdgeWeight: $effectiveSettings.manualEdgeWeight,
@@ -853,6 +865,7 @@
       randomness: $effectiveSettings.suggestRandomness,
       seed: hubSeed++,
       progression: $effectiveSettings.bpmProgression,
+      avoidSameArtist: $effectiveSettings.avoidSameArtist,
       force: state === 'force-retry',
       excludeIds: exclude,
       manualEdges: $effectiveManualEdges,
@@ -923,6 +936,12 @@
     if (!visibleNodes.some((n) => rank(n) > 0)) return visibleNodes
     return [...visibleNodes].sort((a, b) => rank(a) - rank(b))
   })
+
+  /**
+   * The node the set list is hovering, drawn in its own layer (v31 #6). See
+   * the ring's markup below for why it cannot live inside the node group.
+   */
+  const hoveredNode = $derived(paintedNodes.find((n) => n.track.id === $hoveredId) ?? null)
 </script>
 
 <svelte:window
@@ -965,7 +984,9 @@
              10. gutter tick numbers (sole label above data — the axis stays
                  readable over a star stack; pointer-events: none in the
                  halo CSS keeps the stars interactive underneath)
-             11. ⟲ reset disc, then hub (LAST — issue 17)
+             11. set-list hover ring (above the nodes so the focus dim can
+                 never multiply it away — v31 #6)
+             12. ⟲ reset disc, then hub (LAST — issue 17)
            Rule: labels sit above all static geometry and above edges; data
            (nodes) sits above labels, except the gutter tick numbers. -->
 
@@ -1313,16 +1334,6 @@
             }}
           >
             <circle cx={node.x} cy={node.y} r={11 / zoomK} fill="transparent" />
-            {#if node.track.id === $hoveredId}
-              <!-- Subtle halo mirroring a hover in the set list (v9 issue 20). -->
-              <circle
-                cx={node.x}
-                cy={node.y}
-                r={12 / zoomK}
-                class="hover-ring"
-                vector-effect="non-scaling-stroke"
-              />
-            {/if}
             {#if audibleIds.has(node.track.id)}
               <!-- The breathing's bright half (v29 #4). A star at full opacity
                    has nowhere brighter to go, so the peak lives in a halo
@@ -1374,7 +1385,24 @@
         {/each}
       {/if}
 
-      <!-- Hub button: layer 11 (⟲ reset disc, then the hub itself, LAST) —
+      <!-- Set-list hover ring (v9 issue 20, lifted out of the node group in
+           v31 #6): inside the group its own opacity multiplied with the focus
+           dim (0.8 × 0.12 ≈ 0.1), so the ring vanished on exactly the stars it
+           exists for — the off-criteria ones you cannot otherwise find. The
+           star underneath keeps its dim: "this one doesn't match" stays true,
+           the ring only says where it is. Coordinates are zoom-layer absolute
+           already, so nothing else changes. -->
+      {#if hoveredNode !== null}
+        <circle
+          cx={hoveredNode.x}
+          cy={hoveredNode.y}
+          r={12 / zoomK}
+          class="hover-ring"
+          vector-effect="non-scaling-stroke"
+        />
+      {/if}
+
+      <!-- Hub button: layer 12 (⟲ reset disc, then the hub itself, LAST) —
            see the ordering note at the top of this group. The retry band
            (layer 7) has moved above, before the ghost/node blocks, so
            fallback-ring stars win hover/click inside it; hub + ⟲ stay LAST
@@ -1402,33 +1430,37 @@
         {/if}
         <g
           class="hub"
-          class:warning={hubExhausted && !hubAllUsed}
-          class:disabled={hubAllUsed}
+          class:warning={hubForce}
+          class:disabled={hubInert}
           role="button"
-          tabindex={hubAllUsed ? -1 : 0}
-          aria-disabled={hubAllUsed}
-          aria-label={hubAllUsed
-            ? 'Every track is already in the constellation'
-            : hubExhausted
-              ? 'No exact match left — force the closest track'
-              : 'Suggest next track'}
+          tabindex={hubInert ? -1 : 0}
+          aria-disabled={hubInert}
+          aria-label={hubBusy
+            ? 'Drawing the constellation'
+            : hubAllUsed
+              ? 'Every track is already in the constellation'
+              : hubExhausted
+                ? 'No exact match left — force the closest track'
+                : 'Suggest next track'}
           onclick={hubSuggest}
           onkeydown={(e) => {
             if (e.key === 'Enter') hubSuggest()
           }}
         >
           <title
-            >{hubAllUsed
-              ? 'Every visible track is already in the constellation'
-              : hubExhausted
-                ? 'No track matches your criteria from here — clicking forces the closest one anyway'
-                : 'Suggest the next track'}</title
+            >{hubBusy
+              ? 'Drawing the constellation…'
+              : hubAllUsed
+                ? 'Every visible track is already in the constellation'
+                : hubExhausted
+                  ? 'No track matches your criteria from here — clicking forces the closest one anyway'
+                  : 'Suggest the next track'}</title
           >
           <circle cx={CX} cy={CY} r="46" class="hub-hit" />
           <circle cx={CX} cy={CY} r="34" class="hub-circle" vector-effect="non-scaling-stroke" />
           <text x={CX} y={CY - 2} class="hub-plus" text-anchor="middle">+</text>
           <text x={CX} y={CY + 16} class="hub-label" text-anchor="middle"
-            >{hubExhausted && !hubAllUsed ? 'force' : 'next'}</text
+            >{hubForce ? 'force' : 'next'}</text
           >
         </g>
       {/if}

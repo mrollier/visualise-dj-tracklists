@@ -7,6 +7,14 @@
 export type StarState = 'none' | 'must' | 'first' | 'last'
 
 /**
+ * The one pair of glyphs for "opens the set" / "closes the set" (v31 #5).
+ * Shared by the Tracks-view star, the selected-track card's mark toggles and
+ * the set list's pin, which used to draw a 📌 pushpin for the same idea.
+ */
+export const PIN_FIRST_GLYPH = '⏮'
+export const PIN_LAST_GLYPH = '⏭'
+
+/**
  * The next state a click moves to. `firstTakenByOther` / `lastTakenByOther`
  * report whether ANOTHER track holds that pin (self never counts), so the
  * stage is skipped when it is unavailable.

@@ -13,6 +13,7 @@
   import ConfirmDialog from './ConfirmDialog.svelte'
   import InfoTooltip from './InfoTooltip.svelte'
   import SparkleBurst, { SPARKLE_BURST_MS } from './SparkleBurst.svelte'
+  import { PIN_FIRST_GLYPH, PIN_LAST_GLYPH } from '../core/pins'
   import { canAddSet, MAX_SETS, moveItem } from '../core/sets'
   import {
     activeSet,
@@ -57,6 +58,11 @@
   // catches up, re-renders (view switches, undo) replay nothing.
   const revealing = $derived($walkRevealTick > $walkRevealSeen)
   const revealPlan = $derived(walkRevealPlan($tracklist, $walkRevealRange ?? undefined))
+  // v31 #2: the ⚡ offer and both verdict notes only exist once the walk has
+  // finished drawing itself. Judging a constellation the user cannot see yet
+  // is premature — and popping the notes in mid-cascade shoved the still
+  // animating rows down the panel.
+  const settled = $derived(!revealing)
 
   const FIELD_SHORT: Record<CriterionField, string> = {
     key: 'key',
@@ -117,12 +123,24 @@
     dropGap = event.clientY < box.top + box.height / 2 ? index : index + 1
   }
 
+  /** A transition row IS a gap: the one between track `gap - 1` and `gap`. */
+  function dragOverGap(event: DragEvent, gap: number) {
+    event.preventDefault()
+    dropGap = gap
+  }
+
   function endDrag() {
     const from = dragIndex
     const gap = dropGap
     dragIndex = null
     dropGap = null
     if (from !== null && gap !== null) reorder(from, gap)
+  }
+
+  /** A drag that ended without a drop we accepted: let go of it, change nothing. */
+  function cancelDrag() {
+    dragIndex = null
+    dropGap = null
   }
 
   /** Ask for a name first (ISSUES.md #15); cancelling aborts the export. */
@@ -205,11 +223,15 @@
     mustIncludeIds: string[]
     manualEdges: ManualPair[]
     manualEdgeWeight: number
+    avoidSameArtist: boolean
   }
   let shortBy = $state(0)
   let forcedSteps = $state<number | null>(null)
+  let sameArtistSteps = $state<number | null>(null)
   let forceForSetId = $state<string | null>(null)
   let shortSnapshot = $state<SuggestSnapshot | null>(null)
+  /** The ⚡ button is on offer only for a short walk that has finished drawing. */
+  const forceOffer = $derived(shortBy > 0 && settled)
   // Close the ⚡ window: drop the short-walk snapshot and the forced-count chip
   // (forceForSetId is left alone — it only re-arms when the next suggest writes
   // it). Every reset path — set-id change, input drift, or a hand-edit of the
@@ -217,6 +239,7 @@
   function closeForceWindow() {
     shortBy = 0
     forcedSteps = null
+    sameArtistSteps = null
     shortSnapshot = null
   }
   $effect(() => {
@@ -281,6 +304,7 @@
       shortBy = 0
       shortSnapshot = null
       forcedSteps = walk.forced > 0 ? walk.forced : null
+      sameArtistSteps = walk.sameArtist > 0 ? walk.sameArtist : null
       return
     }
     // Easy mode ignores the pins and must-include marks (they are hidden and
@@ -296,6 +320,7 @@
       mustIncludeIds: easy ? [] : [...$mustInclude],
       manualEdges: $effectiveManualEdges.map((e) => ({ a: e.a, b: e.b })),
       manualEdgeWeight: $effectiveSettings.manualEdgeWeight,
+      avoidSameArtist: $effectiveSettings.avoidSameArtist,
     }
     const walk = suggestWalk($visibleLibrary, $effectiveCriteria, { ...snapshot, force })
     setGeneratedTracklist(walk.ids)
@@ -307,6 +332,7 @@
     // Honesty tweak (v14 S2): plain ✨ can now force essentials in, so the
     // forced-count chip reports whenever any step broke the criteria.
     forcedSteps = walk.forced > 0 ? walk.forced : null
+    sameArtistSteps = walk.sameArtist > 0 ? walk.sameArtist : null
   }
 
   // The s hotkey (v12 WS14) presses whichever suggest button is showing —
@@ -316,7 +342,7 @@
     const tick = $suggestHotkeyTick
     if (tick === lastSuggestHotkey) return
     lastSuggestHotkey = tick
-    suggest(shortBy > 0)
+    suggest(forceOffer)
   })
 
   // Pins and must-include marks are library-scoped (design-v6 §C): they
@@ -420,7 +446,7 @@
   </div>
 
   <div class="suggest-row">
-    {#if shortBy > 0}
+    {#if forceOffer}
       <!-- The walk stopped short: offer to push through to full length with
            rule-breaking picks, like the wheel hub's force (v11 issue 16b). -->
       <button
@@ -456,13 +482,21 @@
       library, star to star across the wheel. Build one here, or by double-clicking tracks on the wheel.
     </InfoTooltip>
   </div>
-  {#if forcedSteps !== null && forcedSteps > 0}
+  {#if settled && forcedSteps !== null && forcedSteps > 0}
     <!-- The denominator is the ACTUAL rendered walk's transition count, not
          the suggestLength snapshot (review finding): a live slider change
          must not make this lie, and essentials growing the walk past
          suggestLength must not understate it either. -->
     <p class="forced-note">
       ⚡ {forcedSteps} of {walkTracks.length - 1} transitions were forced past the criteria.
+    </p>
+  {/if}
+  {#if settled && $effectiveSettings.avoidSameArtist && sameArtistSteps !== null}
+    <!-- A plain count, never a claim of impossibility (v31 #1): the same-artist
+         rule is a soft penalty, so a step can also land here because the
+         alternative was far worse, or through adventurous sampling. -->
+    <p class="forced-note">
+      🎤 {sameArtistSteps} of {walkTracks.length - 1} transitions stay with the same artist.
     </p>
   {/if}
 
@@ -474,7 +508,21 @@
       from there.
     </p>
   {:else}
-    <ol>
+    <!-- v31 #3: the whole list accepts the drop, not just the track rows. The
+         insertion line is drawn AT the gap — which is where the thin transition
+         rows sit — so aiming at the line often meant releasing over a
+         non-target. The browser then rejected the drop, played its ~400ms
+         snap-back of the ghost to the source, and only fired `dragend`
+         afterwards, which is what used to perform the reorder: the row appeared
+         to bounce home and then move half a second later. `dragover` bubbles,
+         so accepting here accepts anywhere in the list. -->
+    <ol
+      ondragover={(e) => e.preventDefault()}
+      ondrop={(e) => {
+        e.preventDefault()
+        endDrag()
+      }}
+    >
       {#key $walkRevealTick}
         {#each walkTracks as track, i (i)}
           {#if i > 0}
@@ -485,6 +533,7 @@
               class:rough={!t.isCombo}
               class:reveal={revealing && i >= revealPlan.from}
               style:animation-delay="{(i - 0.5 - revealPlan.origin) * revealPlan.stepMs}ms"
+              ondragover={(e) => dragOverGap(e, i)}
             >
               {#if t.matched.length > 0}
                 {#each t.matched as field (field)}<span class="match">{FIELD_SHORT[field]}</span
@@ -508,11 +557,7 @@
               e.dataTransfer?.setData('text/plain', String(i))
             }}
             ondragover={(e) => dragOverRow(e, i)}
-            ondrop={(e) => {
-              e.preventDefault()
-              endDrag()
-            }}
-            ondragend={endDrag}
+            ondragend={cancelDrag}
             onmouseenter={() => hoveredId.set(track.id)}
             onmouseleave={() => hoveredId.set(null)}
           >
@@ -527,6 +572,14 @@
             {#if !easy && (i === 0 || i === walkTracks.length - 1)}
               {@const isFirst = i === 0}
               {@const pinned = isFirst ? $pinnedFirst === track.id : $pinnedLast === track.id}
+              <!-- v31 #4: mousedown must not focus this button. Focus matches
+                   `.track:focus-within`, which flips the ↑/↓ arrows from
+                   `display: none` into flow; `.row` is `flex: 1` and absorbs
+                   it, so the pin (which sits BEFORE `.actions`) slid ~45px
+                   left between press and release. Mouseup then landed on an
+                   arrow and the click resolved on the <li>, which has no
+                   handler — so the first click only ever revealed the arrows.
+                   Keyboard focus is untouched: Tab still reaches it. -->
               <button
                 class="pin"
                 class:pinned
@@ -535,9 +588,10 @@
                   : 'Keep as the closing track of suggested constellations'}
                 aria-label={isFirst ? 'Pin as first track' : 'Pin as last track'}
                 aria-pressed={pinned}
+                onmousedown={(e) => e.preventDefault()}
                 onclick={() => togglePin(isFirst ? pinnedFirst : pinnedLast, track.id, pinned)}
               >
-                📌
+                {isFirst ? PIN_FIRST_GLYPH : PIN_LAST_GLYPH}
               </button>
             {/if}
             <span class="actions">
@@ -823,8 +877,11 @@
     background: none;
     border: none;
     padding: 1px 2px;
-    font-size: 11px;
-    filter: grayscale(1);
+    /* v31 #5: ⏮/⏭, the same first/last glyphs the Tracks view star and the
+       selected-track card use — a monochrome glyph, so the emoji's
+       grayscale desaturation is gone with the pushpin. */
+    font-size: 12px;
+    line-height: 1;
     opacity: 0.5;
     /* Springy press (v12 WS2): squash on :active, overshoot on release. */
     transition: var(--bounce-transition);
@@ -841,8 +898,8 @@
   }
 
   .pin.pinned {
-    filter: none;
     opacity: 1;
+    color: var(--accent);
   }
 
   .actions {

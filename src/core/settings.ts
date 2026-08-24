@@ -44,6 +44,12 @@ export interface AppSettings {
   /** 0 = safest transitions, 1 = adventurous/dissonant sampling. */
   suggestRandomness: number
   /**
+   * Steer suggested constellations away from two tracks by the same artist in
+   * a row (v31 #1). A preference, not a rule: the generator still takes a
+   * same-artist step when nothing else fits, and says so under the set.
+   */
+  avoidSameArtist: boolean
+  /**
    * What the node shapes encode (v8 issues 4+5): curated genre FAMILIES
    * (deterministic, the default), the selected PLAYLISTS (first one wins),
    * or similarity CLUSTERS — always computed in the hybrid space, never
@@ -121,6 +127,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   focusClusterEdges: false,
   suggestLength: 15,
   suggestRandomness: 0.25,
+  avoidSameArtist: true,
   iconMode: 'families',
   maxGenreClasses: 4,
   bpmProgression: 'any',

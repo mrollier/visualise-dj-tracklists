@@ -821,6 +821,30 @@ describe('uiMode (v12 WS4)', () => {
   })
 })
 
+describe('same-artist preference (v31)', () => {
+  test('a save from before v31 back-fills to the preference being on', () => {
+    const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    delete (raw.settings as Record<string, unknown>).avoidSameArtist
+    expect(parseProject(JSON.stringify(raw)).settings.avoidSameArtist).toBe(true)
+  })
+
+  test('switching it off survives the round-trip', () => {
+    const off = {
+      ...project,
+      settings: { ...structuredClone(DEFAULT_SETTINGS), avoidSameArtist: false },
+    }
+    expect(parseProject(serializeProject(off)).settings.avoidSameArtist).toBe(false)
+  })
+
+  test('a garbage value falls back to the default', () => {
+    const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    ;(raw.settings as Record<string, unknown>).avoidSameArtist = 'sometimes'
+    expect(parseProject(JSON.stringify(raw)).settings.avoidSameArtist).toBe(
+      DEFAULT_SETTINGS.avoidSameArtist,
+    )
+  })
+})
+
 describe('panel visibility (v30)', () => {
   test('saves from before collapsible panels back-fill to both panels shown', () => {
     // The layout every save before v30 was written from. Additive booleans

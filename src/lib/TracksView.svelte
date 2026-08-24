@@ -9,7 +9,7 @@
   import { COLUMN_LABELS, visibleColumns } from '../core/columns'
   import { MARK_FILTERS } from '../core/marks'
   import type { Track } from '../core/model'
-  import { nextStarState, type StarState } from '../core/pins'
+  import { nextStarState, PIN_FIRST_GLYPH, PIN_LAST_GLYPH, type StarState } from '../core/pins'
   import { formatPropertyValue, PROPERTY_BY_KEY, REKORDBOX_COLOURS } from '../core/properties'
   import { removeAllOccurrences } from '../core/sets'
   import { sortTracks, type TrackSortField } from '../core/trackSort'
@@ -312,7 +312,12 @@
     if (mustSet.has(id)) return 'must'
     return 'none'
   }
-  const STAR_GLYPH: Record<StarState, string> = { none: '☆', must: '★', first: '⏮', last: '⏭' }
+  const STAR_GLYPH: Record<StarState, string> = {
+    none: '☆',
+    must: '★',
+    first: PIN_FIRST_GLYPH,
+    last: PIN_LAST_GLYPH,
+  }
   const STAR_TITLE: Record<StarState, string> = {
     none: 'Click to mark essential (must-include)',
     must: 'Essential — click to make the opener',

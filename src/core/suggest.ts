@@ -61,6 +61,13 @@ interface SuggestOptions {
    * 10 lets it dominate every ordinary match. The Advanced menu tunes it.
    */
   manualEdgeWeight?: number
+  /**
+   * Steer away from two tracks by the same artist back to back (v31 #1).
+   * A soft penalty, not a ban: a same-artist candidate loses to any
+   * reasonable alternative but still wins when nothing else is left, so the
+   * preference can never cut a walk short or displace a guaranteed essential.
+   */
+  avoidSameArtist?: boolean
 }
 
 /** An unordered user-marked pair; the store's ManualEdge extends it with a tag. */
@@ -77,6 +84,12 @@ interface SuggestedWalk {
   ids: string[]
   /** How many steps had to break the criteria (0 without `force`). */
   forced: number
+  /**
+   * How many transitions in the FINISHED walk keep the same artist (v31 #1).
+   * Counted over the emitted ids rather than tallied per step, so it also
+   * sees the two-arm seam and the pinned anchors — neither of which is scored.
+   */
+  sameArtist: number
 }
 
 /** Sawtooth cycle length: every SAWTOOTH_PERIODth transition drops back. */
@@ -95,6 +108,40 @@ const MANUAL_EDGE_BONUS = 5
  * the 0.5 genre weight so it re-ranks harmonic near-ties, not styles.
  */
 const KEY_AFFINITY_BONUS = 0.3
+/**
+ * Two tracks by one artist back to back read as a mistake in a set (v31 #1).
+ * Soft, not a ban: above the practical matched-criteria spread, so a
+ * same-artist candidate loses to any reasonable alternative — but below
+ * MUST_INCLUDE_BONUS / MANUAL_EDGE_BONUS, so a guaranteed essential and a
+ * hand-marked combo still outrank the preference.
+ */
+const SAME_ARTIST_PENALTY = 4
+
+function normalizeArtist(name: string): string {
+  return name.trim().toLocaleLowerCase().replace(/\s+/g, ' ')
+}
+
+/**
+ * Whether two tracks share an artist: trim/case/whitespace-insensitive, and
+ * an unknown artist never matches another unknown — "no data" is not a match.
+ * Deliberately exact on the whole field, so "X feat. Y" is not "X".
+ */
+export function sameArtist(a: Track, b: Track): boolean {
+  if (a.artist === null || b.artist === null) return false
+  const left = normalizeArtist(a.artist)
+  return left !== '' && left === normalizeArtist(b.artist)
+}
+
+/** Consecutive same-artist transitions in a finished walk. */
+function countSameArtist(ids: string[], byId: Map<string, Track>): number {
+  let count = 0
+  for (let i = 1; i < ids.length; i++) {
+    const a = byId.get(ids[i - 1])
+    const b = byId.get(ids[i])
+    if (a !== undefined && b !== undefined && sameArtist(a, b)) count++
+  }
+  return count
+}
 
 /**
  * How well a BPM step fits the preferred trajectory, in [0, 1]. Missing BPMs
@@ -289,14 +336,20 @@ export function suggestWalk(
     force = false,
     manualEdges = [],
     manualEdgeWeight = MANUAL_EDGE_BONUS,
+    avoidSameArtist = false,
   } = options
-  if (tracks.length === 0) return { ids: [], forced: 0 }
+  if (tracks.length === 0) return { ids: [], forced: 0, sameArtist: 0 }
 
   const byId = new Map(tracks.map((t) => [t.id, t]))
   const neighbours = buildNeighbours(tracks, criteria, manualEdges)
   const manualSet = new Set(manualEdges.map(({ a, b }) => pairKey(a, b)))
   const manualTerm = (current: Track) => (candidate: Track) =>
     manualSet.has(pairKey(current.id, candidate.id)) ? manualEdgeWeight : 0
+  // Folded into the shared `extra` term, which BOTH rankedCandidates and
+  // forcedCandidates receive — the plain and force runs must score (and so
+  // consume the PRNG) identically for the ⚡ continue-in-place rule below.
+  const artistTerm = (current: Track) => (candidate: Track) =>
+    avoidSameArtist && sameArtist(current, candidate) ? -SAME_ARTIST_PENALTY : 0
   const genreMatch = makeGenreMatcher(
     tracks.map((t) => t.genre),
     criteria,
@@ -343,8 +396,9 @@ export function suggestWalk(
       const current = byId.get(walk[walk.length - 1])!
       const fitTerm = progressionTerm(current, walk.length - 1, progression)
       const manual = manualTerm(current)
+      const artist = artistTerm(current)
       const extra = (candidate: Track) =>
-        pendingBonus(candidate) + fitTerm(candidate) + manual(candidate)
+        pendingBonus(candidate) + fitTerm(candidate) + manual(candidate) + artist(candidate)
       const slotsLeft = targetLength - walk.length
       const mustPlaceEssential = pending.size >= slotsLeft
       let candidates = rankedCandidates(
@@ -401,7 +455,7 @@ export function suggestWalk(
       visited.add(next)
       pending.delete(next)
     }
-    return { ids: walk, forced }
+    return { ids: walk, forced, sameArtist: countSameArtist(walk, byId) }
   }
 
   // Pinned closer: grow two arms — from the opener forward and the closer
@@ -427,10 +481,20 @@ export function suggestWalk(
     const fitB = progressionTerm(tipB, endArm.length - 1, invertProgression(progression))
     const manualA = manualTerm(tipA)
     const manualB = manualTerm(tipB)
+    const artistA = artistTerm(tipA)
+    const artistB = artistTerm(tipB)
     const startExtra = (candidate: Track) =>
-      towardsB(candidate) + pendingBonus(candidate) + fitA(candidate) + manualA(candidate)
+      towardsB(candidate) +
+      pendingBonus(candidate) +
+      fitA(candidate) +
+      manualA(candidate) +
+      artistA(candidate)
     const endExtra = (candidate: Track) =>
-      towardsA(candidate) + pendingBonus(candidate) + fitB(candidate) + manualB(candidate)
+      towardsA(candidate) +
+      pendingBonus(candidate) +
+      fitB(candidate) +
+      manualB(candidate) +
+      artistB(candidate)
     const fromStart = rankedCandidates(
       tipA,
       neighbours,
@@ -504,7 +568,8 @@ export function suggestWalk(
     visited.add(next)
     pending.delete(next)
   }
-  return { ids: [...startArm, ...endArm.reverse()], forced }
+  const ids = [...startArm, ...endArm.reverse()]
+  return { ids, forced, sameArtist: countSameArtist(ids, byId) }
 }
 
 export interface NextSuggestion {
@@ -625,6 +690,7 @@ export function suggestNext(
     excludeIds = [],
     manualEdges = [],
     manualEdgeWeight = MANUAL_EDGE_BONUS,
+    avoidSameArtist = false,
   } = options
   if (tracks.length === 0) return null
 
@@ -659,7 +725,12 @@ export function suggestNext(
     (manualSet.has(pairKey(anchor.id, candidate.id)) ? manualEdgeWeight : 0) +
     (progression === 'any'
       ? 0
-      : PROGRESSION_WEIGHT * progressionFit(anchor.bpm, candidate.bpm, anchorIndex, progression))
+      : PROGRESSION_WEIGHT * progressionFit(anchor.bpm, candidate.bpm, anchorIndex, progression)) +
+    // The hub inserts BETWEEN two tracks, so both sides of the new seam count.
+    (avoidSameArtist &&
+    (sameArtist(anchor, candidate) || (successor !== undefined && sameArtist(candidate, successor)))
+      ? -SAME_ARTIST_PENALTY
+      : 0)
   let candidates = rankedCandidates(
     anchor,
     neighbours,

@@ -14,6 +14,7 @@
     settings,
     trackById,
   } from '../stores'
+  import { PIN_FIRST_GLYPH, PIN_LAST_GLYPH } from '../core/pins'
   import type { Writable } from 'svelte/store'
   import InfoTooltip from './InfoTooltip.svelte'
 
@@ -85,7 +86,7 @@
           title="Open suggested constellations with this track"
           onclick={() => togglePin(pinnedFirst)}
         >
-          ⏮
+          {PIN_FIRST_GLYPH}
         </button>
         <button
           class="mark-toggle"
@@ -95,7 +96,7 @@
           title="Close suggested constellations with this track"
           onclick={() => togglePin(pinnedLast)}
         >
-          ⏭
+          {PIN_LAST_GLYPH}
         </button>
         <button
           class="mark-toggle"

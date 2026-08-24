@@ -1,8 +1,9 @@
 # Issues — open
 
-The three-panel collapse wave resolved in **v30** (branch
-`v30-collapsible-panels`), on top of Michiel's ten-item review of the audio
-preview resolved in **v29** (branch `v29-player-review`), the permanent
+Michiel's six-item constellation review resolved in **v31** (branch
+`v31-constellation-review`), on top of the three-panel collapse wave resolved
+in **v30** (branch `v30-collapsible-panels`), Michiel's ten-item review of the
+audio preview resolved in **v29** (branch `v29-player-review`), the permanent
 filter-group wave resolved in
 **v23** (branch `v23-filter-group`), the Tracks-header visibility defect
 resolved in **v22** (branch `v22-tracks-header`), both constellation-edge
@@ -67,6 +68,90 @@ itself is untouched):
    expected` no longer matches and that assertion fails too on a fresh run.
    Neither is a gate, and both are deliberately left for a separate tooling
    pass rather than folded into this wave (do not fix the script here).
+
+## Resolved in v31
+
+Branch `v31-constellation-review`. Michiel's six-item review of the
+constellation: one preference the generator was missing, and five defects
+across the set list and the wheel hub.
+
+1. **Suggested constellations steer away from two tracks by the same artist
+   back to back.** A soft penalty (`SAME_ARTIST_PENALTY = 4` in `suggest.ts`),
+   not a ban — pitched above the practical matched-criteria spread so a
+   same-artist candidate loses to any reasonable alternative, and below
+   `MUST_INCLUDE_BONUS` / `MANUAL_EDGE_BONUS` (5) so a guaranteed essential and
+   a hand-marked combo still outrank the preference. It rides in the existing
+   `extra` score term, which BOTH `rankedCandidates` and `forcedCandidates`
+   receive, so the plain and ⚡ runs still consume the PRNG identically and a
+   force continues a short walk in place (the v14 S2 invariant). Because it is
+   a preference rather than a filter, a walk is never cut short by it.
+   Artist equality is trim/case/whitespace-insensitive on the whole field —
+   "X feat. Y" is not "X" — and an unknown artist never matches another
+   unknown. `SuggestedWalk` gained `sameArtist`, counted over the EMITTED ids
+   rather than tallied per step, so it also sees the two-arm seam and the
+   pinned anchors, neither of which is ever scored. The set panel reports it
+   under the walk (`🎤 n of m transitions stay with the same artist.`) beside
+   the ⚡ forced-count note, worded as a plain count and never as a claim of
+   impossibility: with a soft penalty a step can also land there because the
+   alternative was far worse, or through adventurous sampling. New Advanced
+   toggle `avoidSameArtist` in "Constellation & suggestions", **on by default**
+   — so easy mode inherits it — and additive in `persist.ts` with no schema
+   bump. The wheel hub's own picks honour it too, weighing BOTH sides of the
+   seam it inserts into.
+
+2. **The hub only offers "force" once the constellation stands still.**
+   `hubExhausted` is derived from `$tracklist`, which is written the instant a
+   walk is generated — so the button used to flip to "force" before the cascade
+   had drawn a single star. The hub is now inert and silent for the whole draw
+   (`hubBusy` / `hubForce` / `hubInert`), then settles into `next` / `force` /
+   greyed-out. The same standstill rule governs the panel: the ⚡ Force button,
+   the `s` hotkey it answers, and both verdict notes now wait for `settled`.
+   Beyond consistency that fixes a real defect — the notes used to pop in
+   mid-cascade and shove the still-animating rows down the panel. Under
+   `prefers-reduced-motion` there is no reveal to wait out (the walk-draw, the
+   pulses and the row cascade are all off in CSS), so `bumpWalkReveal` now
+   closes the window in the same breath instead of holding these gates for
+   seconds against an animation nobody is being shown.
+
+3. **A dropped row reorders immediately instead of snapping back first.**
+   `ondragover`/`ondrop` lived only on the track rows, never on the thin
+   `key · bpm` transition rows between them — and the insertion line is drawn
+   AT the gap, which is exactly where those rows sit, so aiming at the line
+   often meant releasing over a non-target. The browser then rejected the drop,
+   played its ~400ms snap-back of the ghost to the source, and fired `dragend`
+   only afterwards — and `dragend` was what performed the reorder. The `<ol>`
+   accepts the drop now (`dragover` bubbles, so accepting at the ancestor
+   accepts anywhere in the list) and owns the single `ondrop` path; each
+   transition row reports its exact gap via `dragOverGap`. `dragend` became
+   `cancelDrag`, which clears the drag without reordering — so a release
+   outside the panel now cancels instead of applying the last-known gap.
+
+4. **The pin on the first/last row takes one click again.** Mousedown focused
+   the button, `.track:focus-within` flipped the ↑/↓ arrows from `display:
+   none` into flow, `.row` (`flex: 1`) absorbed the ~45px, and the pin — which
+   sits BEFORE `.actions` — slid left out from under the cursor. Mouseup landed
+   on an arrow, so the click resolved on the `<li>`, which has no handler, and
+   the first press only ever revealed the arrows. The pin now cancels its
+   mousedown default, which suppresses focus and with it the whole shift.
+   Keyboard focus is untouched: Tab still reaches it.
+
+5. **One pair of first/last glyphs, everywhere.** The set list drew a 📌
+   pushpin for the idea that the Tracks-view star and the selected-track card
+   both draw as ⏮/⏭ — and those two carried the glyphs as duplicated string
+   literals. `PIN_FIRST_GLYPH` / `PIN_LAST_GLYPH` now live in `core/pins.ts`,
+   which already owns the pin state machine, and all three surfaces read them.
+   The pushpin's `filter: grayscale(1)` went with it (a no-op on a monochrome
+   glyph that would only have muted the pinned state); pinned is the accent
+   colour at full opacity.
+
+6. **The set-list hover ring survives the focus dim.** The ring was a child of
+   the node group, whose `opacity` attribute carries the dim, so its own
+   `opacity: .8` multiplied down to ≈0.1 — it vanished on precisely the stars
+   it exists for, the off-criteria ones you cannot otherwise find. It is its
+   own layer now (11, between the gutter tick numbers and the hub), painting at
+   full strength over a star that keeps its dim: "this one doesn't match" stays
+   true, and the ring only says where it is. Same coordinates, so nothing else
+   moved; the hovered node's paint-order raise stays.
 
 ## Resolved in v30
 

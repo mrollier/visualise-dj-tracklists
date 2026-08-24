@@ -28,6 +28,7 @@ import type { ImportReport, ManualEdge, Playlist, Track } from './core/model'
 import { canAddSet, freshFirstSet, nextSetName, uniqueSetName, type TrackSet } from './core/sets'
 import { DEFAULT_SETTINGS, type AppSettings } from './core/settings'
 import type { TrackSort } from './core/trackSort'
+import { prefersReducedMotion } from './lib/motion'
 
 export type RadialAxis = 'bpm' | 'rating' | 'year' | 'energy'
 type ColorAxis = 'auto' | RadialAxis
@@ -96,6 +97,15 @@ const WALK_REVEAL_TAIL_MS = 800
 export function bumpWalkReveal(totalMs: number): void {
   const tick = get(walkRevealTick) + 1
   walkRevealTick.set(tick)
+  // Under reduced motion the walk-draw, the node pulses and the row cascade
+  // are all switched off in CSS, so there is no reveal to wait out. Close the
+  // window in the same breath (v31 #2): callers that gate on "still drawing"
+  // — the wheel hub, the ⚡ offer — must not be held for seconds by an
+  // animation nobody is being shown.
+  if (prefersReducedMotion()) {
+    walkRevealSeen.set(tick)
+    return
+  }
   setTimeout(
     () => walkRevealSeen.update((seen) => Math.max(seen, tick)),
     totalMs + WALK_REVEAL_TAIL_MS,

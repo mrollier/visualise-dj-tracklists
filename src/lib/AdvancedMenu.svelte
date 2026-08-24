@@ -43,7 +43,7 @@
   } from '../stores'
 
   // --- Set & suggestions (v7, issue 10) ---
-  // Opener/closer/must-include are CHOSEN in the Tracks view (or via the 📌
+  // Opener/closer/must-include are CHOSEN in the Tracks view (or via the ⏮/⏭
   // pins on the set rows); this menu only lists the current choices with a
   // remove button — the picker selects were too messy here.
   const PROGRESSION_LABEL: Record<BpmProgression, string> = {
@@ -640,6 +640,15 @@
       0 always picks the safest transition; higher values embrace dissonance. Genre closeness always
       counts in the ranking.
     </p>
+    <label class="row">
+      <input type="checkbox" bind:checked={$settings.avoidSameArtist} />
+      Avoid two tracks by the same artist in a row
+      <InfoTooltip label="Same-artist transitions">
+        A preference, not a rule: a same-artist step is pushed far down the ranking, but the
+        generator still takes one when nothing else fits — and the constellation then says how many
+        it had to keep.
+      </InfoTooltip>
+    </label>
     <label>
       BPM progression
       <select bind:value={$settings.bpmProgression}>
@@ -664,7 +673,7 @@
       still counts as an edge); 5 ranks it like an essential; 10 lets it dominate.
     </p>
     <!-- Read-only listing (issue 10): the choices themselves are made in the
-         Tracks view (or via the 📌 pins on the set's first/last rows). -->
+         Tracks view (or via the ⏮/⏭ pins on the set's first/last rows). -->
     <div class="must-block">
       <span class="must-title">Constellation order</span>
       {#if pinnedFirstTrack === null && pinnedLastTrack === null && mustIncludeTracks.length === 0}

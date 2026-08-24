@@ -364,6 +364,12 @@ export function parseProject(json: string): Project {
       max: 1,
       mode: 'clamp',
     }),
+    // v31: additive boolean, no version bump — an older save with no key
+    // resolves to true, the preference the generator now ships with.
+    avoidSameArtist:
+      typeof rawSettings.avoidSameArtist === 'boolean'
+        ? rawSettings.avoidSameArtist
+        : DEFAULT_SETTINGS.avoidSameArtist,
     iconMode:
       rawSettings.iconMode === 'families' ||
       rawSettings.iconMode === 'playlists' ||

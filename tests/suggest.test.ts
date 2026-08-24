@@ -1222,3 +1222,115 @@ describe('manual edges (v12 WS9 — planning annotations)', () => {
     })
   })
 })
+
+describe('same-artist avoidance (v31 #1)', () => {
+  // Four tracks, all mutually connected on key+BPM, so the criteria alone
+  // never decide the order: two by ONE artist, two by others. Whatever the
+  // walk does here, it does because of the artist preference.
+  const mixed = [
+    track({ id: 'a1', artist: 'Alpha', key: '8A', bpm: 128, genre: 'Techno', year: 2020 }),
+    track({ id: 'a2', artist: 'alpha ', key: '8A', bpm: 128, genre: 'Techno', year: 2020 }),
+    track({ id: 'b1', artist: 'Beta', key: '8A', bpm: 128, genre: 'Techno', year: 2020 }),
+    track({ id: 'c1', artist: 'Gamma', key: '8A', bpm: 128, genre: 'Techno', year: 2020 }),
+  ]
+
+  function artistRuns(ids: string[], pool = mixed): number {
+    const byId = new Map(pool.map((t) => [t.id, t]))
+    const name = (id: string) => (byId.get(id)?.artist ?? '').trim().toLocaleLowerCase()
+    let runs = 0
+    for (let i = 1; i < ids.length; i++)
+      if (name(ids[i - 1]) !== '' && name(ids[i - 1]) === name(ids[i])) runs++
+    return runs
+  }
+
+  test('a walk that can avoid a same-artist step does', () => {
+    const walk = suggestWalk(mixed, config(), {
+      seedId: 'a1',
+      length: 4,
+      avoidSameArtist: true,
+    })
+    expect(walk.ids).toHaveLength(4)
+    expect(artistRuns(walk.ids)).toBe(0)
+    expect(walk.sameArtist).toBe(0)
+    // The two Alphas are still both in — the preference reorders, never drops.
+    expect(new Set(walk.ids)).toEqual(new Set(['a1', 'a2', 'b1', 'c1']))
+  })
+
+  test('the same walk without the preference puts the two Alphas together', () => {
+    const walk = suggestWalk(mixed, config(), { seedId: 'a1', length: 4 })
+    expect(artistRuns(walk.ids)).toBe(1)
+    expect(walk.sameArtist).toBe(1)
+  })
+
+  test('matching is trim- and case-insensitive', () => {
+    // 'Alpha' vs 'alpha ' — the same artist as far as a set is concerned.
+    const walk = suggestWalk(mixed, config(), {
+      seedId: 'a1',
+      length: 2,
+      avoidSameArtist: true,
+    })
+    expect(walk.ids[1]).not.toBe('a2')
+  })
+
+  test('an unknown artist never matches another unknown', () => {
+    const anonymous = [
+      track({ id: 'x', key: '8A', bpm: 128, genre: 'Techno', year: 2020 }),
+      track({ id: 'y', key: '8A', bpm: 128, genre: 'Techno', year: 2020 }),
+    ]
+    const walk = suggestWalk(anonymous, config(), { seedId: 'x', length: 2, avoidSameArtist: true })
+    expect(walk.ids).toEqual(['x', 'y'])
+    expect(walk.sameArtist).toBe(0)
+  })
+
+  test('a one-artist library still yields a full walk, and says how many runs it kept', () => {
+    const monoculture = ['m1', 'm2', 'm3'].map((id) =>
+      track({ id, artist: 'Solo', key: '8A', bpm: 128, genre: 'Techno', year: 2020 }),
+    )
+    const walk = suggestWalk(monoculture, config(), {
+      seedId: 'm1',
+      length: 3,
+      avoidSameArtist: true,
+    })
+    expect(walk.ids).toHaveLength(3)
+    expect(walk.sameArtist).toBe(2)
+  })
+
+  test('a must-include by the current artist is still guaranteed a slot', () => {
+    const walk = suggestWalk(mixed, config(), {
+      seedId: 'a1',
+      length: 2,
+      mustIncludeIds: ['a2'],
+      avoidSameArtist: true,
+    })
+    expect(walk.ids).toEqual(['a1', 'a2'])
+    // Guaranteed, and honestly reported rather than silently swallowed.
+    expect(walk.sameArtist).toBe(1)
+  })
+
+  test('the count covers the seam of a pinned-end walk, which is never scored', () => {
+    const walk = suggestWalk(mixed, config(), {
+      seedId: 'a1',
+      endId: 'a2',
+      length: 2,
+      avoidSameArtist: true,
+    })
+    expect(walk.ids).toEqual(['a1', 'a2'])
+    expect(walk.sameArtist).toBe(1)
+  })
+
+  test('same seed and options still give the same walk', () => {
+    const opts = { seedId: 'a1', length: 4, randomness: 0.5, seed: 7, avoidSameArtist: true }
+    expect(suggestWalk(mixed, config(), opts).ids).toEqual(suggestWalk(mixed, config(), opts).ids)
+  })
+
+  test('the hub weighs both sides of the seam it inserts into', () => {
+    // Inserting after a1 while a2 follows: b1/c1 beat every Alpha on both ends.
+    const next = suggestNext(mixed, config(), ['a1', 'a2'], {
+      selectedId: 'a1',
+      avoidSameArtist: true,
+    })
+    expect(next).not.toBeNull()
+    expect(['b1', 'c1']).toContain(next!.trackId)
+    expect(next!.insertIndex).toBe(1)
+  })
+})
