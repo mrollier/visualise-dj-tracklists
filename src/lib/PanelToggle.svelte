@@ -41,6 +41,7 @@
 <button
   type="button"
   class="panel-toggle {side}"
+  class:tucked={!open}
   aria-expanded={open}
   aria-controls={controls}
   aria-label={label}
@@ -89,6 +90,14 @@
   .right {
     right: 0;
     transform: translate(50%, -50%);
+  }
+
+  /* Straddling the seam is right while there is a panel on the other side of
+     it. Once there is not, the seam IS the window edge, and half the button
+     would hang outside it — so a collapsed rail's button docks inside instead. */
+  .left.tucked,
+  .right.tucked {
+    transform: translate(0, -50%);
   }
 
   /* `top: 100%` of the player slot: the bar's lower edge when the bar is

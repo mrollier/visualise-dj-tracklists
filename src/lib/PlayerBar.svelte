@@ -185,6 +185,9 @@
   .decks {
     flex: 1;
     min-width: 0;
+    /* Backstop: whatever the row cannot shrink stays inside the bar rather than
+       painting over the panel next to it (v30). */
+    overflow: hidden;
     display: grid;
     grid-template-columns: 22px 1fr;
     align-items: center;

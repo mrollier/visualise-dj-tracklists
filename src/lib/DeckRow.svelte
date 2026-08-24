@@ -71,7 +71,10 @@
   {/if}
 
   {#if emptyText !== null}
-    <span class="reason">{emptyText}</span>
+    <!-- Truncated like every other line in the row (v30): the bar's height has
+         to depend on how many decks are showing and on nothing else, and a
+         narrow bar used to wrap this sentence onto a second line. -->
+    <span class="reason"><span class="reason-text" title={emptyText}>{emptyText}</span></span>
   {:else if reason !== null}
     <!-- The row has one line of space, and "this browser can't play AIFF" is
          not the whole story (v29 #7) — the rest is one hover away. -->
@@ -141,9 +144,13 @@
     color: var(--on-accent);
   }
 
-  /* A fixed column, so deck A's and deck B's seek lines start at the same x. */
+  /* A fixed column, so deck A's and deck B's seek lines start at the same x —
+     but shrinkable since v30, because the bar is no longer as wide as the
+     window: with both rails showing on a small screen a rigid column pushed the
+     lock button clean out of the bar and over the right-hand panel. Both rows
+     shrink against the same width, so they still line up. */
   .label {
-    flex: 0 0 22ch;
+    flex: 0 1 22ch;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
