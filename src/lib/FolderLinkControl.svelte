@@ -18,7 +18,7 @@
 
   /**
    * The one control that links a music folder, in both the places it appears:
-   * the player bar is the discovery path, Advanced → Preview the management
+   * the player bar is the discovery path, Advanced → View the management
    * one. Shared rather than duplicated so the wording, the fallback picker and
    * the path hint can only ever say one thing.
    */

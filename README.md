@@ -250,8 +250,15 @@ Your library never leaves your machine — there is no backend, no account, no u
   the slate. The app is also a **PWA**: install it from the browser and it opens
   like a double-click application, offline included (from the second visit on).
 
-- **Check it by ear**: switch on **Listen to tracks** (Advanced settings → Preview,
-  off by default) and a small player appears under the top bar. Selecting a track
+- **Give the wheel the room**: all three panels — the player above the wheel, the
+  playlists and filters on the left, the constellation on the right — collapse from
+  a small button sitting on their own edge, or from **Advanced settings → View**.
+  The wheel rescales into whatever space that frees, the transport stays lined up
+  with it, and what you put away is remembered. Hiding the player really does stop
+  the sound; showing it again puts both decks back where they were.
+
+- **Check it by ear**: switch on **Listen to tracks** (Advanced settings → View,
+  off by default) and a small player appears above the wheel. Clicking a track
   loads it; pin one with the padlock and a second row appears below it, with a small
   crossfader beside them — so you can hear whether a combo actually works instead
   of trusting the key and BPM alone. Centred, it plays both at full volume; slide it

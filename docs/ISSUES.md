@@ -17,56 +17,6 @@ nineteen v13 items resolved in **v14**
 ([designs/design-v14.md](designs/design-v14.md) has the older per-issue notes).
 Each "Resolved" list records what actually shipped.
 
-## Open — v30 collapsible panels
-
-The app is a fixed three-panel shell: a 250px left rail of playlists and
-filters, a 280px right rail holding the constellation (or Advanced), and — since
-v28 — an audition bar across the top. None of it moves, so on a laptop the wheel
-gets whatever is left over and there is no way to say "only the wheel, please".
-Michiel asked for each panel to be collapsible two ways: a small button in the
-middle of its own margin, and a checkbox in a new **View** section of Advanced
-settings replacing the current **Preview** section. The top ribbon stays as it
-is, and stays the thing that opens Advanced.
-
-1. **No panel can be put away.** `App.svelte:59-96` is a fixed flex row:
-   `CriteriaPanel` at `var(--left-rail)`, the scrolling centre, `.right-aside`
-   at `var(--right-rail)`. Nothing hides any of them, and there is no
-   width-based media query anywhere in `src/` — panel visibility is driven
-   purely by state (`$library.length`, `$rightPanel`, `uiMode === 'easy'`).
-   Collapsing must not unmount: `PlaylistsSection.svelte:52`,
-   `FiltersSection.svelte:272` and `GenresSection.svelte:33` are `<details>`
-   with no bound `open`, so their fold state lives in uncontrolled DOM and an
-   `{#if}` around the panel would silently reset all three every time.
-
-2. **The audition bar only pretends to sit between the rails.** It is a
-   full-width sibling above `<main>` (`App.svelte:56`) whose three-column grid
-   (`PlayerBar.svelte:172`) reserves two empty spacer columns sized to
-   `var(--left-rail)` and `var(--right-rail)`, so the transport lands over the
-   central pane by arithmetic rather than by structure (v29 #6). Any collapse
-   makes the two disagree, and the numbers can drift apart again — as they
-   already have: `TracklistPanel.svelte:598` and `AdvancedMenu.svelte:789` still
-   hardcode `280px` instead of the variable.
-
-3. **Turning the preview off throws the session away.** `playerStore.ts:262-276`
-   disposes the AudioContext and blanks every deck store when `audioPreview`
-   goes false. That is right for a feature switch and wrong for a collapse: what
-   was loaded, and where each deck stood, should come back when the panel does.
-
-4. **The bar's right-hand chip does not fit the space it is given.** It is
-   locked to the right rail's width in every state (`PlayerBar.svelte:196-201`),
-   so it cannot use the room a collapse frees, and it cannot survive that room
-   disappearing. It also drives the bar's height: `FolderLinkControl`'s `.scan`
-   block is a column in bar layout (`:232-240`), stacking a label above the
-   progress bar, so the whole bar grows taller for the duration of a folder
-   scan. The bar's height should depend on one thing only — whether one track is
-   showing or two.
-
-5. **Advanced has no section about what is on screen.** The panel's six sections
-   (`AdvancedMenu.svelte:272`) are all about what is computed or drawn; the one
-   that comes closest, **Preview**, is a single switch plus the folder control.
-   There is nowhere to put a panel-visibility checkbox, and the section that
-   should hold it is named after one of the three panels it would list.
-
 ## Open — v19 z-order review
 
 One item from a review of SVG rendering in WheelView.svelte carries over:
@@ -117,6 +67,92 @@ itself is untouched):
    expected` no longer matches and that assertion fails too on a fresh run.
    Neither is a gate, and both are deliberately left for a separate tooling
    pass rather than folded into this wave (do not fix the script here).
+
+## Resolved in v30
+
+Branch `v30-collapsible-panels`; design notes in
+[designs/design-v30-collapsible-panels.md](designs/design-v30-collapsible-panels.md).
+One request — make the three panels collapsible — whose consequences reached
+further than the toggles.
+
+1. **Every panel now collapses, from its own edge or from Advanced.** Each of
+   the three has a chevron button sitting ON its boundary, positioned against
+   the CENTRAL column's edges rather than against a rail width — those edges are
+   the boundaries in every combination of collapses, so no button has to know a
+   number and none is recomputed. A collapsed rail's button docks inside the
+   window rather than straddling a seam that has become the window edge.
+   Collapsing CLIPS: the rail is an `overflow: hidden` wrapper that goes to
+   `width: 0` while the panel inside keeps its own width, so the left panel's
+   uncontrolled `<details>` fold state and its scroll position both survive, and
+   `inert` keeps what is clipped out of the tab order. Instant, no animation —
+   the wheel re-rasterises on every layout frame and v29 spent a workstream
+   keeping that work off the audio thread.
+
+2. **The bar is genuinely nested now, not aligned by arithmetic.** `.player`
+   moved inside the central column, so v29 #6's three-column grid with two empty
+   spacer columns sized to `--left-rail` / `--right-rail` is gone: the bar spans
+   the central pane because it is a child of it, and there is no number left to
+   drift. It sits outside `.center-scroll`, so a narrow window still scrolls the
+   wheel against its 680px floor without dragging the transport with it. The two
+   panels that were still hardcoding `280px` now read `var(--right-rail)`.
+
+3. **Hiding the bar keeps the session.** `audioPreview` IS the top panel's
+   switch — one concept, since a bar you cannot see is a bar you cannot stop —
+   so hiding it still disposes the AudioContext. What was pinned, what was
+   clicked, each deck's position and the fader are snapshotted first and handed
+   back, PAUSED where they were, when the bar returns. A track that left the
+   library meanwhile is dropped by `reduceDecks`'s own `library` case. The
+   position is parked in a `pendingSeek` and applied on the `meta` deck event,
+   because `currentTime` before `loadedmetadata` is unreliable. Nothing was
+   suspended on a project load or a first switch-on, so that path returns before
+   touching the engine and no context is built without a gesture.
+
+4. **The chip fits, in both directions.** Its width now answers to the player
+   bar via a CSS container query rather than to the right rail: written out when
+   there is room, a bare `✓` / `⚠` / `Link…` when there is not, with everything
+   it drops already in the ⓘ and the `title` — and the ⓘ is unconditional in the
+   bar, since in the short form it is the only place the numbers are. Its height
+   cannot move the bar any more: the scan block is a row rather than a label
+   stacked above its progress bar, and the empty deck's hint truncates instead of
+   wrapping. The bar's height depends on one deck or two, and on nothing else.
+   Separately, at 860px with both rails showing the deck row's `flex: 0 0 22ch`
+   label could not shrink and pushed the lock button over the right-hand panel;
+   it is `flex: 0 1 22ch` now (both rows shrink against the same width, so the
+   seek lines still line up) with `.decks` clipping as a backstop.
+
+5. **Advanced settings gained a View section, which is what Preview became.**
+   Three checkboxes, one per panel, with the music-folder control still nested
+   under the top one. The section id went `audio` → `view` and deliberately did
+   not keep the old one — the section's contents genuinely changed, so it starts
+   folded once. ⚙ Advanced borrows the right rail and that borrow OVERRIDES the
+   collapse, since pressing ⚙ has to produce a panel either way; the right
+   button steps aside entirely while Advanced shows, and the row carries a hint
+   saying it takes effect once Advanced closes.
+
+6. **Two additive settings, no schema bump.** `showLeftPanel` / `showRightPanel`
+   default to true, which is the layout every earlier save was written from, so
+   an older save resolves to it with no migration. They join `theme` and
+   `audioPreview` as chrome: excluded from Cmd+Z, surviving "Return to default
+   settings", and passed through the easy-mode overlay.
+
+7. **The tour keeps working, and got two robustness fixes.** It stashes all
+   three panel switches, forces them on (every step points at something inside
+   one of them) and restores them on both exits. `TourOverlay` now re-measures on
+   a panel change — it watched only step changes, resize and scroll — and treats
+   a zero-size target as no target: `getBoundingClientRect()` on a clipped
+   element is all zeros rather than null, so the spotlight used to become a 12px
+   hole in the top-left corner instead of falling back to the plain dim.
+
+**Verified in the browser.** Three Playwright probes against a real import, a
+real music folder (mp3, FLAC and a deliberately unplayable AIFF) and the sample
+collection: 18 + 20 + 13 checks, zero console errors. Geometry to 1px in every
+combination of collapses; the chip long and short with an identical bar height
+and its ⓘ escaping the bar's new `overflow: hidden`; play/hide/show returning the
+same deck at the same position, paused; the ⚙ override both ways; a collapsed
+panel surviving a reload; two decks exactly one row taller than one; and the tour
+replayed with all three panels put away, every step spotlighting a real element
+and all three returning to collapsed at the end.
+
 
 ## Resolved in v29
 
