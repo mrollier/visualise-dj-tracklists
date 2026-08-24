@@ -4,11 +4,18 @@
   /**
    * The button that puts one panel away, and brings it back (v30).
    *
-   * It sits ON the boundary it controls — half in the panel, half in the
-   * central column — which is only possible because every one of them is
-   * positioned against the CENTRAL column's own edges. Those edges are the
-   * boundaries in both states, so nothing here has to know a rail width, and a
-   * collapse moves the button for free.
+   * It is a TAB attached to the boundary it controls (v30.1): flat against the
+   * seam, rounded into the central view, and protruding only that way. v30 had
+   * it straddling the seam, half inside the panel — which put chrome on the
+   * panel's own contents, worst at the top where it landed on the deck row's
+   * seek line. The tab pays for that with a sliver of the central view instead,
+   * which has room: the wheel keeps an empty gutter outside its outermost ring.
+   *
+   * Either way it is positioned against the CENTRAL column's own edges, which
+   * are the panel boundaries in every combination of collapses — so nothing
+   * here has to know a rail width, and a collapse moves the tab for free.
+   * Never crossing the seam also retires v30's `.tucked` case: there is no
+   * longer a state in which half the button would hang outside the window.
    *
    * The chevron points the way the panel will go, so the button reads as an
    * instruction rather than a state: outward closes, inward re-opens.
@@ -41,7 +48,6 @@
 <button
   type="button"
   class="panel-toggle {side}"
-  class:tucked={!open}
   aria-expanded={open}
   aria-controls={controls}
   aria-label={label}
@@ -53,8 +59,8 @@
 
 <style>
   /* Absolutely positioned against `.centre` (or, for the top one, against the
-     player slot inside it) and translated back by half its own size, so it
-     straddles the seam rather than sitting inside either side of it. */
+     player slot inside it) and translated back on ONE axis only, so the tab
+     centres along the seam without ever crossing it. */
   .panel-toggle {
     position: absolute;
     z-index: 5;
@@ -65,8 +71,19 @@
     color: var(--ink-muted);
     background: var(--surface-raised);
     border: 1px solid var(--border);
-    border-radius: 999px;
     cursor: pointer;
+  }
+
+  /* The ink is deliberately a sliver — this is furniture, not a control anyone
+     hunts for. The hit area is not: an invisible cushion brings every tab up to
+     the 24px pointer target in both axes without widening what is drawn. It
+     grows ONLY into the central view, never back across the seam — a cushion
+     over the panel would take clicks from the contents this wave is trying to
+     stop covering. */
+  .panel-toggle::before {
+    content: '';
+    position: absolute;
+    inset: 0;
   }
 
   .panel-toggle:hover,
@@ -77,37 +94,50 @@
 
   .left,
   .right {
-    width: 16px;
-    height: 34px;
+    width: 14px;
+    height: 40px;
     top: 50%;
+    transform: translateY(-50%);
   }
 
+  /* Flat edge on the seam, rounded into the view, and no border along the seam
+     itself: the tab reads as growing out of the panel rather than floating over
+     it. With the rail collapsed the seam is the window edge, and the same rule
+     docks it there — which is why there is no second state to describe. */
   .left {
     left: 0;
-    transform: translate(-50%, -50%);
+    border-left: none;
+    border-radius: 0 8px 8px 0;
+  }
+
+  .left::before {
+    right: -10px;
   }
 
   .right {
     right: 0;
-    transform: translate(50%, -50%);
+    border-right: none;
+    border-radius: 8px 0 0 8px;
   }
 
-  /* Straddling the seam is right while there is a panel on the other side of
-     it. Once there is not, the seam IS the window edge, and half the button
-     would hang outside it — so a collapsed rail's button docks inside instead. */
-  .left.tucked,
-  .right.tucked {
-    transform: translate(0, -50%);
+  .right::before {
+    left: -10px;
   }
 
   /* `top: 100%` of the player slot: the bar's lower edge when the bar is
      showing, and — since the slot is then zero-height — the ribbon's lower edge
      when it is not. One rule, both states. */
   .top {
-    width: 34px;
-    height: 16px;
+    width: 44px;
+    height: 14px;
     left: 50%;
     top: 100%;
-    transform: translate(-50%, -50%);
+    transform: translateX(-50%);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+  }
+
+  .top::before {
+    bottom: -10px;
   }
 </style>
