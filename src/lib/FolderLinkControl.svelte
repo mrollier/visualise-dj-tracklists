@@ -1,7 +1,8 @@
 <script lang="ts">
   import { coverageLine, coverageShort } from '../core/audio/coverage'
   import { folderHint } from '../core/location'
-  import { library } from '../stores'
+  import type { Track } from '../core/model'
+  import { clickedTrackId, library, visibleLibrary } from '../stores'
   import {
     canLinkPersistently,
     coverage,
@@ -47,7 +48,28 @@
    * vanished entirely for a library with one track on another volume. The
    * worked example — this track, that path, so this folder — survives both.
    */
-  const hint = $derived(sampleLibrary ? null : folderHint($library))
+  /**
+   * Which track the worked example should name (v30.1). Both candidates are
+   * drawn from what is ON SCREEN, most-wanted first: the track the user last
+   * CLICKED, then the first one the filters still leave standing. A clicked
+   * track that has since been filtered away does not count — deck B goes on
+   * playing it, but the ⓘ is meant to name something the user can see.
+   *
+   * `clickedTrackId` rather than `selectedId` for the same reason deck B uses
+   * it (v29 #10): it means a track the user picked, not wherever the app moved
+   * the selection.
+   *
+   * Two entries, never two thousand: `folderHint` only ever wants the first
+   * candidate with a path, so there is nothing to gain by handing it the list.
+   */
+  const preferred = $derived.by(() => {
+    const visible = $visibleLibrary
+    const clicked = visible.find((t) => t.id === $clickedTrackId)
+    const first = visible.find((t) => t.location !== null && t.location !== '')
+    return [clicked, first].filter((t): t is Track => t !== undefined)
+  })
+
+  const hint = $derived(sampleLibrary ? null : folderHint($library, preferred))
   const suggestedPath = $derived(hint?.suggested ?? null)
   /** What to paste when there is no shared ancestor: the example's own folder. */
   const fallbackPath = $derived(suggestedPath ?? hint?.example?.folder ?? null)

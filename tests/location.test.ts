@@ -230,4 +230,37 @@ describe('folderHint', () => {
     const hint = folderHint([at('Track', 'file://localhost/Users/mr/Music/Deep%20House/T.mp3')])
     expect(hint.example?.folder).toBe('/Users/mr/Music/Deep House')
   })
+
+  // v30.1: the example names a track the user can see — the one they clicked,
+  // or the first one still visible under the filters — rather than whatever
+  // sits at the top of the library.
+  const all = [
+    at('First', 'file://localhost/Users/mr/Music/House/First.mp3'),
+    at('Nightmares', 'file://localhost/Users/mr/Music/House/2019/Nightmares.mp3', 'Dusky'),
+  ]
+
+  test('a preferred track wins the example over the first located one', () => {
+    const hint = folderHint(all, [all[1]])
+    expect(hint.example?.label).toBe('Dusky — Nightmares')
+    expect(hint.example?.folder).toBe('/Users/mr/Music/House/2019')
+  })
+
+  test('a preferred track with no path is skipped for the next candidate', () => {
+    const hint = folderHint(all, [at('Clicked', null), all[1]])
+    expect(hint.example?.label).toBe('Dusky — Nightmares')
+  })
+
+  test('the suggested folder ignores preferred entirely', () => {
+    // The clicked track lives on another volume. The folder to LINK still has
+    // to cover the whole library, so the ancestor may not follow the example.
+    const stray = at('Stray', 'file://localhost/Volumes/Backup/Stray.mp3')
+    const hint = folderHint(all, [stray])
+    expect(hint.example?.label).toBe('Stray')
+    expect(hint.suggested).toBe('/Users/mr/Music/House')
+    expect(hint.scattered).toBe(false)
+  })
+
+  test('an empty preferred list is the one-argument call exactly', () => {
+    expect(folderHint(all, [])).toEqual(folderHint(all))
+  })
 })

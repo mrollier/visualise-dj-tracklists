@@ -126,8 +126,22 @@ export interface HintTrack {
   location: string | null
 }
 
-export function folderHint(tracks: readonly HintTrack[]): FolderHint {
-  const located = tracks.find((t) => t.location !== null && t.location !== '')
+/**
+ * `preferred` is a candidate list for the EXAMPLE only, most-wanted first
+ * (v30.1): the caller passes the track the user just clicked and the first one
+ * still visible under the filters, so the ⓘ names something on screen rather
+ * than whatever happens to sit at the top of the library. Entries without a
+ * path are skipped, and an empty list is the original behaviour exactly.
+ *
+ * `suggested` deliberately keeps reading `tracks`: the folder that gets linked
+ * has to cover the whole library, not just the part surviving the filters.
+ */
+export function folderHint(
+  tracks: readonly HintTrack[],
+  preferred: readonly HintTrack[] = [],
+): FolderHint {
+  const hasPath = (t: HintTrack) => t.location !== null && t.location !== ''
+  const located = preferred.find(hasPath) ?? tracks.find(hasPath)
   const suggested = commonAncestorPath(tracks.map((t) => t.location))
   if (located === undefined || located.location === null) {
     return { example: null, suggested, scattered: false }
