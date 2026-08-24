@@ -165,11 +165,15 @@
     {#if hint !== null && (hint.example !== null || suggestedPath !== null)}
       {@render folderTip()}
     {/if}
-    {#if fallbackPath !== null}
-      <!-- Deliberately a separate control from the button above: the picker is
+    {#if layout === 'panel' && fallbackPath !== null}
+      <!-- Panel only since v30.1: in the bar this was the widest thing in
+           `.source`, and what it squeezed was the link button itself — down to
+           `Link` / `music` / `folder…` on three lines, which made the whole bar
+           taller. Advanced → View is where it earns its width, and it is still
+           deliberately a separate control from the button above: the picker is
            modal, so the copy has to happen first. -->
       <button
-        class="path long"
+        class="path"
         onclick={copyPath}
         title="Copy {fallbackPath}, then press {jumpKeys} in the picker"
       >
@@ -217,9 +221,16 @@
       Files are matched by name and folder, never by the absolute path in your library — so a parent
       folder is always safe, and a library that moved machines still resolves.
     </span>
-    <span>
-      No browser lets this page open the picker at a path. Copy it, then press {jumpKeys} in the picker.
-    </span>
+    {#if layout === 'bar'}
+      <span>
+        No browser lets this page open the picker at a path — press {jumpKeys} in the picker and type
+        it there. Advanced → View copies it for you in one click.
+      </span>
+    {:else}
+      <span>
+        No browser lets this page open the picker at a path. Copy it, then press {jumpKeys} in the picker.
+      </span>
+    {/if}
   </InfoTooltip>
 {/snippet}
 
@@ -234,6 +245,16 @@
   .link.panel {
     flex-wrap: wrap;
     padding: 2px 0;
+  }
+
+  /* In the bar every label is one line or it is not there (v30.1). A button
+     squeezed by its neighbours is otherwise free to wrap its OWN text, and
+     `.source` clips rather than scrolls — so a wrapped button silently grows
+     the bar's height, which is the one thing v30 said would depend on the deck
+     count and nothing else. The panel is exempt: its coverage read-out is the
+     long form, and wrapping is how it fits the rail. */
+  .link:not(.panel) button {
+    white-space: nowrap;
   }
 
   /* v30: the bar's height must depend on how many decks are showing and on
