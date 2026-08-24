@@ -95,6 +95,15 @@ export interface AppSettings {
    */
   uiMode: 'advanced' | 'easy'
   /**
+   * The two side panels' visibility (v30). Both on by default: this is the
+   * layout the app has always had, so an older save with neither key resolves
+   * to it. The THIRD panel — the audition bar across the top of the central
+   * column — has no flag of its own; `audioPreview` below is that flag, since a
+   * bar you cannot see is a bar you cannot stop.
+   */
+  showLeftPanel: boolean
+  showRightPanel: boolean
+  /**
    * Audio preview (v28): show the two-deck audition bar under the top bar.
    * Off by default. A browser cannot open a file from `Track.location`, so
    * turning this on only reveals the bar — hearing anything additionally
@@ -121,5 +130,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   visibleFilters: [...DEFAULT_VISIBLE_FILTERS, ...PANEL_FILTER_KEYS],
   advancedOpen: [],
   uiMode: 'advanced',
+  showLeftPanel: true,
+  showRightPanel: true,
   audioPreview: false,
 }

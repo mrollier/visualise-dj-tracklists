@@ -821,6 +821,37 @@ describe('uiMode (v12 WS4)', () => {
   })
 })
 
+describe('panel visibility (v30)', () => {
+  test('saves from before collapsible panels back-fill to both panels shown', () => {
+    // The layout every save before v30 was written from. Additive booleans
+    // whose default IS the legacy behaviour are what let this wave skip a
+    // schema bump.
+    const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    const stored = raw.settings as Record<string, unknown>
+    delete stored.showLeftPanel
+    delete stored.showRightPanel
+    const parsed = parseProject(JSON.stringify(raw)).settings
+    expect(parsed.showLeftPanel).toBe(true)
+    expect(parsed.showRightPanel).toBe(true)
+  })
+
+  test('a collapsed panel survives the round-trip', () => {
+    const collapsed = {
+      ...project,
+      settings: { ...structuredClone(DEFAULT_SETTINGS), showLeftPanel: false },
+    }
+    const parsed = parseProject(serializeProject(collapsed)).settings
+    expect(parsed.showLeftPanel).toBe(false)
+    expect(parsed.showRightPanel).toBe(true)
+  })
+
+  test('garbage panel values fall back to shown', () => {
+    const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    ;(raw.settings as Record<string, unknown>).showRightPanel = 'sometimes'
+    expect(parseProject(JSON.stringify(raw)).settings.showRightPanel).toBe(true)
+  })
+})
+
 describe('manual edges (v12 WS9, schema v5)', () => {
   test('manual edges round-trip with their tag', () => {
     const withEdges = {
@@ -961,6 +992,8 @@ describe('WS6 sanitize round-trip pins (v14.1)', () => {
     manualEdgeWeight: 7.5,
     advancedOpen: ['genres', 'display'],
     uiMode: 'easy',
+    showLeftPanel: false,
+    showRightPanel: true,
     audioPreview: false,
   }
 
@@ -982,6 +1015,8 @@ describe('WS6 sanitize round-trip pins (v14.1)', () => {
     visibleFilters: ['bpm', 'year'],
     advancedOpen: [],
     uiMode: 'advanced',
+    showLeftPanel: true,
+    showRightPanel: false,
     audioPreview: true,
   }
 
@@ -1004,12 +1039,14 @@ describe('WS6 garbage inputs resolve to defaults (v14.1)', () => {
     raw.settings.suggestLength = NaN
     raw.settings.bpmProgression = 7
     raw.settings.advancedOpen = 'yes'
+    raw.settings.showLeftPanel = 'nope'
     const s = parseProject(JSON.stringify(raw)).settings
     expect(s.theme).toBe(null)
     expect(s.edgeOpacity).toBe(DEFAULT_SETTINGS.edgeOpacity)
     expect(s.suggestLength).toBe(DEFAULT_SETTINGS.suggestLength)
     expect(s.bpmProgression).toBe('any')
     expect(s.advancedOpen).toEqual([])
+    expect(s.showLeftPanel).toBe(DEFAULT_SETTINGS.showLeftPanel)
   })
 
   test('unknown criteria bpm keys never reach the output', () => {

@@ -279,6 +279,10 @@ export const effectiveSettings = derived([settings, easyMode], ([$s, $e]) =>
         theme: $s.theme,
         uiMode: $s.uiMode,
         advancedOpen: $s.advancedOpen,
+        // Which panels are collapsed is chrome, not computation (v30): easy
+        // mode must not quietly re-open one.
+        showLeftPanel: $s.showLeftPanel,
+        showRightPanel: $s.showRightPanel,
       }
     : $s,
 )

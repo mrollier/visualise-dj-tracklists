@@ -68,6 +68,10 @@ function tuningOf($settings: AppSettings, $criteria: CriteriaConfig): string {
   // v28: undoing this would tear down a live AudioContext and stop the
   // music as a side effect of a Cmd+Z pressed for something else.
   delete behavioural.audioPreview
+  // v30: same argument for the furniture. A Cmd+Z pressed for a set edit has
+  // no business re-opening a panel the user put away.
+  delete behavioural.showLeftPanel
+  delete behavioural.showRightPanel
   return JSON.stringify({ settings: behavioural, criteria: $criteria })
 }
 

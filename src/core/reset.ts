@@ -7,13 +7,16 @@ import { DEFAULT_SETTINGS, type AppSettings } from './settings'
  * touched; the theme lives in the top bar and the section-fold memory is UI
  * chrome, so both survive. Audio preview (v28) survives too: silently
  * unlinking someone's music folder is the same class of surprise as flipping
- * their theme.
+ * their theme. So does which panels are collapsed (v30) — re-opening panels
+ * someone deliberately put away is that same surprise again.
  */
 export function resetAdvancedSettings(current: AppSettings): AppSettings {
   return {
     ...structuredClone(DEFAULT_SETTINGS),
     theme: current.theme,
     advancedOpen: [...current.advancedOpen],
+    showLeftPanel: current.showLeftPanel,
+    showRightPanel: current.showRightPanel,
     audioPreview: current.audioPreview,
   }
 }

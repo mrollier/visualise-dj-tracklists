@@ -124,6 +124,8 @@ describe('effective stores — easy mode computes with defaults', () => {
       slotSpreadFactor: 0.2,
       manualEdgeWeight: 9,
       uiMode: 'easy',
+      showLeftPanel: false,
+      showRightPanel: false,
     })
 
     const eff = get(effectiveSettings)
@@ -134,6 +136,10 @@ describe('effective stores — easy mode computes with defaults', () => {
     expect(eff.theme).toBe('light')
     expect(eff.uiMode).toBe('easy')
     expect(eff.advancedOpen).toEqual(['display', 'tracks'])
+    // v30: which panels are collapsed is chrome too — easy mode computing with
+    // the defaults must not re-open one.
+    expect(eff.showLeftPanel).toBe(false)
+    expect(eff.showRightPanel).toBe(false)
   })
 
   test('easy never mutates the stored writables; flipping back restores them untouched', () => {

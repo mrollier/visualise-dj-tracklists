@@ -407,6 +407,17 @@ export function parseProject(json: string): Project {
       rawSettings.uiMode === 'easy' || rawSettings.uiMode === 'advanced'
         ? rawSettings.uiMode
         : DEFAULT_SETTINGS.uiMode,
+    // v30: additive booleans, no version bump either — an older save with
+    // neither key resolves to true, which is the fixed three-panel layout it
+    // was written from.
+    showLeftPanel:
+      typeof rawSettings.showLeftPanel === 'boolean'
+        ? rawSettings.showLeftPanel
+        : DEFAULT_SETTINGS.showLeftPanel,
+    showRightPanel:
+      typeof rawSettings.showRightPanel === 'boolean'
+        ? rawSettings.showRightPanel
+        : DEFAULT_SETTINGS.showRightPanel,
     // v28: additive boolean, no version bump — an older save with no key
     // resolves to false, which is exactly the wanted "preview off".
     audioPreview:

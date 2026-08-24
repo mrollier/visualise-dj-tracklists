@@ -36,6 +36,19 @@ describe('reset to defaults (v9 issue 3)', () => {
     expect(resetAdvancedSettings(current).audioPreview).toBe(true)
   })
 
+  test('collapsed panels survive a reset, like the theme (v30)', () => {
+    // Re-opening panels someone deliberately put away is the same surprise as
+    // flipping their theme back.
+    const current: AppSettings = {
+      ...structuredClone(DEFAULT_SETTINGS),
+      showLeftPanel: false,
+      showRightPanel: false,
+    }
+    const reset = resetAdvancedSettings(current)
+    expect(reset.showLeftPanel).toBe(false)
+    expect(reset.showRightPanel).toBe(false)
+  })
+
   test('restores all three permanent panel rows (v23)', () => {
     const current: AppSettings = {
       ...structuredClone(DEFAULT_SETTINGS),
