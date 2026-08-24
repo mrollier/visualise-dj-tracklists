@@ -159,21 +159,23 @@
 {/if}
 
 <style>
-  /* Three columns matching the app's own layout, so the transport sits over
-     the view it describes rather than over the whole window (v29 #6). The
-     side columns are reserved even when the right rail is absent (an empty
-     library), so importing one cannot shunt the transport sideways.
+  /* The bar spans the central column and nothing else, because it IS a child
+     of the central column (v30). v29 #6 got the same result by reserving two
+     empty spacer columns sized to `--left-rail` and `--right-rail`; that only
+     held while the rails held those exact widths, which a collapse ends. There
+     is no number left to keep in step now.
 
-     No horizontal padding here: column 2 has to start exactly at the central
-     pane's left edge, so what padding there is belongs on the cells. */
+     `container-type: inline-size` so the source chip can answer how much room
+     it actually has (v30) rather than the right rail's width. */
   .player {
     flex: 0 0 auto;
-    display: grid;
-    grid-template-columns: var(--left-rail) minmax(0, 1fr) var(--right-rail);
+    display: flex;
     align-items: center;
     padding: 6px 0;
     background: var(--surface-raised);
     border-bottom: 1px solid var(--border);
+    container-type: inline-size;
+    container-name: player;
   }
 
   /* The deck rows beside a narrow fader column; the source chip sits beside
@@ -181,7 +183,7 @@
      grid for both states (v28.2) — the fader cell is reserved even while
      empty, so pinning never shifts the transport sideways. */
   .decks {
-    grid-column: 2;
+    flex: 1;
     min-width: 0;
     display: grid;
     grid-template-columns: 22px 1fr;
@@ -190,12 +192,15 @@
     row-gap: 4px;
   }
 
-  /* The right rail's width, so whatever it holds has to fit what the panel
-     beside it would: the coverage read-out compresses rather than pushing the
-     decks off centre. */
+  /* Sized by its own content now, not by the right rail (v30) — and capped at
+     a third of the bar so a long read-out can never push the transport off
+     centre. `overflow: hidden` keeps whatever is left of it on one line: the
+     bar's height must depend on how many decks are showing and on nothing
+     else. */
   .source {
-    grid-column: 3;
+    flex: 0 1 auto;
     min-width: 0;
+    max-width: 33%;
     padding: 0 14px;
     overflow: hidden;
   }

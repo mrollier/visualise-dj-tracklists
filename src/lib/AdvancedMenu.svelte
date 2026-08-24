@@ -786,7 +786,7 @@
 
 <style>
   .panel {
-    width: 280px;
+    width: var(--right-rail);
     flex-shrink: 0;
     background: var(--page);
     border-left: 1px solid var(--border);

@@ -595,7 +595,7 @@
 
 <style>
   aside {
-    width: 280px;
+    width: var(--right-rail);
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
