@@ -215,6 +215,15 @@
     min-height: 0;
     display: flex;
     overflow: auto;
+    /* The three edges a panel tab protrudes over (v30.1). Reserving the strip
+       is what keeps the tabs off the content rather than merely off the panels:
+       without it the top tab sat squarely on the Tracks view's KEY header, and
+       the side ones on its ★ and rating columns. The wheel and the genre map
+       are `meet`-scaled, so they simply draw 14px smaller. */
+    padding: var(--panel-tab) var(--panel-tab) 0;
+    /* The reserved strip has to read as part of the view, not as a frame around
+       it — every central view paints the same surface. */
+    background: var(--surface);
   }
 
   /* Floor each central view so a narrow window scrolls it instead of squishing

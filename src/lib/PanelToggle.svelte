@@ -94,7 +94,7 @@
 
   .left,
   .right {
-    width: 14px;
+    width: var(--panel-tab);
     height: 40px;
     top: 50%;
     transform: translateY(-50%);
@@ -129,7 +129,7 @@
      when it is not. One rule, both states. */
   .top {
     width: 44px;
-    height: 14px;
+    height: var(--panel-tab);
     left: 50%;
     top: 100%;
     transform: translateX(-50%);

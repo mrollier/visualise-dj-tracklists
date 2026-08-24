@@ -51,6 +51,11 @@
      how they would come apart. */
   --left-rail: 250px;
   --right-rail: 280px;
+  /* How far a panel tab protrudes into the central pane, and therefore how much
+     of that pane's edge is chrome rather than content (v30.1). The central
+     views reserve exactly this much, so a tab covers a margin and never a
+     column header, a star or a rating. */
+  --panel-tab: 14px;
 
   font-family:
     system-ui,
