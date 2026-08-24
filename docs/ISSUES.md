@@ -1,7 +1,9 @@
 # Issues — open
 
-Michiel's ten-item review of the audio preview resolved in **v29** (branch
-`v29-player-review`), on top of the permanent filter-group wave resolved in
+The three-panel collapse wave resolved in **v30** (branch
+`v30-collapsible-panels`), on top of Michiel's ten-item review of the audio
+preview resolved in **v29** (branch `v29-player-review`), the permanent
+filter-group wave resolved in
 **v23** (branch `v23-filter-group`), the Tracks-header visibility defect
 resolved in **v22** (branch `v22-tracks-header`), both constellation-edge
 defects resolved in **v21** (branch `v21-edges`), the two wheel-animation
@@ -14,6 +16,56 @@ resolved in **v16**, the v14 UI review resolved in **v15**, and all
 nineteen v13 items resolved in **v14**
 ([designs/design-v14.md](designs/design-v14.md) has the older per-issue notes).
 Each "Resolved" list records what actually shipped.
+
+## Open — v30 collapsible panels
+
+The app is a fixed three-panel shell: a 250px left rail of playlists and
+filters, a 280px right rail holding the constellation (or Advanced), and — since
+v28 — an audition bar across the top. None of it moves, so on a laptop the wheel
+gets whatever is left over and there is no way to say "only the wheel, please".
+Michiel asked for each panel to be collapsible two ways: a small button in the
+middle of its own margin, and a checkbox in a new **View** section of Advanced
+settings replacing the current **Preview** section. The top ribbon stays as it
+is, and stays the thing that opens Advanced.
+
+1. **No panel can be put away.** `App.svelte:59-96` is a fixed flex row:
+   `CriteriaPanel` at `var(--left-rail)`, the scrolling centre, `.right-aside`
+   at `var(--right-rail)`. Nothing hides any of them, and there is no
+   width-based media query anywhere in `src/` — panel visibility is driven
+   purely by state (`$library.length`, `$rightPanel`, `uiMode === 'easy'`).
+   Collapsing must not unmount: `PlaylistsSection.svelte:52`,
+   `FiltersSection.svelte:272` and `GenresSection.svelte:33` are `<details>`
+   with no bound `open`, so their fold state lives in uncontrolled DOM and an
+   `{#if}` around the panel would silently reset all three every time.
+
+2. **The audition bar only pretends to sit between the rails.** It is a
+   full-width sibling above `<main>` (`App.svelte:56`) whose three-column grid
+   (`PlayerBar.svelte:172`) reserves two empty spacer columns sized to
+   `var(--left-rail)` and `var(--right-rail)`, so the transport lands over the
+   central pane by arithmetic rather than by structure (v29 #6). Any collapse
+   makes the two disagree, and the numbers can drift apart again — as they
+   already have: `TracklistPanel.svelte:598` and `AdvancedMenu.svelte:789` still
+   hardcode `280px` instead of the variable.
+
+3. **Turning the preview off throws the session away.** `playerStore.ts:262-276`
+   disposes the AudioContext and blanks every deck store when `audioPreview`
+   goes false. That is right for a feature switch and wrong for a collapse: what
+   was loaded, and where each deck stood, should come back when the panel does.
+
+4. **The bar's right-hand chip does not fit the space it is given.** It is
+   locked to the right rail's width in every state (`PlayerBar.svelte:196-201`),
+   so it cannot use the room a collapse frees, and it cannot survive that room
+   disappearing. It also drives the bar's height: `FolderLinkControl`'s `.scan`
+   block is a column in bar layout (`:232-240`), stacking a label above the
+   progress bar, so the whole bar grows taller for the duration of a folder
+   scan. The bar's height should depend on one thing only — whether one track is
+   showing or two.
+
+5. **Advanced has no section about what is on screen.** The panel's six sections
+   (`AdvancedMenu.svelte:272`) are all about what is computed or drawn; the one
+   that comes closest, **Preview**, is a single switch plus the folder control.
+   There is nowhere to put a panel-visibility checkbox, and the section that
+   should hold it is named after one of the three panels it would list.
 
 ## Open — v19 z-order review
 
