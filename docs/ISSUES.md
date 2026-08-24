@@ -71,7 +71,9 @@ itself is untouched):
 ## Resolved in v30
 
 Branch `v30-collapsible-panels`; design notes in
-[designs/design-v30-collapsible-panels.md](designs/design-v30-collapsible-panels.md).
+[designs/design-v30-collapsible-panels.md](designs/design-v30-collapsible-panels.md),
+and — for the review pass that followed — in
+[designs/design-v30.1-panel-tabs-and-link.md](designs/design-v30.1-panel-tabs-and-link.md).
 One request — make the three panels collapsible — whose consequences reached
 further than the toggles.
 
@@ -87,6 +89,22 @@ further than the toggles.
    `inert` keeps what is clipped out of the tab order. Instant, no animation —
    the wheel re-rasterises on every layout frame and v29 spent a workstream
    keeping that work off the audio thread.
+
+   **Revised in v30.1**, after living with it. Straddling the seam meant half of
+   each button was drawn on the panel's own contents, worst at the top where it
+   landed on the deck row's seek line beside the transport. Each is a TAB now:
+   flat against the boundary, rounded into the central view, protruding only
+   that way. The positioning is untouched, so a collapse still moves them for
+   free; only the direction of the overhang changed — which also retires
+   `.tucked`, since a button that never crosses the seam can never hang outside
+   the window. The ink is a sliver, so an invisible cushion brings each tab up
+   to the 24px pointer target, growing into the view only: a cushion reaching
+   back over the panel would take clicks from the contents this was fixing.
+   And the central pane RESERVES the strip they occupy — `--panel-tab` is both
+   how far a tab protrudes and how much padding `.center-scroll` keeps on those
+   three edges. Without it the tabs were merely off the panels and still on
+   content: the top one sat on the Tracks view's KEY header, the side ones on
+   its ★ and rating columns.
 
 2. **The bar is genuinely nested now, not aligned by arithmetic.** `.player`
    moved inside the central column, so v29 #6's three-column grid with two empty
@@ -143,6 +161,24 @@ further than the toggles.
    element is all zeros rather than null, so the spotlight used to become a 12px
    hole in the top-left corner instead of falling back to the plain dim.
 
+8. **The link control, revisited (v30.1).** Three complaints, one knot. Before a
+   folder was linked the bar's button read `Link` / `music` / `folder…` on three
+   lines, and a taller button is a taller bar — the one thing entry 4 says
+   depends on the deck count and nothing else. The copyable suggested-path chip
+   was the widest thing in `.source` and was squeezing it, and a squeezed button
+   was free to wrap its own text because nothing said otherwise. So bar labels
+   are `nowrap` (the panel stays exempt — its long coverage read-out fits the
+   rail by wrapping), and the chip is panel-only: Advanced → View is the
+   management surface, and since no browser opens a picker at a path, the
+   copy-then-⌘⇧G route is still the only one there is. The adaptive label needed
+   nothing but the room. Separately, the ⓘ's worked example named the first track
+   in the library with a path — nothing in particular, and often nothing on
+   screen; it now names the track last CLICKED, else the first the filters leave
+   standing, both drawn from what is visible. `folderHint` takes the candidates
+   as an optional second argument, so every existing call is unchanged, and the
+   suggested FOLDER still reads the whole library: what gets linked has to cover
+   everything, not just what survives the filters.
+
 **Verified in the browser.** Three Playwright probes against a real import, a
 real music folder (mp3, FLAC and a deliberately unplayable AIFF) and the sample
 collection: 18 + 20 + 13 checks, zero console errors. Geometry to 1px in every
@@ -151,7 +187,13 @@ and its ⓘ escaping the bar's new `overflow: hidden`; play/hide/show returning 
 same deck at the same position, paused; the ⚙ override both ways; a collapsed
 panel surviving a reload; two decks exactly one row taller than one; and the tour
 replayed with all three panels put away, every step spotlighting a real element
-and all three returning to collapsed at the end.
+and all three returning to collapsed at the end. **v30.1 added a fourth probe**
+— 25 checks: every tab clearing the panel it controls in both states and staying
+inside the window, the cushion reaching outward but not back, the bar the same
+height and one line at both widths, no path chip in the bar and exactly one in
+Advanced → View, and the ⓘ following each click while the suggested folder holds
+still. The first three still pass unchanged, apart from one assertion that was
+checking the retired straddle.
 
 
 ## Resolved in v29

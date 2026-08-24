@@ -252,7 +252,7 @@ Your library never leaves your machine — there is no backend, no account, no u
 
 - **Give the wheel the room**: all three panels — the player above the wheel, the
   playlists and filters on the left, the constellation on the right — collapse from
-  a small button sitting on their own edge, or from **Advanced settings → View**.
+  a small tab on their own edge, or from **Advanced settings → View**.
   The wheel rescales into whatever space that frees, the transport stays lined up
   with it, and what you put away is remembered. Hiding the player really does stop
   the sound; showing it again puts both decks back where they were.
