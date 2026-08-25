@@ -294,8 +294,10 @@ show a timeline or a scored slot list; rekordbox's Related Tracks shows a ranked
 list; library managers show tables. Here the answer is a shape you can see and steer.
 
 It is deliberately **not** a key/BPM analyzer (it reads what Rekordbox already
-computed), not a library manager or converter (Lexicon does that better), and not
-performance software — it is the thinking tool you open _before_ the gig.
+computed, and the optional offline analyser fills only what Rekordbox left
+blank — locally, and marked as analysed wherever it shows), not a library
+manager or converter (Lexicon does that better), and not performance
+software — it is the thinking tool you open _before_ the gig.
 
 Two more things set it apart. Everything is **explainable**: every edge exists
 because of criteria you set and can read, every genre score can be inspected per

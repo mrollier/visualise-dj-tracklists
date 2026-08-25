@@ -21,6 +21,56 @@ nineteen v13 items resolved in **v14**
 ([designs/design-v14.md](designs/design-v14.md) has the older per-issue notes).
 Each "Resolved" list records what actually shipped.
 
+## Open — v34 offline analyser (WS2)
+
+The producer for v33's provenance layer, which shipped with a hand-written
+fixture and nothing to make real data. Branch `v34-offline-analyser`, stacked
+on `v33-audio-analysis-provenance`, design in
+[designs/design-v34-offline-analyser.md](designs/design-v34-offline-analyser.md).
+`scripts/analyse-audio.py` runs `essentia-tensorflow` over the collection and
+writes the sidecar the app already imports.
+
+1. **WS3 was scoped first and rejected on measurement.** The research report
+   sizes the in-app analyser's target at "the ~55 gap tracks". Against the real
+   collection it is **3** — the report added the 22 missing BPM to the 33
+   missing key when the sets overlap, and counted the Rekordbox sampler content
+   it separately warned about. 30 of the 33 are `MERGE FX`, `GROOVE CIRCUIT`
+   and `OSC_SAMPLER` one-shots that must never acquire a key; 2 are Pioneer
+   demo tracks. One real track remains, and a hand-written one-entry sidecar
+   closes it with no code. Do not re-propose WS3 without re-measuring.
+
+2. **WS2's payload is energy, not BPM or key.** Energy is non-null on 6 of
+   2080 tracks today. Analysed BPM fills zero real tracks and analysed key
+   fills one; both are still stored for every track so a future disagreement
+   report costs no re-run.
+
+3. **The script must not emit `energy`.** `energyOf` prefers a direct `energy`
+   over deriving from `arousal` (`analysis.ts:286-292`), so writing one freezes
+   the uncalibrated curve into a file that costs hours to regenerate. Emit raw
+   `arousal`/`valence` and let the app derive.
+
+4. **Sampler content must be excluded at the script, not gated at the merge.**
+   Energy is not confidence-gated (`analysis.ts:213-220`). Measured on
+   `OSC_SAMPLER/PRESET ONESHOT/NOISE.wav`: BPM confidence 0.00 and key strength
+   0.25, both correctly refused — but arousal 5.37 and danceability 0.898.
+
+5. **An unparseable key vanishes in silence.** `mergeAnalysis` drops a key
+   `normalizeKey` rejects without incrementing any counter
+   (`analysis.ts:205-210`). The script emits classical strings rather than
+   Camelot so there is one mapping instead of two, which makes the spelling
+   contract load-bearing — pin every tonic essentia can name.
+
+6. **The energy curve needed refitting before it was useful.** `arousal` came
+   back compressed (4.08–6.68, sd 0.56 over the first 20 tracks), so v33's
+   nominal [1, 9] → [1, 10] stretch put 18 of 20 tracks at energy 6 or 7. A
+   near-constant energy is worse than none: it adds an almost-always-matching
+   criterion to every pair and loosens the combo threshold library-wide.
+
+7. **Two library-wide behaviour changes to expect, neither a bug.** The combo
+   graph densifies once energy enters `evaluable` (`combos.ts:284-287`); and an
+   active energy range filter changes meaning, because a null number passes any
+   range (`filter.ts:305`) while a real one may not.
+
 ## Open — v33 audio-analysis provenance (WS1)
 
 The first workstream of the audio-analysis design in

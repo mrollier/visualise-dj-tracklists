@@ -111,6 +111,27 @@ distribute:
 - **Fonts:** currently system fonts + emoji glyphs — nothing to license. If you ever bundle a
   custom font, verify its licence permits redistribution/embedding (many don't).
 
+### The offline analyser is deliberately outside the app (v34)
+
+`scripts/analyse-audio.py` uses **essentia-tensorflow (AGPL-3.0)** and the
+**MTG Essentia models (CC BY-NC-SA 4.0)**. Neither enters the app bundle, and
+that separation is the point rather than an accident:
+
+- The script is a **separate program** that communicates with the app through a
+  JSON file it writes. Its outputs are numbers about your own tracks in your own
+  project file — data, not a derivative of essentia — so displaying them is fine.
+- The **models are gitignored** and fetched on demand by `scripts/fetch-models.sh`.
+  They are never redistributed. NonCommercial is the binding term, which is
+  irrelevant for personal use but would matter if this ever went commercial.
+- Because of both, **the app's own licence stays open**: the MIT + CC BY 4.0
+  split recommended in §3 is still available.
+
+Contrast the road not taken: shipping **essentia.js** (also AGPL-3.0) in the
+browser bundle would have made the whole app a derivative work, forcing AGPL-3.0
+on it the moment it was published or hosted. That was one of the reasons the
+in-app analyser was dropped. If you ever revisit it, this is a one-way door —
+decide the licence first.
+
 ---
 
 ## 5. Pre-publish checklist
