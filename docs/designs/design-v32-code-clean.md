@@ -131,9 +131,9 @@ splitting the three big views, `.svelte` outside type-aware lint, test-only
 exports — were out of bounds rather than re-proposed. They were, and none came
 back.
 
-**181 findings.** The fifty-seven that cleared the bar are fixed here — the
+**181 findings.** The fifty-eight that cleared the bar are fixed here — the
 forty-seven the review raised plus the nine the revived browser probe surfaced
-and one it caught live — recorded as thirty-seven entries; the remaining 134
+and one it caught live — recorded as thirty-eight entries; the remaining 134
 are in
 [../ISSUES.md](../ISSUES.md) under `## Open — v32 code review`, because the
 bar for touching code in a hygiene wave is deliberately high: behaviour-
@@ -311,8 +311,30 @@ this wave fixed defects that no test reached rather than changing behaviour any
 test asserts.
 
 `node scripts/screenshot.mjs` was run against a live `npm run dev` repeatedly
-through the repair. **It exits 0** — 192 assertions and 40 screenshots, two
+through the repair. **It exits 0** — 193 assertions and 40 screenshots, six
 consecutive clean runs — for the first time since v18.
+
+It took two passes to earn that. The first green was real but not repeatable:
+roughly one run in three failed somewhere in the vinyl-mode / unit-time /
+hub-disable block, and the cause was the finding recorded below — the hub
+seeds its PRNG from `Math.random()`, so what ends up in the constellation, and
+therefore how wide the visible graph is at each later checkpoint, differs
+between runs. On top of that the script's later half inherited whatever
+filters, key rings, genre selection and criteria the blocks above had left set.
+Three of its checks were only ever true by luck: vinyl mode and unit-time each
+tighten ONE criterion and are invisible unless that criterion is the binding
+one, and the hub-disable check sampled a state that arrives after a reveal
+window. They now pin their own scope (Classic demo, every filter reset, exactly
+the criterion under test enabled — enabling the wanted one first, because
+passing through a zero-enabled state leaves the threshold at 1 with nothing
+that can satisfy it and the graph comes back empty), and they wait for their
+condition instead of sampling it.
+
+The vinyl check also stopped counting edges. Vinyl mode compares keys *after*
+the pitch shift beatmatching implies (`combos.ts:216`), so it re-wires the
+graph rather than shrinking it — the count can land on the same number while
+the edges themselves differ, which is how the assertion managed to be both
+flaky and weak. It fingerprints the edge geometry now.
 
 Getting there meant adjudicating the nine failures the repair surfaced once the
 script could reach them, and **none of the nine was an app defect**. Six were

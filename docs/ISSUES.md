@@ -36,17 +36,17 @@ labels still don't counter-scale under zoom.
 Nothing open. The three `scripts/screenshot.mjs` defects this section carried
 since v20/v22/v23 are fixed in **v32**, together with the eleven more the
 script had accumulated and the nine failures the repair then surfaced. The
-probe runs clean — 192 assertions, 40 screenshots, exit 0 — for the first time
-since v18. See `## Resolved in v32` below.
+probe runs clean — 193 assertions, 40 screenshots, exit 0, six consecutive
+runs — for the first time since v18. See `## Resolved in v32` below.
 
 ## Open — v32 code review
 
 The whole-repo review recorded in
 [designs/design-v32-code-clean.md](designs/design-v32-code-clean.md) raised
-181 findings across fourteen slices. The fifty-seven that were safe to change —
+181 findings across fourteen slices. The fifty-eight that were safe to change —
 including the nine the revived browser probe surfaced, every one of which
 turned out to be a stale expectation rather than an app defect — are folded
-into the thirty-seven entries under `## Resolved in v32`; these 134 are the rest,
+into the thirty-eight entries under `## Resolved in v32`; these 134 are the rest,
 grouped by subsystem and ordered so the reachable data-loss ones come first.
 Nothing here was judged safe to change in a hygiene wave: each either changes
 behaviour, touches a persisted schema, changes what is on screen, or needs a
@@ -878,7 +878,7 @@ decision that is Michiel's rather than the reviewer's.
 
 Branch `v32-code-clean`. A whole-repo hygiene wave, eighteen releases after
 v14.1 did the first one: fourteen review slices raised 181 findings, of which
-these thirty-seven entries are what was safe to change without altering
+these thirty-eight entries are what was safe to change without altering
 behaviour, a
 persisted schema, or anything on screen. Full method, the tool corrections it
 starts from, and the deliberate non-goals are in
@@ -1141,6 +1141,26 @@ remaining 134 findings are in `## Open — v32 code review` above.
     noise. Recorded so the next survey does not re-flag them either. The three
     `as unknown as` casts and the seven `svelte-ignore` directives were
     reviewed in the same pass and all carry a stated reason.
+
+38. **The probe is repeatable, not just green once.** The first clean run was
+    real but roughly one in three failed afterwards, always in the vinyl-mode
+    / unit-time / hub-disable block. The cause is the hub's `Math.random()`
+    seed (open item 122): what lands in the constellation changes between
+    runs, and with it how wide the visible graph is at every later checkpoint
+    — on top of which the script's later half inherited whatever filters, key
+    rings, genre selection and criteria the blocks above had left set. Three
+    checks were only ever true by luck. Vinyl mode and unit-time each tighten
+    one criterion and are invisible unless it is the binding one, so each now
+    pins its own scope: the Classic demo playlist, every filter reset through
+    its own ↺, and exactly the criterion under test enabled — enabling the
+    wanted one first, because passing through a zero-enabled state leaves the
+    threshold at 1 with nothing that can satisfy it and the graph comes back
+    empty. The hub-disable check waits for its state instead of sampling it.
+    And the vinyl assertion stopped counting edges: vinyl mode compares keys
+    after the pitch shift beatmatching implies (`combos.ts:216`), so it re-
+    wires the graph rather than shrinking it and the count can land on the
+    same number while the edges differ — it fingerprints the edge geometry
+    now. Six consecutive clean runs.
 
 ## Resolved in v31
 

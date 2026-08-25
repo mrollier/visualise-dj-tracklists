@@ -1216,27 +1216,113 @@ await page.getByRole('radio').first().check() // …and back to mutual top-k
 await ensureSectionOpen('Key')
 await page.getByRole('checkbox', { name: 'allow +2 moves', exact: false }).check()
 await page.getByRole('checkbox', { name: 'allow +2 moves', exact: false }).uncheck()
-// strict vinyl mode must visibly rewire the graph
+// Vinyl mode and unit-time both tighten ONE criterion, so each is only
+// observable while that criterion is the binding one. Earlier blocks leave the
+// criteria in whatever state they needed, and the hub seeds its PRNG from
+// Math.random() (WheelView.svelte:795), so the set — and with it the visible
+// graph — differs run to run. Pin both: scope to the Classic demo, then enable
+// exactly the criterion under test.
+await page.keyboard.press('Escape')
+await page.locator('aside').first().getByRole('button', { name: 'None' }).first().click()
+await page.getByRole('checkbox', { name: 'Classic demo' }).check()
+await page.waitForTimeout(600)
+// Earlier blocks leave property ranges and mark quick-filters set, which
+// narrows the visible library and with it the graph. Put every filter row back
+// through its own ↺ and every pseudo row back to "all".
+const clearAllFilters = async () => {
+  for (const reset of await page.locator('.filter-row .range-reset').all()) {
+    await reset.click()
+  }
+  for (const all of await page
+    .locator('.filter-row.pseudo .ring-switch button', { hasText: 'all' })
+    .all()) {
+    await all.click()
+  }
+  // Both key rings back on — the Keys row is a pair of independent toggles
+  // with no "all", so an earlier minor-only check can leave half the library
+  // hidden.
+  for (const ring of ['minor', 'major']) {
+    const button = page.locator('.ring-switch button', { hasText: ring }).first()
+    if ((await button.count()) > 0 && (await button.getAttribute('aria-pressed')) !== 'true') {
+      await button.click()
+    }
+  }
+  // And every genre back on (all selected = no genre filter).
+  const allGenres = page.locator('aside').first().getByRole('button', { name: 'All' }).first()
+  if ((await allGenres.count()) > 0) await allGenres.click()
+  await page.waitForTimeout(500)
+}
+await clearAllFilters()
+const CRITERIA = ['Key', 'BPM within', 'Energy within', 'Genre', 'Year within']
+const criterionBox = (name) =>
+  page.locator('.criterion-head label', { hasText: name }).locator('input[type="checkbox"]').first()
+// Enable the one we want FIRST, then switch the others off: going through a
+// zero-enabled state leaves the threshold at 1 with nothing that can satisfy
+// it (toggleCriterion only clamps while something is still enabled), and the
+// graph comes back empty.
+const onlyCriterion = async (keep) => {
+  const keepBox = criterionBox(keep)
+  if (!(await keepBox.isChecked())) await keepBox.setChecked(true)
+  for (const name of CRITERIA) {
+    if (name === keep) continue
+    const box = criterionBox(name)
+    if (await box.isChecked()) await box.setChecked(false)
+  }
+  await page.waitForTimeout(600)
+}
+
+await onlyCriterion('Key')
+await page.getByRole('button', { name: /Advanced/ }).click()
+await ensureSectionOpen('Key')
+// Vinyl mode re-compares keys AFTER the pitch shift beatmatching implies
+// (combos.ts:216), so it re-wires the graph rather than strictly shrinking it —
+// the edge COUNT can land on the same number while the edges themselves differ.
+// Fingerprint the geometry instead.
+const edgeFingerprint = () =>
+  page.$$eval('.combo-edge', (es) =>
+    es
+      .map(
+        (e) =>
+          `${e.getAttribute('x1')},${e.getAttribute('y1')},${e.getAttribute('x2')},${e.getAttribute('y2')}`,
+      )
+      .sort()
+      .join('|'),
+  )
 const edgesBefore = await page.locator('.combo-edge').count()
+const fingerprintBefore = await edgeFingerprint()
+// Key-only over the Classic demo is 9 edges; the guard is here to catch the
+// graph collapsing entirely, not to pin that number.
+if (edgesBefore < 5) {
+  errors.push(`the vinyl-mode check needs a graph to rewire, got ${edgesBefore} edges`)
+}
 await page.getByRole('checkbox', { name: 'vinyl mode' }).check()
-await page.waitForTimeout(300)
+await page.waitForTimeout(400)
 const edgesVinyl = await page.locator('.combo-edge').count()
-if (edgesVinyl === edgesBefore) {
-  errors.push(`vinyl mode changed no edges (${edgesBefore} before and after)`)
+if ((await edgeFingerprint()) === fingerprintBefore) {
+  errors.push(`vinyl mode changed no edges (${edgesBefore} → ${edgesVinyl}, same geometry)`)
 }
 await page.getByRole('checkbox', { name: 'vinyl mode' }).uncheck()
 await page.waitForTimeout(300)
+
 // BPM metric ratios (v8 issue 6): unit time off shows a warning hint in the
 // combo panel and strips the ordinary 1:1 edges
+await onlyCriterion('BPM within')
+const edgesBpm = await page.locator('.combo-edge').count()
 await page.getByRole('checkbox', { name: '± unit time', exact: false }).uncheck()
-await page.waitForTimeout(300)
+await page.waitForTimeout(400)
 await page.locator('.ratio-note.warn', { hasText: 'unit time off' }).waitFor()
 const edgesNoUnit = await page.locator('.combo-edge').count()
-if (edgesNoUnit >= edgesBefore) {
-  errors.push(`unit time off should strip edges (${edgesBefore} → ${edgesNoUnit})`)
+if (edgesNoUnit >= edgesBpm) {
+  errors.push(`unit time off should strip edges (${edgesBpm} → ${edgesNoUnit})`)
 }
 await page.getByRole('checkbox', { name: '± unit time', exact: false }).check()
 await page.waitForTimeout(300)
+// put every criterion back so the rest of the flow sees the default shape
+for (const name of CRITERIA) {
+  const box = criterionBox(name)
+  if (!(await box.isChecked())) await box.setChecked(true)
+}
+await page.waitForTimeout(500)
 // half/double moved here from the combo panel (v8 issue 6); leave it on for
 // the rest of the flow, as before
 await page.getByRole('checkbox', { name: /half\/double/ }).check()
@@ -1542,6 +1628,13 @@ for (const label of await page.$$eval('g.node', (gs) =>
   await page.locator(`g.node[aria-label="${label}"]`).dblclick({ force: true })
   await settleWalk()
 }
+// The last append still has to flow through the reveal window before the hub
+// settles into its all-used state, so wait for the condition rather than
+// sampling it.
+await page
+  .locator('g.hub.disabled')
+  .waitFor({ timeout: 8000 })
+  .catch(() => {})
 if ((await page.locator('g.hub.disabled').count()) !== 1) {
   errors.push('the hub did not disable once every visible track was in the set')
 }
