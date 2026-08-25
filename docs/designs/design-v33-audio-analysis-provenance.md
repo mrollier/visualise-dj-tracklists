@@ -418,8 +418,51 @@ decisions.
 
 ## Verified
 
-_To fill in as the wave lands._
+Gates: `npm test` 1028 passing, `npm run lint` clean over `src tests scripts`,
+`npm run check` 0 errors across 327 files, `npm run build` succeeds.
+
+**Mutation-tested, not merely green.** Every assertion written after its
+implementation was checked by breaking the code and watching the intended test
+die:
+
+- disabling the fill kills the two fill tests, leaves the invariant test green
+- writing into the raw track object kills the no-mutation test
+- always returning the new array kills identity stability
+- decoding the sidecar key a second time kills the asymmetry test
+- preferring arousal over a direct `energy` kills the precedence test
+- clearing analysis in `replaceLibrary` kills the survives-a-re-import guard
+- augmenting `trackById` kills both CSV contamination guards
+- **reverting WheelView to the raw library kills the three wheel checks while
+  every table check still passes** — exactly the trap the design predicted
+
+**In a real browser**, against the sample collection plus the fixture: three
+keyless tracks leave the gutter and take ring positions, `Reeds` gains its
+analysed BPM, and `Found Tape` keeps its em dash because its key confidence is
+0.18 — per-field gating, visible on screen. The gutter ends holding exactly
+one node. The import note reads "BPM filled 3/3, key 4/5, energy 0 tracks;
+1 below confidence, 257 not found". Analysed cells carry the dotted underline
+and the "Analysed locally — not from Rekordbox" title.
+
+The measured localStorage figures in the quota section come from serialising
+the real 2080-track collection, not from estimation.
 
 ## Not verified
 
-_To fill in as the wave lands._
+- **No real analysis data exists yet.** Everything is exercised against a
+  hand-written fixture; the sidecar's field semantics are only as right as WS2
+  turns out to agree with.
+- **The energy curve is unvalidated** and deliberately so — `energyFromArousal`
+  is a straight linear stretch of [1, 9] onto [1, 10] with a `ponytail:` marker,
+  because six biased labels cannot support fitting anything better.
+- **`MIN_CONFIDENCE` (0.5) was chosen by eye**, not measured. One threshold
+  serves both BPM and key.
+- **`happiness` and `danceability` are stored but never read.** Nothing proves
+  they survive a round-trip beyond the sanitizer tests.
+- **The quota warning path is untested end to end** — the store flag and its
+  header rendering are wired, but no test fills localStorage to make a real
+  `QuotaExceededError` fire.
+- **Probe flakiness**: across three runs, two were clean and one failed twice
+  in the dblclick/reveal section near `screenshot.mjs:1668`. That section
+  predates this wave and does not touch the analysis layer, but it is not fixed
+  here either.
+- Not tried on Michiel's real 2080-track library — only the sample collection.
