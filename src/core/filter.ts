@@ -251,11 +251,6 @@ export function propertyExtents(
 }
 
 /**
- * Whole numbers just outside the extent: [floor(min), ceil(max)]. The range
- * filters reset to these, so the bounds read cleanly and still cover every
- * track in the current selection.
- */
-/**
  * Colour-chip rendering options (v14.1 WS7): chips must show every colour
  * the store is actually filtering by, not just the ones in scope — a stored
  * selection can retain a colour that dropped out of scope after a playlist
@@ -276,6 +271,11 @@ export function colourChipOptions(
   return out
 }
 
+/**
+ * Whole numbers just outside the extent: [floor(min), ceil(max)]. The range
+ * filters reset to these, so the bounds read cleanly and still cover every
+ * track in the current selection.
+ */
 export function wholeExtent(extent: [number, number]): [number, number] {
   return [Math.floor(extent[0]), Math.ceil(extent[1])]
 }

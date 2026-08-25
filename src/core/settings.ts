@@ -80,8 +80,8 @@ export interface AppSettings {
   /**
    * Which property filters appear in the left panel (v11 issue 1); the rest
    * are hidden until ticked in the advanced "Track properties" table. Since
-   * v18 (#3/#8), widened v23, also carries the three permanent panel
-   * pseudo-keys ('starred'/'combos'/'keys') alongside real properties —
+   * v18 (#3/#8), widened v23 and again v25, also carries the four permanent
+   * panel pseudo-keys ('starred'/'constellation'/'combos'/'keys') —
    * same show/hide semantics, just not backed by a `TrackProperty`.
    */
   visibleFilters: (TrackSortField | PanelFilterKey)[]

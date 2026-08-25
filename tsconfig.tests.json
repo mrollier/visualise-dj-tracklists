@@ -6,5 +6,5 @@
     // behaviour, not typechecked (they are plain node JS).
     "checkJs": false
   },
-  "include": ["tests/**/*.ts", "src/**/*.ts"]
+  "include": ["tests/**/*.ts"]
 }

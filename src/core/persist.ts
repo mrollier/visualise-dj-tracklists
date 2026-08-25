@@ -456,8 +456,9 @@ export function parseProject(json: string): Project {
   // [] is a valid "hide every property filter" choice. Either way, an
   // actively filtering property is forced visible — the hide-clears-filter
   // invariant means nothing may filter invisibly.
-  // v18 (#3/#8), widened v23: the three permanent panel pseudo-keys join
-  // the same whitelist — only whether their ROW shows in the panel. Filters
+  // v18 (#3/#8), widened v23 and again v25: the four permanent panel
+  // pseudo-keys join the same whitelist — only whether their ROW shows in
+  // the panel. Filters
   // carry transient `marks` quick-filters too (LibraryFilters.marks), but
   // that boolean state is always reset on load (see migrateFilters), so it
   // never reaches the force-visible loop below, which stays property-only.

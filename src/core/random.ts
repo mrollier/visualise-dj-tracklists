@@ -16,8 +16,10 @@ export function mulberry32(seed: number): () => number {
 /**
  * A stable pseudo-random value in [0, 1) for an id under a given seed:
  * FNV-1a over the id, xor'd with the seed, whitened through one mulberry32
- * step. The wheel uses it to order same-key fans — per-track stable (angles
- * never move under filtering) yet re-drawable with a new seed (re-jitter).
+ * step. It ordered the wheel's same-key fans until v9 (issues 1 + 17)
+ * replaced that with the deterministic relaxation in layout.ts, which is
+ * also why settings.jitterSeed is dead. The only caller left is the sample
+ * generator in data/enrich.ts.
  */
 export function hashUnit(id: string, seed: number): number {
   let h = 0x811c9dc5
