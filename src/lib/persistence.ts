@@ -208,13 +208,23 @@ export function sampleLoadNeedsConfirmation(): boolean {
 
 /** Restore the autosaved project, if any. Returns whether something loaded. */
 export function restoreAutosave(): boolean {
+  let saved: string | null
   try {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved === null) return false
+    // The accessor itself throws where site data is blocked (Safari private
+    // mode, a hardened profile), so this cannot be folded into the block
+    // below — tour.ts:76 guards its own read the same way.
+    saved = localStorage.getItem(STORAGE_KEY)
+  } catch {
+    return false
+  }
+  if (saved === null) return false
+  try {
     applyProject(parseProject(saved))
     return true
   } catch {
-    localStorage.removeItem(STORAGE_KEY)
+    // Deliberately NOT removed. A save this build cannot read (a rolled-back
+    // bundle meeting a newer schema) may still be readable by the next one;
+    // deleting it here would make that unrecoverable.
     return false
   }
 }
@@ -259,6 +269,7 @@ export function resetEverything(): void {
   criteria.set(structuredClone(DEFAULT_CRITERIA))
   filters.set(structuredClone(EMPTY_FILTERS))
   settings.set(structuredClone(DEFAULT_SETTINGS))
+  manualEdges.set([]) // orphaned 🔗 edges otherwise survive the wipe
   const first = freshFirstSet()
   sets.set([first])
   activeSetId.set(first.id)
