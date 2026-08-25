@@ -94,7 +94,6 @@
       disabled={seekDisabled}
       aria-label="Position"
       onpointerdown={() => (dragging = true)}
-      onpointerup={() => (dragging = false)}
       oninput={(e) => {
         dragValue = e.currentTarget.valueAsNumber
         dragging = true

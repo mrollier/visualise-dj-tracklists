@@ -64,6 +64,10 @@ function loadDemoState(): void {
 /** Replay from Advanced / the header: snapshot the current work first (so the
  *  tour's end can offer to restore it), then drop into the demo state. */
 export function startTour(): void {
+  // Re-entrant call = the snapshot is overwritten with the demo and the
+  // user's real library is gone. The replay button stays clickable during the
+  // tour (the backdrop is pointer-events: none), so this is reachable.
+  if (get(tourStep) !== null) return
   tourSnapshot.set(get(library).length > 0 ? currentProject() : null)
   loadDemoState()
   tourStep.set(0)

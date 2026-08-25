@@ -47,12 +47,15 @@ export function walkRevealPlan(
   const from = Math.max(0, Math.min(opts?.from ?? 0, ids.length))
   const to = Math.max(from, Math.min(opts?.to ?? ids.length, ids.length))
   const origin = Math.max(0, from - 1)
-  const animated = to - from
+  const span = to - origin
   const stepMs =
     opts?.stepMs ??
     Math.min(
       WALK_REVEAL_STEP_MS,
-      Math.max(MIN_STEP_MS, MAX_REVEAL_TOTAL_MS / Math.max(1, animated)),
+      // Sized on `span` — the same range totalMs measures. Sizing on to - from
+      // overshot MAX_REVEAL_TOTAL_MS by exactly one step for a continue-in-place
+      // reveal, where origin = from - 1.
+      Math.max(MIN_STEP_MS, MAX_REVEAL_TOTAL_MS / Math.max(1, span)),
     )
 
   const nodeDelays = new Map<string, number>()

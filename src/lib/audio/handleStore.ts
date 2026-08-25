@@ -50,6 +50,10 @@ export async function saveRootHandle(handle: FileSystemDirectoryHandle): Promise
 export async function loadRootHandle(): Promise<FileSystemDirectoryHandle | null> {
   const stored = await run<unknown>('readonly', (store) => store.get(KEY))
   // Anything else in there is from a future or corrupted version; ignore it.
+  // The typeof guard is not optional: `instanceof` evaluates its right-hand
+  // side unconditionally, and this module is reached on every browser (see the
+  // indexedDB guard above), not only the ones with File System Access.
+  if (typeof FileSystemDirectoryHandle === 'undefined') return null
   return stored instanceof FileSystemDirectoryHandle ? stored : null
 }
 

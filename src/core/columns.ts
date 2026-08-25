@@ -62,7 +62,10 @@ export function migrateColumns(
     ? [...new Set([...rawHidden.filter(isField), ...appended])]
     : appended
   if (hiddenColumns.length >= trackColumns.length) {
-    hiddenColumns.splice(hiddenColumns.indexOf('title'), 1)
+    // indexOf can miss, and splice(-1, 1) would then un-hide whatever happens
+    // to sit last instead of forcing the title column back on.
+    const titleAt = hiddenColumns.indexOf('title')
+    if (titleAt !== -1) hiddenColumns.splice(titleAt, 1)
   }
   return { trackColumns, hiddenColumns }
 }
