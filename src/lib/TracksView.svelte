@@ -19,8 +19,9 @@
     comboComplete,
     effectiveManualEdges,
     filters,
+    analysedFieldsById,
+    augmentedLibrary,
     hoveredId,
-    library,
     linkArmed,
     manualEdges,
     mustInclude,
@@ -81,7 +82,15 @@
   // even though it isn't currently sorted — so clicking a different column
   // header to sort by it never reflows anything either, the same guarantee
   // filter/mark toggles already get. columnWidths' only dependencies are
-  // $library/columns, deliberately excluding $trackSort.
+  // $augmentedLibrary/columns, deliberately excluding $trackSort.
+  //
+  // v33: measured over the AUGMENTED library, not the raw one. The table is
+  // `table-layout: fixed` and cells are nowrap without overflow:hidden, so an
+  // under-measured column spills rather than ellipsising — and a filled BPM
+  // renders as "128.02" where the raw value rendered as "—". Loading an
+  // analysis sidecar therefore DOES reflow columns; that is a library-level
+  // change like an import, not the filter/mark toggle the guarantee above is
+  // about.
   const columnWidths = $derived.by(() => {
     const widths: Partial<Record<TrackSortField, number>> = {}
     const arrowWidth = measureWidth('▲', HEADER_FONT) + 3 // .dir's margin-left
@@ -95,7 +104,7 @@
         body = measureWidth(RATING_REFERENCE, BODY_FONT) + BODY_PAD
       } else {
         let maxText = 0
-        for (const track of $library) {
+        for (const track of $augmentedLibrary) {
           const w = measureWidth(formatPropertyValue(track, field), BODY_FONT)
           if (w > maxText) maxText = w
         }
@@ -107,6 +116,22 @@
     }
     return widths
   })
+
+  // Provenance (v33): a value the analysis sidecar supplied is marked, so a
+  // filled BPM or key is never mistaken for something Rekordbox measured. A
+  // dotted underline rather than a glyph: the colgroup above measures cell
+  // TEXT, so a "≈" prefix would cost width the widths do not know about.
+  const ANALYSED_TITLE = 'Analysed locally — not from Rekordbox'
+
+  function isAnalysed(trackId: string, field: TrackSortField): boolean {
+    const fields = $analysedFieldsById.get(trackId)
+    return fields !== undefined && (fields as ReadonlySet<string>).has(field)
+  }
+
+  function cellTitle(track: Track, field: TrackSortField): string | undefined {
+    if (field === 'location' && track.location !== null) return track.location
+    return isAnalysed(track.id, field) ? ANALYSED_TITLE : undefined
+  }
 
   // Tracks the player is actually sounding right now (v28.2). All-false when
   // the preview is off or disposed, so no settings gate is needed.
@@ -691,9 +716,8 @@
                   class:ellipsis={isTextColumn(field)}
                   class:tabular={!isTextColumn(field)}
                   class:title={field === 'title'}
-                  title={field === 'location' && track.location !== null
-                    ? track.location
-                    : undefined}>{formatPropertyValue(track, field)}</td
+                  class:analysed={isAnalysed(track.id, field)}
+                  title={cellTitle(track, field)}>{formatPropertyValue(track, field)}</td
                 >
               {/if}
             {/each}
@@ -1031,6 +1055,15 @@
     max-width: 220px;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  /* Analysed rather than measured by Rekordbox (v33). Deliberately costs no
+     layout: the colgroup measures cell text, so a marker that changed the
+     text would need to enter that measurement pass. */
+  td.analysed {
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+    text-decoration-color: var(--muted);
   }
 
   /* Rekordbox colour swatch (#8): a small chip of the tag's colour. */

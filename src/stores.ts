@@ -461,6 +461,19 @@ export const augmentedLibrary = derived(merged, ($merged) => $merged.tracks)
 /** Which fields on which track came from analysis — drives the provenance badges. */
 export const analysedFieldsById = derived(merged, ($merged) => $merged.analysedFields)
 
+/**
+ * Id → track for the surfaces that DISPLAY metadata (v33).
+ *
+ * Deliberately separate from `trackById`, which stays raw: that one resolves
+ * the CSV export, and the app also IMPORTS CSV — so an augmented `trackById`
+ * would give "export CSV, re-import it" the power to launder analysed values
+ * into the library as Rekordbox-looking truth, permanently and in two clicks.
+ */
+export const augmentedTrackById = derived(
+  augmentedLibrary,
+  ($augmentedLibrary) => new Map($augmentedLibrary.map((t) => [t.id, t])),
+)
+
 /** The filtered library: what the wheel, edges and suggestions operate on. */
 export const visibleLibrary = derived(
   [augmentedLibrary, effectiveFilters, playlists, marksContext],
@@ -573,6 +586,11 @@ export const iconClasses = derived(
   },
 )
 
+/**
+ * Id → track, RAW. Membership checks and the CSV/M3U/portrait exports resolve
+ * through this, and a save or an export must carry Rekordbox truth — see
+ * `augmentedTrackById` for the display side, and why the two are separate.
+ */
 export const trackById = derived(library, ($library) => new Map($library.map((t) => [t.id, t])))
 
 export function toggleManualEdge(a: string, b: string): void {

@@ -60,6 +60,26 @@ export interface MergeResult {
   tracks: Track[]
   /** Which fields on which track came from analysis — drives the badges. */
   analysedFields: Map<string, Set<AnalysedField>>
+  /**
+   * What the join actually did. Computed here rather than in a second pass so
+   * the import report can never disagree with the merge it describes.
+   */
+  stats: MergeStats
+}
+
+export interface MergeStats {
+  bpmFilled: number
+  keyFilled: number
+  energyFilled: number
+  /** Tracks whose Rekordbox BPM/key was absent — the gap analysis could close. */
+  bpmMissing: number
+  keyMissing: number
+  /** A value the sidecar carried but the app refused as too uncertain. */
+  belowConfidence: number
+  /** No entry for this track's path, or the track has no path at all. */
+  notFound: number
+  /** Two or more sidecar entries share the basename — refused, never guessed. */
+  ambiguous: number
 }
 
 /** A non-null, non-array object — the shape every hand-edited record must have. */
@@ -130,7 +150,17 @@ function sanitizeRun(raw: unknown): AnalysisRun | null {
  */
 export function mergeAnalysis(tracks: Track[], sidecar: AnalysisSidecar | null): MergeResult {
   const analysedFields = new Map<string, Set<AnalysedField>>()
-  if (sidecar === null) return { tracks, analysedFields }
+  const stats: MergeStats = {
+    bpmFilled: 0,
+    keyFilled: 0,
+    energyFilled: 0,
+    bpmMissing: tracks.filter((t) => t.bpm === null).length,
+    keyMissing: tracks.filter((t) => t.key === null).length,
+    belowConfidence: 0,
+    notFound: 0,
+    ambiguous: 0,
+  }
+  if (sidecar === null) return { tracks, analysedFields, stats }
 
   const index = buildFileIndex(
     Object.keys(sidecar.tracks).map((key) => ({
@@ -141,31 +171,51 @@ export function mergeAnalysis(tracks: Track[], sidecar: AnalysisSidecar | null):
 
   let filledAny = false
   const merged = tracks.map((t) => {
-    if (t.location === null) return t
+    if (t.location === null) {
+      stats.notFound += 1
+      return t
+    }
     const match = matchLocation(index, t.location)
-    if (match.kind !== 'hit') return t
+    if (match.kind === 'ambiguous') {
+      stats.ambiguous += 1
+      return t
+    }
+    if (match.kind !== 'hit') {
+      stats.notFound += 1
+      return t
+    }
     const entry = sidecar.tracks[match.entry.handle]
-    if (entry === undefined) return t
+    if (entry === undefined) {
+      stats.notFound += 1
+      return t
+    }
 
     const fields = new Set<AnalysedField>()
     const next = { ...t }
     // Fill nulls only. A non-null Rekordbox value is never reachable here.
-    if (t.bpm === null && typeof entry.bpm === 'number' && confident(entry.bpmConf)) {
-      next.bpm = entry.bpm
-      fields.add('bpm')
+    if (t.bpm === null && typeof entry.bpm === 'number') {
+      if (confident(entry.bpmConf)) {
+        next.bpm = entry.bpm
+        fields.add('bpm')
+        stats.bpmFilled += 1
+      } else stats.belowConfidence += 1
     }
-    if (t.key === null && confident(entry.keyConf)) {
-      const key = normalizeKey(entry.key)
-      if (key !== null) {
-        next.key = key
-        fields.add('key')
-      }
+    if (t.key === null && entry.key !== null && entry.key !== undefined) {
+      if (confident(entry.keyConf)) {
+        const key = normalizeKey(entry.key)
+        if (key !== null) {
+          next.key = key
+          fields.add('key')
+          stats.keyFilled += 1
+        }
+      } else stats.belowConfidence += 1
     }
     if (t.energy === null) {
       const energy = energyOf(entry)
       if (energy !== null) {
         next.energy = energy
         fields.add('energy')
+        stats.energyFilled += 1
       }
     }
 
@@ -175,7 +225,35 @@ export function mergeAnalysis(tracks: Track[], sidecar: AnalysisSidecar | null):
     return next
   })
 
-  return { tracks: filledAny ? merged : tracks, analysedFields }
+  return { tracks: filledAny ? merged : tracks, analysedFields, stats }
+}
+
+export interface AnalysisImportSummary extends MergeStats {
+  /** One line for the import report, in the house style. */
+  note: string
+}
+
+/**
+ * What an imported sidecar did to this library, as the ⓘ report shows it.
+ * Refusals are reported rather than swallowed: a file the matcher could not
+ * place, or placed ambiguously, is a thing the user can act on.
+ */
+export function summariseAnalysisImport(
+  tracks: Track[],
+  sidecar: AnalysisSidecar,
+): AnalysisImportSummary {
+  const { stats } = mergeAnalysis(tracks, sidecar)
+  const parts = [
+    `BPM filled ${stats.bpmFilled}/${stats.bpmMissing}`,
+    `key ${stats.keyFilled}/${stats.keyMissing}`,
+    `energy ${stats.energyFilled} ${stats.energyFilled === 1 ? 'track' : 'tracks'}`,
+  ]
+  const caveats = []
+  if (stats.belowConfidence > 0) caveats.push(`${stats.belowConfidence} below confidence`)
+  if (stats.ambiguous > 0) caveats.push(`${stats.ambiguous} ambiguous`)
+  if (stats.notFound > 0) caveats.push(`${stats.notFound} not found`)
+  const note = parts.join(', ') + (caveats.length > 0 ? `; ${caveats.join(', ')}` : '')
+  return { ...stats, note }
 }
 
 /**

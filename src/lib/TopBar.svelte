@@ -7,9 +7,12 @@
   import { importRekordboxXml } from '../core/importers/rekordbox'
   import { importRekordboxTxt, isRekordboxTxt } from '../core/importers/rekordboxTxt'
   import { computeGenreCoverage } from '../core/genre'
+  import { sanitizeAnalysis, summariseAnalysisImport } from '../core/analysis'
   import { buildReport, type ImportResult } from '../core/model'
   import { parseProject, serializeProject } from '../core/persist'
   import {
+    analysis,
+    autosaveError,
     colorAxis,
     lastImportReport,
     library,
@@ -77,10 +80,26 @@
     try {
       const first = files[0]
       if (first.name.toLowerCase().endsWith('.json')) {
+        const text = await first.text()
+        // An analysis sidecar is a .json too, and parseProject would throw on
+        // it — so the discriminator is checked BEFORE the project parser sees
+        // the document (v33). A sidecar ADDS a layer rather than replacing the
+        // library, so it deliberately raises no confirmation dialog: there is
+        // nothing to overwrite and nothing to lose.
+        const sidecar = sanitizeAnalysis(JSON.parse(text))
+        if (sidecar !== null) {
+          const summary = summariseAnalysisImport(get(library), sidecar)
+          analysis.set(sidecar)
+          lastImportReport.set({
+            ...buildReport(get(library), []),
+            notes: [summary.note],
+          })
+          return
+        }
         // Loading a saved project replaces the library the same way the
         // sample collection does — it deserves the same confirmation, which
         // it never had before (silent overwrite).
-        const project = parseProject(await first.text())
+        const project = parseProject(text)
         const load = () => applyProject(project)
         if (replaceNeedsConfirmation()) loadProjectDialog.open(load)
         else load()
@@ -380,6 +399,12 @@
   <div class="status">
     {#if importError}
       <span class="error">{importError}</span>
+    {/if}
+    <!-- Autosave is best-effort, but it must not fail SILENTLY (v33): a quota
+         breach stops the WHOLE project saving, and the loss only shows up on
+         the next reload, long after the cause. -->
+    {#if $autosaveError}
+      <span class="error" role="status">{$autosaveError}</span>
     {/if}
     {#if $libraryName}
       <span class="name">{$libraryName}</span>

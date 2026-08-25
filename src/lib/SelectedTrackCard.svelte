@@ -12,14 +12,23 @@
     pinnedLast,
     selectedId,
     settings,
-    trackById,
+    analysedFieldsById,
+    augmentedTrackById,
   } from '../stores'
   import { PIN_FIRST_GLYPH, PIN_LAST_GLYPH } from '../core/pins'
   import type { Writable } from 'svelte/store'
   import InfoTooltip from './InfoTooltip.svelte'
 
+  // Reads the AUGMENTED map (v33): this is a display surface, so a value the
+  // analysis sidecar filled should appear here — marked as analysed. The raw
+  // `trackById` stays behind the exports, which must carry Rekordbox truth.
   const selectedTrack = $derived(
-    $selectedId === null ? null : ($trackById.get($selectedId) ?? null),
+    $selectedId === null ? null : ($augmentedTrackById.get($selectedId) ?? null),
+  )
+
+  const ANALYSED_TITLE = 'Analysed locally — not from Rekordbox'
+  const analysedHere = $derived(
+    $selectedId === null ? undefined : $analysedFieldsById.get($selectedId),
   )
 
   // Manual combos (v12 WS9): 🔗 arms link mode — the next wheel click marks
@@ -58,9 +67,19 @@
     <span class="artist">{selectedTrack.artist ?? 'Unknown artist'}</span>
     <dl>
       <dt>Key</dt>
-      <dd>{selectedTrack.key ?? 'missing'}</dd>
+      <dd
+        class:analysed={analysedHere?.has('key')}
+        title={analysedHere?.has('key') ? ANALYSED_TITLE : undefined}
+      >
+        {selectedTrack.key ?? 'missing'}
+      </dd>
       <dt>BPM</dt>
-      <dd>{selectedTrack.bpm ?? 'missing'}</dd>
+      <dd
+        class:analysed={analysedHere?.has('bpm')}
+        title={analysedHere?.has('bpm') ? ANALYSED_TITLE : undefined}
+      >
+        {selectedTrack.bpm ?? 'missing'}
+      </dd>
       <dt>Genre</dt>
       <dd>{selectedTrack.genre ?? 'missing'}</dd>
     </dl>
@@ -168,6 +187,14 @@
   .selected-card dd {
     margin: 0;
     color: var(--ink-secondary);
+  }
+
+  /* Analysed rather than measured by Rekordbox (v33) — same marker the Tracks
+     table uses, so the two surfaces read as one convention. */
+  .selected-card dd.analysed {
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+    text-decoration-color: var(--muted);
   }
 
   .marks {

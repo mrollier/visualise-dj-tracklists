@@ -3,6 +3,7 @@ import {
   energyFromArousal,
   mergeAnalysis,
   sanitizeAnalysis,
+  summariseAnalysisImport,
   type AnalysisSidecar,
 } from '../src/core/analysis'
 import { track } from './helpers'
@@ -294,5 +295,70 @@ describe('energy (v33)', () => {
     // respect [1, 9].
     expect(energyFromArousal(-4)).toBe(1)
     expect(energyFromArousal(14)).toBe(10)
+  })
+})
+
+describe('summariseAnalysisImport (v33)', () => {
+  test('counts what was filled, and what could not be', () => {
+    const tracks = [
+      track({ id: 'fill', location: 'file://localhost/Users/dj/fill.mp3' }),
+      track({ id: 'kept', location: 'file://localhost/Users/dj/kept.mp3', bpm: 128 }),
+      track({ id: 'shy', location: 'file://localhost/Users/dj/shy.mp3' }),
+      track({ id: 'gone', location: 'file://localhost/Users/dj/gone.mp3' }),
+      track({ id: 'nowhere', location: null }),
+    ]
+    const summary = summariseAnalysisImport(
+      tracks,
+      sidecar({
+        '/Users/dj/fill.mp3': { bpm: 174, key: '8A', arousal: 9 },
+        '/Users/dj/kept.mp3': { bpm: 174 },
+        '/Users/dj/shy.mp3': { bpm: 174, bpmConf: 0.1 },
+      }),
+    )
+
+    expect(summary).toMatchObject({
+      bpmFilled: 1,
+      bpmMissing: 4,
+      keyFilled: 1,
+      energyFilled: 1,
+      notFound: 2,
+      belowConfidence: 1,
+    })
+  })
+
+  test('reads as a sentence for the import report', () => {
+    const tracks = [track({ id: 'a', location: 'file://localhost/Users/dj/a.mp3' })]
+    const summary = summariseAnalysisImport(
+      tracks,
+      sidecar({ '/Users/dj/a.mp3': { bpm: 174, arousal: 9 } }),
+    )
+
+    expect(summary.note).toBe('BPM filled 1/1, key 0/1, energy 1 track')
+  })
+
+  test('names the refusals rather than swallowing them', () => {
+    const tracks = [
+      track({ id: 'shy', location: 'file://localhost/Users/dj/shy.mp3' }),
+      track({ id: 'gone', location: 'file://localhost/Users/dj/gone.mp3' }),
+    ]
+    const summary = summariseAnalysisImport(
+      tracks,
+      sidecar({ '/Users/dj/shy.mp3': { bpm: 174, bpmConf: 0.1 } }),
+    )
+
+    expect(summary.note).toBe(
+      'BPM filled 0/2, key 0/2, energy 0 tracks; 1 below confidence, 1 not found',
+    )
+  })
+
+  test('an ambiguous match is reported, not silently dropped', () => {
+    const tracks = [track({ id: 'a', location: 'file://localhost/Users/dj/x/a.mp3' })]
+    const summary = summariseAnalysisImport(
+      tracks,
+      sidecar({ '/one/a.mp3': { bpm: 100 }, '/two/a.mp3': { bpm: 174 } }),
+    )
+
+    expect(summary.ambiguous).toBe(1)
+    expect(summary.note).toContain('1 ambiguous')
   })
 })

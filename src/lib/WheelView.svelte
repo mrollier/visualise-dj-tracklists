@@ -44,7 +44,7 @@
     focusEdges,
     hoveredId,
     iconClasses,
-    library,
+    augmentedLibrary,
     mustInclude,
     comboComplete,
     neighbours,
@@ -204,7 +204,7 @@
     const angles = new Map<string, number>()
     // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived-local
     const bySlot = new Map<CamelotKey, Track[]>()
-    for (const track of $library) {
+    for (const track of $augmentedLibrary) {
       if (track.key === null) continue
       if (!bySlot.has(track.key)) bySlot.set(track.key, [])
       bySlot.get(track.key)!.push(track)
@@ -282,7 +282,7 @@
    * here and letting the DISPLAYED x glide toward it via displacedScalar
    * (below) is the fix; y itself is untouched. */
   const gutterTargetXById = $derived.by(() => {
-    const unkeyed = $library.filter((t) => t.key === null).sort(compareGutterTracks)
+    const unkeyed = $augmentedLibrary.filter((t) => t.key === null).sort(compareGutterTracks)
     return gutterSlotX(
       unkeyed.map((t) => ({ id: t.id, y: settledGutterYOf(t, $radialAxis, targetDomain) })),
       GUTTER_X,
@@ -419,7 +419,7 @@
 
     if (swap) {
       const domain = targetDomain // the NEW axis's settled (niced) target
-      const trackList = $library
+      const trackList = $augmentedLibrary
 
       /** Each node's own current on-screen RADIUS (or gutter-y) scalar, a
        * moment before this swap — the angle's own capture already
@@ -562,6 +562,11 @@
   // Placement runs over the FULL library so every track's angle (and gutter
   // slot) is independent of the filters: filtering only makes nodes appear
   // or disappear, leaving gaps in the fans — nothing moves (design-v6 §A).
+  // FULL, but AUGMENTED (v33): this pass decides gutter-versus-ring on
+  // `track.key === null`, so reading raw `library` here would leave a track
+  // whose key the analysis sidecar filled parked in the gutter for ever,
+  // while the Tracks table showed it correctly. Every `$augmentedLibrary`
+  // read in this file is load-bearing for the same reason.
   const nodes = $derived.by(() => {
     const placed: PlacedNode[] = []
 
@@ -579,7 +584,7 @@
     // member's fan index are decided once, on settled y, by
     // gutterTargetXById above (v20 #3); this loop just draws x glided
     // toward that target (displacedScalar) and y unchanged.
-    const unkeyed = $library.filter((t) => t.key === null).sort(compareGutterTracks)
+    const unkeyed = $augmentedLibrary.filter((t) => t.key === null).sort(compareGutterTracks)
     for (const track of unkeyed) {
       const value = track[$radialAxis]
       const y = unkeyedY(track) // unchanged: still rides morph/domain tween
@@ -591,7 +596,7 @@
     // glided rather than snapped onto a relayout (v20 #2 — see
     // displacedScalar above), plus the tween-animated radius, or — mid-swap
     // — the per-node morph (v18 #11a).
-    for (const track of $library) {
+    for (const track of $augmentedLibrary) {
       if (track.key === null) continue
       const value = track[$radialAxis]
       const angle = displacedScalar(angleFrom, track.id, slotAngleById.get(track.id) ?? 0)
@@ -624,7 +629,7 @@
   )
 
   const colorDomain = $derived.by((): [number, number] => {
-    const values = $library
+    const values = $augmentedLibrary
       .map((t) => t[$effectiveColorAxis])
       .filter((v): v is number => v !== null)
     if (values.length === 0) return [0, 1]
