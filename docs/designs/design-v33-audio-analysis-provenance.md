@@ -360,11 +360,24 @@ dance library genuinely clusters at 6–8 — MIK's own documentation says level
 is rare across their entire Beatport collection — so equal deciles would
 fabricate 1s and 10s that do not exist and clash with the six real values.
 
-**Public datasets.** The one useful anchor is **DEAM** (1.3 GB, free): the
-emoMusic head was trained on `song_id` 2–1000, so `song_id > 1000` yields 1058
-genuinely held-out clips with 1–9 arousal labels on the model's own scale. Its
-labels sit at mean 4.81, sd 1.29 and never reach the ends of the scale, so
-model output will be compressed — the map needed is a stretch, not a rescale.
+**Public datasets.** The one useful anchor is **DEAM** (1.3 GB, CC BY-NC).
+~~The emoMusic head was trained on `song_id` 2–1000, so `song_id > 1000` yields
+1058 genuinely held-out clips.~~ **CORRECTED 2026-08-26 (v34) — that has the
+split inverted.** Verified by downloading the 4.7 MB annotation archive and
+counting: DEAM holds 1802 songs at ids 2–2058, and they partition exactly as
+the manual describes — **744 songs at id ≤ 1000** (the 2014 *development* set),
+**1000 songs at ids 1001–2000** (the 2014 *evaluation* set) and **58 songs
+above 2000** (2015). MTG records only "emoMusic, 1000 songs", which matches the
+1001–2000 block and nothing else, so the plausible held-out set is **ids ≤ 1000
+plus ids > 2000 — 802 clips, not 1058, and at the other end of the range.**
+MTG documents no split, so this is inference from a unique size match, not
+their statement.
+
+Its labels sit at mean **4.81, sd 1.28** (measured, not quoted) and span
+1.60–8.10, so they never reach the ends of the scale and model output is
+compressed — the map needed is a stretch, not a rescale. v34 measured that
+compression on real tracks and refitted the curve; see
+[design-v34-offline-analyser.md](design-v34-offline-analyser.md).
 AcousticBrainz is still live and CC0 but carries no energy or arousal, only
 pre-deep-learning SVM classifiers. Spotify's `energy` endpoint closed to new
 apps in November 2024 and its terms forbid the scraped dumps. The Million Song
