@@ -1779,20 +1779,14 @@
       animation: none;
     }
 
-    .sector {
+    /* A criteria change cross-fades the wedges, the key labels, the manual
+       edges and the retry ring together — all four are the same motion. */
+    .sector,
+    .key-label,
+    .manual-edge,
+    .retry-ring,
+    .retry-label {
       transition: none;
-    }
-
-    /* Still identifiable without motion: the halo simply stays lit, which is
-       what the Tracks view's static row tint does too. */
-    .dot.playing {
-      animation: none;
-      opacity: 1;
-    }
-
-    .playing-halo {
-      animation: none;
-      opacity: 0.4;
     }
   }
 
@@ -1823,8 +1817,15 @@
 
   .hub.disabled {
     cursor: default;
-    pointer-events: none;
     opacity: 0.35;
+  }
+
+  /* Only the painted parts go inert. .hub-hit stays live so a click on the
+     centre is absorbed (hubSuggest already early-returns on hubInert) instead
+     of reaching the <svg>, whose background handler clears the selection —
+     and so the <title> explaining why the hub is dead is still hoverable. */
+  .hub.disabled > :not(.hub-hit) {
+    pointer-events: none;
   }
 
   /* Oversized invisible disk: edges and dense fans must not steal clicks. */
@@ -1940,6 +1941,7 @@
 
   .hub-reset {
     cursor: pointer;
+    outline: none;
     transform-box: fill-box;
     transform-origin: center;
   }
@@ -1955,7 +1957,8 @@
     stroke: var(--accent);
   }
 
-  .hub-reset:hover .reset-glyph {
+  .hub-reset:hover .reset-glyph,
+  .hub-reset:focus-visible .reset-glyph {
     fill: var(--accent);
   }
 
@@ -1970,6 +1973,11 @@
     stroke: var(--walk-bright);
     stroke-dasharray: none;
     animation: hub-pulse 0.6s ease-out 2;
+  }
+
+  .hub.warning:hover .hub-circle,
+  .hub.warning:focus-visible .hub-circle {
+    stroke: var(--accent);
   }
 
   .hub.warning .hub-plus,
@@ -2006,6 +2014,20 @@
     .hub.warning .hub-circle {
       animation: none;
     }
+
+    /* Still identifiable without motion: the halo simply stays lit, which is
+       what the Tracks view's static row tint does too. Declared here, after
+       the unconditional dot-breathe/halo-breathe rules below, for the same
+       cascade-tiebreak reason this whole block exists. */
+    .dot.playing {
+      animation: none;
+      opacity: 1;
+    }
+
+    .playing-halo {
+      animation: none;
+      opacity: 0.4;
+    }
   }
 
   .hub-plus {
@@ -2029,8 +2051,10 @@
   }
 
   .hover-ring {
-    fill: var(--accent);
-    fill-opacity: 0.15;
+    /* No fill. Behind the star this read as a soft disc; lifted above the whole
+       node layer (v31 #6) it washed the star's own colour — worst on the dimmed
+       off-criteria stars the ring exists to find. */
+    fill: none;
     stroke: var(--accent);
     stroke-width: 1.5;
     opacity: 0.8;
@@ -2050,6 +2074,14 @@
   .dot.in-walk {
     stroke: var(--walk-bright);
     stroke-width: 2;
+  }
+
+  /* Every hub pick selects the track it just added, so this pair is the common
+     case, not a corner one — and .in-walk would otherwise win the tiebreak and
+     erase the selection stroke entirely. */
+  .dot.selected.in-walk {
+    stroke: var(--ink);
+    stroke-width: 2.5;
   }
 
   .node:focus-visible .dot {
