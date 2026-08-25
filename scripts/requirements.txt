@@ -1,0 +1,10 @@
+# v34 offline analyser. Python 3.14 — the only interpreter with a macOS arm64
+# wheel for this release.
+#
+#   /opt/homebrew/bin/python3 -m venv scripts/.venv
+#   scripts/.venv/bin/pip install -r scripts/requirements.txt
+#
+# essentia-tensorflow bundles libtensorflow; do NOT also install `essentia` or
+# `tensorflow` — the two essentia packages own the same namespace and the
+# combination is what breaks arm64 installs.
+essentia-tensorflow==2.1b6.dev1438
