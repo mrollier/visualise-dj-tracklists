@@ -286,17 +286,31 @@ describe('energy (v33)', () => {
     expect(merged.tracks[0].energy).toBe(5)
   })
 
-  test('maps the arousal range onto 1-10', () => {
-    expect(energyFromArousal(1)).toBe(1)
-    expect(energyFromArousal(9)).toBe(10)
-    expect(energyFromArousal(5)).toBe(6)
+  test('maps the useful arousal band onto 1-10', () => {
+    expect(energyFromArousal(3.5)).toBe(1)
+    expect(energyFromArousal(7.5)).toBe(10)
+    expect(energyFromArousal(5.5)).toBe(6)
   })
 
-  test('clamps predictions that fall outside the annotation range', () => {
+  test('clamps predictions that fall outside the band', () => {
     // The regression head is linear over unnormalised targets, so it does not
-    // respect [1, 9].
+    // even respect its own [1, 9] annotation range.
     expect(energyFromArousal(-4)).toBe(1)
     expect(energyFromArousal(14)).toBe(10)
+    expect(energyFromArousal(1)).toBe(1)
+    expect(energyFromArousal(9)).toBe(10)
+  })
+
+  test("the model's real output band spreads across the scale (v34)", () => {
+    // Measured over the real 2080-track collection: arousal lands between
+    // roughly 4.1 and 7.3, mean 5.8, sd 0.53 — nothing like the [1, 9] the
+    // annotations nominally span. Stretching the nominal range instead of the
+    // observed one collapses the whole library onto two energy values, which
+    // is worse than no energy at all: it hands the combo engine a criterion
+    // that always matches, quietly loosening the threshold library-wide.
+    const observed = [4.1, 4.6, 5.1, 5.5, 5.9, 6.3, 6.8, 7.3]
+    const energies = new Set(observed.map(energyFromArousal))
+    expect(energies.size).toBeGreaterThanOrEqual(6)
   })
 })
 

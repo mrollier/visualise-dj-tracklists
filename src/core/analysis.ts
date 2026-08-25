@@ -292,19 +292,42 @@ export function energyOf(entry: AnalysisEntry): number | null {
 }
 
 /**
- * MTG's arousal/valence heads are trained on annotations in [1, 9], but the
- * head is a linear regressor over unnormalised targets, so predictions fall
- * outside that range and must be clamped.
+ * MTG's arousal/valence heads are trained on annotations in [1, 9], but two
+ * things stop that from being the range to stretch.
  *
- * ponytail: a straight linear stretch of [1,9] onto [1,10], with no
- * calibration behind it — the collection carries only six Mixed In Key tags to
- * check against, three of them by one artist. Replace the constants once a
- * real label set exists (design-v33 records the plan); a curve fitted to six
- * biased points would be worse than this line.
+ * The head is a linear regressor over unnormalised targets, so predictions
+ * fall outside [1, 9] and must be clamped. And emoMusic's own annotations sit
+ * near the middle of their scale and never reach its ends, so a regressor
+ * trained on them shrinks towards the mean: over the real 2080-track
+ * collection (v34) arousal came back between 4.08 and 7.26, mean 5.80, sd
+ * 0.53. Stretching [1, 9] therefore barely stretches at all — it put 159 of
+ * the first 175 tracks on energy 6 or 7.
+ *
+ * A near-constant energy is worse than none. Energy is an enabled-by-default
+ * combo criterion with a ±2 window (combos.ts:83), so a field that is always
+ * within tolerance adds a criterion that always matches, quietly loosening the
+ * N-of-M threshold across the whole library while conveying nothing.
+ *
+ * So the band below brackets the observed range with headroom on both sides,
+ * which keeps a genuinely quiet or genuinely brutal track able to reach 1 or
+ * 10 rather than being clipped, and keeps the centre of mass near 5-7 — where
+ * Mixed In Key's own scale puts dance music, and where the six MIK-tagged
+ * tracks this library already carries actually sit.
+ *
+ * Deliberately NOT a percentile or decile map over the library. Those
+ * fabricate a uniform spread, which would manufacture 1s and 10s that do not
+ * exist and clash with those six real values; this stays linear, so the shape
+ * of the distribution survives.
+ *
+ * ponytail: two constants bracketing a measured range, not a fitted curve —
+ * there is still no labelled set to fit against. The sidecar stores raw
+ * arousal precisely so replacing these costs an evening rather than a
+ * multi-hour re-run.
  */
+const AROUSAL_MIN = 3.5
+const AROUSAL_MAX = 7.5
+
 export function energyFromArousal(arousal: number): number {
-  const AROUSAL_MIN = 1
-  const AROUSAL_MAX = 9
   const span = (arousal - AROUSAL_MIN) / (AROUSAL_MAX - AROUSAL_MIN)
   return clampEnergy(Math.round(1 + span * 9))
 }
