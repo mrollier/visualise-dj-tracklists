@@ -215,9 +215,10 @@ Everything on v14.1's own list still stands and is not repeated here.
   928 KB of `dist/assets/index-*.js` is essentially that file, and first paint
   waits on it. Lazy `import()`, a fetched asset, or a pruned pack are all real
   architecture calls rather than cleanups.
-- A browser step in CI. Playwright is already a devDependency and the probe
-  runs again, but it still reports nine failures that need adjudicating before
-  it can gate anything.
+- A browser step in CI. Now unblocked — the probe exits 0 and Playwright is
+  already a devDependency — but deliberately left undone: a CI step that cannot
+  be run locally before pushing should be verified by whoever can watch it go
+  red. The recipe is in ISSUES.md.
 - Coverage collection. `vitest run --coverage` as a reported number, not a
   gate.
 
@@ -229,9 +230,30 @@ this wave fixed defects that no test reached rather than changing behaviour any
 test asserts.
 
 `node scripts/screenshot.mjs` was run against a live `npm run dev` repeatedly
-through the repair; it now reaches the hub/constellation block instead of dying
-at step three, and its nine remaining failures are recorded rather than guessed
-at.
+through the repair. **It exits 0** — 192 assertions and 40 screenshots, two
+consecutive clean runs — for the first time since v18.
+
+Getting there meant adjudicating the nine failures the repair surfaced once the
+script could reach them, and **none of the nine was an app defect**. Six were
+measurement timing (the stars leave and arrive on transitions, so a fixed 300ms
+wait read as drift — the "relaxation is not deterministic, 197 nodes drifted"
+alarm was 26 of 33 nodes mid-animation and 0 once settled). Two were stale
+Playwright technique: element handles from `.all()` go stale because
+`paintedNodes` re-ranks the group on every selection, so the second dblclick
+landed on the star already in the set and the hub was correctly refusing to
+call every visible track used. Two were expectations that predate deliberate
+features — easy mode has run on its own fixed criteria since v15, and a
+hand-edit closes the ⚡ force window on purpose since v14.1 WS8. And one was a
+selector: the walk edges became `<polyline>` when the chevron mid-point landed,
+so `line.walk-edge` had been matching nothing at all.
+
+The script waits on real conditions now rather than fixed timeouts —
+`settleWheel` polls until the node transforms stop changing, `settleWalk` waits
+out the reveal window before clicking a hub that v31 makes inert during it. The
+one thing the exercise did turn up is recorded as a finding rather than fixed:
+the hub seeds its PRNG from `Math.random()` while ✨ starts at 0, so the hub is
+not reproducible across sessions even though `suggest.ts` says every suggestion
+is.
 
 The persisted-state constraint was checked directly rather than inferred: the
 full sample collection — 264 tracks, 13 playlists, a set, a manual edge, and

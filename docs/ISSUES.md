@@ -33,26 +33,21 @@ labels still don't counter-scale under zoom.
 
 ## Open — tooling
 
-All three of the `scripts/screenshot.mjs` defects this section carried since
-v20/v22/v23 are fixed in **v32** — along with eleven more the script had
-accumulated, and the missing try/finally that turned every one of them into a
-silent hang rather than a reported failure. See `## Resolved in v32` below.
-
-What is left of this section is the part v32 could not settle: after the
-repair the script reaches the hub/constellation block instead of dying at step
-three, and reports nine failures that each need adjudicating as live defect or
-stale expectation. They are item 1 of `## Open — v32 code review` below,
-together with the two assertions that no longer test what their comments say
-they test.
+Nothing open. The three `scripts/screenshot.mjs` defects this section carried
+since v20/v22/v23 are fixed in **v32**, together with the eleven more the
+script had accumulated and the nine failures the repair then surfaced. The
+probe runs clean — 192 assertions, 40 screenshots, exit 0 — for the first time
+since v18. See `## Resolved in v32` below.
 
 ## Open — v32 code review
 
 The whole-repo review recorded in
 [designs/design-v32-code-clean.md](designs/design-v32-code-clean.md) raised
-181 findings across fourteen slices. The forty-seven that were safe to change
-are folded into the thirty-four entries under `## Resolved in v32`; these 134
-are the rest, grouped by subsystem and ordered so the reachable data-loss ones
-come first.
+181 findings across fourteen slices. The fifty-six that were safe to change —
+including the nine the revived browser probe surfaced, every one of which
+turned out to be a stale expectation rather than an app defect — are folded
+into the thirty-six entries under `## Resolved in v32`; these 134 are the rest,
+grouped by subsystem and ordered so the reachable data-loss ones come first.
 Nothing here was judged safe to change in a hygiene wave: each either changes
 behaviour, touches a persisted schema, changes what is on screen, or needs a
 decision that is Michiel's rather than the reviewer's.
@@ -795,18 +790,16 @@ decision that is Michiel's rather than the reviewer's.
 
 **Tooling, the browser probe and the gates**
 
-122. **Nine assertions fail on the revived probe and need adjudicating.**
-   After the v32 repair `scripts/screenshot.mjs` reaches the hub/constellation
-   block instead of dying at step three, and reports: the hub not appending (8
-   → 8) and the three checks that cascade from it; the short-walk stall
-   scenario not manifesting; an exhausted anchor not switching the hub to its
-   warning state; the ⚡ morph not appearing; 197 nodes drifting under a
-   threshold 0→1 change, which the script calls a determinism failure; and two
-   playlist-reveal checks. Each is either a live defect or a stale
-   expectation, and the difference has to be established one at a time — the
-   hub ones in particular smell like leftover script state (a panel pseudo-
-   filter left on "only" would make `hubAllUsed` legitimately true).
-
+122. **The hub's suggestions are not reproducible across sessions, and nothing
+     says so.** `WheelView.svelte:795` seeds the hub with
+     `Math.floor(Math.random() * 2 ** 31)` while `TracklistPanel.svelte:196`
+     starts `suggestSeed` at 0 — so ✨ is deterministic and the hub is not,
+     against `suggest.ts`'s module doc that every suggestion is reproducible
+     via its seed. It may well be deliberate (a hub that always offered the
+     same next track would be worse), but the asymmetry is undocumented, it
+     makes hub behaviour impossible to reproduce from a bug report, and it is
+     what made the browser probe's later half vary run to run until every
+     checkpoint was made state-independent.
 123. **The "all advanced sections start folded on FIRST open" assertion no
    longer runs on a first open** (`screenshot.mjs:318`): the v14 WS2 block
    above it already opens the panel and toggles a section, so the check now
@@ -824,9 +817,13 @@ decision that is Michiel's rather than the reviewer's.
    commit to root-only or make the HTML relative and set Vite's `base`.
 
 126. **CI runs no browser check** (`.github/workflows/ci.yml`), which is why
-   eighteen releases of UI drift accumulated in the only end-to-end script.
-   Playwright is already a devDependency; the step is waiting on the nine
-   failures above.
+     eighteen releases of UI drift accumulated in the only end-to-end script.
+     This is now unblocked: Playwright is already a devDependency, the probe
+     exits 0, and the recipe is `npx playwright install --with-deps chromium`,
+     `npm run dev &`, wait for :5173, `node scripts/screenshot.mjs out/`. It
+     is left undone deliberately — a CI step that cannot be run locally before
+     pushing is exactly the kind of change that should be verified by the
+     person who can watch it go red.
 
 127. **No coverage is collected anywhere.** `vitest run --coverage` as a
    reported number rather than a gate would at least make the gaps below
@@ -1106,6 +1103,30 @@ remaining 134 findings are in `## Open — v32 code review` above.
    does not have — proven by adding one — and deleting the declaration to
    infer from the `.mjs` fails the other way. The two halves have to be edited
    together.
+
+35. **The nine failures the revived probe surfaced were adjudicated, and none
+    was an app defect.** Six were measurement timing: the stars leave and
+    arrive on transitions, so comparing positions after a fixed 300ms read as
+    drift — the "relaxation is not deterministic, 197 nodes drifted" alarm was
+    26 of 33 nodes mid-animation and 0 once settled. Two were stale Playwright
+    technique: handles captured from `.all()` go stale because `paintedNodes`
+    re-ranks the group on every selection, so the second dblclick landed on
+    the star already in the set and the hub was correctly refusing to call
+    every visible track used. Two were expectations that predate deliberate
+    features — easy mode has run on its own fixed criteria since v15 (key +
+    BPM, not the advanced defaults), and a hand-edit closes the ⚡ force window
+    on purpose since v14.1 WS8, so the script rolls a fresh short walk before
+    asking for the button. The last was a selector: the walk edges became
+    `<polyline>` when the chevron mid-point landed, so `line.walk-edge` had
+    been matching nothing at all. The script now waits on real conditions —
+    `settleWheel` polls until the node transforms stop changing, `settleWalk`
+    waits out the reveal window before clicking a hub v31 makes inert during
+    it — instead of fixed timeouts.
+
+36. **`.forced-note` is no longer ambiguous.** The same-artist preference
+    added a second element with that class, so the bare locator became a
+    strict-mode violation that aborted the run; both reads are scoped to the ⚡
+    note they mean.
 
 ## Resolved in v31
 

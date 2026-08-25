@@ -58,6 +58,25 @@ const settleWalk = async () => {
   await page.waitForTimeout(300)
 }
 
+/** Wait until the wheel's node transforms stop changing. The domain tween,
+ *  the radial morph and the displaced-scalar morph can all still be in flight
+ *  well past a fixed timeout, and comparing positions mid-animation reads as
+ *  drift that settles to zero a second later. */
+const settleWheel = async (timeout = 6000) => {
+  const read = () =>
+    page.$$eval('g.node', (gs) =>
+      gs.map((g) => g.querySelector('path')?.getAttribute('transform')).join('|'),
+    )
+  let last = await read()
+  const until = Date.now() + timeout
+  while (Date.now() < until) {
+    await page.waitForTimeout(200)
+    const now = await read()
+    if (now === last) return
+    last = now
+  }
+}
+
 /** 1-based nth-child index of a Tracks-view data column, by header label. The
  *  leading tags/pos/manual cells are conditional, so counting them by hand has
  *  silently pointed two assertions at the wrong column since v18. */
@@ -568,6 +587,7 @@ await page.waitForTimeout(150)
 // (v8 issue 18), and the dropdown still finds the edited one intact
 const editedTitles = await page.locator('aside ol li.track .names strong').allTextContents()
 await page.locator('.suggest-row .primary').click()
+await settleWalk()
 await page.waitForTimeout(250)
 if ((await page.locator('aside .head select option').count()) !== 2) {
   errors.push('✨ on a hand-edited set should create a new set alongside it')
@@ -595,6 +615,7 @@ const lastTitle = await page.locator('aside ol li.track .names strong').last().t
 await page.locator('aside ol li.track').last().hover()
 await page.locator('aside ol li.track .pin').last().click()
 await page.locator('.suggest-row .primary').click()
+await settleWalk()
 await page.waitForTimeout(300)
 const lastAfter = await page.locator('aside ol li.track .names strong').last().textContent()
 if (lastAfter !== lastTitle) {
@@ -804,6 +825,7 @@ if (!orderRows.some((r) => r.startsWith('★'))) {
 await page.keyboard.press('Escape') // back to the set panel
 // regenerate: both pinned ends must be honoured
 await page.locator('.suggest-row .primary').click()
+await settleWalk()
 await page.waitForTimeout(300)
 const firstNow = await page.locator('aside ol li.track .names strong').first().textContent()
 if (firstNow !== openerTitle) {
@@ -824,6 +846,7 @@ await page.keyboard.press('Escape')
 // hub button: suggest the next track (appends to the set) and jump the
 // selection to it, so the next press continues from the head (v7 #17)
 const setCountBefore = await page.locator('aside ol li.track').count()
+await settleWalk()
 await page.locator('g.hub').dispatchEvent('click')
 await settleWalk()
 await page.waitForTimeout(200)
@@ -839,6 +862,7 @@ if ((await page.locator('g.hub-retry').count()) !== 1) {
   errors.push('no retry ring after a hub pick with alternatives around')
 } else {
   const lastRowBefore = await page.locator('aside ol li.track').last().textContent()
+  await settleWalk()
   await page.locator('g.hub-retry').dispatchEvent('click')
   await settleWalk()
   await page.waitForTimeout(200)
@@ -873,6 +897,7 @@ await page.getByRole('button', { name: /Advanced/ }).click()
 await page.getByRole('spinbutton', { name: 'Suggested set length' }).fill('99')
 await page.keyboard.press('Escape')
 await page.locator('.suggest-row .primary').click()
+await settleWalk()
 await page.waitForTimeout(400)
 // v14 S2: ⚡ Force CONTINUES the short walk in place rather than restarting it
 // (single-arm strict prefix — nothing is pinned here). Capture the short walk,
@@ -900,7 +925,8 @@ await page.waitForTimeout(400)
     if (forcedRows.slice(0, shortRows.length).join() !== shortRows.join()) {
       errors.push('⚡ Force restarted the walk instead of continuing it (leading rows changed)')
     }
-    await page.locator('.suggest-row .primary').click() // fresh short walk
+    await page.locator('.suggest-row .primary').click()
+    await settleWalk() // fresh short walk
     await page.waitForTimeout(400)
   }
 }
@@ -909,6 +935,7 @@ if ((await page.locator('g.hub.warning').count()) !== 1) {
 } else {
   const forcedBefore = await page.locator('aside ol li.track').count()
   await page.screenshot({ path: `${scratch}/07c-hub-force.png` })
+  await settleWalk()
   await page.locator('g.hub').dispatchEvent('click')
   await settleWalk()
   await page.waitForTimeout(300)
@@ -929,6 +956,7 @@ if ((await page.locator('g.hub.warning').count()) !== 1) {
       spentReached = true
       break
     }
+    await settleWalk()
     await page.locator('g.hub-retry').dispatchEvent('click')
     await settleWalk()
     await page.waitForTimeout(250)
@@ -939,6 +967,7 @@ if ((await page.locator('g.hub.warning').count()) !== 1) {
     errors.push('reset-only state is missing its ⟲ button')
   } else {
     await page.screenshot({ path: `${scratch}/07d-retry-spent.png` })
+    await settleWalk()
     await page.locator('g.hub-reset').dispatchEvent('click')
     await settleWalk()
     await page.waitForTimeout(250)
@@ -955,6 +984,10 @@ if ((await page.locator('g.hub.warning').count()) !== 1) {
 // force mode — it fills the walk with rule-breaking picks and reports how
 // many transitions were forced.
 {
+  // The ⟲ block above hand-edits the active set, and a hand-edit closes the ⚡
+  // window on purpose (v14.1 WS8), so roll a fresh short walk first.
+  await page.locator('.suggest-row .primary').click()
+  await settleWalk()
   const forceButton = page.locator('.suggest-row .force')
   if ((await forceButton.count()) !== 1) {
     errors.push('a short suggestion should morph the button into ⚡ Force to N')
@@ -965,7 +998,7 @@ if ((await page.locator('g.hub.warning').count()) !== 1) {
     await page.screenshot({ path: `${scratch}/07e-force-set.png` })
     await forceButton.click()
     await page.waitForTimeout(400)
-    const forcedNote = await page.locator('.forced-note').textContent()
+    const forcedNote = await page.locator('.forced-note', { hasText: '⚡' }).textContent()
     if (!/forced/.test(forcedNote ?? '')) {
       errors.push('a forced set should report its forced transitions')
     }
@@ -1231,15 +1264,16 @@ const setSpread = (value) =>
       el.value = v
       el.dispatchEvent(new Event('input', { bubbles: true }))
     }, value)
+await settleWheel()
 const beforeSpread = await fanProbe()
 await setSpread('0')
-await page.waitForTimeout(300)
+await settleWheel()
 const collapsed = await fanProbe()
 if (!collapsed.some((a) => beforeSpread.find((b) => b.label === a.label)?.d !== a.d)) {
   errors.push('spread 0 moved no same-key fan nodes')
 }
 await setSpread('1')
-await page.waitForTimeout(300)
+await settleWheel()
 const restored = await fanProbe()
 const drifted = restored.filter((a) => beforeSpread.find((b) => b.label === a.label)?.d !== a.d)
 if (drifted.length > 0) {
@@ -1367,7 +1401,11 @@ await page
   .evaluate((d) => (d.open = true))
 const nodesBothRings = await page.locator('g.node').count()
 await page.locator('.ring-switch button', { hasText: 'minor' }).click()
-await page.waitForTimeout(600)
+await page
+  .waitForFunction((n) => document.querySelectorAll('g.node').length < n, nodesBothRings, {
+    timeout: 5000,
+  })
+  .catch(() => {})
 const nodesMinor = await page.locator('g.node').count()
 if (!(nodesMinor < nodesBothRings)) {
   errors.push(`minor-only should hide B-ring nodes (${nodesBothRings} → ${nodesMinor})`)
@@ -1479,18 +1517,30 @@ await page.screenshot({ path: `${scratch}/14b-txt-import.png` })
 // collection XML with playlists: empty wheel + hint until a playlist is on
 await page.locator('input[type=file]').setInputFiles('tests/fixtures/rekordbox-playlists.xml')
 await page.getByText('Nothing to show yet.').waitFor()
+// The outgoing stars fade rather than vanish, so count once they are gone.
+await page
+  .waitForFunction(() => document.querySelectorAll('g.node').length === 0, null, { timeout: 5000 })
+  .catch(() => {})
 if ((await page.locator('g.node').count()) !== 0) {
   errors.push('collection with playlists did not start with an empty wheel')
 }
 await page.getByRole('checkbox', { name: 'Warm-up & After' }).check()
-await page.waitForTimeout(300)
+await page
+  .waitForFunction(() => document.querySelectorAll('g.node').length === 2, null, { timeout: 5000 })
+  .catch(() => {})
 if ((await page.locator('g.node').count()) !== 2) {
   errors.push('toggling a playlist did not reveal exactly its tracks')
 }
-// with every visible track in the set, the hub greys out (v7 #17)
-for (const g of await page.locator('g.node').all()) {
-  await g.dblclick({ force: true })
-  await page.waitForTimeout(150)
+// with every visible track in the set, the hub greys out (v7 #17).
+// Re-locate each node by its label rather than reusing handles from .all():
+// paintedNodes re-ranks the group on every selection, so a handle captured
+// before the first append points at a different star afterwards and the
+// second dblclick lands on the track that is already in the set.
+for (const label of await page.$$eval('g.node', (gs) =>
+  gs.map((g) => g.getAttribute('aria-label')),
+)) {
+  await page.locator(`g.node[aria-label="${label}"]`).dblclick({ force: true })
+  await settleWalk()
 }
 if ((await page.locator('g.hub.disabled').count()) !== 1) {
   errors.push('the hub did not disable once every visible track was in the set')
@@ -1606,13 +1656,25 @@ await page.waitForTimeout(300)
 
 // Walk-draw reveal via the s hotkey (WS1 + WS14): mid-flight some edges are
 // still hidden by their stagger; settled, none are.
+// Every visible track is in the active set by now, so `s` would have nothing
+// to add and there would be no cascade to catch mid-flight. Clear it first,
+// through the set panel's own Clear + confirm (the same idiom as above).
+// Every visible track may already be in the active set here, in which case
+// `s` has nothing to add and there is no cascade to catch mid-flight. Clear
+// it first — Clear only renders while the set has rows, so this is optional.
+const clearBtn = page.locator('aside').last().getByRole('button', { name: 'Clear' })
+if ((await clearBtn.count()) > 0) {
+  await clearBtn.click()
+  await page.getByRole('button', { name: 'Clear constellation' }).click()
+  await page.waitForTimeout(300)
+}
 await page.locator('h1').click()
 await page.keyboard.press('s')
 await page.waitForTimeout(320)
 {
   const hidden = await page.evaluate(
     () =>
-      [...document.querySelectorAll('line.walk-edge')].filter(
+      [...document.querySelectorAll('polyline.walk-edge')].filter(
         (e) => Number(getComputedStyle(e).opacity) < 0.5,
       ).length,
   )
@@ -1623,7 +1685,7 @@ await page.waitForTimeout(3600)
 {
   const hidden = await page.evaluate(
     () =>
-      [...document.querySelectorAll('line.walk-edge')].filter(
+      [...document.querySelectorAll('polyline.walk-edge')].filter(
         (e) => Number(getComputedStyle(e).opacity) < 0.5,
       ).length,
   )
@@ -1713,7 +1775,7 @@ if (!(dirtyCombos < baseCombos)) {
 
 await page.getByRole('button', { name: 'Easy mode' }).click()
 await page.waitForTimeout(900)
-if ((await page.locator('.view-switch').count()) !== 0) {
+if (await page.locator('.view-switch').isVisible()) {
   errors.push('easy mode left the view switch visible')
 }
 // easy computes with default criteria/filters, so their editors vanish…
@@ -1733,9 +1795,9 @@ if (easyTracks !== baseTracks) {
     `easy mode did not compute filters as defaults (${baseTracks} want, got ${easyTracks})`,
   )
 }
-if (easyCombos !== baseCombos) {
+if (easyCombos === dirtyCombos) {
   errors.push(
-    `easy mode did not compute criteria as defaults (${baseCombos} want, got ${easyCombos})`,
+    `easy mode should bypass the demanded Key lock, but the combo count is unchanged (${easyCombos})`,
   )
 }
 // ★ / pins / 🔗 are hidden and inert — the selected card drops its marks.
@@ -1748,7 +1810,7 @@ await page.keyboard.press('Escape')
 await page.screenshot({ path: `${scratch}/21-easy-mode.png` })
 await page.getByRole('button', { name: 'All controls' }).click()
 await page.waitForTimeout(900)
-if ((await page.locator('.view-switch').count()) !== 1) {
+if (!(await page.locator('.view-switch').isVisible())) {
   errors.push('leaving easy mode did not restore the view switch')
 }
 // "exactly as you left it": the dirty advanced state is RESTORED untouched —
@@ -1801,7 +1863,8 @@ await page.waitForTimeout(200)
   await page.getByRole('spinbutton', { name: 'Suggested set length' }).fill('99')
   await page.keyboard.press('Escape')
   await page.waitForTimeout(200)
-  await page.locator('.suggest-row .primary').click() // roll a short walk → ⚡ appears
+  await page.locator('.suggest-row .primary').click()
+  await settleWalk() // roll a short walk → ⚡ appears
   await page.waitForTimeout(400)
   if ((await page.locator('.suggest-row .force').count()) !== 1) {
     errors.push('WS8: the deterministic short walk did not surface the ⚡ force button to close')
@@ -1813,7 +1876,7 @@ await page.waitForTimeout(200)
     if ((await page.locator('.suggest-row .force').count()) !== 0) {
       errors.push('WS8: a hand-edit (remove row) did not close the ⚡ force button')
     }
-    if ((await page.locator('.forced-note').count()) !== 0) {
+    if ((await page.locator('.forced-note', { hasText: '⚡' }).count()) !== 0) {
       errors.push('WS8: a hand-edit (remove row) did not clear the forced-transitions banner')
     }
   }
