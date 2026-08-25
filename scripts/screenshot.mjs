@@ -2013,6 +2013,79 @@ await page.waitForTimeout(200)
   }
 }
 
+// ---- v33: the analysis provenance layer ----
+// The wheel places nodes from the FULL library and decides gutter-versus-ring
+// on `track.key === null`, across six separate reads. Nothing in the vitest
+// suite can see that — .svelte files have no coverage — so if those reads ever
+// revert to the raw store, THIS is the only thing that catches it: the node
+// would keep rendering an em dash for its key while the Tracks table showed
+// the filled value.
+{
+  await page.getByRole('button', { name: 'Load sample' }).click()
+  // Whatever this run left behind may or may not need confirming.
+  const replaceDialog = page.getByRole('button', { name: 'Replace and load' })
+  if (await replaceDialog.isVisible().catch(() => false)) await replaceDialog.click()
+  await page.locator('.status .name', { hasText: 'Sample collection' }).waitFor()
+  await page.locator('aside').first().getByRole('button', { name: 'All' }).first().click()
+  await page.waitForTimeout(600)
+
+  const labelOf = (title) =>
+    page.evaluate((t) => {
+      const el = [...document.querySelectorAll('g.node[aria-label]')].find((n) =>
+        n.getAttribute('aria-label').startsWith(t + ' —'),
+      )
+      return el ? el.getAttribute('aria-label') : null
+    }, title)
+
+  if (!/— — ·/.test((await labelOf('Untitled Dub')) ?? '')) {
+    errors.push('v33: the sample library no longer offers a keyless "Untitled Dub" to fill')
+  }
+
+  await page.setInputFiles('input[type=file]', 'tests/fixtures/sample-analysis.json')
+  await page.waitForTimeout(1200)
+
+  const dub = (await labelOf('Untitled Dub')) ?? ''
+  if (!/5A/.test(dub)) errors.push(`v33: an analysed key never reached the wheel node — "${dub}"`)
+  const reeds = (await labelOf('Reeds')) ?? ''
+  if (!/84\.11/.test(reeds)) {
+    errors.push(`v33: an analysed BPM never reached the wheel node — "${reeds}"`)
+  }
+  // keyConf 0.18 sits below the bar, so the refusal must hold on screen too.
+  const tape = (await labelOf('Found Tape')) ?? ''
+  if (!/— — ·/.test(tape)) {
+    errors.push(`v33: a below-confidence key was shown rather than refused — "${tape}"`)
+  }
+  await page.screenshot({ path: `${scratch}/18-analysis-wheel.png` })
+
+  const info = page
+    .locator('.status')
+    .getByRole('button', { name: /import details/i })
+    .first()
+  if (await info.isVisible().catch(() => false)) {
+    await info.click()
+    await page.waitForTimeout(250)
+    const text = await page.evaluate(() => document.body.innerText)
+    if (!/BPM filled 3\/3/.test(text)) errors.push('v33: the import note lost its BPM fill count')
+    if (!/1 below confidence/.test(text)) errors.push('v33: the import note hid the refusal')
+    await page.keyboard.press('Escape')
+  } else {
+    errors.push('v33: no import-details tooltip after importing a sidecar')
+  }
+
+  await page.getByRole('button', { name: 'Tracks', exact: true }).first().click()
+  await page.waitForTimeout(500)
+  if ((await page.locator('td.analysed').count()) === 0) {
+    errors.push('v33: no analysed value is marked in the Tracks table')
+  }
+  const marker = await page.locator('td.analysed').first().getAttribute('title')
+  if (!/analysed locally/i.test(marker ?? '')) {
+    errors.push(`v33: the provenance marker does not explain itself — "${marker}"`)
+  }
+  await page.screenshot({ path: `${scratch}/19-analysis-table.png` })
+  await page.getByRole('button', { name: 'Wheel', exact: true }).first().click()
+  await page.waitForTimeout(300)
+}
+
 // reset with confirmation dialog
 await page.getByRole('button', { name: 'Reset', exact: true }).click()
 await page.getByText('Reset everything?').waitFor()

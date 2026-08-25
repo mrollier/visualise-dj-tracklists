@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, test } from 'vitest'
 import {
   energyFromArousal,
@@ -6,6 +7,7 @@ import {
   summariseAnalysisImport,
   type AnalysisSidecar,
 } from '../src/core/analysis'
+import { SAMPLE_COLLECTION } from '../src/data/samples'
 import { track } from './helpers'
 
 /**
@@ -360,5 +362,36 @@ describe('summariseAnalysisImport (v33)', () => {
 
     expect(summary.ambiguous).toBe(1)
     expect(summary.note).toContain('1 ambiguous')
+  })
+})
+
+describe('the sample-collection fixture (v33)', () => {
+  // Guards the hand-written sidecar against sample-data drift: enrichTrack
+  // generates the locations it is keyed on, so a change there would silently
+  // stop the acceptance demo working.
+  const sidecar = sanitizeAnalysis(
+    JSON.parse(readFileSync('tests/fixtures/sample-analysis.json', 'utf8')) as unknown,
+  )
+
+  test('is a valid sidecar', () => {
+    expect(sidecar).not.toBeNull()
+  })
+
+  test('fills every gap in the sample collection except the uncertain one', () => {
+    const summary = summariseAnalysisImport(SAMPLE_COLLECTION.tracks, sidecar as AnalysisSidecar)
+
+    expect(summary.bpmFilled).toBe(3)
+    expect(summary.bpmMissing).toBe(3)
+    // Four of the five keyless tracks fill; "Found Tape" carries keyConf 0.18
+    // and is refused, which is the point of including it.
+    expect(summary.keyFilled).toBe(4)
+    expect(summary.keyMissing).toBe(5)
+    expect(summary.belowConfidence).toBe(1)
+  })
+
+  test('leaves the sample energies alone — they are already set', () => {
+    const summary = summariseAnalysisImport(SAMPLE_COLLECTION.tracks, sidecar as AnalysisSidecar)
+
+    expect(summary.energyFilled).toBe(0)
   })
 })

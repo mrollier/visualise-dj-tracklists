@@ -1,0 +1,61 @@
+{
+  "zodiacAnalysis": 1,
+  "run": {
+    "analysedAt": "2026-08-25T12:00:00Z",
+    "tool": "hand-written fixture (v33 WS1)",
+    "models": []
+  },
+  "tracks": {
+    "/Users/dj/Music/Night Shift Trax/Greyfield - Untitled Dub.mp3": {
+      "key": "5A",
+      "keyConf": 0.88,
+      "arousal": 7.4,
+      "valence": 3.1,
+      "happiness": 0.28,
+      "danceability": 0.91
+    },
+    "/Users/dj/Music/Night Shift Trax/Unknown Artist - White Label 03.aac": {
+      "bpm": 138.02,
+      "bpmConf": 0.94,
+      "arousal": 7.9,
+      "valence": 4.2
+    },
+    "/Users/dj/Music/Night Shift Trax/Greyfield - Found Tape.aac": {
+      "bpm": 122.5,
+      "bpmConf": 0.71,
+      "key": "9B",
+      "keyConf": 0.18,
+      "arousal": 5.2,
+      "valence": 5.5
+    },
+    "/Users/dj/Music/white-label/Unknown Artist - Untitled Two-Step.aac": {
+      "key": "4A",
+      "keyConf": 0.83,
+      "arousal": 6.8,
+      "valence": 6.1,
+      "danceability": 0.87
+    },
+    "/Users/dj/Music/Terracotta/Tembo - Field Recording IV.aiff": {
+      "key": "11B",
+      "keyConf": 0.62,
+      "arousal": 2.4,
+      "valence": 5.9
+    },
+    "/Users/dj/Music/white-label/Still Water - Reeds.wav": {
+      "bpm": 84.11,
+      "bpmConf": 0.77,
+      "arousal": 1.8,
+      "valence": 6.4
+    },
+    "/Users/dj/Music/white-label/Wren Calloway - Harbour Hymn.mp3": {
+      "key": "7A",
+      "keyConf": 0.9,
+      "arousal": 2.9,
+      "valence": 4.8
+    },
+    "/Users/dj/Music/Night Shift Trax/Greyfield - Not In This Library.mp3": {
+      "bpm": 128,
+      "bpmConf": 0.99
+    }
+  }
+}

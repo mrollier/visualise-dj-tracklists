@@ -1,11 +1,14 @@
 import { get } from 'svelte/store'
 import { afterEach, describe, expect, test } from 'vitest'
 import type { AnalysisSidecar } from '../src/core/analysis'
+import { exportTracklistCsv } from '../src/core/exporters/csv'
 import {
   analysedFieldsById,
   analysis,
   augmentedLibrary,
+  augmentedTrackById,
   library,
+  trackById,
   visibleLibrary,
 } from '../src/stores'
 import { track } from './helpers'
@@ -88,5 +91,32 @@ describe('analysedFieldsById (v33)', () => {
     analysis.set(sidecar({ '/Users/dj/a.mp3': { bpm: 174, key: '3A' } }))
 
     expect(get(analysedFieldsById).size).toBe(0)
+  })
+})
+
+describe('the exports still carry Rekordbox truth (v33)', () => {
+  test('trackById stays raw, so a CSV export cannot launder analysed values', () => {
+    // The CSV exporter resolves through trackById, and the app also IMPORTS
+    // CSV — so an augmented trackById would make "export, re-import" write
+    // analysed values into the library as Rekordbox-looking truth, in two
+    // clicks and irreversibly.
+    library.set([track({ id: 'a', location: 'file://localhost/Users/dj/a.mp3' })])
+    analysis.set(sidecar({ '/Users/dj/a.mp3': { bpm: 174, key: '8A' } }))
+
+    expect(get(trackById).get('a')?.bpm).toBeNull()
+    expect(get(trackById).get('a')?.key).toBeNull()
+    // ...while the display map does carry them.
+    expect(get(augmentedTrackById).get('a')?.bpm).toBe(174)
+  })
+
+  test('the CSV export writes the raw values', () => {
+    library.set([track({ id: 'a', title: 'A', location: 'file://localhost/Users/dj/a.mp3' })])
+    analysis.set(sidecar({ '/Users/dj/a.mp3': { bpm: 174, key: '8A' } }))
+
+    const rows = [...get(trackById).values()]
+    const csv = exportTracklistCsv(rows)
+
+    expect(csv).not.toContain('174')
+    expect(csv).not.toContain('8A')
   })
 })
