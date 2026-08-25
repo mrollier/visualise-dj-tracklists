@@ -1,5 +1,4 @@
 import { get, writable } from 'svelte/store'
-import { coverageLine } from '../../core/audio/coverage'
 import { crossfadeGains } from '../../core/audio/crossfade'
 import {
   type DeckEffect,
@@ -14,14 +13,7 @@ import { clampSeek, resolveDuration } from '../../core/audio/transport'
 import type { Track } from '../../core/model'
 import { clickedTrackId, library, settings } from '../../stores'
 import * as engine from './engine'
-import {
-  coverage,
-  currentSource,
-  reindex,
-  resolutionFor,
-  restoreSavedFolder,
-  setProbe,
-} from './sourceStore'
+import { currentSource, reindex, resolutionFor, restoreSavedFolder, setProbe } from './sourceStore'
 
 /**
  * Transport state for the two decks. Session-only, never persisted, never
@@ -86,11 +78,6 @@ const pendingSeek: Record<DeckId, number | null> = { a: null, b: null }
 function cancelPreload(deck: DeckId): void {
   clearTimeout(preloadTimers[deck])
   preloadTimers[deck] = undefined
-}
-
-export function coverageText(): string {
-  const report = get(coverage)
-  return report === null ? '' : coverageLine(report)
 }
 
 function applyGains(state: DeckState): void {

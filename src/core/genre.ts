@@ -62,33 +62,29 @@ export const METHOD_LABEL_LONG: Record<GenreMethod, string> = {
 /** Decay per graph step: neighbours score 0.6, two steps 0.36, ... */
 const GRAPH_DECAY = 0.6
 
+// Keys are matched AFTER cleanupGenre, so a key only earns its place if
+// cleanupGenre leaves it alone. Hyphenated, "and"-spelled and period-bearing
+// spellings ("hip-hop", "drum and bass", "r & b") never reach the table —
+// they arrive already rewritten, and the cleaned form's own entry answers
+// them. Adding one is a silent no-op, not extra coverage.
 const ALIASES: Record<string, string> = {
   dnb: 'drum & bass',
   'd & b': 'drum & bass',
   'drum n bass': 'drum & bass',
-  'drum and bass': 'drum & bass',
   "drum'n'bass": 'drum & bass',
   'jungle music': 'jungle',
   rnb: 'r&b',
-  'r & b': 'r&b',
   'r n b': 'r&b',
   'rhythm & blues': 'r&b',
-  'rhythm and blues': 'r&b',
-  'hip-hop': 'hip hop',
   hiphop: 'hip hop',
   'psy trance': 'psytrance',
-  'psy-trance': 'psytrance',
-  'drum&bass': 'drum & bass',
   'uk bass': 'bassline',
-  'nu-disco': 'nu disco',
-  'indie-dance': 'indie dance',
   'intelligent dance music': 'idm',
   'melodic house & techno': 'melodic house',
   // Lookups happen after separator cleanup, so "Organic House / Downtempo"
   // (a Beatport category, not two genres) arrives with its slash spaced out.
   'organic house downtempo': 'organic house',
   'two step': '2 step',
-  'two-step': '2 step',
   // v12 WS5: a bare "Garage" in a club library means the UK lineage, not
   // garage rock — the pack knows uk garage / garage house, never "garage".
   garage: 'uk garage',

@@ -467,19 +467,6 @@
     }))
   })
 
-  /** Per-method perpendicular offset so parallel overlays stay visible. */
-  function edgeOffset(method: GenreMethod, a: GenreNode, b: GenreNode): string {
-    // A single overlay method never runs parallel with another (v10 #16).
-    const active = overlayMethod === null ? [] : [overlayMethod]
-    if (active.length < 2) return ''
-    const idx = active.indexOf(method)
-    const dx = (b.x ?? 0) - (a.x ?? 0)
-    const dy = (b.y ?? 0) - (a.y ?? 0)
-    const len = Math.hypot(dx, dy) || 1
-    const shift = (idx - (active.length - 1) / 2) * 2.5
-    return `translate(${(-dy / len) * shift},${(dx / len) * shift})`
-  }
-
   // --- v13 issue 3: wheel-style focus — the map rests on a faint skeleton
   // (each genre's strongest link), a hovered or selected genre lights its
   // full star, and the compare pair pops its one link. Layout still uses
@@ -525,37 +512,35 @@
         {@const a = nodeById.get(edge.a)}
         {@const b = nodeById.get(edge.b)}
         {#if a && b}
-          <g transform={edgeOffset(edge.method, a, b)}>
-            <line
-              x1={a.x}
-              y1={a.y}
-              x2={b.x}
-              y2={b.y}
-              stroke={METHOD_COLOR[edge.method]}
-              stroke-width={tier === 'pair'
-                ? (0.75 + 2 * edge.score) * 2
-                : tier === 'star'
-                  ? 0.75 + 2 * edge.score
-                  : 0.75}
-              stroke-dasharray={METHOD_DASH[edge.method] ?? 'none'}
-              opacity={tier === 'pair'
-                ? 1
-                : tier === 'star'
-                  ? 0.25 + 0.55 * edge.score
-                  : restingEdgeOpacity}
-              class="edge"
-            />
-            <line
-              x1={a.x}
-              y1={a.y}
-              x2={b.x}
-              y2={b.y}
-              class="edge-hit"
-              role="presentation"
-              onmouseenter={() => (hoveredPair = { a: edge.a, b: edge.b })}
-              onmouseleave={() => (hoveredPair = null)}
-            />
-          </g>
+          <line
+            x1={a.x}
+            y1={a.y}
+            x2={b.x}
+            y2={b.y}
+            stroke={METHOD_COLOR[edge.method]}
+            stroke-width={tier === 'pair'
+              ? (0.75 + 2 * edge.score) * 2
+              : tier === 'star'
+                ? 0.75 + 2 * edge.score
+                : 0.75}
+            stroke-dasharray={METHOD_DASH[edge.method] ?? 'none'}
+            opacity={tier === 'pair'
+              ? 1
+              : tier === 'star'
+                ? 0.25 + 0.55 * edge.score
+                : restingEdgeOpacity}
+            class="edge"
+          />
+          <line
+            x1={a.x}
+            y1={a.y}
+            x2={b.x}
+            y2={b.y}
+            class="edge-hit"
+            role="presentation"
+            onmouseenter={() => (hoveredPair = { a: edge.a, b: edge.b })}
+            onmouseleave={() => (hoveredPair = null)}
+          />
         {/if}
       {/each}
 

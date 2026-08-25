@@ -19,7 +19,7 @@ export type CanPlayProbe = (mimeType: string) => boolean
  * than one codec get one candidate per codec, because the extension alone
  * cannot tell them apart.
  */
-export const MIME_CANDIDATES: Readonly<Record<string, readonly string[]>> = {
+const MIME_CANDIDATES: Readonly<Record<string, readonly string[]>> = {
   mp3: ['audio/mpeg'],
   wav: ['audio/wav', 'audio/x-wav'],
   flac: ['audio/flac', 'audio/x-flac'],
@@ -71,7 +71,7 @@ const AIFF_NOTE =
   'Chrome and Firefox ship no AIFF decoder at all; Safari does. ' +
   'So: open Zodiac Tracker in Safari, or convert these tracks to FLAC or WAV.'
 
-export const FORMAT_NOTES: Readonly<Record<string, string>> = {
+const FORMAT_NOTES: Readonly<Record<string, string>> = {
   aif: AIFF_NOTE,
   aiff: AIFF_NOTE,
   m4a:

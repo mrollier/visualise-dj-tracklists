@@ -2124,7 +2124,6 @@
        pane has a width floor (ISSUES.md #13): it scrolls within its own bar on
        an unusually chip-heavy library rather than piling into rows. */
     right: 72px;
-    transition: right 0.3s ease;
     flex-wrap: nowrap;
     overflow-x: auto;
     overflow-y: hidden;
