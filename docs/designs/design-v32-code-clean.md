@@ -233,6 +233,13 @@ through the repair; it now reaches the hub/constellation block instead of dying
 at step three, and its nine remaining failures are recorded rather than guessed
 at.
 
+The persisted-state constraint was checked directly rather than inferred: the
+full sample collection — 264 tracks, 13 playlists, a set, a manual edge, and
+the default criteria/filters/settings — was serialised, parsed and re-serialised
+on `main` and on this branch and compared. **225,696 bytes, byte-identical.**
+Valid saves round-trip exactly as they did before; only malformed input now
+resolves to defaults, which is the constraint v14.1 set and which still binds.
+
 **Not verified.** Nothing in this wave was checked on Firefox or Safari; the
 `FileSystemDirectoryHandle` guard is exactly the kind of thing that wants one.
 The reduced-motion fixes were reasoned from the cascade, not observed under
