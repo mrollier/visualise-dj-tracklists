@@ -118,7 +118,10 @@ const KEY_AFFINITY_BONUS = 0.3
 const SAME_ARTIST_PENALTY = 4
 
 function normalizeArtist(name: string): string {
-  return name.trim().toLocaleLowerCase().replace(/\s+/g, ' ')
+  // toLowerCase, not toLocaleLowerCase: this is an identity key, and under
+  // tr-TR the locale form splits "IIO" from "iiO", which would make the same
+  // seed produce a different walk on a different machine.
+  return name.trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
 /**

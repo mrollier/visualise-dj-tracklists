@@ -41,7 +41,10 @@ export function relaxSlotAngles(
 ): Map<string, number> {
   const out = new Map<string, number>()
   if (nodes.length === 0) return out
-  const order = [...nodes].sort((a, b) => b.r - a.r || a.id.localeCompare(b.id))
+  // Plain code-unit order, not localeCompare: the tie-break has to resolve the
+  // same way on every host for the fan (and the portrait it feeds) to be
+  // reproducible, and ICU collation is locale-dependent.
+  const order = [...nodes].sort((a, b) => b.r - a.r || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
   const n = order.length
   if (n === 1 || halfSpreadDeg <= 0) {
     for (const { id } of order) out.set(id, 0)
