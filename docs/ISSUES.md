@@ -1169,6 +1169,23 @@ remaining 134 findings are in `## Open — v32 code review` above.
     disable check waits for the append it depends on. Six consecutive clean
     runs.
 
+39. **A click on the seek thumb no longer freezes the playhead.** Found by
+    GitHub Copilot's review of PR #3, after the merge, and it is the finding
+    the plugin's confidence pass had scored 0 and dropped. `DeckRow` raised its
+    `dragging` flag on `pointerdown` and cleared it only on `change`, and a
+    press on the thumb that does not move it fires neither `input` nor `change`
+    — verified with a Playwright probe in Chromium and Firefox, where that
+    gesture logs `pointerdown pointerup` and nothing else while every other
+    gesture (a 1px nudge, a full drag, a click on the track, an arrow key)
+    fires both. The flag stayed true, so the readout showed `dragValue`, which
+    is 0 until the first real drag: one stray click on the thumb pinned the
+    clock at 0:00 and stopped the line moving for the rest of the session. The
+    `pointerdown` handler is gone; `oninput` already raised the flag, and
+    `input` implies `change` on release, so the same gesture now raises and
+    clears it. Restoring the `onpointerup` handler removed in item 12 would
+    have reintroduced that defect — the probe confirms `pointerup` runs before
+    `change`. `lib/DeckRow.svelte`.
+
 ## Resolved in v31
 
 Branch `v31-constellation-review`. Michiel's six-item review of the

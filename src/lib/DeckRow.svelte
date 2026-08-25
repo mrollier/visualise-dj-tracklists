@@ -46,6 +46,12 @@
   const transportDisabled = $derived(emptyText !== null || reason !== null)
   const seekDisabled = $derived(transportDisabled || duration === null)
   // While the thumb is held, the playhead must not write back or the two fight.
+  // The flag is raised by `input` and never by `pointerdown`: a press on the
+  // thumb that does not move it fires neither `input` nor `change` (checked in
+  // Chromium and Firefox), so raising it on `pointerdown` left it stuck true
+  // and froze the readout on a stale `dragValue` — 0:00, before the first drag
+  // of the session. `input` and `change` always fire as a pair, so the flag is
+  // raised and cleared by the same gesture.
   let dragging = $state(false)
   let dragValue = $state(0)
   const shown = $derived(dragging ? dragValue : position)
@@ -93,7 +99,6 @@
       value={shown}
       disabled={seekDisabled}
       aria-label="Position"
-      onpointerdown={() => (dragging = true)}
       oninput={(e) => {
         dragValue = e.currentTarget.valueAsNumber
         dragging = true

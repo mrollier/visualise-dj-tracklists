@@ -390,11 +390,13 @@ Three candidates surfaced; one survived.
   corrected paragraph that describes it as optional, which is what the code
   does. Deleted, though it scored below the bar.
 - **0 -- the removed `onpointerup` in `DeckRow.svelte`.** The bug scan read the
-  deletion as leaving `dragging` stuck true. The history reviewer had already
-  cleared it and the scorer agreed: `change` fires on release whether or not
-  the value moved, and `pointerup` running *first* was the actual defect the
-  deletion fixed. A useful demonstration that the confidence pass earns its
-  keep -- two of the three reviewers' hits were noise.
+  deletion as leaving `dragging` stuck true. The history reviewer cleared it
+  and the scorer agreed, both on the same wrong premise: that `change` fires on
+  release whether or not the value moved. It does not. GitHub Copilot reviewed
+  the same pull request independently, raised the finding a second time, and
+  was right -- see `## After the merge` below. The confidence pass is what
+  dropped a true finding here, which is the cost of the filter that kept the
+  screenshot-comment noise out.
 
 The four reviewers that found nothing are a result too. Between them they
 checked the diff against v14.1's `## Deliberate non-goals`, against the `main`
@@ -402,3 +404,23 @@ version of the `ISSUES.md` ledger, against `git blame` on every touched hunk,
 and against the comments surrounding each change -- and found no re-litigated
 decision, no reintroduced bug, and no deleted line that a past commit had added
 on purpose.
+
+## After the merge
+
+GitHub Copilot's review of PR #3 landed after it was merged, with one finding:
+the seek slider's `dragging` flag can stick true. Its scenario is the one the
+plugin's scorer waved away -- a press on the thumb that never moves it. A
+Playwright probe over Chromium and Firefox settles it: `pointerdown pointerup`
+and nothing else, no `input`, no `change`. Every other gesture (a 1px nudge, a
+full drag, a click on the track, an arrow key) fires `input` and `change` as a
+pair. So `onpointerdown={() => (dragging = true)}` raised a flag that only
+`change` cleared, and `shown` fell back to `dragValue`, which is `0` until the
+first real drag -- one stray click on the thumb froze the readout at 0:00 for
+the rest of the session.
+
+The fix is the deletion of that handler, not the restoration of the
+`onpointerup` one that v32 removed: `pointerup` runs *before* `change` (the
+probe confirms the order), which is the defect that removal fixed. `oninput`
+already raises the flag, and `input` implies `change` on release, so the flag
+is now raised and cleared by the same gesture and no gesture can raise it
+without also clearing it.
