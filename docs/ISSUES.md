@@ -1,7 +1,10 @@
 # Issues — open
 
-Michiel's six-item constellation review resolved in **v31** (branch
-`v31-constellation-review`), on top of the three-panel collapse wave resolved
+The whole-repo code-clean wave resolved in **v32** (branch `v32-code-clean`,
+[designs/design-v32-code-clean.md](designs/design-v32-code-clean.md)) — the
+second hygiene pass after v14.1's, and the first to raise more findings than
+it could safely fix — on top of Michiel's six-item constellation review
+resolved in **v31** (branch `v31-constellation-review`), on top of the three-panel collapse wave resolved
 in **v30** (branch `v30-collapsible-panels`), Michiel's ten-item review of the
 audio preview resolved in **v29** (branch `v29-player-review`), the permanent
 filter-group wave resolved in
@@ -30,44 +33,1079 @@ labels still don't counter-scale under zoom.
 
 ## Open — tooling
 
-Three defects in `scripts/screenshot.mjs`, surfaced by the v20, v22 and v23
-browser-verification passes (each probe worked around its own; the script
-itself is untouched):
+All three of the `scripts/screenshot.mjs` defects this section carried since
+v20/v22/v23 are fixed in **v32** — along with eleven more the script had
+accumulated, and the missing try/finally that turned every one of them into a
+silent hang rather than a reported failure. See `## Resolved in v32` below.
 
-1. **`scripts/screenshot.mjs` clicks a tour button that no longer exists.**
-   Line 49 targets a button named "Close the tour", but the tour overlay's
-   close button is labelled "Skip the tour" (`TourOverlay.svelte`), so the
-   script stalls at that step on a fresh profile where the guided tour opens.
-   Fix is a one-word selector update — or better, target the overlay's
-   stable `aria-label` and add a short timeout so a future rename fails
-   loudly instead of hanging. _v22 addition:_ a corrected selector is not
-   enough on its own. The tour card animates in, so a real Playwright click
-   never passes actionability against it and hangs on the stability retry —
-   the v22 probe had to `dispatchEvent('click')` on
-   `button[aria-label="Skip the tour"]`, the same idiom this script already
-   uses for the wheel's overlapping hit circles. Fix both halves together.
-2. **`scripts/screenshot.mjs` measures a `.header-star` that no longer
-   exists.** Line 617 takes `page.locator('.header-star').boundingBox()` and
-   compares its centre against the first row star's, guarding the v11 issue
-   11 header/column alignment. No element has carried that class since v18
-   #3/#8 renamed the header ★ to `tag header-toggle` (and v22 to plain
-   `header-toggle`), so `boundingBox()` returns `null`, the `if
-   (headerStarBox && rowStarBox)` guard short-circuits, and the assertion
-   has been silently testing nothing ever since. The alignment it guards is
-   in fact fine — the v22 probe re-measured it directly and the header ★ and
-   the row stars share a centre to 0.0px in both themes — but the check must
-   be re-pointed at `th.tags-col .header-toggle` and its null-guard turned
-   into a failure rather than a skip.
-3. **`scripts/screenshot.mjs:540` asserts exactly 28 `.prop-row` elements in
-   the advanced Track-properties table, and `scripts/screenshot.mjs:84`
-   compares filter labels against the bare string `'Keys'`.** v23 adds a
-   29th row — the new 🎵 Keys pseudo row (`marks.ts`'s `PANEL_FILTERS`,
-   widened from two entries to three) — so the hardcoded row count is now
-   stale. The same wave also renamed the label itself to `'🎵 Keys'`
-   (`PANEL_FILTERS`'s glyph-first `label`), so line 84's `l.trim() ===
-   expected` no longer matches and that assertion fails too on a fresh run.
-   Neither is a gate, and both are deliberately left for a separate tooling
-   pass rather than folded into this wave (do not fix the script here).
+What is left of this section is the part v32 could not settle: after the
+repair the script reaches the hub/constellation block instead of dying at step
+three, and reports nine failures that each need adjudicating as live defect or
+stale expectation. They are item 1 of `## Open — v32 code review` below,
+together with the two assertions that no longer test what their comments say
+they test.
+
+## Open — v32 code review
+
+The whole-repo review recorded in
+[designs/design-v32-code-clean.md](designs/design-v32-code-clean.md) raised
+181 findings across fourteen slices. The forty-seven that were safe to change
+are folded into the thirty-four entries under `## Resolved in v32`; these 134
+are the rest, grouped by subsystem and ordered so the reachable data-loss ones
+come first.
+Nothing here was judged safe to change in a hygiene wave: each either changes
+behaviour, touches a persisted schema, changes what is on screen, or needs a
+decision that is Michiel's rather than the reviewer's.
+
+**Severe — reachable data loss or a dead control**
+
+1. **A second `startTour` during the tour is guarded now, but the panel
+   switches are still module memory.** `panelsBefore` (`tour.ts:48`) lives in
+   a module variable while the switches it captures are written straight into
+   the autosaved `settings`. Reload or close the tab mid-tour and `endTour`
+   never runs: `audioPreview` — a default-off feature that spins up an
+   AudioContext — is left permanently on with nothing that knows to revert it.
+   `TOUR_SEEN_KEY` was deliberately kept outside the project autosave for
+   exactly this class of problem.
+
+2. **`enterDemoView` forces `uiMode: 'advanced'` but `endTour` reverts only
+   the three panel switches.** `uiMode` is not in `PanelSwitches`
+   (`tour.ts:51`), so an easy-mode user who replays the tour is dumped into
+   the full Advanced UI they deliberately put away, and it is autosaved. The
+   revert is a hand-written per-field ternary trio rather than a loop over the
+   captured keys, so a fourth forced field will drift out the same way.
+
+3. **Reconnecting a remembered music folder deletes the grant it is trying to
+   use.** `reconnect()` (`sourceStore.ts:177`) walks the whole directory tree
+   before it asks for permission, so `entries()` rejects on the still-`prompt`
+   handle and the catch runs `forgetFolder()`, which wipes `pendingHandle` and
+   the stored handle. Reconnect can never succeed. Even read charitably,
+   `ensurePermission()` on the next line runs after a multi-second awaited
+   walk, by which time transient user activation has expired. Permission must
+   be requested first, inside the gesture.
+
+4. **A failure while picking a NEW folder tears down the working one.**
+   `linkFolder`'s blanket catch (`sourceStore.ts:136`) calls `forgetFolder()`,
+   so a network volume dropping mid-walk — or `saveRootHandle` rejecting —
+   removes the previously linked folder from memory and from IndexedDB.
+   `adopt` has not replaced `source` yet at that point, so the old grant was
+   still perfectly usable.
+
+5. **A late duck timeout kills the crossfader for the rest of the session.**
+   `dispose()` (`engine.ts:299`) zeroes the `ducks` counters without
+   cancelling the pending `whileSilenced` timeouts. A timer that fires after
+   it decrements to −1, so the `=== 0` test never passes again, `commandGain`
+   never calls `rampTo`, every gain sits at the GainNode default of 1 and
+   `applyGains(0, 1)` cannot mute the unpinned deck. Only another `dispose`
+   resets it. The fix is tracking and clearing the in-flight timers, not just
+   resetting the counters.
+
+6. **A track that fails to resolve leaves the previous one playing under a UI
+   that says it stopped.** The `load` effect (`playerStore.ts:152`) resets the
+   deck UI and schedules a preload but never touches the media element, so
+   when `materialise` returns false the element still holds the old blob URL
+   and is still audible. Clicking the same track again is a reducer no-op, so
+   there is no retry — only a third track stops the sound.
+
+7. **A stale `deckError` permanently disables a deck's transport.**
+   `materialise` never clears it on success (`playerStore.ts:188`), and
+   nothing clears it when a reindex re-resolves the track as playable. The
+   only writers of `null` are `resetDeckUi` and `suspendPreview`, so re-
+   linking the correct folder leaves the play button greyed out with "file not
+   found in …" over a track that now resolves fine.
+
+8. **Unpinning a deck can replace the track you kept.** The `promote` handler
+   (`playerStore.ts:129`) swaps `materialised` and `pendingSeek` but not
+   `wanted`, `preloadTimers` or `busy`, so a pending load aimed at the
+   discarded deck lands on the promoted element and tears down the pinned
+   track mid-listen. The underlying shape is the problem: per-deck state is
+   spread over five records plus four stores, and promote has to remember each
+   one. One `DeckRuntime` object per deck would make promote a destructuring
+   swap and this class of bug unrepresentable.
+
+**Suggestion engine**
+
+9. **`avoidSameArtist` can make a walk stop short, and it defaults ON.** The
+   penalty is applied to the immediate step, but the greedy walk can be
+   diverted into a cul-de-sac and end early — verified against a four-node
+   graph where the preference turns a full-length walk into one two short,
+   popping the ⚡ offer. `suggest.ts:70`'s own doc says the preference "can
+   never cut a walk short"; that holds for the step, not the path.
+
+10. **`SAME_ARTIST_PENALTY` (4) sits below `MUST_INCLUDE_BONUS` (5).**
+   `suggest.ts:118`. A must-include track by the current tip's artist is
+   pulled into the colliding slot even though slot reservation (`pending.size
+   >= slotsLeft`) already guaranteed it a later, clean one. The bonus is only
+   a bias; the reservation is the guarantee, so ranking it above the penalty
+   defeats the preference without buying safety.
+
+11. **A two-arm walk never scores the artist against the other arm's tip.**
+   `suggest.ts:486`. `startExtra` compares only against the start tip, so a
+   candidate that collides with the pinned closer is unpenalised there, and
+   `chooseStart` breaks the tie in the start arm's favour — the seam slot goes
+   to the colliding track. `towards()` already establishes the look-at-the-
+   other-tip pattern for genre.
+
+12. **The hub applies the same flat penalty on roughly twice the scoring
+   scale.** `suggest.ts:729`. `suggestNext` adds a full second
+   `scoreCandidate` for the successor side, giving ~9.2 of spread where the
+   constant was calibrated against `suggestWalk`'s ~4.6, so the preference is
+   about half as strong in the hub as in the generator.
+
+13. **The artist term is hand-summed into four separate `extra` builders**
+   (`suggest.ts:401`, `:486`, `:492`, `:725`), the fourth differing in shape.
+   The seam blindness above is a direct consequence, and the next per-
+   transition preference multiplies the copy again. Note v14.1's non-goal: any
+   merge must prove `rand()` consumption is unchanged.
+
+14. **`buildNeighbours` runs an O(degree) `Array.includes` scan per edge
+   insertion** (`suggest.ts:246`) although `computeEdges` already emits each
+   undirected pair exactly once, so the guard can never fire on that pass. On
+   a large library at a low threshold this is seconds of blocking work on
+   every ✨ press.
+
+15. **`randomStart` calls `neighbours(id)` for every track purely to test
+   `.length > 0`** (`suggest.ts:271`). Under the complete-graph branch that
+   allocates an (n−1)-element array per track — ~100M element copies for a 10k
+   library — before picking a single opener.
+
+16. **`artistTerm` re-normalises `current.artist` once per candidate instead
+   of once per step** (`suggest.ts:351`), so a forced step in a 10k library
+   performs ~20,000 trims/lowercases/regex replaces where 10,001 would do.
+
+17. **`toggleDemanded` does not enforce `demanded ⇒ enabled`.**
+   `combos.ts:393`. `parseProject` reads `demanded` independently of
+   `enabled`, so a save carrying `{enabled: false, demanded: true}` loads
+   intact and a later re-enable comes back already locked — contradicting the
+   comment's "a re-enable must come back unlocked".
+
+18. **The "hub weighs both sides of the seam" test is vacuous.**
+   `tests/suggest.test.ts:1326` passes with `avoidSameArtist: false` and would
+   pass if the successor-side branch were deleted: `used` already excludes
+   every alternative, so the assertion is unconditionally true. A pool with a
+   third same-artist track still available would actually exercise it.
+
+**Filtering, marks and properties**
+
+19. **`colourChipOptions` compares colours case-sensitively while
+   `passesProperty` compares them lowercased** (`filter.ts:271`), so a stored
+   `0xff007f` against a library spelling of `0xFF007F` renders the colour
+   twice — once in scope and once as a phantom "dropped out of scope" chip.
+
+20. **`audioQuality` classifies Apple Lossless in an `.m4a` container as
+   lossy** (`filter.ts:50`): `LOSSLESS` matches only the literals
+   `alac`/`apple lossless`, and Rekordbox writes the container name ("M4A
+   File"). Filtering to lossless silently loses every ALAC track. Same for WMA
+   Lossless.
+
+21. **`genreFamilyClasses` guards on the pre-cap family count**
+   (`iconClasses.ts:104`), so `maxGenreClasses = 1` returns a one-class legend
+   with every node a circle. Both sibling icon modes return `null` for the
+   same input.
+
+22. **`playlistClasses` keys its class map by playlist NAME**
+   (`iconClasses.ts:133`). The Rekordbox importer de-dupes names, but
+   `persist.ts:509` reloads saved playlists with no dedupe pass and
+   `stores.ts:531` selects by name, so two selected playlists sharing a name
+   collapse into one class — and can drop the count below two, which returns
+   `null` and removes every node shape from the wheel.
+
+23. **`bestPair` defaults to `[0, 0]`** (`genreClasses.ts:48`): if no pair
+   ever beats `best = -1` the merge self-merges cluster 0 and then deletes it,
+   dropping every label it held into unclassed circles. Reachable the moment a
+   similarity method can return NaN.
+
+24. **`PANEL_FILTER_KEYS` and `PANEL_FILTERS` are two parallel hand-maintained
+   lists** (`marks.ts:30`) — exactly the drift `PANEL_FILTERS`' own doc says
+   it eliminated. `persist.ts` builds its whitelist from one and back-fills
+   from the other, so a row in one and not the other is silently dropped from
+   every saved `visibleFilters`.
+
+25. **`sortTracks` pays for collator negotiation on every comparison**
+   (`trackSort.ts:65`): `String(va).localeCompare(String(vb), undefined,
+   {sensitivity:'base'})` runs ~130k times for a 10k library, and passing an
+   options object defeats the engine's fast path. There is no cached
+   `Intl.Collator` anywhere in `src/`.
+
+26. **`familyOfLabel` never caches a null result** (`iconClasses.ts:99`), so
+   `genreFamilyOf` re-walks the genre tree once per TRACK rather than once per
+   distinct label — on a derived that re-runs whenever the scoped library,
+   playlists, filters or settings change.
+
+27. **The genre similarity matrix computes both `(a,b)` and `(b,a)` plus the
+   diagonal** (`genreClasses.ts:37`): L² calls where L(L−1)/2 distinct values
+   exist, on the costliest similarity path.
+
+28. **`pairKey` concatenates two labels with no separator**
+   (`genreMap.ts:18`), so `pairKey('ab','c')` and `pairKey('a','bc')` collide.
+   Latent — zero collisions across the 114 curated labels — but genre labels
+   are the user's own strings, and a collision silently promotes an unrelated
+   edge to the compare-pair tier.
+
+29. **`freshFirstSet` stores the caller's array by reference**
+   (`sets.ts:112`), so a `TrackSet` in the store can alias a caller-owned
+   array; a later mutation changes the active set in place without notifying
+   Svelte. Every other constructor in the module is value-returning.
+
+30. **A stale genre list makes unticking a genre enable them all.**
+   `GenresSection.svelte:17` compares `next.length >= $scopedGenres.length`,
+   and nothing resets `filters.genres` on a playlist switch, so a three-item
+   selection against a two-genre scope writes `null` — the opposite of the
+   user's click. `genreSummary` shows the state as "3/2" beforehand.
+
+31. **`activeGenres` compares case-sensitively while `applyFilters`
+   lowercases** (`GenresSection.svelte:25`), so a save whose casing differs
+   from the library's first-seen spelling renders every checkbox unticked
+   while the filter is active — and ticking one appends a duplicate case pair.
+
+32. **Clearing a number input writes `null` into the store.**
+   `CriteriaPanel.svelte:152` (and `:191`, `:254`; `AdvancedMenu.svelte:368`,
+   `:528`, `:629`) use `bind:value` on `<input type="number">`, and Svelte's
+   `to_number('')` is `null`. `bpmCompatibleRatio` then computes
+   `(null/100)*low === 0`, so the BPM criterion silently becomes exact-only —
+   and the `null` persists into the save. `persist.ts:354` already sanitises
+   these on LOAD; the input path has no guard, and `FiltersSection`
+   deliberately avoids `bind:value` for this reason.
+
+33. **`resetToDefaults` leaves an active filter with no row to clear it.**
+   `AdvancedMenu.svelte:78` restores `settings.visibleFilters` without
+   clearing the property filters that fall out of it, so a typed Artist filter
+   keeps hiding tracks with no control anywhere. The confirm dialog promises
+   "Filters … are kept" — they are kept and hidden. Every other write path to
+   `visibleFilters` maintains the invariant.
+
+34. **The Advanced panel's window Escape handler is unguarded**
+   (`AdvancedMenu.svelte:305`), so an Escape meant for a modal `ConfirmDialog`
+   or a pinned `InfoTooltip` also closes the whole panel.
+   `WheelView.svelte:950` guards its own Escape for exactly this collision.
+
+35. **A playlist toggle fires one `filters.update` per visible numeric row**
+   (`FiltersSection.svelte:126`), so one checkbox click runs the O(n²) combo
+   pass three times. Batch the resets into one update.
+
+36. **With every criterion disabled the head and the boxes disagree**
+   (`CriteriaPanel.svelte:282`): the text reads "Require 0 of 0" while
+   `RatingBoxes` renders one filled box, and clicking it sends threshold 0,
+   which makes `computeComboView` declare every pair a combo — n(n−1)/2 edges,
+   with the label unchanged.
+
+37. **The date branch of `commit` skips `clampRange`**
+   (`FiltersSection.svelte:188`), unlike the numeric branch, so an inverted
+   date range is accepted and the table empties with no reflect. `clampRange`
+   is already generic over `number | string` and ISO dates sort lexically.
+
+38. **`fallbackPath` is evaluated before the guard that would make it
+   unnecessary** (`FolderLinkControl.svelte:219`): with a folder already
+   linked, a full-library `folderHint` walk runs on every track click and the
+   result is discarded.
+
+39. **`folderHint` recomputes `commonAncestorPath` over the whole library
+   whenever `preferred` changes** (`FolderLinkControl.svelte:72`), though the
+   suggested path depends only on `$library` — 2,000 URL decodes per click on
+   a 2,000-track collection. Only the example half depends on `preferred`.
+
+40. **`genrePairCount` runs an O(g²) pass on every library or criteria
+   change** (`AdvancedMenu.svelte:194`) — ~11k similarity evaluations at 150
+   labels, including on slider drags that cannot affect it, since a collapsed
+   `<details>` still renders its children. It also reads raw `$criteria`
+   rather than `effectiveCriteria`, so easy mode reports a number the wheel
+   does not use.
+
+41. **`PlaylistsSection` keys its `{#each}` and its counts Map on
+   `playlist.name`** (`:62`), which is not unique — an unnamed NODE yields
+   `''`, and a "Club / Warmup" playlist collides with a Warmup inside a Club
+   folder. Svelte throws `each_key_duplicate` and the whole left panel goes
+   down.
+
+42. **`toggleFilterVisible` and `togglePanelVisible` are the same function
+   twice** (`AdvancedMenu.svelte:112`), differing only in the one-line clear
+   branch — and they have already drifted: one deletes from
+   `filters.properties` inline while the other routes through
+   `clearPanelFilter`.
+
+**Genre matching and the pack builders**
+
+43. **`genreComponents` falls back to the raw label when splitting yields one
+   distinct component** (`genre.ts:164`), so trailing or repeated separators
+   leak punctuation: "House," stays `house,` and "House, House" becomes
+   `house, house`. Neither reaches the pack or the tree, so every similarity
+   method degrades to 0 and coverage counts the track as outside. Returning
+   `parts` when `parts.length >= 1` fixes it.
+
+44. **`genreEnergyBaseline` regex-matches the raw genre instead of routing
+   through `normalizeGenre`** (`enrich.ts:90`). Measured against the shipped
+   packs: Liquid Funk (11 tracks) and Neurofunk (3) miss the table entirely
+   and get energy 9 from the BPM curve — higher than their parent Drum & Bass
+   at 8, inverting the intended order. Also affects "Drum and Bass", "Hip-
+   Hop", "Trip-Hop", "Psy-Trance", "Two-Step", Funk, 2 Step and Bassline.
+   `ALIASES` already canonicalises every one.
+
+45. **`linSimilarity` dereferences `treeIC` for ancestors that were never
+   added to the IC node set** (`genre.ts:257`): `nodes` is built from the root
+   plus `Object.keys(treeParents)`, so a parent that appears only as a value
+   has no entry, `Math.max(lcaIC, undefined)` is NaN, and the pair silently
+   stops matching. `genre-tree.json`'s own readme invites editing, which makes
+   this a live trap.
+
+46. **Nothing is memoised in `genreSimilarity`/`labelSimilarity`**
+   (`genre.ts:412`). The all-pairs combo scan runs ~2.1M calls on a
+   2,000-track library, each re-splitting both labels, re-allocating two Sets,
+   and for the graph method re-running a BFS. The vocabulary is ~100 labels,
+   so the cache would be tiny.
+
+47. **`cleanLabel` in the pack builder has drifted from the `cleanupGenre` it
+   says it mirrors** (`build-genre-embedding.mjs:189`): it omits period
+   stripping, the en/em dashes in the separator class, and the `r & b` repair.
+   The shipped pack already carries the key `contemporary r & b`, which the
+   runtime can never emit, and `folk, world, & country`, which the runtime
+   always aliases to `folk`.
+
+48. **`--dims` is parsed with `Number()` and never validated** (`build-genre-
+   embedding.mjs:368`): a missing or non-numeric value gives NaN, `slice(0,
+   NaN)` is `slice(0, 0)`, and the script silently overwrites the pack with an
+   entry per label and no neighbours at all.
+
+49. **`--sweep` recomputes the full Jacobi eigendecomposition for each
+   candidate dimension** (`build-genre-embedding.mjs:345`) although only the
+   truncation differs — the decomposition is the dominant cost, so hoisting it
+   makes the sweep ~5× cheaper.
+
+50. **`jacobiEigen` returns no convergence signal** (`genre-pack-lib.mjs:18`):
+   the break condition is an absolute `off < 1e-12` that scales with neither n
+   nor matrix magnitude, and an exhausted sweep budget returns the partially-
+   diagonalised diagonal as if it were the eigenvalues.
+
+51. **`tripletAccuracy` divides by `triplets.length` unguarded** (`genre-pack-
+   lib.mjs:225`), so a filtered corpus that leaves no triplets logs `NaN%` as
+   a validation score and writes the pack anyway.
+
+52. **`mutualProximity` divides by `n − 1`** (`genre-pack-lib.mjs:149`), so a
+   single-label vocabulary produces an all-NaN matrix that is silently dropped
+   by the `score > 0` filter — an empty pack with no error.
+
+53. **`embedRows` silently returns rows narrower than the requested dims**
+   (`genre-pack-lib.mjs:62`) when too few eigenvalues are positive, and
+   `writePack` still records the requested number in both the `dims` field and
+   the `_readme`.
+
+54. **The demo library carries dates in the future** (`enrich.ts:190`):
+   `lastPlayed` adds up to 600 days and `dateModified` up to 400 to an anchor
+   as late as 2025-12-28, so some sample tracks are stamped 2027. `lastPlayed`
+   is also independent of `dateModified`, so a track can be played long after
+   it was added but modified days later.
+
+**Import and export**
+
+55. **The EXTINF regex requires an integer duration and a comma**
+   (`importers/m3u.ts:61`), so a playlist with fractional seconds — what VLC,
+   foobar2000 and Traktor all write — loses both the duration and the
+   artist/title, fails to match the library, and creates a duplicate bare
+   track. `#EXTINF:-1` with no comma fails identically.
+
+56. **The fallback title uses `basenameOf`, which is the case-folded matching
+   key** (`importers/m3u.ts:77`), so every EXTINF-less entry enters the
+   library lower-cased. The existing test misses it because its fixture
+   filename is already lower-case.
+
+57. **`buildReport(newTracks, …)` counts only newly-created placeholders**
+   (`importers/m3u.ts:101`), so a 30-entry playlist that matches the library
+   entirely reports "0 tracks imported".
+
+58. **The "not found in the library" message is pushed into `report.errors`**
+   (`importers/m3u.ts:97`), which the UI renders as a skipped-row count — five
+   unmatched entries read as "1 skipped". `ImportReport.notes` exists for
+   exactly this.
+
+59. **Keyless walk tracks stack off the bottom of the poster**
+   (`exporters/portrait.ts:210`): a fixed 40px stride with no clamp or wrap
+   puts badge 15 onward below the 800px canvas and over the footer. This is
+   the normal state after importing an M3U with no collection loaded, where
+   every track is keyless.
+
+60. **Windows drive-letter locations export as `/C:/Music/x.mp3`**
+   (`exporters/m3u.ts:18`), which no Windows player resolves — while
+   `location.ts`'s `formatPath` already handles exactly this case for the
+   folder hint.
+
+61. **A newline in a title or artist splits one M3U entry into two**
+   (`exporters/m3u.ts:17`). The stray line does not start with `#`, so every
+   reader — including this repo's own importer — treats it as a track.
+   Reachable from a CSV import with a quoted multi-line field.
+
+62. **`libraryName` goes into the poster meta line unclipped**
+   (`exporters/portrait.ts:287`) while `setName` is clipped to 26 characters,
+   so an ordinary export filename runs past the panel and off the 1200px
+   canvas. `clip()` is used one line above.
+
+63. **`padStart(2, ' ')` is a no-op inside SVG text**
+   (`exporters/portrait.ts:307`): XML strips the leading space with no
+   `xml:space="preserve"`, so rows 1–9 render narrower than 10+ and the titles
+   after them do not line up — the exact misalignment the padding was added to
+   prevent.
+
+64. **The default poster date is the UTC date** (`exporters/portrait.ts:189`),
+   so a poster exported at 01:15 in Brussels is stamped with yesterday.
+
+65. **`cell()` quotes `"`, `,` and `\n` but not a lone `\r`**
+   (`exporters/csv.ts:18`), which RFC-4180 readers treat as a record
+   separator, splitting the row and dropping its remaining columns.
+
+66. **The CSV header list and value list are two hand-maintained parallel
+   arrays** (`exporters/csv.ts:26`), and the export drops `album` and
+   `dateAdded` although the importer maps both — so an export/import round
+   trip loses metadata. One `[header, accessor]` mapping would fix both
+   halves.
+
+67. **`bpm`, `year` and `duration` hand-roll the `posNum` helper defined four
+   lines above them** (`importers/rekordbox.ts:97`).
+
+68. **The extension-strip regex is duplicated in four places in two
+   inconsistent forms** (`importers/m3u.ts:22`, `importers/id3.ts:22`,
+   `TracklistPanel.svelte:48` use `/\.[a-z0-9]+$/i`; `TopBar.svelte:102` uses
+   `/\.[^.]+$/`). `location.ts` is the established home for filename folding
+   and is already imported by both m3u files.
+
+**Persistence and settings**
+
+69. **A quota-exceeded autosave is swallowed with no signal**
+   (`persistence.ts:230`), so the previous, smaller save silently stays as the
+   thing that restores next launch. Reusing `serializeProject`'s 2-space
+   pretty-print — written for the human-readable file export — makes the quota
+   arrive ~1.5× sooner: measured 1.51 MB versus 1.02 MB for 2,000 tracks.
+
+70. **`shortenLegacySetName` runs on every load with no version gate**
+   (`persist.ts:294`), so a set the user deliberately named "Constellation 3"
+   is rewritten to "3" and re-persisted on every reload. `sets.ts:41` claims a
+   name the user chose is never touched; the visibleFilters back-fills next to
+   it ARE version-gated.
+
+71. **`migrateCriteria` copies enum and numeric fields straight through with
+   `??`** (`persist.ts:136`), so `method: 'bogus'` reaches `labelSimilarity`,
+   whose switch has no default clause — it returns undefined and the genre
+   criterion silently stops matching library-wide, with no error anywhere.
+   `maxPercent: '12'` likewise leaks a string into a numeric field. The
+   block's own comment says non-booleans never leak; only `demanded` is
+   actually guarded.
+
+72. **The supported-version check is a ten-clause `!==` chain and the literal
+   10 appears in four places** (`persist.ts:246`, the `Project` interface, the
+   return literal, `persistence.ts:41`). A `PROJECT_VERSION` constant plus a
+   range test expresses the rule once.
+
+73. **`avoidSameArtist` defaults to `true` as an app setting and `false` as an
+   engine option** (`settings.ts:130` versus `suggest.ts:339`, `:693`), so any
+   new caller that omits it — or any test written against the engine defaults
+   — gets the opposite of what the app ships.
+
+**State, undo, theme**
+
+74. **A no-op `appendToSet` still clears the `generated` flag**
+   (`stores.ts:165`): re-adding the track that is already last writes through
+   `writeActiveTrackIds(fn, false)`, so the ✨ badge disappears,
+   `canRegenerateInPlace` flips false, the ⚡ window closes and an undo step is
+   burned — from an edit that changed nothing.
+
+75. **Undo can hide a filter row that is still filtering.** `tuningOf` keeps
+   `settings.visibleFilters` while `filters` is deliberately untracked
+   (`undoStore.ts:75`), so Cmd+Z after a header ★ toggle restores the hidden
+   row but leaves `filters.marks.starredOnly` true — the wheel stays narrowed
+   with no visible control, and in easy or in-set-only mode there is no way
+   back at all.
+
+76. **`tuningOf` excludes theme, uiMode and advancedOpen as chrome but keeps
+   `colorScheme`, `trackColumns` and `hiddenColumns`** (`undoStore.ts:64`), so
+   Cmd+Z repaints the palette and reshuffles the Tracks table — against the
+   module doc's own "undo never flips the theme".
+
+77. **"The stack resets on library replacement" rides on `activeSetId`
+   changing value** (`undoStore.ts:199`). Svelte's writable suppresses a set
+   of an identical string, so re-opening the same `.json` never fires
+   `resetUndo`, and one Cmd+Z applies post-save state over the freshly loaded
+   document.
+
+78. **`deleteSet` writes `sets` before `activeSetId`** (`stores.ts:231`),
+   leaving a synchronous window in which `activeSetOf` falls back to
+   `$sets[0]`: `undoStore` records a bogus step attributing the wrong tracks,
+   and with a marks filter on, `computeComboView` runs a full O(n²) pass on
+   the wrong constellation before the next line corrects it.
+
+79. **Easy mode renders a split palette.** `theme.ts:32` stamps the accent
+   variables from raw `settings.colorScheme` while the wheel's node ramp reads
+   `effectiveSettings.colorScheme`, which easy mode resets to the default — so
+   a violet scheme leaves violet chrome around blue nodes. `colorScheme` is
+   pure chrome and belongs in the preserve list next to `theme`.
+
+80. **`effectiveSettings` allocates a fresh object on every settings write**
+   (`stores.ts:285`), so toggling a panel or flipping the theme re-runs
+   `computeGenreClasses` and `computeFocusEdges` over the whole scoped
+   library. The cost is already visible as band-aids — `displaced.ts:63`'s
+   `numericMapsEqual` and `WheelView.svelte:375`'s guard both exist to absorb
+   it. The local `distinct()` at `stores.ts:311` fixes it at the source.
+
+81. **`endTour(true)` re-enters easy mode through `applyProject`**, skipping
+   the `linkArmed.set(false)` / `rightPanel.set('set')` guards `toggleUiMode`
+   documents (`tour.ts:100`). Easy mode hides the 🔗 button, so link mode stays
+   armed invisibly and the next-but-one wheel click toggles a persisted manual
+   combo instead of selecting. `TopBar.svelte:228` guards the other entry
+   point.
+
+82. **`startUndo`, `startAutosave`, `startPlayer` and `startTheme` are not
+   idempotent and have no teardown.** Each call adds permanent subscriptions;
+   `tests/undoStore.test.ts` calls `startUndo` once per test, and it stays
+   correct only because `record` no-ops on an identical snapshot. `startTheme`
+   additionally registers a `matchMedia` listener from App's component body,
+   so HMR double-stamps the document.
+
+**The wheel**
+
+83. **Only the hub is gated on the reveal window.** `hubInert` gates
+   `hubSuggest` (`WheelView.svelte:811`), but `addToTracklist` (`:1330`), the
+   `+` keydown (`:1334`), `hubRetry` (`:852`) and `hubReset` (`:888`) all
+   still fire mid-cascade. `revealPlan` then recomputes every delay while
+   `{#key $walkRevealTick}` does not re-key, so running animations keep their
+   old delays on re-matched elements. Three booleans on one of five entry
+   points is a bandaid; the gate belongs at the shared reveal/mutation
+   boundary.
+
+84. **`hubRetryState` has no reveal gate at all** (`WheelView.svelte:826`), so
+   the retry ring mounts and — when the neighbourhood is exhausted — spins its
+   dash offset while the stars are still cascading in: the exact "speaks
+   before the constellation stands still" behaviour v31 #2 set out to fix.
+   `hubRetry` also has no `hubBusy` guard, so clicking it mid-reveal bumps a
+   second reveal on top of the first.
+
+85. **Folding `!hubBusy` into `hubForce` strips an already-earned force
+   state** (`WheelView.svelte:810`), so an exhausted hub flips out of force
+   and back on every generate — dropping `.warning`, reverting the label to
+   "next", and restarting `hub-pulse` for an unrequested 1.2s double pulse at
+   the visual centre of the wheel. v31 #2 needed the recomputation deferred,
+   not the state suppressed.
+
+86. **`hoveredNode` linear-scans `paintedNodes`** (`WheelView.svelte:944`)
+   although `nodeById` is the same set as an O(1) Map three lines away — and
+   `paintedNodes` invalidates on every deck play/pause, selection and hover,
+   so the scan runs on unrelated changes, including when `$hoveredId` is null.
+
+87. **Resolving the hover ring against `paintedNodes` misses the case it
+   exists for**: a walk member the filters hide renders as a ghost star at a
+   real position, but it is not in `visibleNodes`, so hovering its set-list
+   row gives no ring. `walkNodeById` (`:622`) is the map built for exactly
+   this question.
+
+88. **The four-way hub state is spelled out three times**
+   (`WheelView.svelte:1438`): the `aria-label` chain, the `<title>` chain and
+   the class/label booleans. They have already drifted — with `hubBusy &&
+   hubAllUsed` the announcement says "Drawing the constellation" and never
+   mentions the set is complete.
+
+89. **`revealing` is derived by hand in two components and inverted into a
+   third spelling** (`WheelView.svelte:675`, `TracklistPanel.svelte:59`,
+   `:61`), while `stores.ts:105` grew a reduced-motion short-circuit whose
+   entire purpose is to serve them. One exported `walkRevealing` derived next
+   to `bumpWalkReveal` would give both views a single source.
+
+90. **`hubBusy` is a pure alias for `revealing`** (`WheelView.svelte:808`) — a
+   second reactive node that adds a name but no meaning and a 130-line hop for
+   anyone chasing why the hub is dead.
+
+91. **Keyboard focus on an off-criteria star is invisible**
+   (`WheelView.svelte:2055`). `.node` sets `outline: none` and its
+   replacement, `.node:focus-visible .dot`, is a descendant of a group whose
+   `opacity` attribute is 0.12 for out-of-focus nodes, so the indicator
+   composites to 0.12 alpha; `.tag-ring` lands at 0.066. v31 #6 identified
+   group-opacity multiplication as the bug class and lifted only the hover
+   ring out of it — the fix was applied to one element rather than to the
+   mechanism.
+
+92. **`walk-glow` hardcodes `brightness(1.7)`** (`WheelView.svelte:1741`),
+   which inverts in the light theme where `--walk-bright` (#8a5a00) is
+   deliberately DARKER than `--walk` (#a86f00) — so a completed constellation
+   fades out instead of flaring.
+
+93. **The tooltip shadow is a hardcoded dark-theme literal**
+   (`WheelView.svelte:2205`), `rgba(0,0,0,0.5)`, with no light override and no
+   token — and the same literal is repeated at `InfoTooltip.svelte:126` and
+   `GenreMapView.svelte:962`, with `rgba(0,0,0,0.6)` at
+   `ResetDialog.svelte:36` and `ConfirmDialog.svelte:45`. A `--shadow-popover`
+   token per theme removes both the theme gap and the duplication.
+
+**The Tracks view and the constellation panel**
+
+94. **The ⚡ and 🎤 verdict notes survive a hand-edit of a FULL-length walk**
+   (`TracklistPanel.svelte:485`). The clearing effect at `:259` is guarded on
+   `shortSnapshot !== null`, which is null for a walk that reached its length,
+   so the numerator freezes while the denominator tracks the live list — and
+   after a full clear both render "of −1", above the empty-state branch that
+   would have hidden them.
+
+95. **A drag-drop that moves nothing still clears the `generated` flag**
+   (`TracklistPanel.svelte:95`): release a row where you picked it up and the
+   ✨ badge goes, `canRegenerateInPlace` flips false, and at `MAX_SETS = 8` the
+   suggest button turns off entirely with "All 8 constellations are hand-
+   edited". The `if (moved)` guard below is self-defeating.
+
+96. **The 🎤 note's visibility reads the live setting while its count came from
+   the generation run** (`TracklistPanel.svelte:494`). `countSameArtist` runs
+   unconditionally, so re-ticking "avoid two tracks by the same artist" pops
+   in a note describing a walk the preference never influenced — and unticking
+   hides a truthful one. Toggling settings does not close the ⚡ window either;
+   the drift guard at `:267` watches only the visible library and the
+   criteria.
+
+97. **`dragOverGap`/`dragOverRow` accept a foreign drag**
+   (`TracklistPanel.svelte:127`): dragging a Tracks-view column header across
+   the constellation list paints an insertion line that nothing clears,
+   because the drop and `dragend` both land on the foreign source. A
+   `dragIndex === null` early return fixes both halves.
+
+98. **The ⚡ offer lags the click by the whole cascade**
+   (`TracklistPanel.svelte:234`) — 2.9s for a 15-track walk, up to 4.8s. The
+   button morphs under the cursor seconds after the press, and pressing ✨ or
+   `s` in the meantime rolls a fresh seed and discards the `shortSnapshot` the
+   ⚡ was meant to extend.
+
+99. **The `<ol>`-level drag handlers accept a drop in the list's empty area**
+   (`TracklistPanel.svelte:520`) and apply the last-hovered gap rather than
+   the release position. Before this change the browser rejected those drops.
+
+100. **The pinned indicator now depends on the glyph resolving to a text-
+   presentation font** (`TracklistPanel.svelte:902`): `color: var(--accent)`
+   replaced `filter: grayscale(1)`, and Chrome on Windows and Android
+   routinely renders ⏮/⏭ as colour emoji, where `color` is a no-op and only
+   `opacity: 0.5 → 1` remains. The removed line was the cross-platform-safe
+   half.
+
+101. **Cancelling the pin's mousedown default is a per-button bandaid over a
+   row-wide layout shift** (`TracklistPanel.svelte:591`): the real cause is
+   `.actions` going from `display: none` to `inline-flex` on `:focus-within`
+   while `.row` is `flex: 1`. Reserving the arrows' width fixes it for every
+   control in the row. Firefox also treats `preventDefault` on mousedown as
+   cancelling the native drag, so grabbing the pin to drag a row stops working
+   there.
+
+102. **Gating the notes on `settled` reschedules the layout shove rather than
+   removing it** (`TracklistPanel.svelte:65`): the `<ol>` still shrinks by two
+   lines, now at the exact moment the user starts reading it.
+
+103. **The two verdict notes are copy-paste with inconsistent guards**
+   (`TracklistPanel.svelte:494`): the ⚡ note tests `!== null && > 0` while the
+   🎤 note tests only `!== null`, though both variables are normalised to null
+   when zero — so one check is dead and the denominator bug has to be fixed
+   twice. `cancelDrag` likewise duplicates the reset `endDrag` already
+   performs inline.
+
+**The genre map and the remaining components**
+
+104. **Genre nodes advertise a control that cannot be operated**
+   (`GenreMapView.svelte:569`): `role="button"` and an Enter handler on an
+   element with `tabindex="-1"`, so the node-selection and pair-comparison
+   feature is mouse-only and the handler is dead code.
+
+105. **The criterion-pair lookup hand-rolls `pairKey`'s encoding without its
+   ordering normalisation** (`GenreMapView.svelte:160`), so it is correct only
+   by the unstated invariant that `labels` is sorted — while the sibling
+   lookup at `:446` calls `pairKey` properly. Re-sorting `labels` for any
+   reason silently draws zero criterion edges.
+
+106. **`legendClasses` derives from `positioned`**
+   (`GenreMapView.svelte:193`), which the force simulation replaces on every
+   tick, so a full loop plus a Map rebuild runs ~60 times a second for an
+   answer that depends only on `labels`.
+
+107. **`onmousedown={(e) => e.stopPropagation()}` on genre nodes is inert**
+   (`GenreMapView.svelte:576`): Svelte 5 delegates `mousedown` to the app
+   root, which runs long after d3-zoom's own listener on the `<svg>`. The
+   `createViewZoom` `filter` option is what actually suppresses the pan, and
+   its comment says so — leaving the handler in makes a future edit to that
+   filter look safe when it is not.
+
+108. **`onpointerup` was the cause of the lost seek, and the same shape is
+   worth auditing elsewhere**: any handler that clears a drag flag before the
+   input's own `change` event fires will have the value written back
+   underneath it.
+
+109. **`InfoTooltip`'s `onblur` makes interactive tooltip content unreachable
+   by keyboard** (`:78`): tabbing from the ⓘ to the "Show the guided tour"
+   button inside the tooltip unmounts it and drops focus to `<body>`. The
+   component's header comment claims links inside stay reachable; that only
+   holds for the click-to-pin path.
+
+110. **A pinned `InfoTooltip` never repositions** (`:32`): the positioning
+   effect runs only on show, so scrolling the panel leaves the fixed panel
+   frozen at the old viewport coordinates. `TourOverlay` solves the same
+   problem with resize and capture-phase scroll listeners.
+
+111. **`CARD_H` is a hardcoded 195px guess of the coachmark height**
+   (`TourOverlay.svelte:110`); step 4's body wraps to roughly 235px, so the
+   card overflows the viewport bottom and the Next/Done row is cut off.
+
+112. **`TourOverlay` installs resize and capture-phase scroll listeners for
+   the whole app session** (`:101`) — the effect has no dependencies and the
+   component is always mounted, so every scroll of any panel calls `measure()`
+   for a tour that is almost never running.
+
+113. **`ConfirmDialog` never clears `onConfirm` on cancel or Escape** (`:23`),
+   so the closure — and the entire parsed `Project` it captures on the load
+   path — stays retained for the rest of the session.
+
+114. **`PlayerBar` linear-scans `$library` in `titleOf` and `extensionFor`**
+   (`:42`, `:82`) although `stores.ts:543` already exports a `trackById` Map,
+   and `emptyHint` (`:87`) re-implements the precedence chain `reasonFor`
+   encodes — the one thing `reasonFor` exists to make impossible.
+
+115. **`saveProject` duplicates `TracklistPanel`'s `saveBlob` verbatim**
+   (`TopBar.svelte:167`), and `portraitPng.ts:6` is a third object-URL path;
+   all three files already import from the shared `exportName.ts`, which is
+   the natural home. `TopBar.svelte:90` also reads a non-Rekordbox `.txt` from
+   disk twice — once as an ArrayBuffer to sniff it, then again as text.
+
+116. **The deck event handler linear-scans the library on every `timeupdate`**
+   (`playerStore.ts:345`) — roughly eight times a second with both decks
+   loaded — to recompute a duration that only changes on `'meta'`. On a 20k
+   library that is 160k string comparisons a second on the thread painting the
+   wheel, which is the starvation `engine.ts` blames for mid-track dropouts.
+
+117. **`reindex`'s empty-library early return does not bump `matchRun`**
+   (`sourceStore.ts:95`), so an in-flight chunked pass survives a Reset and
+   republishes thousands of stale resolutions and a coverage line over an
+   empty library. `forgetFolder` bumps it; this path does not.
+
+118. **`adopt` reports ready while the folder control reads it as unlinked**
+   (`sourceStore.ts:84`): with no library loaded, `reindex` leaves `coverage`
+   null and `sourceState` goes to `'ready'`, but `FolderLinkControl` requires
+   both and falls through to the "Link music folder…" button while `PlayerBar`
+   says the folder is linked.
+
+119. **`reindex` publishes the new resolution map only at the end**
+   (`sourceStore.ts:112`), so throughout a re-link `currentSource()` is the
+   new source while `resolutionFor` hands out the old folder's handles — audio
+   plays out of the folder the user just moved away from. The `file instanceof
+   File` branches in both backends exist because handles can cross sources
+   like this.
+
+120. **`?? 'your music folder'` cannot fire for an empty
+   `webkitRelativePath`** (`pickerSource.ts:20`), because `''` is not nullish
+   — so the user is told `file not found in ""`. `usePickedFiles` gets this
+   right with `|| null` two lines later.
+
+121. **`fileFor` is duplicated verbatim between the two audio backends**
+   (`fsaSource.ts:78`, `pickerSource.ts:51`), each carrying a branch its own
+   backend can never take, and `yieldToPaint` is re-implemented inline in both
+   although `sourceStore.ts:51` names it.
+
+**Tooling, the browser probe and the gates**
+
+122. **Nine assertions fail on the revived probe and need adjudicating.**
+   After the v32 repair `scripts/screenshot.mjs` reaches the hub/constellation
+   block instead of dying at step three, and reports: the hub not appending (8
+   → 8) and the three checks that cascade from it; the short-walk stall
+   scenario not manifesting; an exhausted anchor not switching the hub to its
+   warning state; the ⚡ morph not appearing; 197 nodes drifting under a
+   threshold 0→1 change, which the script calls a determinism failure; and two
+   playlist-reveal checks. Each is either a live defect or a stale
+   expectation, and the difference has to be established one at a time — the
+   hub ones in particular smell like leftover script state (a panel pseudo-
+   filter left on "only" would make `hubAllUsed` legitimately true).
+
+123. **The "all advanced sections start folded on FIRST open" assertion no
+   longer runs on a first open** (`screenshot.mjs:318`): the v14 WS2 block
+   above it already opens the panel and toggles a section, so the check now
+   only verifies that the script closed what it itself opened.
+
+124. **The "first toggle from the emulated dark system preference" check runs
+   after the theme has been explicitly toggled twice**
+   (`screenshot.mjs:1665`), so it reads a stored value rather than the
+   `colorScheme: 'dark'` emulation the top of the file sets up for it.
+
+125. **`index.html` hardcodes root-absolute asset paths** (`:9`) while
+   `manifest.webmanifest` uses `start_url: "."` and `scope: "."` and `sw.js`
+   caches relatively. Under any subpath the manifest 404s and the PWA silently
+   stops being installable while the service worker still registers. Either
+   commit to root-only or make the HTML relative and set Vite's `base`.
+
+126. **CI runs no browser check** (`.github/workflows/ci.yml`), which is why
+   eighteen releases of UI drift accumulated in the only end-to-end script.
+   Playwright is already a devDependency; the step is waiting on the nine
+   failures above.
+
+127. **No coverage is collected anywhere.** `vitest run --coverage` as a
+   reported number rather than a gate would at least make the gaps below
+   visible.
+
+**Test gaps, ranked**
+
+128. **`src/lib/audio/` is 1,143 lines with no test at all** —
+   `playerStore.ts` (375), `engine.ts` (306), `sourceStore.ts` (228),
+   `fsaSource.ts` (88), `handleStore.ts` (58), `pickerSource.ts` (54),
+   `source.ts` (34). It is the largest untested cluster in the repo and the
+   newest code in it, and eight of the severe findings above live there. The
+   pure half (`src/core/audio/`) is fully covered, so the seam is already in
+   the right place: what is missing is tests for the effectful side, which the
+   reducer shape makes tractable.
+
+129. **All 28 `.svelte` files, 10,877 lines, have no test.**
+   `vite.config.ts:8` pins `environment: 'node'` and no DOM harness is
+   installed. Adding jsdom or Testing Library is a dependency decision; the
+   repo's own architecture rule says the answer is extracting logic into `.ts`
+   instead, which is a wave of its own.
+
+130. **`src/lib/{tour,viewZoom,theme,marquee,portraitPng,exportName}.ts` — 319
+   lines, no test.** `tour.ts` alone holds two of the severe findings above.
+
+131. **`tests/fixtures/playlist.m3u8` and `empty-playlist.txt` are used only
+   by the browser probe**, never by a unit test — so the M3U8 and empty-
+   playlist import paths have no fast coverage at all.
+
+132. **`scripts/build-genre-embedding.mjs` (374 lines) and `scripts/render-
+   icons.mjs` (105) have no test and are in no tsconfig.** Six of the pack-
+   builder findings above are in the first of them.
+
+**Bundle and dependencies**
+
+133. **`src/data/genre-embedding.json` is 827 KB and statically imported at
+   `core/genre.ts:3`**, so it lands in the eager entry chunk:
+   `dist/assets/index-*.js` is 928 KB and essentially IS that file, and first
+   paint waits on parsing it — including for users who never touch genre
+   similarity. The options are a dynamic `import()` behind first use, moving
+   it to `public/` and fetching it, or pruning the pack from top-24 neighbours
+   to fewer. All three are architecture calls, which is why v32 measured it
+   rather than changing it.
+
+134. **`music-metadata` is dynamically imported once for an ID3 read**
+   (`TopBar.svelte:48`) but ships roughly fifteen parser chunks — MP4,
+   Matroska, Asf, Musepack, Dsdiff, Dsf, Ogg, Flac, APEv2. Worth checking
+   whether a narrower entry point exists.
+
+
+## Resolved in v32
+
+Branch `v32-code-clean`. A whole-repo hygiene wave, eighteen releases after
+v14.1 did the first one: fourteen review slices raised 181 findings, of which
+these thirty-four are what was safe to change without altering behaviour, a
+persisted schema, or anything on screen. Full method, the tool corrections it
+starts from, and the deliberate non-goals are in
+[designs/design-v32-code-clean.md](designs/design-v32-code-clean.md); the
+remaining 134 findings are in `## Open — v32 code review` above.
+
+1. **Genre, header and format lookups no longer reach `Object.prototype`.**
+   The alias table, the genre tree, the neighbour pack, both importer header
+   maps and the two audio format tables are plain object literals indexed by
+   strings that arrive from user data, so a genre, a CSV header or a file
+   extension named `constructor` resolved to an inherited function. Each was a
+   crash: `normalizeGenre` returned the Object constructor and took the
+   coverage panel down; the CSV header map returned a function, which aborted
+   the whole import inside papaparse's `stripBom`; and `formatVerdict` threw
+   out of `resolveTrack` into `linkFolder`'s catch, which unlinks the user's
+   music folder. Every read goes through `Object.hasOwn`, and the pack's three
+   reads share one private accessor so a fourth cannot skip the guard.
+
+2. **Duplicate track ids are dropped on load.** Both track views key their
+   `{#each}` on `track.id`, so a repeat in a hand-edited save threw Svelte's
+   `each_key_duplicate` and the Tracks table and the wheel stopped rendering.
+   First entry wins.
+
+3. **`settings.visibleFilters` is deduped as well as whitelisted on load.** A
+   repeat did the same to the left filter panel, which keys its rows on the
+   property key. Every in-app write path already guarded with `.includes`; the
+   load path did not.
+
+4. **An empty-string track id is rejected.** It collides with the suggestion
+   engine's "no successor" sentinel, so a blank-id track in the library made
+   the hub score every candidate against a phantom successor. `sanitizeSet`
+   has rejected it since v3; `sanitizeTrack` now applies the same rule.
+
+5. **`parseProject('null')` gives the friendly error again.** The version was
+   read before the document was proved to be an object, so a truncated or
+   wrong `.json` showed the user a raw `Cannot read properties of null
+   (reading version)` — TopBar renders `e.message` verbatim. The `isRecord`
+   helper already in the file now guards it, and `sanitizeTrack`/`sanitizeSet`
+   moved onto it too, so a JSON array no longer passes as a record.
+
+6. **`restoreAutosave` no longer destroys the save it failed to read.** The
+   catch called `localStorage.removeItem`, which throws again in exactly the
+   environments that made the read fail — site data blocked, Safari private
+   mode — and that rejection escaped into App's component body, so the user
+   got a blank page instead of an empty-library app. The read is guarded on
+   its own now, and a save this build cannot parse is left for the build that
+   can rather than deleted.
+
+7. **`resetEverything` clears `manualEdges`.** It is the wider wipe and
+   `replaceLibrary` has always cleared them, so orphaned 🔗 edges survived a
+   full reset: `hasUserWork()` stayed true over a freshly wiped app, the
+   replace-library and replay-tour dialogs fired for work that no longer
+   existed, and a save exported edges pointing at ids that were gone.
+
+8. **Artist identity is host-independent.** `normalizeArtist` used
+   `toLocaleLowerCase` for what is an identity key, so under tr-TR "IIO" and
+   "iiO" did not fold together and the same project with the same seed
+   produced a different constellation on a different machine — against
+   `suggest.ts`'s own promise that every suggestion is reproducible via its
+   seed.
+
+9. **The wheel's fan tie-break is host-independent.** `relaxSlotAngles` broke
+   same-radius ties with `localeCompare`, so the angular order of a key's fan
+   — and the portrait PNG rendered through the same function — depended on the
+   host's collation, in a function documented as deterministic by
+   construction. Plain code-unit order is both deterministic and cheaper.
+
+10. **`startTour` is re-entrant-safe.** The replay button stays clickable
+   during the tour because the backdrop is `pointer-events: none`, and
+   `sampleLoadNeedsConfirmation()` is false over the demo library, so a second
+   press overwrote `tourSnapshot` with the demo — and the user's real library,
+   already autosaved over, was gone.
+
+11. **`loadRootHandle` no longer throws on browsers without File System
+   Access.** `instanceof` always evaluates its right-hand side, and
+   `startPlayer` calls `restoreSavedFolder` on every browser, so an undefined
+   `FileSystemDirectoryHandle` raised an unhandled rejection at startup. The
+   module already guarded `indexedDB` the same way.
+
+12. **A seek on the player bar lands where you dropped it.** DeckRow cleared
+   `dragging` on `pointerup`, which runs before the range's `change` event, so
+   Svelte rewrote the input back to the stale playhead and the seek either
+   jumped backwards or silently did nothing. `onchange` already clears the
+   flag; the extra handler was both redundant and the cause.
+
+13. **`migrateColumns` cannot un-hide the wrong column.**
+   `splice(indexOf('title'), 1)` with no `-1` guard removes the LAST element
+   when the index is missing, instead of forcing the title column back on.
+
+14. **A continue-in-place reveal stays inside its own time budget.**
+   `walkRevealPlan` sized `stepMs` on `to - from` while `totalMs` measures `to
+   - origin`, so a reveal that continues from the previous walk overshot
+   `MAX_REVEAL_TOTAL_MS` by exactly one step.
+
+15. **Reduced motion actually stops the audible star breathing.** The
+   overrides for `.dot.playing` and `.playing-halo` sat ~280 lines before the
+   unconditional rules that set those animations, at identical specificity, so
+   they lost the cascade tiebreak and both animations ran regardless. The file
+   already carries a second media block placed after the rules it overrides,
+   with a comment describing this exact trap; the two rules live there now.
+   The same block also only disabled `.sector`'s 0.6s transition while the key
+   labels, manual edges and retry ring cross-fade on the same events — all
+   four are covered.
+
+16. **The force hub has hover feedback and a visible keyboard focus again.**
+   `.hub.warning .hub-circle` is declared after `.hub:hover/:focus-visible
+   .hub-circle` at equal specificity and won the tiebreak, and `.hub` sets
+   `outline: none`, so a keyboard user could not tell the hub was focused at
+   all. The author had already solved this for the retry ring; the hub now has
+   the matching rule.
+
+17. **A selected star that is in the constellation keeps its selection
+   stroke.** `.dot.in-walk` is declared after `.dot.selected` at identical
+   specificity, so it won — and since every hub pick selects the track it just
+   added, that was the common case, not a corner one.
+
+18. **Clicking the greyed hub no longer clears the selection.** `.hub.disabled
+   { pointer-events: none }` plus v31's wider `hubInert` meant a click
+   anywhere in the hub disc during the whole reveal window hit the bare
+   `<svg>`, whose background handler deselects — so an impatient click dropped
+   the anchor the next hub press was about to insert after. Only the painted
+   children go inert now; `.hub-hit` stays live and absorbs the click, which
+   also makes the `<title>` explaining the state hoverable again.
+
+19. **The hover ring is a ring, not a disc.** Lifting it above the node layer
+   in v31 also lifted its translucent accent fill from behind the star to on
+   top of it, so it washed the colour of the star it marks — worst on the
+   0.12-opacity off-criteria stars the change exists to reveal.
+
+20. **`--bounce-transition` honours reduced motion.** The 160ms overshoot
+   token is consumed by four `:active` states across TracksView and
+   TracklistPanel, and none of them had an escape. Overriding the token once
+   in `app.css` covers every consumer, present and future.
+
+21. **`.hub-reset` is brought in line with the other three interactive SVG
+   groups** — `outline: none` plus a `:focus-visible` glyph rule to match its
+   existing `:hover` one.
+
+22. **Nine unreachable `ALIASES` keys deleted.** Lookups happen after
+   `cleanupGenre`, which rewrites those spellings before the table is
+   consulted, so `hip-hop`, `drum and bass`, `r & b` and six others were never
+   hit — all nine verified to resolve identically through the cleaned form. A
+   comment now says why adding such a key is a silent no-op rather than extra
+   coverage.
+
+23. **`edgeOffset` deleted from the genre map.** It builds a list of at most
+   one method and then returns early on `length < 2`, so it always returned
+   the empty string while every drawn edge paid for the call and an empty
+   `<g>` wrapper.
+
+24. **`.legend { transition: right }` deleted** — `right` is a static literal
+   that nothing anywhere changes, and the declaration advertised a responsive
+   behaviour that does not exist.
+
+25. **`coverageText` and two exported format tables deleted or un-exported** —
+   no importer in `src` or `tests` (v14.1's dead-export policy).
+
+26. **`package.json` depends on the d3 modules the code actually imports.** It
+   declared `d3`, which no file imports: every call site imports a submodule,
+   resolving only through npm hoisting `d3`'s transitive graph. The six
+   (`d3-color`, `d3-scale`, `d3-shape`, `d3-selection`, `d3-zoom`, `d3-force`)
+   and their `@types` are declared directly now, which drops nineteen packages
+   from `node_modules`.
+
+27. **Hiding and re-showing a filter row no longer resurrects a range that is
+   not applied.** Hiding clears the filter from the store, but
+   `FiltersSection` kept the row's local input entry, so the row came back
+   displaying the old bounds — and the next keystroke silently re-applied the
+   untouched half of them. Entries for rows that have gone are dropped. Found
+   by the revived browser probe below, which is the first thing it caught.
+
+28. **The browser probe runs again.** `scripts/screenshot.mjs` had been
+   unrunnable since v18: it aborted at line 49 on a button renamed "Skip the
+   tour", and because the whole 1,700-line flow is top-level await with
+   `browser.close()` only on the happy path, that abort printed nothing, set
+   no exit code and leaked a Chrome process — so eighteen releases of UI drift
+   accumulated behind a silent hang. It now has an abort handler that prints
+   the summary, closes the browser and exits 1.
+
+29. **The probe's `set` → `constellation` rename.** Suggest / New / Delete /
+   Rename / Clear, plus the "Constellation & suggestions" section; "View" is
+   the last advanced section now, not that one.
+
+30. **Two probe assertions had been passing while testing nothing.** The BPM
+   sort check read the Title column, so both its comparisons were `NaN > NaN`
+   — always false, so a genuinely broken sort reported as passing — and the
+   header-star alignment guard measured `.header-star`, a class that has not
+   existed since v18, then skipped itself on the miss. Column indices are
+   derived from the header labels now, the alignment guard points at `th.tags-
+   col .header-toggle`, and a miss is a failure.
+
+31. **The probe's remaining staleness.** The Track-properties table has 32
+   rows, not 28 (28 properties + 4 panel filters — and the ISSUES entry for
+   this was itself stale at 29). Section opens go through the idempotent
+   helper, which existed but was used at three of fifteen call sites, so a
+   blind click closed a section the app remembers open and the next line drove
+   a hidden control. Waits were added where v31 made the UI settle before it
+   speaks. The quality filter is a two-button multi-select with no "both", the
+   key rings are two independent toggles, the genre method note moved into an
+   `InfoTooltip`, default set names lost their noun in v17, the ▲▼ arrows need
+   focus inside the row on a fine pointer, and the tour's demo view leaves Key
+   + BPM criteria only — the script restores the five-criterion default before
+   exercising them.
+
+32. **CI reads `.nvmrc`.** It hardcoded `node-version: 20`, which makes
+   `setup-node` ignore the file — and `.nvmrc`, like the Cloudflare build
+   environment, says 22.
+
+33. **`npm run check` stopped compiling `src/` twice.** `tsconfig.tests.json`
+   claimed `src/**/*.ts` as well as `tests/**/*.ts`, overlapping
+   `tsconfig.app.json`; the test files import what they exercise, so
+   TypeScript still pulls every src module into the program.
+
+34. **Four comments that describe code that is gone.** `settings.ts` and
+   `persist.ts` both still said "three permanent panel pseudo-keys" (four
+   since v25); `wholeExtent`'s doc block had been orphaned from its function
+   by a later insertion and read as `colourChipOptions`'s; and `hashUnit`
+   still described ordering the wheel's same-key fans, a mechanism v9 replaced
+   and whose dead `settings.jitterSeed` the settings file already documents as
+   dead. `genre-pack-lib.d.mts` also records what v32 learned about v14.1's
+   deferred checkJs item: a scripts tsconfig containing both the `.mjs` and
+   the `.d.mts` typechecks clean with a declared export the implementation
+   does not have — proven by adding one — and deleting the declaration to
+   infer from the `.mjs` fails the other way. The two halves have to be edited
+   together.
 
 ## Resolved in v31
 
