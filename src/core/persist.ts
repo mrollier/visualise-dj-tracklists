@@ -159,9 +159,13 @@ function migrateCriteria(raw: Record<string, unknown>): CriteriaConfig {
  * wrong-typed optional fields become missing rather than poisoning the app.
  */
 function sanitizeTrack(raw: unknown): Track | null {
-  if (typeof raw !== 'object' || raw === null) return null
-  const entry = raw as Record<string, unknown>
-  if (typeof entry.id !== 'string' || typeof entry.title !== 'string') return null
+  if (!isRecord(raw)) return null
+  const entry = raw
+  // The empty string is the suggestion engine's "no successor" sentinel
+  // (suggest.ts), so a track may never carry it as an id — sanitizeSet has
+  // rejected it since v3; this is the same rule one layer up.
+  if (typeof entry.id !== 'string' || entry.id === '' || typeof entry.title !== 'string')
+    return null
   const num = (v: unknown): number | null =>
     typeof v === 'number' && Number.isFinite(v) ? v : null
   const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null)
@@ -205,8 +209,8 @@ function sanitizeTrack(raw: unknown): Track | null {
  * are dropped or defaulted, unknown track ids pruned per set.
  */
 function sanitizeSet(raw: unknown, knownIds: Set<string>, index: number): TrackSet | null {
-  if (typeof raw !== 'object' || raw === null) return null
-  const entry = raw as Record<string, unknown>
+  if (!isRecord(raw)) return null
+  const entry = raw
   const trackIds = Array.isArray(entry.trackIds)
     ? (entry.trackIds as unknown[]).filter(
         (id): id is string => typeof id === 'string' && knownIds.has(id),
@@ -242,6 +246,9 @@ export function parseProject(json: string): Project {
   } catch {
     throw new Error('Not a valid project file: could not parse JSON')
   }
+  if (!isRecord(raw)) {
+    throw new Error('Not a valid project file: the document is not an object')
+  }
   const p = raw as Record<string, unknown> & { version?: number; tracklist?: unknown }
   if (
     p.version !== 1 &&
@@ -265,8 +272,17 @@ export function parseProject(json: string): Project {
   if (!Array.isArray(p.tracks) || !hasSetShape || !isRecord(p.criteria)) {
     throw new Error('Not a valid project file: missing tracks, sets or criteria')
   }
-  const tracks = (p.tracks as unknown[]).map(sanitizeTrack).filter((t): t is Track => t !== null)
-  const knownIds = new Set(tracks.map((t) => t.id))
+  // Both track views key their {#each} on track.id, so a duplicate is not a
+  // cosmetic problem: Svelte throws each_key_duplicate and the table and the
+  // wheel stop rendering. First entry wins, the rest are dropped.
+  const knownIds = new Set<string>()
+  const tracks: Track[] = []
+  for (const raw of p.tracks as unknown[]) {
+    const track = sanitizeTrack(raw)
+    if (track === null || knownIds.has(track.id)) continue
+    knownIds.add(track.id)
+    tracks.push(track)
+  }
   // v1/v2 carried one flat tracklist — it becomes the (un-generated) First
   // Set. v3 sets are sanitized per entry; nothing valid left = one empty set.
   let sets: TrackSet[]
@@ -451,10 +467,17 @@ export function parseProject(json: string): Project {
   ])
   const savedVisible = rawSettings.visibleFilters
   settings.visibleFilters = Array.isArray(savedVisible)
-    ? savedVisible.filter(
-        (k): k is (typeof settings.visibleFilters)[number] =>
-          typeof k === 'string' && validFilterKeys.has(k),
-      )
+    ? // Deduped as well as whitelisted: FiltersSection keys its {#each} on the
+      // property key, so a repeat throws each_key_duplicate and takes the whole
+      // left panel down. Every in-app write path already guards with .includes.
+      [
+        ...new Set(
+          savedVisible.filter(
+            (k): k is (typeof settings.visibleFilters)[number] =>
+              typeof k === 'string' && validFilterKeys.has(k),
+          ),
+        ),
+      ]
     : [...DEFAULT_SETTINGS.visibleFilters]
   for (const prop of TRACK_PROPERTIES) {
     if (filters.properties[prop.key] !== undefined && !settings.visibleFilters.includes(prop.key)) {
@@ -480,7 +503,6 @@ export function parseProject(json: string): Project {
   const manualEdges: ManualEdge[] = []
   {
     const seenPairs = new Set<string>()
-    const knownIds = new Set(tracks.map((t) => t.id))
     for (const raw of Array.isArray(p.manualEdges) ? (p.manualEdges as unknown[]) : []) {
       if (typeof raw !== 'object' || raw === null) continue
       const entry = raw as Record<string, unknown>
