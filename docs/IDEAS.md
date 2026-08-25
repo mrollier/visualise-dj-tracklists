@@ -48,11 +48,15 @@ lives in [designs/design-v12.md](designs/design-v12.md). Statuses: **done** ·
   lands (v12 energy), a shared-comment-tag criterion is cheap.
 - **More parameters (energy, melody, …; analyse mp3s directly)** — split:
   **v12** parses Mixed-In-Key-style energy from Comments; direct audio analysis
-  is now **designed** (2026-08-14, build not started): sidecar-first hybrid —
-  offline Python `essentia-tensorflow` batch (BPM/key/energy/happiness) writing
-  a file-keyed analysis sidecar the app imports, plus an in-app essentia.js
-  WASM gap-fill analyser; full report in
-  research/claude-research-audio-analysis.md.
+  was **designed** 2026-08-14 (sidecar-first hybrid — offline Python
+  `essentia-tensorflow` batch writing a file-keyed analysis sidecar the app
+  imports, plus an in-app essentia.js WASM gap-fill analyser; full report in
+  research/claude-research-audio-analysis.md) and is **v33** for its first
+  workstream: the pure-TypeScript provenance layer that fills nulls only and
+  never overwrites Rekordbox, in
+  designs/design-v33-audio-analysis-provenance.md. The analyser itself (WS2),
+  the in-app gap-fill (WS3), happiness/danceability as properties (WS4) and
+  genre embeddings (WS5) remain **backlog, shaped**.
 
 ## Design ideas
 

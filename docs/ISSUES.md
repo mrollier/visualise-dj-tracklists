@@ -21,6 +21,71 @@ nineteen v13 items resolved in **v14**
 ([designs/design-v14.md](designs/design-v14.md) has the older per-issue notes).
 Each "Resolved" list records what actually shipped.
 
+## Open — v33 audio-analysis provenance (WS1)
+
+The first workstream of the audio-analysis design in
+[research/claude-research-audio-analysis.md](research/claude-research-audio-analysis.md)
+(report written 2026-08-14, parked at Michiel's request; unparked 2026-08-25).
+Branch `v33-audio-analysis-provenance`, design in
+[designs/design-v33-audio-analysis-provenance.md](designs/design-v33-audio-analysis-provenance.md).
+
+WS1 is the pure-TypeScript half: a file-path-keyed analysis sidecar that fills
+metadata Rekordbox left null, without ever overwriting a value Rekordbox
+supplied. No Python, no audio libraries, no new dependencies — it is verified
+against a hand-written fixture sidecar, and exists first so that WS2's
+multi-hour analysis batch has a settled JSON contract to write against.
+
+The gap it closes, measured against the real collection (2080 tracks): 22
+missing BPM, 33 missing key. Those 33 keyless tracks sit in the wheel's gutter
+and grow no combo edges at all.
+
+1. **Rekordbox metadata must be unreachable by the merge, not merely
+   deprioritised.** Analysis lives in its own store and joins tracks only in a
+   derived layer; raw `library` — which feeds persistence, the importers and
+   the CSV exporter — is never touched.
+
+2. **The wheel places nodes from the raw library, in six separate reads.**
+   `WheelView.svelte` (`:207`, `:285`, `:422`, `:582`, `:594`, `:627`) decides
+   gutter-versus-ring on `track.key === null` against `$library`. Repointing
+   only `visibleLibrary` and `playlistScopedLibrary` would leave a filled-key
+   track parked in the gutter while the Tracks table shows it correctly — the
+   headline benefit silently absent, and invisible to the test suite because
+   `.svelte` files have no coverage.
+
+3. **CSV export is a round-trip contamination path.** `walkTracks`
+   (`TracklistPanel.svelte:53`) resolves through `trackById`, and
+   `exporters/csv.ts` writes exactly the headers `importers/csv.ts` maps back
+   onto `Track`. Augmenting `trackById` would make "export CSV, re-import it"
+   launder analysed values into the library permanently. `trackById` stays raw;
+   its consumers only resolve membership by id.
+
+4. **The sidecar breaches the localStorage budget.** Measured: the tracks array
+   serialises to ~3.4 MB of UTF-16 today and a full sidecar adds ~1.6 MB,
+   against a 5 MB cap. `startAutosave` swallows `QuotaExceededError`
+   (`persistence.ts:241-243`), so the whole project would stop autosaving
+   silently. Fixed by dropping the indent on the autosave copy only
+   (~3.9 MB total) and surfacing the error instead of swallowing it.
+
+5. **No schema bump.** `analysis` is additive with a safe default, matching the
+   `audioPreview` (v28), `showLeftPanel` (v30) and `avoidSameArtist` (v31)
+   precedent. Bumping would make any bundle rollback brick autosave restore
+   entirely, since `parseProject` throws on an unknown version while
+   `restoreAutosave` deliberately preserves saves it cannot read.
+
+6. **Matching reuses `core/audio/pathMatch.ts`, not a new extraction.** The
+   report predates v28 and proposed extracting a matcher from `importers/m3u.ts`,
+   whose plain `byBasename.set` lets two same-named files overwrite each other.
+   For a sidecar that would attach the wrong BPM and key invisibly and
+   permanently. `pathMatch.ts` refuses ambiguous ties instead. Note the two
+   sides need feeding asymmetrically: sidecar keys are already decoded, while
+   `Track.location` is percent-encoded.
+
+7. **The report's calibration premise is false.** It claims ~20 Mixed In Key
+   tagged tracks as a free calibration set for analysed energy. The collection
+   holds **6** (values 4, 4, 5, 6, 6, 7), three of them by the same artist and
+   all within 112-128 BPM. Correct the report in place so WS2 does not chase a
+   statistic that does not exist.
+
 ## Open — v19 z-order review
 
 One item from a review of SVG rendering in WheelView.svelte carries over:
