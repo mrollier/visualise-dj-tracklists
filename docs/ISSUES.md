@@ -1144,23 +1144,27 @@ remaining 134 findings are in `## Open — v32 code review` above.
 
 38. **The probe is repeatable, not just green once.** The first clean run was
     real but roughly one in three failed afterwards, always in the vinyl-mode
-    / unit-time / hub-disable block. The cause is the hub's `Math.random()`
-    seed (open item 122): what lands in the constellation changes between
-    runs, and with it how wide the visible graph is at every later checkpoint
-    — on top of which the script's later half inherited whatever filters, key
-    rings, genre selection and criteria the blocks above had left set. Three
-    checks were only ever true by luck. Vinyl mode and unit-time each tighten
-    one criterion and are invisible unless it is the binding one, so each now
-    pins its own scope: the Classic demo playlist, every filter reset through
-    its own ↺, and exactly the criterion under test enabled — enabling the
-    wanted one first, because passing through a zero-enabled state leaves the
-    threshold at 1 with nothing that can satisfy it and the graph comes back
-    empty. The hub-disable check waits for its state instead of sampling it.
-    And the vinyl assertion stopped counting edges: vinyl mode compares keys
-    after the pitch shift beatmatching implies (`combos.ts:216`), so it re-
-    wires the graph rather than shrinking it and the count can land on the
-    same number while the edges differ — it fingerprints the edge geometry
-    now. Six consecutive clean runs.
+    / unit-time block, and the root cause is not a test-harness one: `.combo-
+    edge` draws the suggestion edges around the SELECTED track only (v9 issue
+    8, `WheelView.svelte:1060`), so both checks were counting edges around
+    whatever happened to be selected — and what is selected depends on the
+    hub, which seeds its PRNG from `Math.random()` (open item 122). The block
+    selects a known star by label before measuring now. Three smaller things
+    fell out of the same hunt: the playlist scoping never applied because
+    `getByRole('button', { name: 'None' }).first()` resolved to the wrong
+    section of the left aside, so the "Classic demo only" setup ran against
+    all 264 tracks; `onlyCriterion` passed through a zero-enabled state, which
+    leaves the threshold at 1 with nothing that can satisfy it and an empty
+    graph, so the wanted criterion is enabled first; and vinyl mode reads the
+    BPM settings even while the BPM criterion is off (`combos.ts:222`), so the
+    block resets the Advanced panel to defaults first — that is what pins the
+    key moves and the BPM metric ratios (`reset.ts:30`). The vinyl assertion
+    also stopped counting edges: vinyl mode compares keys after the pitch
+    shift beatmatching implies (`combos.ts:216`), so it re-wires the graph
+    rather than shrinking it and the count can land on the same number while
+    the edges differ — it fingerprints the edge geometry now, and the hub-
+    disable check waits for the append it depends on. Six consecutive clean
+    runs.
 
 ## Resolved in v31
 

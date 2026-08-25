@@ -1222,8 +1222,19 @@ await page.getByRole('checkbox', { name: 'allow +2 moves', exact: false }).unche
 // Math.random() (WheelView.svelte:795), so the set — and with it the visible
 // graph — differs run to run. Pin both: scope to the Classic demo, then enable
 // exactly the criterion under test.
+// Return to default settings first: it is what resets the key moves and the
+// BPM metric ratios (reset.ts:30), and vinyl mode reads the BPM settings even
+// while the BPM criterion is off (combos.ts:222 calls bpmCompatibleRatio), so
+// leaving half/double or unit time wherever an earlier block left them is what
+// made these two checks flaky.
+await page.getByRole('button', { name: /Return to default settings/ }).click()
+await page.locator('dialog[open]').getByRole('button', { name: 'Reset settings' }).click()
+await page.waitForTimeout(600)
 await page.keyboard.press('Escape')
-await page.locator('aside').first().getByRole('button', { name: 'None' }).first().click()
+await page
+  .locator('aside details:has(> summary:has-text("Playlists"))')
+  .getByRole('button', { name: 'None' })
+  .click()
 await page.getByRole('checkbox', { name: 'Classic demo' }).check()
 await page.waitForTimeout(600)
 // Earlier blocks leave property ranges and mark quick-filters set, which
@@ -1288,6 +1299,15 @@ const edgeFingerprint = () =>
       .sort()
       .join('|'),
   )
+// .combo-edge draws the suggestion edges around the SELECTED track only
+// (v9 issue 8), so the count is meaningless until a known track is selected —
+// and the hub's random seed means whatever was selected before differs run to
+// run. Pick the first star by label, deterministically.
+const anchorLabel = (
+  await page.$$eval('g.node', (gs) => gs.map((g) => g.getAttribute('aria-label')))
+).sort()[0]
+await page.locator(`g.node[aria-label="${anchorLabel}"]`).dispatchEvent('click')
+await page.waitForTimeout(500)
 const edgesBefore = await page.locator('.combo-edge').count()
 const fingerprintBefore = await edgeFingerprint()
 // Key-only over the Classic demo is 9 edges; the guard is here to catch the
@@ -1622,11 +1642,24 @@ if ((await page.locator('g.node').count()) !== 2) {
 // paintedNodes re-ranks the group on every selection, so a handle captured
 // before the first append points at a different star afterwards and the
 // second dblclick lands on the track that is already in the set.
-for (const label of await page.$$eval('g.node', (gs) =>
-  gs.map((g) => g.getAttribute('aria-label')),
-)) {
-  await page.locator(`g.node[aria-label="${label}"]`).dblclick({ force: true })
-  await settleWalk()
+{
+  const labels = await page.$$eval('g.node', (gs) => gs.map((g) => g.getAttribute('aria-label')))
+  let expected = await page.locator('aside ol li.track').count()
+  for (const label of labels) {
+    await page.locator(`g.node[aria-label="${label}"]`).dblclick({ force: true })
+    expected += 1
+    // Wait for the append itself, not for a proxy: the hub's class settles
+    // only after the reveal window, and a dblclick that lands mid-cascade
+    // takes a moment to show up in the list.
+    await page
+      .waitForFunction(
+        (n) => document.querySelectorAll('aside ol li.track').length >= n,
+        expected,
+        { timeout: 8000 },
+      )
+      .catch(() => errors.push(`double-clicking "${label}" did not append it to the set`))
+    await settleWalk()
+  }
 }
 // The last append still has to flow through the reveal window before the hub
 // settles into its all-used state, so wait for the condition rather than
