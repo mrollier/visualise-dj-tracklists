@@ -46,14 +46,95 @@ script-plus-markup and style; the Tracks pair; the Advanced panel and its
 sections; the remaining components; and the scripts, tsconfigs, eslint config
 and CI.
 
-Every slice was handed v14.1's `## Deliberate non-goals` list first, so the
+Every slice was handed v14.1's `## The ponytail audit
+
+Ponytail's own output, in its format — one line per finding, biggest cut
+first, `applied` where this wave took it and `open` where it did not.
+Correctness, security and performance are out of scope for this pass by the
+skill's own rules; anything that surfaced there went back into the review pile
+instead.
+
+```
+native: d3 declared but never imported; every call site imports a submodule.
+        The six submodules directly. [package.json]                    applied
+delete: edgeOffset builds a one-element list then returns early on
+        length < 2. Nothing; unwrap the <g> too. [GenreMapView.svelte:471]
+                                                                       applied
+delete: nine ALIASES keys cleanupGenre rewrites before the lookup.
+        Nothing; the cleaned form's own entry answers them. [genre.ts:65]
+                                                                       applied
+delete: coverageText, MIME_CANDIDATES, FORMAT_NOTES exports — no importer.
+        Nothing. [playerStore.ts:91, formats.ts:22,72]                 applied
+delete: transition on a `right` nothing changes. Nothing. [WheelView:2127]
+                                                                       applied
+shrink: manualEdges rebuilds a knownIds Set already in scope. The outer one.
+        [persist.ts:483]                                               applied
+shrink: the artist term hand-summed into four `extra` builders. One shared
+        tip-aware term set. [suggest.ts:401,486,492,725]     open — PRNG-locked
+shrink: three blob-download paths. One saveBlob in exportName.ts.
+        [TracklistPanel:153, TopBar:170, portraitPng:6]                    open
+shrink: zoom wrappers + button markup duplicated over a shared helper.
+        One component. [WheelView:777,1482, GenreMapView:337,630]           open
+shrink: defaults restored in three places, each a different field set.
+        One reset. [reset.ts:13,30, persistence.ts:259, stores.ts:288]      open
+shrink: portrait re-declares the theme palette "by eye" and the wheel's
+        geometry constants. Import both. [exporters/portrait.ts:41,77]      open
+shrink: toggleFilterVisible and togglePanelVisible are the same function.
+        One, taking a clear callback. [AdvancedMenu.svelte:91,112]          open
+shrink: the two verdict notes are copy-paste with inconsistent guards.
+        One {#each} over [{glyph, count}]. [TracklistPanel.svelte:485]      open
+shrink: CSV header list and value list are parallel arrays. One
+        [header, accessor] mapping. [exporters/csv.ts:3,26]                 open
+shrink: fileFor duplicated verbatim in both audio backends, each with a
+        dead branch; yieldToPaint inlined twice more. source.ts.
+        [fsaSource.ts:78, pickerSource.ts:51]                               open
+shrink: emptyHint re-implements reasonFor's precedence chain. One helper in
+        core/audio/reasons.ts. [PlayerBar.svelte:87]                        open
+shrink: the ten-clause version chain and the literal 10 in four places.
+        PROJECT_VERSION + a range test. [persist.ts:246]                    open
+shrink: `revealing` derived by hand in two components and inverted into a
+        third. One exported store. [WheelView:675, TracklistPanel:59,61]    open
+shrink: bpm/year/duration hand-roll posNum four lines above them.
+        posNum. [importers/rekordbox.ts:97]                                 open
+shrink: the extension-strip regex in four places, two forms. location.ts.
+        [m3u.ts:22, id3.ts:22, TracklistPanel:48, TopBar:102]                open
+yagni:  PANEL_FILTER_KEYS parallel to PANEL_FILTERS. Derive one from the
+        other. [marks.ts:30]                                                open
+yagni:  hubBusy is a pure alias for revealing. Reference revealing.
+        [WheelView.svelte:808]                                              open
+delete: settings.jitterSeed, dead since v9. Nothing.
+        [settings.ts:125]                                 open — persisted schema
+stdlib: String()+options localeCompare per comparison, no cached collator.
+        One module-level Intl.Collator. [trackSort.ts:65]         open — perf
+native: music-metadata ships ~15 parser chunks for one ID3 read. A narrower
+        entry point, if one exists. [TopBar.svelte:48]                      open
+
+net: -33 lines and -19 installed packages applied; roughly -190 lines more
+     open, of which the suggest.ts one is refused outright (v14.1 locks the
+     PRNG call order) and jitterSeed is blocked on the persisted schema.
+```
+
+Two ponytail commands are not run because they cannot say anything here:
+`/ponytail-debt` harvests `ponytail:` comments and the repo has none, and
+`/ponytail-gain` prints benchmark medians rather than repo numbers — its own
+honesty boundary forbids a per-repo figure, which is the only figure that
+would have been worth having.
+
+Note the direction of the wave overall: `src/` grew by 84 lines net. That is
+the correct shape for a pass whose main product is guards and the comments
+explaining them — the deletions are real, and they are smaller than the
+correctness work.
+
+## Deliberate non-goals` list first, so the
 settled decisions — `suggest.ts`'s PRNG-order lock, `ManualEdge.a`/`b`, not
 splitting the three big views, `.svelte` outside type-aware lint, test-only
 exports — were out of bounds rather than re-proposed. They were, and none came
 back.
 
-**181 findings.** The forty-seven that cleared the bar are fixed here, recorded
-as thirty-four entries; the remaining 134 are in
+**181 findings.** The fifty-seven that cleared the bar are fixed here — the
+forty-seven the review raised plus the nine the revived browser probe surfaced
+and one it caught live — recorded as thirty-seven entries; the remaining 134
+are in
 [../ISSUES.md](../ISSUES.md) under `## Open — v32 code review`, because the
 bar for touching code in a hygiene wave is deliberately high: behaviour-
 preserving, provable or test-covered, no persisted-schema change, nothing
@@ -254,6 +335,12 @@ one thing the exercise did turn up is recorded as a finding rather than fixed:
 the hub seeds its PRNG from `Math.random()` while ✨ starts at 0, so the hub is
 not reproducible across sessions even though `suggest.ts` says every suggestion
 is.
+
+The bundle was measured, not described: `dist/assets/index-*.js` was 926,658
+bytes on `main` and 928,825 after the d3 swap — the dependency change is
+declaration-only, the tree-shaken output is the same code, and the 827 KB
+embedding pack still dominates both numbers. Installed packages went from 195
+to 176.
 
 The persisted-state constraint was checked directly rather than inferred: the
 full sample collection — 264 tracks, 13 playlists, a set, a manual edge, and

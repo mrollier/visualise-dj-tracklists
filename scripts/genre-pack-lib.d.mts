@@ -1,6 +1,11 @@
 /**
  * Hand-written declarations for the plain-JS build-script module, so the
- * test suite typechecks (tsconfig.tests.json). Matrices are dense row-major
+ * test suite typechecks (tsconfig.tests.json). NOT verified against the
+ * implementation, and v32 established that it cannot cheaply be: the
+ * tsconfig-with-checkJs route v14.1 deferred typechecks clean even with a
+ * declared export the .mjs does not have (proven by adding one), and dropping
+ * this file to infer from the .mjs instead gives `{}` for the pack shapes and
+ * fails the suite. Edit both halves together. Matrices are dense row-major
  * `number[][]`; neighbour lists are `[label, score]` tuples, best first.
  */
 

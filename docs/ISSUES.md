@@ -43,10 +43,10 @@ since v18. See `## Resolved in v32` below.
 
 The whole-repo review recorded in
 [designs/design-v32-code-clean.md](designs/design-v32-code-clean.md) raised
-181 findings across fourteen slices. The fifty-six that were safe to change —
+181 findings across fourteen slices. The fifty-seven that were safe to change —
 including the nine the revived browser probe surfaced, every one of which
 turned out to be a stale expectation rather than an app defect — are folded
-into the thirty-six entries under `## Resolved in v32`; these 134 are the rest,
+into the thirty-seven entries under `## Resolved in v32`; these 134 are the rest,
 grouped by subsystem and ordered so the reachable data-loss ones come first.
 Nothing here was judged safe to change in a hygiene wave: each either changes
 behaviour, touches a persisted schema, changes what is on screen, or needs a
@@ -878,7 +878,8 @@ decision that is Michiel's rather than the reviewer's.
 
 Branch `v32-code-clean`. A whole-repo hygiene wave, eighteen releases after
 v14.1 did the first one: fourteen review slices raised 181 findings, of which
-these thirty-four are what was safe to change without altering behaviour, a
+these thirty-seven entries are what was safe to change without altering
+behaviour, a
 persisted schema, or anything on screen. Full method, the tool corrections it
 starts from, and the deliberate non-goals are in
 [designs/design-v32-code-clean.md](designs/design-v32-code-clean.md); the
@@ -1127,6 +1128,19 @@ remaining 134 findings are in `## Open — v32 code review` above.
     added a second element with that class, so the bare locator became a
     strict-mode violation that aborted the run; both reads are scoped to the ⚡
     note they mean.
+
+37. **The two `eslint-disable` lines the review flagged as unexplained are
+    explained — just not inline.** `GenreMapView.svelte:95` and `:230` carry
+    their reason as prose on the lines directly above the directive ("Plain
+    Map/Set on purpose here and below: derived-local collections, rebuilt
+    wholesale" and "Plain Map on purpose: non-reactive position memory. The
+    layout effect must not subscribe to it, or every simulation tick would
+    restart the simulation") rather than in the `-- reason` suffix the other
+    fourteen use. The finding came from grepping the inline form alone. No
+    change made: adding a suffix that repeats the paragraph above it would be
+    noise. Recorded so the next survey does not re-flag them either. The three
+    `as unknown as` casts and the seven `svelte-ignore` directives were
+    reviewed in the same pass and all carry a stated reason.
 
 ## Resolved in v31
 
