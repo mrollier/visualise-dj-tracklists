@@ -22,6 +22,52 @@ const page = await browser.newPage({
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
 page.on('pageerror', (e) => errors.push(String(e)))
 
+// The flow below is top-level await, so a single rejected step used to skip
+// the summary AND browser.close() at the tail — a stale selector became a
+// silent hang with a leaked Chrome, which is how the drift below went
+// unnoticed for eighteen releases. render-icons.mjs uses try/finally for the
+// same reason; wrapping 1,700 lines is not worth it, so catch it here.
+const abort = (reason) => {
+  errors.push(`the run aborted: ${String(reason)}`)
+  console.error('CONSOLE ERRORS:', errors)
+  void browser.close().finally(() => process.exit(1))
+}
+process.on('unhandledRejection', abort)
+process.on('uncaughtException', abort) // a rejected top-level await lands here
+
+/** Open an advanced section if it is not already open. A blind summary click
+ *  is not idempotent, and settings.advancedOpen persists across the reload
+ *  below, so a section the app remembers open would be CLOSED instead. */
+const ensureSectionOpen = async (name) => {
+  const details = page.locator('.panel details.section', { hasText: name }).first()
+  if (!(await details.evaluate((d) => d.open))) {
+    await page.locator('.panel details.section > summary', { hasText: name }).click()
+  }
+}
+
+/** Wait out the walk-reveal cascade. Since v31 the hub is inert (and the ⚡
+ *  force offer withheld) until the constellation stands still, so a click or
+ *  an assertion that lands during the cascade sees the previous state. */
+const settleWalk = async () => {
+  await page.waitForTimeout(200)
+  await page
+    .locator('g.hub:not(.disabled)')
+    .first()
+    .waitFor({ timeout: 10000 })
+    .catch(() => {})
+  await page.waitForTimeout(300)
+}
+
+/** 1-based nth-child index of a Tracks-view data column, by header label. The
+ *  leading tags/pos/manual cells are conditional, so counting them by hand has
+ *  silently pointed two assertions at the wrong column since v18. */
+const columnIndex = async (label) => {
+  const heads = await page.locator('.tracks-view thead th').allTextContents()
+  const i = heads.findIndex((t) => t.trim().toLowerCase().startsWith(label.toLowerCase()))
+  if (i === -1) errors.push(`no Tracks-view column headed "${label}"`)
+  return i + 1
+}
+
 /** The ⓘ import-report tooltip (design-v6 §E): reveal it and return its text. */
 async function importReportText() {
   await page.locator('.status .info').hover()
@@ -32,7 +78,12 @@ async function importReportText() {
 }
 
 await page.goto('http://localhost:5173')
+// Vite's first-visit dependency optimisation triggers a full reload, which
+// destroys the execution context mid-evaluate. Settle, then clear and reload
+// so the flow below always starts from a fresh profile.
+await page.waitForLoadState('networkidle')
 await page.evaluate(() => localStorage.clear())
+await page.reload()
 await page.reload()
 await page.getByText('Your library as a web of combos').waitFor()
 await page.screenshot({ path: `${scratch}/01-empty.png` })
@@ -46,9 +97,26 @@ await page.locator('g.node').first().waitFor()
 // then close it so the flows below run uncluttered (the seen-flag persists).
 await page.getByRole('dialog', { name: 'Guided tour' }).waitFor()
 await page.screenshot({ path: `${scratch}/01b-tour.png` })
-await page.getByRole('button', { name: 'Close the tour' }).click()
+await page.locator('button[aria-label="Skip the tour"]').dispatchEvent('click') // the card animates in; a real click never settles
 if ((await page.locator('g.node').count()) === 0) {
   errors.push('the sample collection did not start with the Classic demo pack populating the wheel')
+}
+// The tour's demo view (tour.ts enterDemoView) leaves the criteria at EASY —
+// Key + BPM only — and skipping the tour keeps that state by design. Every
+// flow below is written against the five-criterion default, so put the three
+// the demo view switched off back on.
+for (const name of ['Energy within', 'Genre', 'Year within']) {
+  const box = page
+    .locator('.criterion-head label', { hasText: name })
+    .locator('input[type="checkbox"]')
+    .first()
+  if (!(await box.isChecked())) await box.check()
+}
+{
+  const head = (await page.locator('.threshold-head').textContent())?.replace(/\s+/g, ' ')
+  if (!head?.includes('of 5')) {
+    errors.push(`restoring the default criteria should give five of them, got "${head}"`)
+  }
 }
 const statusName = await page.locator('.status .name').textContent()
 if (statusName !== 'Sample collection') {
@@ -64,9 +132,11 @@ await page.screenshot({ path: `${scratch}/02a-sample-collection.png` })
 // "Nothing to show yet" hint returns and the wheel empties. Re-select after.
 await page.getByRole('checkbox', { name: 'Classic demo' }).uncheck()
 await page.getByText('Nothing to show yet.').waitFor()
-if ((await page.locator('g.node').count()) !== 0) {
-  errors.push('deselecting the only active playlist did not empty the wheel')
-}
+// The stars fade out rather than vanish, so count once the exit transition
+// has actually finished — the hint appears before the last node unmounts.
+await page
+  .waitForFunction(() => document.querySelectorAll('g.node').length === 0, null, { timeout: 5000 })
+  .catch(() => errors.push('deselecting the only active playlist did not empty the wheel'))
 await page.getByRole('checkbox', { name: 'Classic demo' }).check()
 await page.locator('g.node').first().waitFor()
 
@@ -104,12 +174,19 @@ await page.screenshot({ path: `${scratch}/02-wheel.png` })
     (await page.locator('.stat .value').first().textContent()) ?? '0',
     10,
   )
+  // The count of enabled criteria is whatever the current view has (the tour's
+  // demo view leaves Key + BPM only), so read it rather than hard-coding it —
+  // the assertion is about reaching zero, not about how many criteria exist.
+  const headBefore = (await page.locator('.threshold-head').textContent())?.replace(/\s+/g, ' ')
+  const enabledCount = Number(/of (\d+)/.exec(headBefore ?? '')?.[1] ?? '0')
   const firstBox = page.locator('.boxes .box').first()
   await firstBox.click() // fill down to 1
   await firstBox.click() // …and clear to 0
   const thresholdText = (await page.locator('.threshold-head').textContent())?.replace(/\s+/g, ' ')
-  if (!thresholdText?.includes('0 of 4')) {
-    errors.push(`clicking the last filled box should read "require 0 of 4", got "${thresholdText}"`)
+  if (!thresholdText?.includes(`0 of ${enabledCount}`)) {
+    errors.push(
+      `clicking the last filled box should read "require 0 of ${enabledCount}", got "${thresholdText}"`,
+    )
   }
   const comboStat = Number.parseInt(
     (await page.locator('.stat .value').nth(1).textContent()) ?? '0',
@@ -119,7 +196,7 @@ await page.screenshot({ path: `${scratch}/02-wheel.png` })
   if (comboStat !== completePairs) {
     errors.push(`threshold 0 should count ${completePairs} combos (complete), got ${comboStat}`)
   }
-  await page.locator('.boxes .box').nth(2).click() // restore require 3
+  await page.locator('.boxes .box').last().click() // restore require-all
 }
 
 // ---- v14: demanded locks (C2) + the new filter kinds (WS2) ----
@@ -139,7 +216,7 @@ await page.screenshot({ path: `${scratch}/02-wheel.png` })
   await page.locator('.criterion.threshold .box').nth(1).click() // require 3 → 2
   await page.locator('.criterion.threshold .box').nth(1).click() // require 2 → floor 1
   const flooredText = (await page.locator('.threshold-head').textContent())?.replace(/\s+/g, ' ')
-  if (!flooredText?.includes('1 of 4')) {
+  if (!/Require 1 of \d+/.test(flooredText ?? '')) {
     errors.push(`a demanded criterion should floor the require row at 1, got "${flooredText}"`)
   }
   await keyCriterion.locator('.lock').click() // unlock (floor back to 0)
@@ -183,8 +260,13 @@ await page.screenshot({ path: `${scratch}/02-wheel.png` })
       `the lossy quality filter should hide lossless tracks (${beforeNarrow} → ${afterLossy})`,
     )
   }
-  await kindRow.locator('.ring-switch button', { hasText: 'both' }).click()
-  await page.waitForTimeout(300)
+  // The quality switch is a two-button multi-select now (lossy / lossless);
+  // the old tri-state "both" button is gone, so clearing means un-pressing.
+  await kindRow.locator('.ring-switch button', { hasText: 'lossy' }).click()
+  await page.waitForTimeout(400)
+  if ((await visibleCount()) !== beforeNarrow) {
+    errors.push('clearing the quality filter did not restore the full set')
+  }
   await page.screenshot({ path: `${scratch}/02b-filter-kinds.png` })
 
   // restore the default filter set (hiding a filter also clears it)
@@ -214,7 +296,14 @@ const probe = await page.$$eval('g.node', (gs) =>
 const ticksBefore = await page.locator('text.tick-label').allTextContents()
 const ratingMin = page.locator('.filter-row', { hasText: 'Rating' }).locator('input').first()
 await ratingMin.fill('4')
-await page.waitForTimeout(600)
+// The stars leave on a transition, and an axis morph may still be in flight,
+// so 600ms was not always enough for the DOM to settle at the new count.
+await page
+  .waitForFunction((n) => document.querySelectorAll('g.node').length < n, probe.length, {
+    timeout: 5000,
+  })
+  .catch(() => {})
+await page.waitForTimeout(400)
 const after = await page.$$eval('g.node', (gs) =>
   gs.map((g) => ({
     label: g.getAttribute('aria-label'),
@@ -308,12 +397,11 @@ if ((await page.locator('.marks .mark-toggle').count()) !== 4) {
 await page.screenshot({ path: `${scratch}/04-selected.png` })
 
 // shorter walks (8) keep unused neighbours around for the hub step below;
-// Set & suggestions sits LAST; on FIRST open every section starts folded
-// (v8 issue 17 — the menu then remembers what the user opens)
+// View sits LAST (v30 added it after Constellation & suggestions)
 await page.getByRole('button', { name: /Advanced/ }).click()
 const lastSectionName = await page.locator('.panel details.section > summary').last().textContent()
-if (lastSectionName?.trim() !== 'Set & suggestions') {
-  errors.push(`the last advanced section should be Set & suggestions, got "${lastSectionName}"`)
+if (lastSectionName?.trim() !== 'View') {
+  errors.push(`the last advanced section should be View, got "${lastSectionName}"`)
 }
 const openAtFirst = await page
   .locator('.panel details.section')
@@ -321,7 +409,7 @@ const openAtFirst = await page
 if (openAtFirst !== 0) {
   errors.push(`all advanced sections should start folded on first open (${openAtFirst} open)`)
 }
-await page.locator('.panel details.section > summary', { hasText: 'Set & suggestions' }).click()
+await ensureSectionOpen('Constellation & suggestions')
 // the must-include mark shows up as a removable row in Set & suggestions
 if ((await page.locator('.must-list li').count()) !== 1) {
   errors.push('the must-include mark did not appear in the Set & suggestions section')
@@ -339,7 +427,8 @@ if ((await page.getByRole('spinbutton', { name: 'Suggested set length' }).inputV
   errors.push('cancelling the reset dialog should keep the settings untouched')
 }
 await page.keyboard.press('Escape')
-await page.getByRole('button', { name: /Suggest a set/ }).click()
+await page.getByRole('button', { name: /Suggest a constellation/ }).click()
+await settleWalk()
 await page.waitForTimeout(300)
 // v14 S1: a starred essential (★) is now a HARD guarantee — ✨ must place it,
 // forcing an edge if that is the only way in (no longer a soft bias).
@@ -355,7 +444,8 @@ await page.screenshot({ path: `${scratch}/05-suggested-set.png` })
 // steps back through regenerations — the old ◀ history, for free
 const undoKey = process.platform === 'darwin' ? 'Meta+z' : 'Control+z'
 const walkBeforeRegen = await page.locator('aside ol li.track .names strong').allTextContents()
-await page.getByRole('button', { name: /Suggest a set/ }).click()
+await page.getByRole('button', { name: /Suggest a constellation/ }).click()
+await settleWalk()
 await page.waitForTimeout(250)
 const walkAfterRegen = await page.locator('aside ol li.track .names strong').allTextContents()
 if (walkAfterRegen.join() === walkBeforeRegen.join()) {
@@ -372,7 +462,8 @@ if (
 ) {
   errors.push('Cmd+Z did not step back to the previous regeneration')
 }
-await page.getByRole('button', { name: /Suggest a set/ }).click()
+await page.getByRole('button', { name: /Suggest a constellation/ }).click()
+await settleWalk()
 await page.waitForTimeout(250)
 await page.screenshot({ path: `${scratch}/06-suggestion-arrows.png` })
 
@@ -384,18 +475,26 @@ if ((await page.locator('aside .head .badge').count()) !== 1) {
 }
 const firstSetCount = await page.locator('aside ol li.track').count()
 await page.locator('aside ol li.track').first().hover()
-await page.locator('aside ol li.track').first().getByRole('button', { name: 'Move down' }).click()
+// On a fine pointer the ▲▼ arrows are display: none until the row has focus
+// INSIDE it (v18 #5: mouse users drag instead), so hovering is not enough —
+// focus a button in the row first.
+{
+  const firstRow = page.locator('aside ol li.track').first()
+  await firstRow.hover()
+  await firstRow.locator('button').first().focus()
+  await firstRow.getByRole('button', { name: 'Move down' }).click()
+}
 await page.waitForTimeout(150)
 if ((await page.locator('aside .head .badge').count()) !== 0) {
   errors.push('a manual edit did not clear the generated badge')
 }
-await page.getByRole('button', { name: 'New set' }).click()
+await page.getByRole('button', { name: 'New constellation' }).click()
 await page.waitForTimeout(150)
 const activeSetName = await page
   .locator('aside .head select')
   .evaluate((s) => s.selectedOptions[0]?.textContent)
-if (activeSetName !== 'Second Set') {
-  errors.push(`the new set should be called "Second Set", got "${activeSetName}"`)
+if (activeSetName !== 'Second') {
+  errors.push(`the new set should be called "Second", got "${activeSetName}"`)
 }
 if ((await page.locator('aside ol li.track').count()) !== 0) {
   errors.push('a new set did not start empty')
@@ -417,7 +516,7 @@ await page.waitForTimeout(150)
 if ((await page.locator('aside ol li.track').count()) !== 0) {
   errors.push('selecting the second set did not show it empty')
 }
-await page.getByRole('button', { name: 'Delete set' }).click()
+await page.getByRole('button', { name: 'Delete constellation' }).click()
 await page.waitForTimeout(150)
 if ((await page.locator('aside .head select option').count()) !== 1) {
   errors.push('deleting the second set did not remove it')
@@ -426,10 +525,10 @@ if ((await page.locator('aside .head select option').count()) !== 1) {
 // the cap (v8 issue 18): ＋ disables at eight sets; an empty eighth still
 // takes a ✨ fill, a hand-edited one blocks it once the shelf is full
 for (let i = 0; i < 7; i++) {
-  await page.getByRole('button', { name: 'New set' }).click()
+  await page.getByRole('button', { name: 'New constellation' }).click()
 }
 await page.waitForTimeout(200)
-if (!(await page.getByRole('button', { name: 'New set' }).isDisabled())) {
+if (!(await page.getByRole('button', { name: 'New constellation' }).isDisabled())) {
   errors.push('＋ should disable at eight sets')
 }
 if (await page.locator('.suggest-row .primary').isDisabled()) {
@@ -441,7 +540,7 @@ if (!(await page.locator('.suggest-row .primary').isDisabled())) {
   errors.push('✨ should disable: all eight sets exist and this one is hand-edited')
 }
 while ((await page.locator('aside .head select option').count()) > 1) {
-  await page.getByRole('button', { name: 'Delete set' }).click()
+  await page.getByRole('button', { name: 'Delete constellation' }).click()
   await page.waitForTimeout(100)
 }
 
@@ -518,9 +617,10 @@ if ((await page.locator('.tracks-view .tag.star', { hasText: '⏭' }).count()) !
 // sorting: BPM ascending then descending, missing values at the bottom
 const bpmHeader = page.locator('.tracks-view th button', { hasText: 'BPM' })
 await bpmHeader.click()
+const bpmCell = `.tracks-view tbody td:nth-child(${await columnIndex('BPM')})`
 const bpmColumn = () =>
   page
-    .locator('.tracks-view tbody td:nth-child(5)') // ＋ column shifts everything by one
+    .locator(bpmCell)
     .allTextContents()
     .then((cells) => cells.filter((c) => c !== '—').map(Number))
 const asc = await bpmColumn()
@@ -536,10 +636,12 @@ if ((await page.locator('.tracks-view td.rating .stars').count()) === 0) {
 // v11 issue 1: columns live in the unified "Track properties" table now,
 // one row per property with a Column and a Filter checkbox.
 await page.getByRole('button', { name: /Advanced/ }).click()
-await page.locator('.panel details.section > summary', { hasText: 'Track properties' }).click()
-if ((await page.locator('.prop-row').count()) !== 28) {
+await ensureSectionOpen('Track properties')
+// One row per track property (28) plus one .pseudo row per permanent panel
+// filter (4 since v25: starred, constellation, combos, keys).
+if ((await page.locator('.prop-row').count()) !== 32) {
   errors.push(
-    `the Track properties table should list 28 rows, got ${await page.locator('.prop-row').count()}`,
+    `the Track properties table should list 32 rows, got ${await page.locator('.prop-row').count()}`,
   )
 }
 await page.getByRole('checkbox', { name: 'Length column', exact: true }).check()
@@ -559,11 +661,11 @@ await page.locator('.tracks-view tbody tr').first().click() // deselect again
 // and another as essential (★) with one click.
 const starOf = (row) => row.locator('.tag.star')
 let openerRow = page.locator('.tracks-view tbody tr').first()
-// title sits in the 4th cell since the tags/pos cells lead (v9 issue 13)
-let openerTitle = await openerRow.locator('td:nth-child(4)').textContent()
+const titleCell = `td:nth-child(${await columnIndex('Title')})`
+let openerTitle = await openerRow.locator(titleCell).textContent()
 if (openerTitle === lastTitle) {
   openerRow = page.locator('.tracks-view tbody tr').nth(2)
-  openerTitle = await openerRow.locator('td:nth-child(4)').textContent()
+  openerTitle = await openerRow.locator(titleCell).textContent()
 }
 await starOf(openerRow).click()
 await starOf(openerRow).click()
@@ -614,9 +716,11 @@ if ((await starOf(openerRow).textContent())?.trim() !== '⏮') {
 // shows only the set (position order), hiding the sort triangle; both
 // return untouched on toggle-back.
 {
-  const headerStarBox = await page.locator('.header-star').boundingBox()
+  const headerStarBox = await page.locator('th.tags-col .header-toggle').boundingBox()
   const rowStarBox = await page.locator('.tag.star').first().boundingBox()
-  if (headerStarBox && rowStarBox) {
+  if (!headerStarBox || !rowStarBox) {
+    errors.push('the header ★ / row ★ alignment check found no elements to measure')
+  } else {
     const headerMid = headerStarBox.x + headerStarBox.width / 2
     const rowMid = rowStarBox.x + rowStarBox.width / 2
     if (Math.abs(headerMid - rowMid) > 3) {
@@ -721,6 +825,7 @@ await page.keyboard.press('Escape')
 // selection to it, so the next press continues from the head (v7 #17)
 const setCountBefore = await page.locator('aside ol li.track').count()
 await page.locator('g.hub').dispatchEvent('click')
+await settleWalk()
 await page.waitForTimeout(200)
 const setCountAfter = await page.locator('aside ol li.track').count()
 if (setCountAfter !== setCountBefore + 1) {
@@ -735,6 +840,7 @@ if ((await page.locator('g.hub-retry').count()) !== 1) {
 } else {
   const lastRowBefore = await page.locator('aside ol li.track').last().textContent()
   await page.locator('g.hub-retry').dispatchEvent('click')
+  await settleWalk()
   await page.waitForTimeout(200)
   const lastRowAfter = await page.locator('aside ol li.track').last().textContent()
   if ((await page.locator('aside ol li.track').count()) !== setCountAfter) {
@@ -804,6 +910,7 @@ if ((await page.locator('g.hub.warning').count()) !== 1) {
   const forcedBefore = await page.locator('aside ol li.track').count()
   await page.screenshot({ path: `${scratch}/07c-hub-force.png` })
   await page.locator('g.hub').dispatchEvent('click')
+  await settleWalk()
   await page.waitForTimeout(300)
   const forcedAfter = await page.locator('aside ol li.track').count()
   if (forcedAfter !== forcedBefore + 1) {
@@ -823,6 +930,7 @@ if ((await page.locator('g.hub.warning').count()) !== 1) {
       break
     }
     await page.locator('g.hub-retry').dispatchEvent('click')
+    await settleWalk()
     await page.waitForTimeout(250)
   }
   if (!spentReached) {
@@ -832,6 +940,7 @@ if ((await page.locator('g.hub.warning').count()) !== 1) {
   } else {
     await page.screenshot({ path: `${scratch}/07d-retry-spent.png` })
     await page.locator('g.hub-reset').dispatchEvent('click')
+    await settleWalk()
     await page.waitForTimeout(250)
     const afterReset = await page.locator('aside ol li.track').last().textContent()
     if (afterReset !== originalPickRow) {
@@ -1030,12 +1139,14 @@ if ((await page.locator('.shape-chip').count()) !== chipsAll) {
 
 // v10 issue 2: the genre method is chosen in the advanced menu now; the combo
 // panel shows only a subtle note of the active method.
-const methodNote = await page
-  .locator('.criterion .ratio-note', { hasText: 'method:' })
-  .textContent()
-if (!methodNote || methodNote.trim() === 'method:') {
+await page.locator('.criterion button', { hasText: 'ⓘ' }).first().waitFor()
+await page.getByRole('button', { name: 'How genre matching works' }).hover()
+await page.waitForTimeout(200)
+const methodNote = await page.locator('.criterion .tooltip').first().textContent()
+if (!methodNote?.includes('Method:')) {
   errors.push(`the criteria-panel method note is missing, got "${methodNote}"`)
 }
+await page.locator('h1').hover()
 
 // advanced menu (collapsible sections): hybrid explainer with sources,
 // top-k controls, split +2/+7 checkboxes, vinyl mode
@@ -1043,7 +1154,7 @@ await page.getByRole('button', { name: /Advanced/ }).click()
 if ((await page.locator('aside.panel').count()) === 0) {
   errors.push('advanced settings did not open in the right aside')
 }
-await page.locator('.panel details.section > summary', { hasText: 'Genre matching' }).click()
+await ensureSectionOpen('Genre matching')
 await page
   .locator('.panel details.section', { hasText: 'Genre matching' })
   .locator('select')
@@ -1069,7 +1180,7 @@ await kInput.fill('5')
 await page.getByRole('radio').nth(1).check() // switch to threshold mode…
 await page.getByText('Similarity ≥').waitFor()
 await page.getByRole('radio').first().check() // …and back to mutual top-k
-await page.locator('.panel details.section > summary', { hasText: 'Key' }).click()
+await ensureSectionOpen('Key')
 await page.getByRole('checkbox', { name: 'allow +2 moves', exact: false }).check()
 await page.getByRole('checkbox', { name: 'allow +2 moves', exact: false }).uncheck()
 // strict vinyl mode must visibly rewire the graph
@@ -1101,7 +1212,7 @@ await page.screenshot({ path: `${scratch}/09-advanced.png` })
 // the same-key spread bounds the deterministic relaxation (v9 issues 1+17):
 // 0 collapses the fans, and restoring 1 reproduces the EXACT layout — no
 // randomness (the ↻ re-jitter button is gone)
-await page.locator('.panel details.section > summary', { hasText: 'Display' }).click()
+await ensureSectionOpen('Display')
 if ((await page.getByRole('button', { name: 'Re-jitter same-key fans' }).count()) !== 0) {
   errors.push('the ↻ re-jitter button should be gone (v9 issue 1)')
 }
@@ -1162,7 +1273,7 @@ await page
   .locator('.panel label', { hasText: 'Colour scheme' })
   .locator('select')
   .selectOption('blue')
-await page.locator('.panel details.section > summary', { hasText: 'Display' }).click()
+await ensureSectionOpen('Display')
 await page.keyboard.press('Escape')
 if ((await page.locator('aside.panel').count()) !== 0) {
   errors.push('Escape did not close the advanced aside')
@@ -1178,12 +1289,6 @@ const shapeFingerprint = () =>
       .map((p) => p.getAttribute('d'))
       .join('|'),
   )
-const ensureSectionOpen = async (name) => {
-  const details = page.locator('.panel details.section', { hasText: name }).first()
-  if (!(await details.evaluate((d) => d.open))) {
-    await page.locator('.panel details.section > summary', { hasText: name }).click()
-  }
-}
 const shapesHybrid = await shapeFingerprint()
 // v10 issue 2: the genre method lives in the advanced menu now. Changing it
 // must NOT reshuffle the wheel's node shapes (v8 issue 4).
@@ -1251,7 +1356,7 @@ await page
   .locator('select')
   .selectOption('families')
 await page.waitForTimeout(300)
-await page.locator('.panel details.section > summary', { hasText: 'Display' }).click()
+await ensureSectionOpen('Display')
 await page.keyboard.press('Escape')
 
 // minor/major key filter (v8 issue 10; the switch moved to Filters in v9
@@ -1271,7 +1376,9 @@ if ((await page.locator('path.sector.excluded').count()) !== 12) {
   errors.push('minor-only should fade exactly the 12 major sectors')
 }
 await page.screenshot({ path: `${scratch}/09c-minor-only.png` })
-await page.locator('.ring-switch button', { hasText: 'both' }).click()
+// The key rings are two independent toggles now (minor / major), not a
+// tri-state with a "both" button: re-pressing 'minor' restores both rings.
+await page.locator('.ring-switch button', { hasText: 'minor' }).click()
 await page.waitForTimeout(600)
 if ((await page.locator('g.node').count()) !== nodesBothRings) {
   errors.push('switching back to both rings did not restore the nodes')
@@ -1316,7 +1423,7 @@ if (cancelledDownload) errors.push('a cancelled export prompt still downloaded a
 
 // reload → autosave restores everything, the set's custom name included
 // (give the debounced save time to flush)
-await page.getByRole('button', { name: 'Rename set' }).click()
+await page.getByRole('button', { name: 'Rename constellation' }).click()
 await page.locator('aside .head input.rename').fill('Sunrise closing')
 await page.keyboard.press('Enter')
 await page.waitForTimeout(700)
@@ -1338,8 +1445,8 @@ const rememberedOpen = await page
 if (rememberedOpen.length === 0) {
   errors.push('the advanced menu forgot its open sections across the reload')
 }
-if (!rememberedOpen.includes('Set & suggestions')) {
-  errors.push(`Set & suggestions should be remembered open, got [${rememberedOpen}]`)
+if (!rememberedOpen.includes('Constellation & suggestions')) {
+  errors.push(`Constellation & suggestions should be remembered open, got [${rememberedOpen}]`)
 }
 await page.keyboard.press('Escape')
 await page.screenshot({ path: `${scratch}/13-restored.png` })
@@ -1397,7 +1504,7 @@ await page.locator('aside').last().getByRole('button', { name: 'Clear' }).click(
     errors.push('the clear-set dialog still claims it cannot be undone (v11 issue 17)')
   }
 }
-await page.getByRole('button', { name: 'Clear set' }).click()
+await page.getByRole('button', { name: 'Clear constellation' }).click()
 await page.waitForTimeout(150)
 // v11 issue 12a: with the set now empty, the tracks-view ☰ toggle disables.
 await page.getByRole('button', { name: 'Tracks', exact: true }).click()
@@ -1684,7 +1791,7 @@ await page.waitForTimeout(200)
   // A clean shelf keeps the eighth-set cap out of the way when ✨ needs to
   // spawn a set to roll on (the active set here may be hand-edited).
   while ((await page.locator('aside .head select option').count()) > 1) {
-    await page.getByRole('button', { name: 'Delete set' }).click()
+    await page.getByRole('button', { name: 'Delete constellation' }).click()
     await page.waitForTimeout(100)
   }
   await page.locator('aside').first().getByRole('button', { name: 'None' }).first().click()

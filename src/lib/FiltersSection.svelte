@@ -128,10 +128,18 @@
     }
   })
 
-  // A filter made visible after load has no input entry yet — seed it
-  // lazily so the row opens showing the saved filter or the scoped extent.
+  // A filter made visible after load has no input entry yet — seed it lazily
+  // so the row opens showing the saved filter or the scoped extent. A row that
+  // has GONE also drops its entry: hiding a filter clears it from the store, so
+  // a kept entry would make the row come back displaying a range that is no
+  // longer applied — and the next keystroke would silently re-apply the other
+  // side of it.
   $effect(() => {
     const active = get(filters)
+    const visible = new Set(rows.map((prop) => prop.key))
+    for (const key of Object.keys(inputs) as TrackSortField[]) {
+      if (!visible.has(key)) Reflect.deleteProperty(inputs, key)
+    }
     for (const prop of rows) {
       if (inputs[prop.key] === undefined) seedRow(prop, active)
     }
