@@ -69,7 +69,10 @@ export function importRekordboxTxt(buffer: ArrayBuffer): ImportResult {
     return { tracks: [], report: buildReport([], ['The playlist export is empty']) }
   }
 
-  const headers = lines[0].split('\t').map((h) => HEADER_MAP[h.trim().toLowerCase()] ?? null)
+  const headers = lines[0]
+    .split('\t')
+    .map((h) => h.trim().toLowerCase())
+    .map((key) => (Object.hasOwn(HEADER_MAP, key) ? HEADER_MAP[key] : null))
   if (!headers.includes('title')) {
     return {
       tracks: [],

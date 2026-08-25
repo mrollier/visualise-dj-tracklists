@@ -46,7 +46,8 @@ export function importCsv(csv: string): ImportResult {
     header: true,
     skipEmptyLines: true,
     transformHeader: (h) => {
-      const field = HEADER_MAP[h.trim().toLowerCase()]
+      const key = h.trim().toLowerCase()
+      const field = Object.hasOwn(HEADER_MAP, key) ? HEADER_MAP[key] : undefined
       return field ?? `_unmapped_${h}`
     },
   })

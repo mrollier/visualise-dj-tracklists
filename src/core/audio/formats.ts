@@ -47,7 +47,9 @@ export function isAudioFileName(fileName: string): boolean {
 
 export function formatVerdict(extension: string | null, probe: CanPlayProbe): FormatVerdict {
   if (extension === null) return 'unsupported'
-  const candidates = MIME_CANDIDATES[extension]
+  const candidates = Object.hasOwn(MIME_CANDIDATES, extension)
+    ? MIME_CANDIDATES[extension]
+    : undefined
   if (candidates === undefined) return 'unsupported'
   const passing = candidates.filter((mime) => probe(mime)).length
   if (passing === 0) return 'unsupported'
@@ -91,7 +93,7 @@ export function formatNote(extension: string | null): string {
   if (extension === null)
     return 'The file has no extension, so nothing can guess what is inside it.'
   return (
-    FORMAT_NOTES[extension] ??
+    (Object.hasOwn(FORMAT_NOTES, extension) ? FORMAT_NOTES[extension] : undefined) ??
     `.${extension} is not an audio extension this app recognises, so it was never indexed.`
   )
 }

@@ -141,7 +141,7 @@ export function normalizeGenre(label: string): string {
   // Apply the alias table after separator cleanup so entries like
   // "drum'n'bass" (apostrophes survive the cleanup) still resolve.
   const s = cleanupGenre(label)
-  return ALIASES[s] ?? s
+  return Object.hasOwn(ALIASES, s) ? ALIASES[s] : s
 }
 
 /**
@@ -152,7 +152,7 @@ export function normalizeGenre(label: string): string {
  */
 export function genreComponents(raw: string): string[] {
   // En/em dashes separate too (v12 WS5) — hyphens never do ("hip-hop").
-  if (/[/,;–—]/.test(raw) && ALIASES[cleanupGenre(raw)] === undefined) {
+  if (/[/,;–—]/.test(raw) && !Object.hasOwn(ALIASES, cleanupGenre(raw))) {
     const parts = [
       ...new Set(
         raw
@@ -226,7 +226,7 @@ function ancestorsOf(label: string): Set<string> {
   if (cached !== undefined) return cached
   const set = new Set([label])
   treeAncestors.set(label, set) // guards against accidental cycles
-  for (const parent of treeParents[label] ?? []) {
+  for (const parent of Object.hasOwn(treeParents, label) ? treeParents[label] : []) {
     for (const ancestor of ancestorsOf(parent)) set.add(ancestor)
   }
   return set
@@ -284,12 +284,12 @@ const FAMILY_LEVEL = new Set<string>()
  */
 export function genreFamilyOf(rawLabel: string): string | null {
   let current: string | undefined = normalizeGenre(rawLabel)
-  if (!(current in treeParents) && !FAMILY_LEVEL.has(current)) return null
+  if (!Object.hasOwn(treeParents, current) && !FAMILY_LEVEL.has(current)) return null
   const seen = new Set<string>()
   while (current !== undefined && current !== genreTree.root && !seen.has(current)) {
     if (FAMILY_LEVEL.has(current)) return current
     seen.add(current)
-    current = treeParents[current]?.[0]
+    current = Object.hasOwn(treeParents, current) ? treeParents[current][0] : undefined
   }
   return null
 }
@@ -304,7 +304,7 @@ export function genreFamilyOf(rawLabel: string): string | null {
 export function umbrellaFor(label: string): string | null {
   const norm = normalizeGenre(label)
   if (norm === genreTree.root) return null
-  const parents = treeParents[norm]
+  const parents = Object.hasOwn(treeParents, norm) ? treeParents[norm] : undefined
   if (parents === undefined || parents.length === 0) return null
   let best: string | null = null
   let bestIC = Infinity
@@ -341,21 +341,28 @@ class PackSection {
     }
   }
 
+  // The pack is a plain JSON object, so a genre literally named "constructor"
+  // or "toString" would otherwise resolve to an inherited function. Every read
+  // of `lists` goes through here.
+  private own(label: string): [string, number][] | undefined {
+    return Object.hasOwn(this.lists, label) ? this.lists[label] : undefined
+  }
+
   /** Canonical pack label: exact match, else the space-collapsed spelling. */
   label(label: string): string | undefined {
-    if (label in this.lists) return label
+    if (Object.hasOwn(this.lists, label)) return label
     return this.squashed.get(label.replace(/[\s&']+/g, ''))
   }
 
   /** The stored neighbour list of a canonical label (best first). */
   neighbours(label: string): [string, number][] {
-    return this.lists[label] ?? []
+    return this.own(label) ?? []
   }
 
   /** Score between two canonical labels; either side's list may hold it. */
   score(a: string, b: string): number {
     const hit =
-      this.lists[a]?.find(([label]) => label === b) ?? this.lists[b]?.find(([label]) => label === a)
+      this.own(a)?.find(([label]) => label === b) ?? this.own(b)?.find(([label]) => label === a)
     return hit === undefined ? 0 : hit[1]
   }
 
