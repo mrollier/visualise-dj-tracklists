@@ -15,6 +15,7 @@ import {
   sampleLoadNeedsConfirmation,
 } from '../src/lib/persistence'
 import {
+  analysis,
   filters,
   lastImportReport,
   library,
@@ -328,5 +329,53 @@ describe('applyProject resets marks on restore (v18 #3/#8 review fix, B5)', () =
     applyProject(snapshot)
 
     expect(get(filters).genres).toEqual(['techno'])
+  })
+})
+
+describe('analysis sidecar lifecycle (v33)', () => {
+  const sidecar = {
+    zodiacAnalysis: 1 as const,
+    run: null,
+    tracks: { '/Users/dj/a.mp3': { bpm: 174 } },
+  }
+
+  test('replaceLibrary does NOT clear the sidecar', () => {
+    // Track ids do not survive a re-import, which is why manualEdges are
+    // cleared. File paths do survive, and a multi-hour batch is not
+    // disposable — so the sidecar must outlive an XML re-import.
+    analysis.set(sidecar)
+    replaceLibrary({ tracks: [track({ id: 'new-1' })], name: 'fresh.xml' })
+
+    expect(get(analysis)).toEqual(sidecar)
+    expect(get(manualEdges)).toEqual([])
+  })
+
+  test('resetEverything DOES clear the sidecar', () => {
+    analysis.set(sidecar)
+    resetEverything()
+
+    expect(get(analysis)).toBeNull()
+  })
+
+  test('currentProject carries the sidecar', () => {
+    analysis.set(sidecar)
+
+    expect(currentProject().analysis).toEqual(sidecar)
+  })
+
+  test('applyProject restores the sidecar', () => {
+    analysis.set(sidecar)
+    const saved = currentProject()
+    analysis.set(null)
+
+    applyProject(saved)
+    expect(get(analysis)).toEqual(sidecar)
+  })
+
+  test('applyProject clears a stale sidecar when the project has none', () => {
+    analysis.set(sidecar)
+    applyProject({ ...currentProject(), analysis: null })
+
+    expect(get(analysis)).toBeNull()
   })
 })

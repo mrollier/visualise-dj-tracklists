@@ -8,12 +8,14 @@ import {
   type Playlist,
   type Track,
 } from '../core/model'
-import { parseProject, serializeProject, type Project } from '../core/persist'
+import { parseProject, type Project } from '../core/persist'
 import { freshFirstSet, type TrackSet } from '../core/sets'
 import { DEFAULT_SETTINGS } from '../core/settings'
 import { ALL_SAMPLE_PACKS, CLASSIC_PACK, SAMPLE_COLLECTION } from '../data/samples'
 import {
   activeSetId,
+  analysis,
+  autosaveError,
   colorAxis,
   criteria,
   filters,
@@ -50,12 +52,17 @@ export function currentProject(): Project {
     playlists: get(playlists),
     radialAxis: get(radialAxis),
     colorAxis: get(colorAxis),
+    analysis: get(analysis),
   }
 }
 
 export function applyProject(project: Project): void {
   libraryName.set(project.libraryName)
   library.set(project.tracks)
+  // Unconditional, not `?? keep`: the tour snapshots the live project and
+  // restores it here, so a sidecar loaded DURING the tour must not survive
+  // "return to my work" any more than a library change would.
+  analysis.set(project.analysis)
   manualEdges.set(project.manualEdges)
   criteria.set(project.criteria)
   // v18 #3/#8 review fix (B5): marks are session-only state describing
@@ -237,9 +244,21 @@ export function startAutosave(): void {
     timer = setTimeout(() => {
       if (get(library).length === 0) return // nothing worth saving yet
       try {
-        localStorage.setItem(STORAGE_KEY, serializeProject(currentProject()))
+        // COMPACT, unlike the .json download: `serializeProject` indents for
+        // hand-editing, which costs ~1.2 MB on a 2080-track library and is
+        // pure waste in a 5 MB localStorage budget an analysis sidecar can
+        // otherwise push us past. `parseProject` does not care about
+        // whitespace, so the saved document is identical in every way that
+        // matters (v33).
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(currentProject()))
+        autosaveError.set(null)
       } catch {
-        // Storage full or unavailable — autosave is best-effort.
+        // Storage full or unavailable. Autosave is still best-effort, but it
+        // must not fail SILENTLY: before v33 a quota breach stopped the whole
+        // project autosaving — sets, filters, criteria — with nothing on
+        // screen to connect the loss to, and the analysis sidecar is what
+        // makes a breach plausible.
+        autosaveError.set('Autosave failed — this browser is out of storage. Save to a file.')
       }
     }, 400)
   }
@@ -255,6 +274,7 @@ export function startAutosave(): void {
     playlists,
     radialAxis,
     colorAxis,
+    analysis,
   ]) {
     store.subscribe(save)
   }
@@ -270,6 +290,7 @@ export function resetEverything(): void {
   filters.set(structuredClone(EMPTY_FILTERS))
   settings.set(structuredClone(DEFAULT_SETTINGS))
   manualEdges.set([]) // orphaned 🔗 edges otherwise survive the wipe
+  analysis.set(null) // a full wipe clears analysis too, unlike replaceLibrary
   const first = freshFirstSet()
   sets.set([first])
   activeSetId.set(first.id)

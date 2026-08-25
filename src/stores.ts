@@ -1,4 +1,5 @@
 import { derived, get, writable, type Readable, type Writable } from 'svelte/store'
+import { mergeAnalysis, type AnalysisSidecar } from './core/analysis'
 import {
   computeComboView,
   DEFAULT_CRITERIA,
@@ -35,6 +36,19 @@ type ColorAxis = 'auto' | RadialAxis
 type ViewMode = 'wheel' | 'genres' | 'tracks'
 
 export const library = writable<Track[]>([])
+/**
+ * Audio-analysis results keyed by file path (v33 WS1). Deliberately NOT
+ * cleared by `replaceLibrary`: track ids do not survive a re-import but file
+ * paths do, and a multi-hour analysis batch is not disposable.
+ */
+export const analysis = writable<AnalysisSidecar | null>(null)
+/**
+ * Set when a localStorage write fails, cleared when one succeeds. Autosave is
+ * best-effort, but before v33 it failed SILENTLY — a quota breach stopped the
+ * whole project saving, with nothing on screen to connect the loss to. An
+ * analysis sidecar is what makes a breach plausible on a real library.
+ */
+export const autosaveError = writable<string | null>(null)
 /** Playlists imported with the library (Rekordbox XML); [] otherwise. */
 export const playlists = writable<Playlist[]>([])
 /** Central view: the Camelot wheel or the genre map. Session-only. */
@@ -428,11 +442,30 @@ export function clearPanelFilter(key: PanelFilterKey): void {
   filters.update((f) => ({ ...f, keyRings: { minor: true, major: true } }))
 }
 
+/**
+ * The library with analysed values filling the nulls Rekordbox left (v33 WS1).
+ *
+ * Everything that DISPLAYS or REASONS about track metadata reads this; raw
+ * `library` stays the Rekordbox truth that feeds persistence, the importers
+ * and the CSV exporter. Same shape as the easy-mode `effective*` layer: the
+ * raw writable is never touched, so undo and autosave are unaffected.
+ *
+ * `mergeAnalysis` returns the input array BY REFERENCE when nothing is filled,
+ * so with no sidecar loaded this is identity and every downstream memo behaves
+ * exactly as it did before the feature existed.
+ */
+const merged = derived([library, analysis], ([$library, $analysis]) =>
+  mergeAnalysis($library, $analysis),
+)
+export const augmentedLibrary = derived(merged, ($merged) => $merged.tracks)
+/** Which fields on which track came from analysis — drives the provenance badges. */
+export const analysedFieldsById = derived(merged, ($merged) => $merged.analysedFields)
+
 /** The filtered library: what the wheel, edges and suggestions operate on. */
 export const visibleLibrary = derived(
-  [library, effectiveFilters, playlists, marksContext],
-  ([$library, $effectiveFilters, $playlists, $marks]) =>
-    applyFilters($library, $effectiveFilters, $playlists, $marks ?? undefined),
+  [augmentedLibrary, effectiveFilters, playlists, marksContext],
+  ([$augmentedLibrary, $effectiveFilters, $playlists, $marks]) =>
+    applyFilters($augmentedLibrary, $effectiveFilters, $playlists, $marks ?? undefined),
 )
 
 /**
@@ -441,9 +474,9 @@ export const visibleLibrary = derived(
  * from this, so they follow the playlists you are actually working in.
  */
 export const playlistScopedLibrary = derived(
-  [library, filters, playlists],
-  ([$library, $filters, $playlists]) =>
-    applyPlaylistFilter($library, $filters.playlists, $playlists),
+  [augmentedLibrary, filters, playlists],
+  ([$augmentedLibrary, $filters, $playlists]) =>
+    applyPlaylistFilter($augmentedLibrary, $filters.playlists, $playlists),
 )
 
 /** Colour axis resolved: 'auto' = rating, or BPM when the radius shows rating. */

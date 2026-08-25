@@ -32,6 +32,7 @@ const project: Project = {
   playlists: [{ name: 'Openers', trackIds: [SAMPLE_TRACKS[0].id] }],
   radialAxis: 'year',
   colorAxis: 'bpm',
+  analysis: null,
 }
 
 describe('project persistence (v3)', () => {
@@ -996,6 +997,7 @@ describe('WS6 sanitize round-trip pins (v14.1)', () => {
     playlists: [{ name: 'Openers', trackIds: ['t1'] }],
     radialAxis: 'year',
     colorAxis: 'bpm',
+    analysis: null,
   })
 
   // Every settings field carries a NON-default-but-valid value: proof that a
@@ -1255,5 +1257,60 @@ describe('permanent panel filters persistence (v23, widened v25)', () => {
       'combos',
       'keys',
     ])
+  })
+})
+
+describe('analysis sidecar persistence (v33)', () => {
+  const sidecar = {
+    zodiacAnalysis: 1 as const,
+    run: { analysedAt: '2026-08-25', tool: 'essentia-tensorflow 2.1b6', models: ['musicnn'] },
+    tracks: { '/Users/dj/a.mp3': { bpm: 128.02, bpmConf: 0.93 } },
+  }
+
+  test('a sidecar survives a save and load round-trip', () => {
+    const parsed = parseProject(serializeProject({ ...project, analysis: sidecar }))
+
+    expect(parsed.analysis?.tracks['/Users/dj/a.mp3'].bpm).toBe(128.02)
+    expect(parsed.analysis?.run?.tool).toBe('essentia-tensorflow 2.1b6')
+  })
+
+  test('a save with no analysis loads as null, with no version bump', () => {
+    const parsed = parseProject(serializeProject(project))
+
+    expect(parsed.analysis).toBeNull()
+    // The field is additive with a safe default, like audioPreview (v28),
+    // showLeftPanel (v30) and avoidSameArtist (v31). Bumping would make any
+    // bundle rollback brick autosave restore, since parseProject throws on an
+    // unknown version while restoreAutosave deliberately keeps what it cannot
+    // read.
+    expect(parsed.version).toBe(10)
+  })
+
+  test('a garbage sidecar resolves to null rather than loading', () => {
+    const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    raw.analysis = { zodiacAnalysis: 99, tracks: 'nonsense' }
+
+    expect(parseProject(JSON.stringify(raw)).analysis).toBeNull()
+  })
+
+  test('an older save that predates the field loads unharmed', () => {
+    const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    raw.version = 7
+    delete raw.analysis
+
+    const parsed = parseProject(JSON.stringify(raw))
+    expect(parsed.analysis).toBeNull()
+    expect(parsed.tracks.length).toBe(SAMPLE_TRACKS.length)
+  })
+
+  test('a valid save still round-trips byte-identically', () => {
+    // A hand-written sidecar may omit fields; the first load fills them in as
+    // nulls, which is the canonical form. From there the invariant holds.
+    const canonical = serializeProject(
+      parseProject(serializeProject({ ...project, analysis: sidecar })),
+    )
+
+    expect(serializeProject(parseProject(canonical))).toBe(canonical)
+    expect(parseProject(canonical).analysis?.tracks['/Users/dj/a.mp3'].bpm).toBe(128.02)
   })
 })

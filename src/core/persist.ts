@@ -15,6 +15,7 @@ import {
   type TrackSet,
 } from './sets'
 import { DEFAULT_SETTINGS, type AppSettings } from './settings'
+import { sanitizeAnalysis, type AnalysisSidecar } from './analysis'
 
 /**
  * A saved project: the whole app state as one JSON document. Used both for
@@ -62,6 +63,12 @@ export interface Project {
   playlists: Playlist[]
   radialAxis: 'bpm' | 'rating' | 'year' | 'energy'
   colorAxis: 'auto' | 'bpm' | 'rating' | 'year' | 'energy'
+  /**
+   * Audio-analysis results, keyed by file path (v33 WS1). Fills metadata
+   * Rekordbox left null; never overwrites what Rekordbox supplied. Additive,
+   * so the schema stays at 10 — see the note in `parseProject`.
+   */
+  analysis: AnalysisSidecar | null
 }
 
 export function serializeProject(project: Project): string {
@@ -543,5 +550,13 @@ export function parseProject(json: string): Project {
       p.colorAxis === 'energy'
         ? p.colorAxis
         : 'auto',
+    // v33: additive, no version bump — same shape as audioPreview (v28),
+    // showLeftPanel/showRightPanel (v30) and avoidSameArtist (v31). An old
+    // save has no key, gets null, and behaves exactly as it does today.
+    // Bumping would be actively worse: parseProject throws on an unknown
+    // version while restoreAutosave deliberately preserves a save it cannot
+    // read, so a bundle rollback would brick autosave restore entirely —
+    // library, sets and filters included — over one optional field.
+    analysis: sanitizeAnalysis(p.analysis),
   }
 }
