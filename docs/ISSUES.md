@@ -36,8 +36,8 @@ labels still don't counter-scale under zoom.
 Nothing open. The three `scripts/screenshot.mjs` defects this section carried
 since v20/v22/v23 are fixed in **v32**, together with the eleven more the
 script had accumulated and the nine failures the repair then surfaced. The
-probe runs clean — 193 assertions, 40 screenshots, exit 0, six consecutive
-runs — for the first time since v18. See `## Resolved in v32` below.
+probe runs clean — 194 assertions, 40 screenshots, exit 0, twelve runs across
+two sessions — for the first time since v18. See `## Resolved in v32` below.
 
 ## Open — v32 code review
 

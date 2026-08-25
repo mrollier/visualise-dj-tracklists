@@ -96,7 +96,15 @@ async function importReportText() {
   return text?.replace(/\s+/g, ' ').trim() ?? ''
 }
 
-await page.goto('http://localhost:5173')
+// A missing dev server otherwise surfaces as ERR_CONNECTION_REFUSED buried in
+// the error list, which reads like an app failure. Say what it is.
+try {
+  await page.goto('http://localhost:5173')
+} catch {
+  console.error('No dev server on http://localhost:5173 — start `npm run dev` first.')
+  await browser.close()
+  process.exit(2)
+}
 // Vite's first-visit dependency optimisation triggers a full reload, which
 // destroys the execution context mid-evaluate. Settle, then clear and reload
 // so the flow below always starts from a fresh profile.

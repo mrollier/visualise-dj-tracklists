@@ -311,8 +311,8 @@ this wave fixed defects that no test reached rather than changing behaviour any
 test asserts.
 
 `node scripts/screenshot.mjs` was run against a live `npm run dev` repeatedly
-through the repair. **It exits 0** — 193 assertions and 40 screenshots, six
-consecutive clean runs — for the first time since v18.
+through the repair. **It exits 0** — 194 assertions and 40 screenshots, twelve
+clean runs across two sessions — for the first time since v18.
 
 It took several passes to earn that, and the reason is worth recording because
 it is not a Playwright problem. Roughly one run in three failed in the
@@ -333,6 +333,11 @@ mode reads the BPM settings even while the BPM criterion is off
 (`combos.ts:222` calls `bpmCompatibleRatio`), so the block resets the Advanced
 panel to defaults first, which is what pins the key moves and the BPM metric
 ratios (`reset.ts:30`).
+
+One last thing the hunt turned up: with no dev server the script produced
+`ERR_CONNECTION_REFUSED` buried in the error list, which reads like an app
+failure — two of the runs that looked flaky were exactly that, a dev server
+killed underneath them. It now says what it is and exits 2.
 
 The vinyl check also stopped counting edges. Vinyl mode compares keys *after*
 the pitch shift beatmatching implies (`combos.ts:216`), so it re-wires the
