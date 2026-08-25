@@ -978,8 +978,11 @@ remaining 134 findings are in `## Open — v32 code review` above.
    unconditional rules that set those animations, at identical specificity, so
    they lost the cascade tiebreak and both animations ran regardless. The file
    already carries a second media block placed after the rules it overrides,
-   with a comment describing this exact trap; the two rules live there now.
-   The same block also only disabled `.sector`'s 0.6s transition while the key
+   with a comment describing this exact trap — but that block sits after a
+   *different* pair of rules, so moving the two overrides into it left them 60
+   lines early and still losing. The PR review caught that; they now have a
+   block of their own, below `@keyframes halo-breathe`. The second block also
+   only disabled `.sector`'s 0.6s transition while the key
    labels, manual edges and retry ring cross-fade on the same events — all
    four are covered.
 

@@ -201,7 +201,11 @@ the reduced-motion overrides for `.dot.playing` and `.playing-halo` sat 280
 lines before the unconditional rules that set those animations, at identical
 specificity — so the audible star kept breathing under `prefers-reduced-motion`
 in a file that already carries a second media block, placed after the rules it
-overrides, with a comment explaining exactly this trap. Two were lost
+overrides, with a comment explaining exactly this trap. That fix was itself
+half-wrong and the pull-request review caught it: the second media block is
+placed after the rules *it* overrides, not after these two, so moving the
+overrides into it left them 60 lines early and still no-opping. They now sit in
+a block of their own, below `@keyframes halo-breathe`. Two were lost
 tiebreaks: `.hub.warning` beat the plain `:hover`/`:focus-visible` rule, so the
 force hub had no hover feedback and no visible keyboard focus at all, and
 `.dot.in-walk` beat `.dot.selected`, so a selected star already in the
@@ -357,8 +361,44 @@ resolves to defaults, which is the constraint v14.1 set and which still binds.
 **Not verified.** Nothing in this wave was checked on Firefox or Safari; the
 `FileSystemDirectoryHandle` guard is exactly the kind of thing that wants one.
 The reduced-motion fixes were reasoned from the cascade, not observed under
-`prefers-reduced-motion` emulation. And no project save was round-tripped
+`prefers-reduced-motion` emulation -- and that is precisely how one of them
+shipped broken and had to be caught by a reader instead. And no project save
+was round-tripped
 through a real Rekordbox library — the persist changes are covered by the
 suite's own round-trip pins, which is the constraint v14.1 set and which still
 binds: valid saves round-trip byte-identically, and only malformed input
 resolves to defaults.
+
+## The pull-request review
+
+The wave's own findings all came from the same reviewer. To get an independent
+read, the branch was pushed as
+[PR #3](https://github.com/mrollier/visualise-dj-tracklists/pull/3) and the
+`code-review` plugin run against it -- five reviewers over the diff (repo
+conventions, a shallow bug scan, git blame and history, prior pull-request
+comments, and code-comment compliance), each surfaced issue then scored 0-100
+for confidence by a separate pass, anything under 80 dropped.
+
+Three candidates surfaced; one survived.
+
+- **100 -- the reduced-motion no-op above.** Real, and the reviewer proved it
+  by compiling the component with `svelte/compiler` and comparing byte offsets
+  in the emitted CSS rather than trusting the source read. Fixed before the
+  merge.
+- **50 -- a stale comment paragraph in `screenshot.mjs`.** Leftover draft text
+  describing the pre-`s` Clear as unconditional, sitting directly above the
+  corrected paragraph that describes it as optional, which is what the code
+  does. Deleted, though it scored below the bar.
+- **0 -- the removed `onpointerup` in `DeckRow.svelte`.** The bug scan read the
+  deletion as leaving `dragging` stuck true. The history reviewer had already
+  cleared it and the scorer agreed: `change` fires on release whether or not
+  the value moved, and `pointerup` running *first* was the actual defect the
+  deletion fixed. A useful demonstration that the confidence pass earns its
+  keep -- two of the three reviewers' hits were noise.
+
+The four reviewers that found nothing are a result too. Between them they
+checked the diff against v14.1's `## Deliberate non-goals`, against the `main`
+version of the `ISSUES.md` ledger, against `git blame` on every touched hunk,
+and against the comments surrounding each change -- and found no re-litigated
+decision, no reintroduced bug, and no deleted line that a past commit had added
+on purpose.

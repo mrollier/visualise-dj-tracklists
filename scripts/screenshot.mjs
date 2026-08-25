@@ -1790,9 +1790,6 @@ await page.waitForTimeout(300)
 
 // Walk-draw reveal via the s hotkey (WS1 + WS14): mid-flight some edges are
 // still hidden by their stagger; settled, none are.
-// Every visible track is in the active set by now, so `s` would have nothing
-// to add and there would be no cascade to catch mid-flight. Clear it first,
-// through the set panel's own Clear + confirm (the same idiom as above).
 // Every visible track may already be in the active set here, in which case
 // `s` has nothing to add and there is no cascade to catch mid-flight. Clear
 // it first — Clear only renders while the set has rows, so this is optional.

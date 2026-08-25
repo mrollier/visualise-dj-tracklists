@@ -2014,20 +2014,6 @@
     .hub.warning .hub-circle {
       animation: none;
     }
-
-    /* Still identifiable without motion: the halo simply stays lit, which is
-       what the Tracks view's static row tint does too. Declared here, after
-       the unconditional dot-breathe/halo-breathe rules below, for the same
-       cascade-tiebreak reason this whole block exists. */
-    .dot.playing {
-      animation: none;
-      opacity: 1;
-    }
-
-    .playing-halo {
-      animation: none;
-      opacity: 0.4;
-    }
   }
 
   .hub-plus {
@@ -2128,6 +2114,24 @@
 
     50% {
       opacity: 0;
+    }
+  }
+
+  /* Declared after the unconditional dot-breathe/halo-breathe rules above,
+     not up with the rest of the reduced-motion overrides: at equal specificity
+     the later declaration wins, so an override placed before them loses the
+     tiebreak and silently no-ops. Still identifiable without motion -- the
+     halo simply stays lit, which is what the Tracks view's static row tint
+     does too. */
+  @media (prefers-reduced-motion: reduce) {
+    .dot.playing {
+      animation: none;
+      opacity: 1;
+    }
+
+    .playing-halo {
+      animation: none;
+      opacity: 0.4;
     }
   }
 
