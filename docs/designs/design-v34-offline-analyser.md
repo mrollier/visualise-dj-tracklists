@@ -128,17 +128,15 @@ The risk is behavioural, on the real library:
 
 ## The energy curve, and why it had to be refitted
 
-*(This section records the measured outcome; see Verified below for the run.)*
-
 The v33 `energyFromArousal` was a linear stretch of the model's **nominal**
 annotation range [1, 9] onto [1, 10] — which is barely a stretch at all. The
 DEAM research anticipated the problem: emoMusic's labels sit near the middle
 of their scale and never reach the ends, so model output is compressed and
 "the map you need is a stretch, not a rescale".
 
-Measured on the first 20 real tracks, arousal spanned 4.08–6.68 with a
-standard deviation of 0.56, and the v33 curve put **18 of 20 tracks at energy
-6 or 7**. A near-constant energy is worse than no energy: it adds an
+Measured over the real collection, arousal spans 3.20–7.63 with a standard
+deviation near 0.5, and the v33 curve put **159 of the first 175 tracks at
+energy 6 or 7**. A near-constant energy is worse than no energy: it adds an
 almost-always-matching criterion to every pair, quietly loosening the combo
 threshold library-wide while conveying nothing.
 
@@ -148,6 +146,96 @@ the distribution's shape survives. That is deliberately **not** a decile or
 percentile map — those fabricate a uniform spread and would clash with the six
 real Mixed In Key values the library already carries, which fill-nulls-only
 leaves untouched.
+
+### DEAM was tried as a calibration, and made it worse
+
+The obvious objection to constants chosen by bracketing is that they are still
+judgement. So the transform was fitted properly against DEAM (1802 clips,
+CC BY-NC), running the same pipeline over the whole set and regressing human
+arousal on predicted arousal. Three findings, all negative for the idea and
+all worth keeping:
+
+- **The published accuracy is in-sample.** DEAM partitions as 744 clips at
+  `song_id ≤ 1000`, 1000 at 1001–2000, 58 above 2000. Our pipeline scores
+  **r = +0.846 on the 1001–2000 block** against MTG's published 0.821, and
+  **r = +0.525 on the other 802**. Reproducing the published figure on exactly
+  one block, and only that block, identifies it as the training set. **Real
+  held-out arousal accuracy is r ≈ 0.53, not 0.82.**
+- **The de-shrinkage slope is not stable across genres**, which was the
+  standing objection to transferring it to an out-of-distribution library:
+  Rock 0.38, Folk 0.44, Blues 0.48, Pop 0.58, Country 0.67, Jazz 0.70,
+  Electronic 0.78, Classical 0.83. More than 2× spread, so no single transfer
+  is defensible.
+- **Applied, it compresses rather than stretches.** Note the OLS slope is
+  attenuated by the correlation and is the wrong tool for rescaling a
+  distribution; variance matching gives the band [1.38, 8.18]. Against the
+  real library:
+
+  | band | resulting energy histogram |
+  | --- | --- |
+  | **3.5–7.5 (shipped)** | 1:7 2:37 3:107 4:229 5:388 6:509 7:426 8:244 9:86 10:7 |
+  | DEAM variance-matched | 3:2 4:24 5:190 6:587 7:802 8:401 9:34 |
+  | DEAM OLS | 5:214 6:1329 7:495 |
+
+  Both fitted alternatives collapse the library back towards the two-value
+  failure the refit existed to fix.
+
+The library sits **inside** DEAM's predicted range (2039/2040), so this is
+interpolation rather than extrapolation — the fit fails on genre instability,
+not on coverage. Conclusion: keep the bracketed band, and keep the measured
+r ≈ 0.53 as the honest description of the signal underneath it.
+
+### Where the energy is wrong, specifically
+
+Ranking the library's own genres by mean analysed energy is the strongest
+available in-distribution test, because it needs no annotation and uses tags
+that already exist. Most of it is right — Lo-Fi lowest at 4.11, Hardtrance
+highest at 7.57, Goa Trance 7.25, and `Techno Melancholic` (5.95) correctly
+below plain `Techno` (6.48), which is a sub-genre separated by mood alone.
+
+**Jungle is wrong, and it is the largest genre in the library.** 374 tracks at
+a mean of 5.49, thirteenth of sixteen, below Funk. The cause is measurable:
+
+```
+r(bpm, arousal) = -0.066
+
+tempo band     n     mean arousal
+0-110        138         5.23
+110-125      516         5.62
+125-140      541         5.99   <- peak
+140-155      216         5.98
+155-175      494         5.49
+175-300      135         5.49
+```
+
+Arousal follows an inverted U peaking at 125–140 BPM — where MusiCNN's
+Million-Song training data and DEAM both live — and falls away above 155. The
+model has effectively never heard 167 BPM breakbeat, so it under-rates it
+systematically rather than randomly.
+
+This is a **semantic** mismatch, not merely imprecision: `Track.energy` is
+documented as Mixed-In-Key-style, and MIK's patent defines energy as
+beat-aligned percussive transient density, which jungle has in abundance.
+
+Two candidate fixes were tested on a 130-track sample and both rejected:
+
+- **Non-ML transient descriptors.** `OnsetRate` barely separates the genres at
+  all (Hardtrance 5.69, House 5.65, Jungle 5.55, Italo 5.54, Techno 5.43,
+  Lo-Fi 5.11), and puts Jungle mid-pack again. It does not recover the
+  intuition. One suggestive signal survives for later: the high-band share of
+  beat loudness picks Jungle out clearly (0.130 against House 0.101, Techno
+  0.057, Lo-Fi 0.035) — the amen-break snare and hat energy. That is a lead,
+  not a fix; building a formula on one descriptor and no labels is exactly the
+  confident-wrong-number failure this whole layer exists to avoid.
+- **Blending tempo into energy.** Rejected on design grounds rather than
+  measurement: BPM is already its own combo criterion and its own radial axis,
+  so folding it into energy would make the energy criterion partly a duplicate
+  and let the combo engine double-count tempo.
+
+So energy ships accurate-ish for the house/techno/disco half of the library
+and unreliable for the jungle quarter. It is opt-in, badge-marked and removable
+by deleting the sidecar, which is what makes shipping it honest — but it is the
+first thing to say in any hand-over.
 
 ## Licence posture
 
@@ -218,8 +306,68 @@ Three layers instead:
 
 ## Verified
 
-*(Filled in as the wave completes.)*
+Gates: `npm test` 1032 passing, `npx eslint src tests scripts` clean,
+`npm run check` 0 errors across 327 files, `npm run build` succeeds,
+`node scripts/screenshot.mjs` exits 0 with no console errors.
+
+**The real run.** 2040 of 2047 entries in 122 minutes across 8 workers, 30
+sampler tracks excluded, 3 absent from disk, **7 AIFFs refused by the decoder**
+("Invalid data found when processing input"). 500 tempos and 68 keys fall below
+the app's confidence gate and are therefore never offered.
+
+**Against the real collection**, through the app's own `sanitizeAnalysis` and
+`mergeAnalysis`: `bpm 0/22, key 3/33, energy 2036 filled, 0 ambiguous`. Every
+entry resolves to exactly one track, every emitted key parses, and the raw
+track objects are byte-identical after the merge. The BPM figure is not a
+failure — all 22 missing-BPM tracks are the excluded samplers.
+
+**Against the six real Mixed In Key tags**, the only direct measurement against
+the target scale that exists: mean absolute error **0.67 steps**, maximum 2.
+Three exact, two off by one, one off by two. n=6 cannot calibrate, but it can
+falsify, and it did not.
+
+**Size.** The finished sidecar is **0.93 MB** UTF-16 compact, projecting to
+3.83 MB against the 5 MB cap — the v33 estimate was accurate.
+
+**Mutation-tested, not merely green.** Every assertion written after its
+implementation was checked by breaking something and watching the intended
+test die:
+
+- percent-encoding one sidecar path key kills the resolve-to-one-track test
+- emitting `F# dorian` kills the key-parses test
+- an entry the sanitizer drops kills the survives-sanitize test
+- making the merge write into the raw track kills the never-overwrite test
+- a wrong Camelot target kills the key-spelling table
+- **disabling the energy fill fires all three browser assertions** — the node
+  stays dimmed at 0.55 opacity, never moves from (345, 436), and the
+  missing-radial count holds at 29; with the fill live it is opacity 1 at
+  (105, 536) and 24, exactly the five fixture entries
+
+**Spot-checked against Rekordbox** on first contact: key matched exactly on
+both tracks tried (`Ab major` = 4B, `C# minor` = 12A), and BPM to 0.02 on the
+M4A. Essentia decodes AIFF, unlike Chromium.
 
 ## Not verified
 
-*(Filled in as the wave completes.)*
+- **Analysed key accuracy is poor and was not fixed.** Over the first 20
+  tracks, roughly 7 of 18 keys matched Rekordbox exactly, with several
+  relative-major and parallel-minor confusions. It does not matter for this
+  wave — analysed key fills exactly one real track — but it is why the
+  deferred disagreement report would be mostly noise, and it should be
+  measured properly before that report is built.
+- **Analysed BPM has two-thirds and half-time errors** on fast material: three
+  of the first twenty came back at 89, 110 and 111 against Rekordbox's 179,
+  166 and 166. Two passed the confidence gate. Again harmless here, because
+  analysed BPM fills zero real tracks.
+- **The energy scale has no validation beyond n=6 and the genre ordering.**
+  The 3.5–7.5 band brackets a measured range; it is not fitted to labels,
+  because no usable label set exists — DEAM was tried and rejected above.
+- **The `highBandRatio` lead is a single suggestive number** from 25 tracks per
+  genre. It has not been tested as an energy signal, only observed to separate
+  jungle.
+- **The seven undecodable AIFFs were not diagnosed.** They may be AIFF-C with
+  an unusual compression type; nothing was done beyond recording the failure.
+- **Not tried on any library but Michiel's**, and the genre-ordering test is
+  meaningless without genre tags, which not every collection has.
+- **The quota warning path is still untested end to end.** The project fits
+  with 1.2 MB to spare, so nothing exercised it.

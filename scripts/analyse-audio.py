@@ -248,6 +248,13 @@ def self_test() -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--collection", type=Path, default=Path("docs/rekordbox/collection.xml"))
+    parser.add_argument(
+        "--paths-from",
+        type=Path,
+        default=None,
+        help="analyse a newline-separated list of audio paths instead of a collection "
+        "(used to run the same pipeline over a labelled corpus for calibration)",
+    )
     parser.add_argument("--out", type=Path, default=Path("scripts/out/library.analysis.json"))
     parser.add_argument("--models", type=Path, default=Path("scripts/models"))
     parser.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 4) - 2))
@@ -272,12 +279,32 @@ def main() -> int:
         print(f"missing model files in {args.models}: {', '.join(missing)}", file=sys.stderr)
         print("run scripts/fetch-models.sh first", file=sys.stderr)
         return 2
-    if not args.collection.exists():
+    if args.paths_from is not None and not args.paths_from.exists():
+        print(f"no path list at {args.paths_from}", file=sys.stderr)
+        return 2
+    if args.paths_from is None and not args.collection.exists():
         print(f"no collection at {args.collection}", file=sys.stderr)
         return 2
 
-    excludes = DEFAULT_EXCLUDES if args.exclude is None else tuple(args.exclude)
-    locations = read_collection(args.collection)
+    # A path list is already an explicit choice of files, so the sampler
+    # exclude — which exists to keep Rekordbox's own one-shots out of a
+    # library run — would only surprise.
+    excludes = (
+        ()
+        if args.paths_from is not None and args.exclude is None
+        else DEFAULT_EXCLUDES
+        if args.exclude is None
+        else tuple(args.exclude)
+    )
+    locations = (
+        [
+            line.strip()
+            for line in args.paths_from.read_text(encoding="utf-8").splitlines()
+            if line.strip() != ""
+        ]
+        if args.paths_from is not None
+        else read_collection(args.collection)
+    )
     existing = {} if args.force else load_existing(args.out)
 
     skipped = {"excluded": 0, "filtered": 0, "done": 0, "absent": 0}
