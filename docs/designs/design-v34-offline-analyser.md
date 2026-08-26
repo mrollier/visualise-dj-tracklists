@@ -586,11 +586,16 @@ Worth noting `danceability` looked **more trustworthy than energy** in the run:
 Turkish Funk 0.62, Funk 0.85, every dance genre 0.90–0.98. It orders the
 library the way a listener would, which analysed energy does not.
 
-### 4. Merge the stack
+### 4. Merge the stack — **done 2026-08-26**
 
-`v33-audio-analysis-provenance` and `v34-offline-analyser` are both unmerged
-and stacked. Two waves of unreviewed work on one branch line is a growing
-liability.
+`v33-audio-analysis-provenance` and `v34-offline-analyser` were both unmerged
+and stacked, and v35 made it three waves on one branch line. All three went to
+`main` as a fast-forward — v33 and v34 were ancestors of v35, not siblings, so
+one merge carried 18 commits and 40 files, and `main` had not moved since v33
+was cut. The three branches were deleted afterwards; `main` keeps its linear
+history and the design docs keep the wave structure. The gate before merging
+was the browser probe (`node scripts/screenshot.mjs` against `npm run dev`),
+which covers all three waves and is the only thing that looks at `src/lib/`.
 
 ### 5. Only then, and probably not
 
