@@ -15,8 +15,13 @@ import type { Track } from './model'
  * See designs/design-v33-audio-analysis-provenance.md.
  */
 
-/** The three Track fields analysis can fill. */
-export type AnalysedField = 'bpm' | 'key' | 'energy'
+/**
+ * The Track fields analysis can fill. The last four (v35) are analysis-only:
+ * no DJ library supplies them, so every non-null value on a Track came from
+ * here.
+ */
+export type AnalysedField =
+  'bpm' | 'key' | 'energy' | 'arousal' | 'valence' | 'danceability' | 'happiness'
 
 /** One track's analysis, as a producer writes it. Every field is optional. */
 export interface AnalysisEntry {
@@ -51,6 +56,17 @@ export interface AnalysisSidecar {
   tracks: Record<string, AnalysisEntry>
 }
 
+/**
+ * The analysis-only descriptors and the scale each lands on. Track and
+ * AnalysisEntry share these names, so the merge reads and writes one key.
+ */
+const DESCRIPTORS = [
+  ['arousal', percentFromAffect],
+  ['valence', percentFromAffect],
+  ['danceability', percentFromUnit],
+  ['happiness', percentFromUnit],
+] as const satisfies readonly (readonly [AnalysedField, (value: number) => number])[]
+
 export interface MergeResult {
   /**
    * The library with nulls filled. The SAME array reference as the input when
@@ -71,6 +87,12 @@ export interface MergeStats {
   bpmFilled: number
   keyFilled: number
   energyFilled: number
+  /**
+   * Tracks that gained at least one v35 descriptor. One counter rather than
+   * four: the import note reports what a run achieved, and four near-identical
+   * numbers would bury the BPM and key figures that actually vary.
+   */
+  descriptorsFilled: number
   /** Tracks whose Rekordbox BPM/key was absent — the gap analysis could close. */
   bpmMissing: number
   keyMissing: number
@@ -154,6 +176,7 @@ export function mergeAnalysis(tracks: Track[], sidecar: AnalysisSidecar | null):
     bpmFilled: 0,
     keyFilled: 0,
     energyFilled: 0,
+    descriptorsFilled: 0,
     bpmMissing: tracks.filter((t) => t.bpm === null).length,
     keyMissing: tracks.filter((t) => t.key === null).length,
     belowConfidence: 0,
@@ -219,6 +242,20 @@ export function mergeAnalysis(tracks: Track[], sidecar: AnalysisSidecar | null):
       }
     }
 
+    // The v35 descriptors. Every one is analysis-only, so fill-nulls-only is
+    // vacuously true here; the loop keeps them on the same path as the rest
+    // rather than inventing a second one.
+    let gainedDescriptor = false
+    for (const [field, toPercent] of DESCRIPTORS) {
+      if (t[field] !== null) continue
+      const value = entry[field]
+      if (typeof value !== 'number' || !Number.isFinite(value)) continue
+      next[field] = toPercent(value)
+      fields.add(field)
+      gainedDescriptor = true
+    }
+    if (gainedDescriptor) stats.descriptorsFilled += 1
+
     if (fields.size === 0) return t
     filledAny = true
     analysedFields.set(t.id, fields)
@@ -247,6 +284,7 @@ export function summariseAnalysisImport(
     `BPM filled ${stats.bpmFilled}/${stats.bpmMissing}`,
     `key ${stats.keyFilled}/${stats.keyMissing}`,
     `energy ${stats.energyFilled} ${stats.energyFilled === 1 ? 'track' : 'tracks'}`,
+    `descriptors ${stats.descriptorsFilled} ${stats.descriptorsFilled === 1 ? 'track' : 'tracks'}`,
   ]
   const caveats = []
   if (stats.belowConfidence > 0) caveats.push(`${stats.belowConfidence} below confidence`)
@@ -335,4 +373,32 @@ export function energyFromArousal(arousal: number): number {
 /** Round onto the app's 1–10 energy scale. Callers guarantee a finite input. */
 function clampEnergy(value: number): number {
   return Math.min(10, Math.max(1, Math.round(value)))
+}
+
+/**
+ * The descriptor percent scales (v35). `arousal` and `valence` come off the
+ * emoMusic head on its annotation range of 1–9; `danceability` and
+ * `happiness` are softmax probabilities on 0–1. Both land on Track as whole
+ * percentages so the column and the range filter share one unit — and so the
+ * filter works at all, since `wholeExtent` floors and ceils and a 0–1 domain
+ * would collapse its two boxes onto 0 and 1.
+ *
+ * Deliberately the NOMINAL range, not the observed one `energyFromArousal`
+ * stretches. That band exists because energy is a combo criterion and a
+ * near-constant criterion always matches; these four gate nothing, so there
+ * is nothing to protect and no reason to add a second eyeballed constant.
+ * Over the real collection arousal then spans about 28–83% and valence 28–77%
+ * — the head's shrink towards its mean, shown rather than hidden.
+ */
+export function percentFromAffect(value: number): number {
+  return clampPercent(((value - 1) / 8) * 100)
+}
+
+export function percentFromUnit(value: number): number {
+  return clampPercent(value * 100)
+}
+
+/** Round onto 0–100. Callers guarantee a finite input. */
+function clampPercent(value: number): number {
+  return Math.min(100, Math.max(0, Math.round(value)))
 }

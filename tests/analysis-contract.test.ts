@@ -144,6 +144,32 @@ describe.skipIf(!canRun)('a produced sidecar against the real collection (v34)',
     )
   })
 
+  test('the descriptors land on 0-100 and keep the shape the models produced (v35)', () => {
+    const { tracks, stats } = mergeAnalysis(readTracks(), readSidecar())
+    const extent = (key: 'arousal' | 'valence' | 'danceability' | 'happiness') => {
+      const values = tracks.map((t) => t[key]).filter((v): v is number => v !== null)
+      return [Math.min(...values), Math.max(...values), values.length] as const
+    }
+
+    for (const key of ['arousal', 'valence', 'danceability', 'happiness'] as const) {
+      const [lo, hi, n] = extent(key)
+      expect(n, `${key} filled nothing`).toBeGreaterThan(0)
+      expect(lo, `${key} escaped below 0`).toBeGreaterThanOrEqual(0)
+      expect(hi, `${key} escaped above 100`).toBeLessThanOrEqual(100)
+      expect(Number.isInteger(lo) && Number.isInteger(hi), `${key} is not whole`).toBe(true)
+      console.log(`${key}: ${lo}-${hi}% over ${n} tracks`)
+    }
+
+    // The emoMusic head barely leaves the middle of its own annotation range.
+    // Mapping the NOMINAL 1-9 keeps that visible instead of stretching it
+    // away, so arousal must NOT reach the ends of the scale. If it ever does,
+    // either the model changed or someone swapped in an empirical band.
+    const [arousalLo, arousalHi] = extent('arousal')
+    expect(arousalLo).toBeGreaterThan(10)
+    expect(arousalHi).toBeLessThan(95)
+    console.log(`descriptors filled ${stats.descriptorsFilled} tracks`)
+  })
+
   test('every emitted key parses', () => {
     const unparsed = Object.entries(readSidecar()!.tracks)
       .filter(([, e]) => typeof e.key === 'string' && normalizeKey(e.key) === null)

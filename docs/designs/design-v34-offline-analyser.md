@@ -308,8 +308,9 @@ Three layers instead:
   back at 1/2 or 2/3 of the Rekordbox tempo — a real hardcore/gabber failure
   mode. It is not worth fixing, because analysed BPM fills **zero** real
   tracks; the value is only ever stored for a future disagreement report.
-- **No `happiness`/`danceability` on `Track`.** Stored in the sidecar only;
-  promoting them is WS4 and costs registry and column-migration work.
+- ~~**No `happiness`/`danceability` on `Track`.**~~ **Superseded by v35**,
+  which promoted them along with `arousal` and `valence` — see
+  designs/design-v35-descriptor-columns.md.
 - **No disagreement UI.** The data is now genuinely there for every track, but
   see Not verified for why the surface should wait.
 - **No genre embeddings.** WS5, research-gated.
@@ -572,14 +573,14 @@ is a criteria-defaults question rather than a blocker. Do not build the blend
 before the same-tempo labels exist, though: the anchors are bimodal, which is
 exactly what flatters BPM.
 
-### 3. WS4 — `happiness` and `danceability` as real properties
+### 3. WS4 — `happiness` and `danceability` as real properties — **done in v35**
 
-Both are already in the sidecar for all 2040 tracks, so this costs no
-re-analysis: `TrackSortField` (`trackSort.ts:10`), a `TRACK_PROPERTIES` entry
-each (`properties.ts:61`, which buys filter and column for free),
-`EMPTY_TRACK_FIELDS`, and `migrateColumns`. The pinned counts in
-`tests/properties.test.ts` and `tests/columns.test.ts` (both 28) will need
-updating — that is the work.
+Shipped, and wider than scoped here: `arousal` and `valence` went with them,
+because the same registry entry buys column and filter for all four and this
+section's own last paragraph is the argument for showing more than energy. The
+estimate below was accurate — the pinned counts were the work, and they went
+28 to 32. See designs/design-v35-descriptor-columns.md, which also records why
+the four are display-only and do not touch the combo criteria.
 
 Worth noting `danceability` looked **more trustworthy than energy** in the run:
 Turkish Funk 0.62, Funk 0.85, every dance genre 0.90–0.98. It orders the

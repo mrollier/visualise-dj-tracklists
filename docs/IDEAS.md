@@ -59,8 +59,10 @@ lives in [designs/design-v12.md](designs/design-v12.md). Statuses: **done** ·
   fills energy for the whole library, in designs/design-v34-offline-analyser.md.
   The in-app gap-fill (WS3) is **rejected, not backlog**: the metadata gap it
   existed to fill measures 3 tracks, not the ~55 the report claims (see the
-  v34 design). happiness/danceability as properties (WS4) and genre embeddings
-  (WS5) remain **backlog, shaped**.
+  v34 design). happiness/danceability as properties (WS4) is **done in v35**, which
+  shipped them plus arousal and valence as columns and filters
+  (designs/design-v35-descriptor-columns.md); genre embeddings (WS5) remain
+  **backlog, shaped**.
 
 ## Design ideas
 

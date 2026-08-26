@@ -524,6 +524,7 @@
               dragField = null
               dropField = null
             }}
+            title={PROPERTY_BY_KEY.get(field)?.hint}
             aria-sort={!inSetOnly && $trackSort.field === field
               ? $trackSort.dir === 'asc'
                 ? 'ascending'

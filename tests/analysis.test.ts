@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, test } from 'vitest'
 import {
   energyFromArousal,
+  percentFromAffect,
+  percentFromUnit,
   mergeAnalysis,
   sanitizeAnalysis,
   summariseAnalysisImport,
@@ -349,7 +351,7 @@ describe('summariseAnalysisImport (v33)', () => {
       sidecar({ '/Users/dj/a.mp3': { bpm: 174, arousal: 9 } }),
     )
 
-    expect(summary.note).toBe('BPM filled 1/1, key 0/1, energy 1 track')
+    expect(summary.note).toBe('BPM filled 1/1, key 0/1, energy 1 track, descriptors 1 track')
   })
 
   test('names the refusals rather than swallowing them', () => {
@@ -363,7 +365,7 @@ describe('summariseAnalysisImport (v33)', () => {
     )
 
     expect(summary.note).toBe(
-      'BPM filled 0/2, key 0/2, energy 0 tracks; 1 below confidence, 1 not found',
+      'BPM filled 0/2, key 0/2, energy 0 tracks, descriptors 0 tracks; 1 below confidence, 1 not found',
     )
   })
 
@@ -407,5 +409,101 @@ describe('the sample-collection fixture (v33)', () => {
     const summary = summariseAnalysisImport(SAMPLE_COLLECTION.tracks, sidecar as AnalysisSidecar)
 
     expect(summary.energyFilled).toBe(0)
+  })
+})
+
+describe('the descriptor percent scales (v35)', () => {
+  test('the nominal 1-9 affect range maps onto the ends of the percent scale', () => {
+    expect(percentFromAffect(1)).toBe(0)
+    expect(percentFromAffect(9)).toBe(100)
+    expect(percentFromAffect(5)).toBe(50)
+  })
+
+  test('the nominal range is used, so the model shrinking to its mean stays visible', () => {
+    // Deliberately NOT energyFromArousal's eyeballed 3.5-7.5 band. The
+    // emoMusic head barely leaves the middle of its own annotation range —
+    // over the real 2040-track collection arousal spans 3.20 to 7.63 — and a
+    // rescale that hides that would claim a precision the model has not got.
+    expect(percentFromAffect(3.2)).toBe(28)
+    expect(percentFromAffect(7.63)).toBe(83)
+  })
+
+  test('a unit probability maps by hundredths', () => {
+    expect(percentFromUnit(0)).toBe(0)
+    expect(percentFromUnit(1)).toBe(100)
+    expect(percentFromUnit(0.921)).toBe(92)
+  })
+
+  test('both clamp rather than letting a stray prediction escape 0-100', () => {
+    expect(percentFromAffect(-4)).toBe(0)
+    expect(percentFromAffect(14)).toBe(100)
+    expect(percentFromUnit(-0.5)).toBe(0)
+    expect(percentFromUnit(2)).toBe(100)
+  })
+})
+
+describe('descriptors reaching Track (v35 WS4)', () => {
+  test('all four fill, as whole percentages', () => {
+    const tracks = [track({ id: 'a', location: 'file://localhost/Users/dj/a.mp3' })]
+    const merged = mergeAnalysis(
+      tracks,
+      sidecar({
+        '/Users/dj/a.mp3': { arousal: 5, valence: 3.27, danceability: 0.921, happiness: 0.315 },
+      }),
+    )
+
+    expect(merged.tracks[0].arousal).toBe(50)
+    expect(merged.tracks[0].valence).toBe(28)
+    expect(merged.tracks[0].danceability).toBe(92)
+    expect(merged.tracks[0].happiness).toBe(32)
+  })
+
+  test('a descriptor the sidecar omits stays null rather than becoming zero', () => {
+    const tracks = [track({ id: 'a', location: 'file://localhost/Users/dj/a.mp3' })]
+    const merged = mergeAnalysis(tracks, sidecar({ '/Users/dj/a.mp3': { danceability: 0.5 } }))
+
+    expect(merged.tracks[0].danceability).toBe(50)
+    expect(merged.tracks[0].arousal).toBeNull()
+    expect(merged.tracks[0].valence).toBeNull()
+    expect(merged.tracks[0].happiness).toBeNull()
+  })
+
+  test('an entry carrying only descriptors still produces a new array', () => {
+    // mergeAnalysis returns the INPUT array by reference unless something
+    // joined the per-track analysed set. A descriptor that filled a value but
+    // skipped that set would be silently discarded.
+    const raw = [track({ id: 'a', location: 'file://localhost/Users/dj/a.mp3', bpm: 128 })]
+    const merged = mergeAnalysis(raw, sidecar({ '/Users/dj/a.mp3': { danceability: 0.5 } }))
+
+    expect(merged.tracks).not.toBe(raw)
+    expect(merged.analysedFields.get('a')).toEqual(new Set(['danceability']))
+  })
+
+  test('arousal fills the descriptor even when a Mixed In Key energy already won', () => {
+    // Energy and Arousal are independent columns: a MIK comment blocks the
+    // derived energy, but the raw arousal it was derived from still shows.
+    const tracks = [track({ id: 'a', location: 'file://localhost/Users/dj/a.mp3', energy: 5 })]
+    const merged = mergeAnalysis(tracks, sidecar({ '/Users/dj/a.mp3': { arousal: 9 } }))
+
+    expect(merged.tracks[0].energy).toBe(5)
+    expect(merged.tracks[0].arousal).toBe(100)
+  })
+
+  test('descriptorsFilled counts tracks, not fields', () => {
+    const tracks = [
+      track({ id: 'four', location: 'file://localhost/Users/dj/four.mp3' }),
+      track({ id: 'one', location: 'file://localhost/Users/dj/one.mp3' }),
+      track({ id: 'none', location: 'file://localhost/Users/dj/none.mp3' }),
+    ]
+    const summary = summariseAnalysisImport(
+      tracks,
+      sidecar({
+        '/Users/dj/four.mp3': { arousal: 5, valence: 5, danceability: 0.5, happiness: 0.5 },
+        '/Users/dj/one.mp3': { happiness: 0.5 },
+        '/Users/dj/none.mp3': { bpm: 174 },
+      }),
+    )
+
+    expect(summary.descriptorsFilled).toBe(2)
   })
 })

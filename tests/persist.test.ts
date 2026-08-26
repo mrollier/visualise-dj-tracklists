@@ -937,6 +937,10 @@ describe('WS6 sanitize round-trip pins (v14.1)', () => {
     sampleRate: over.sampleRate ?? null,
     comments: over.comments ?? null,
     energy: over.energy ?? null,
+    arousal: over.arousal ?? null,
+    valence: over.valence ?? null,
+    danceability: over.danceability ?? null,
+    happiness: over.happiness ?? null,
     playCount: over.playCount ?? null,
     remixer: over.remixer ?? null,
     label: over.label ?? null,
@@ -1257,6 +1261,37 @@ describe('permanent panel filters persistence (v23, widened v25)', () => {
       'combos',
       'keys',
     ])
+  })
+})
+
+describe('descriptor persistence (v35)', () => {
+  test('a descriptor already on a track survives a save and load round-trip', () => {
+    const withDescriptors = {
+      ...project,
+      tracks: [{ ...SAMPLE_TRACKS[0], arousal: 78, valence: 47, danceability: 97, happiness: 23 }],
+    }
+    const parsed = parseProject(serializeProject(withDescriptors))
+
+    expect(parsed.tracks[0].arousal).toBe(78)
+    expect(parsed.tracks[0].valence).toBe(47)
+    expect(parsed.tracks[0].danceability).toBe(97)
+    expect(parsed.tracks[0].happiness).toBe(23)
+  })
+
+  test('a save predating the descriptors loads them as null, with no version bump', () => {
+    const parsed = parseProject(serializeProject(project))
+
+    expect(parsed.tracks[0].arousal).toBeNull()
+    expect(parsed.tracks[0].happiness).toBeNull()
+    expect(parsed.version).toBe(10)
+  })
+
+  test('a garbage descriptor is refused rather than carried through', () => {
+    const bad = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    ;(bad.tracks as Record<string, unknown>[])[0].danceability = 'very'
+    const parsed = parseProject(JSON.stringify(bad))
+
+    expect(parsed.tracks[0].danceability).toBeNull()
   })
 })
 

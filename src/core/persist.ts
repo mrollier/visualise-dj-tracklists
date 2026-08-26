@@ -201,6 +201,13 @@ function sanitizeTrack(raw: unknown): Track | null {
     // Older saves carry Comments but no energy — derive it here (v12 WS8) so
     // an existing project gains the field without a re-import.
     energy: num(entry.energy) ?? energyFromComments(str(entry.comments)),
+    // v35 descriptors. Only the analysis merge ever sets these, and the merge
+    // re-runs from the persisted sidecar on load, so in practice they arrive
+    // null here — the lines exist so a save that does carry them survives.
+    arousal: num(entry.arousal),
+    valence: num(entry.valence),
+    danceability: num(entry.danceability),
+    happiness: num(entry.happiness),
     playCount: num(entry.playCount),
     remixer: str(entry.remixer),
     label: str(entry.label),

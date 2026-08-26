@@ -152,7 +152,24 @@ next steps ranked at the end of it.
     and rejected: sounding alike is not the same as mixing well). Constraint
     that shapes all of it, re-verified: **there is no `-discogs-effnet`
     arousal/valence head**, so electronic-trained embeddings reach affect only
-    through the binary mood heads.
+    through the binary mood heads. **Partly acted on by v35**, which surfaced
+    the four descriptors the pipeline already computes — see item 14; the gate
+    itself stands for anything that changes what the app recommends.
+
+14. **The four analysis descriptors now ship as columns and filters (v35).**
+    `arousal`, `valence`, `danceability` and `happiness` reach `Track` as whole
+    percentages, hidden by default and opt-in, in
+    [designs/design-v35-descriptor-columns.md](designs/design-v35-descriptor-columns.md).
+    This does not override item 13's gate: that gate governs numbers that
+    change what the app *recommends*, and these are display-only — no new
+    model, no new analysis run, no new eyeballed constant, and nothing in
+    `combos.ts` or the radial axis. What is still open is whether any of them
+    is any good. Only `danceability` has evidence beyond a glance (Spearman
+    -0.047 against BPM on a 330-track sample, so unlike energy it is not a
+    tempo meter in disguise), and none has been checked against the 18 anchors.
+    Two follow-ups the wave deliberately left: the demo collection shows `—` in
+    all four columns because nothing simulates an analysis run, and the filter
+    boxes seed blank on an existing project until `↺` is pressed.
 
 ## Open — v33 audio-analysis provenance (WS1)
 

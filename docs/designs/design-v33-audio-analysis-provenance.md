@@ -410,7 +410,8 @@ decisions.
 - **No calibration slider.** `energyFromArousal()` ships as a pure function over
   a named constant, marked with a `ponytail:` comment naming the upgrade path.
 - **No `src/core/match.ts` extraction.** v28's matcher is better.
-- **`happiness` / `danceability` are stored but never merged onto `Track`.**
+- ~~**`happiness` / `danceability` are stored but never merged onto `Track`.**~~
+  **Superseded by v35**, which merges both plus `arousal` and `valence`.
 - **No undo integration.** `undoStore` snapshots sets, selection, settings,
   criteria and marks — never the library. An analysis load should not be
   undoable and will not be. Do not add `analysis` to `tuningOf`.
@@ -422,8 +423,8 @@ decisions.
 - **WS2**, the offline analyser, and the Mixed In Key purchase decision that
   precedes it.
 - **WS3**, the in-app essentia.js gap-fill analyser.
-- **WS4**, `happiness` and `danceability` joining `TrackSortField` and the
-  property registry.
+- ~~**WS4**~~ — **done in v35**, and widened to four fields
+  (designs/design-v35-descriptor-columns.md).
 - **WS5**, genre embeddings for the 305 blank-genre tracks.
 - **The README positioning qualifier**, due when WS2 lands.
 - **A per-track disagreement report** over analysed-versus-Rekordbox values.

@@ -12,7 +12,13 @@
     type QualityChoice,
   } from '../core/filter'
   import { isPanelFilterKey, PANEL_FILTERS } from '../core/marks'
-  import { PROPERTY_BY_KEY, REKORDBOX_COLOURS, type TrackProperty } from '../core/properties'
+  import {
+    ANALYSIS_GROUP_HINT,
+    PROPERTY_BY_KEY,
+    REKORDBOX_COLOURS,
+    type TrackProperty,
+  } from '../core/properties'
+  import InfoTooltip from './InfoTooltip.svelte'
   import PanelFilterIcon from './PanelFilterIcon.svelte'
   import type { TrackSortField } from '../core/trackSort'
   import {
@@ -45,7 +51,18 @@
       .map((key) => PROPERTY_BY_KEY.get(key))
       .filter((p): p is TrackProperty => p !== undefined && p.filterable),
   )
+  // The analysis-derived rows (v35) sit in their own collapsed group, so the
+  // caveat they share — one offline run, no validation against the ear — is
+  // stated once on the group rather than four times.
+  const plainRows = $derived(rows.filter((p) => p.analysisOnly !== true))
+  const analysisRows = $derived(rows.filter((p) => p.analysisOnly === true))
   const panelRows = $derived(PANEL_FILTERS.filter((m) => $settings.visibleFilters.includes(m.key)))
+
+  /** The number boxes' ceiling: kind for keys, the registry for everything else. */
+  function boxMax(prop: TrackProperty): string | undefined {
+    if (prop.kind === 'key') return '12'
+    return prop.max === undefined ? undefined : String(prop.max)
+  }
 
   // Extents of the playlist-scoped library for the numeric-ish rows: the
   // defaults follow the playlists you work in, not the whole collection.
@@ -287,21 +304,17 @@
     >
   </summary>
 
-  {#each rows as prop (prop.key)}
+  {#snippet filterRow(prop: TrackProperty)}
     <div class="filter-row">
-      <span class="filter-label">{prop.key === 'dateAdded' ? 'Added' : prop.label}</span>
+      <span class="filter-label" title={prop.hint}
+        >{prop.key === 'dateAdded' ? 'Added' : prop.label}</span
+      >
       {#if prop.kind === 'number' || prop.kind === 'key'}
         <input
           type="number"
           placeholder="min"
           min={prop.kind === 'key' ? '1' : '0'}
-          max={boxes(prop.key).max === ''
-            ? prop.kind === 'key'
-              ? '12'
-              : prop.key === 'rating'
-                ? '5'
-                : undefined
-            : boxes(prop.key).max}
+          max={boxes(prop.key).max === '' ? boxMax(prop) : boxes(prop.key).max}
           value={boxes(prop.key).min}
           oninput={(e) => setBox(prop, 'min', e.currentTarget.value)}
           onchange={(e) => setBox(prop, 'min', e.currentTarget.value, true)}
@@ -311,7 +324,7 @@
           type="number"
           placeholder="max"
           min={boxes(prop.key).min === '' ? (prop.kind === 'key' ? '1' : '0') : boxes(prop.key).min}
-          max={prop.kind === 'key' ? '12' : prop.key === 'rating' ? '5' : undefined}
+          max={boxMax(prop)}
           value={boxes(prop.key).max}
           oninput={(e) => setBox(prop, 'max', e.currentTarget.value)}
           onchange={(e) => setBox(prop, 'max', e.currentTarget.value, true)}
@@ -400,7 +413,23 @@
         onclick={() => resetRange(prop)}>↺</button
       >
     </div>
+  {/snippet}
+
+  {#each plainRows as prop (prop.key)}
+    {@render filterRow(prop)}
   {/each}
+
+  {#if analysisRows.length > 0}
+    <details class="analysis-group">
+      <summary class="micro-label">
+        Analysis
+        <InfoTooltip label="About the analysed values">{ANALYSIS_GROUP_HINT}</InfoTooltip>
+      </summary>
+      {#each analysisRows as prop (prop.key)}
+        {@render filterRow(prop)}
+      {/each}
+    </details>
+  {/if}
 
   {#if panelRows.length > 0 && rows.length > 0}
     <!-- A divider of its own, not a border on the first row below it (v27):
@@ -618,6 +647,21 @@
 
   .filter-row.pseudo .ring-switch {
     margin-left: auto;
+  }
+
+  /* The descriptors' names run long ("Danceability") and the rail is 250px,
+     so the group's labels get more room than the flat rows' 52px — bought
+     from the number boxes, which are min-width: 0 and shrink to suit. */
+  .analysis-group {
+    margin: 4px 0;
+  }
+
+  .analysis-group summary {
+    margin-bottom: 4px;
+  }
+
+  .analysis-group .filter-label {
+    width: 72px;
   }
 
   /* The one rule dividing metadata ranges above from the marks/ring group

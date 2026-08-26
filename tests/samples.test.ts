@@ -204,6 +204,11 @@ describe('sample metadata enrichment (v14 WS3)', () => {
   test('every filterable property has at least one non-null value across the samples', () => {
     for (const prop of TRACK_PROPERTIES) {
       if (!prop.filterable) continue
+      // Analysis-only descriptors are exempt (v35): nothing but an analysis
+      // sidecar ever fills them, and the demo collection has none. Synthesising
+      // them would fake the provenance this layer exists to keep honest — see
+      // the note beside the demo energy in enrich.ts.
+      if (prop.analysisOnly === true) continue
       const have = tracks.filter((t) => t[prop.key] !== null).length
       expect(have, `${prop.key} is never non-null across the samples`).toBeGreaterThan(0)
     }

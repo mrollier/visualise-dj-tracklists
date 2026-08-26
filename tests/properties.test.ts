@@ -9,7 +9,7 @@ describe('TRACK_PROPERTIES (v11 issue 1: the one registry)', () => {
     const expected = ['title', ...Object.keys(EMPTY_TRACK_FIELDS)].sort()
     expect([...keys].sort()).toEqual(expected)
     expect(new Set(keys).size).toBe(keys.length)
-    expect(keys).toHaveLength(28)
+    expect(keys).toHaveLength(32)
   })
 
   test('keeps the classic seven first and location last', () => {
@@ -23,6 +23,34 @@ describe('TRACK_PROPERTIES (v11 issue 1: the one registry)', () => {
       'rating',
     ])
     expect(TRACK_PROPERTIES.at(-1)?.key).toBe('location')
+  })
+
+  test('the four descriptors are analysis-only percent properties (v35)', () => {
+    for (const key of ['arousal', 'valence', 'danceability', 'happiness'] as const) {
+      const p = PROPERTY_BY_KEY.get(key)
+      expect(p?.kind, key).toBe('number')
+      expect(p?.filterable, key).toBe(true)
+      expect(p?.analysisOnly, key).toBe(true)
+      expect(p?.max, key).toBe(100)
+      expect(p?.hint, key).toBeTruthy()
+    }
+  })
+
+  test('energy explains itself but is not analysis-only — a MIK comment also fills it', () => {
+    const p = PROPERTY_BY_KEY.get('energy')
+    expect(p?.hint).toBeTruthy()
+    expect(p?.analysisOnly).toBeUndefined()
+  })
+
+  test("rating's filter ceiling comes from the registry, not a hardcoded key check", () => {
+    expect(PROPERTY_BY_KEY.get('rating')?.max).toBe(5)
+    expect(PROPERTY_BY_KEY.get('bpm')?.max).toBeUndefined()
+  })
+
+  test('a descriptor renders as a whole percentage, and a gap as an em dash', () => {
+    expect(formatPropertyValue(track({ id: 'a', danceability: 97 }), 'danceability')).toBe('97%')
+    expect(formatPropertyValue(track({ id: 'a', arousal: 0 }), 'arousal')).toBe('0%')
+    expect(formatPropertyValue(track({ id: 'a' }), 'happiness')).toBe('—')
   })
 
   test('kinds match the value shapes', () => {

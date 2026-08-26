@@ -37,7 +37,24 @@ export interface TrackProperty {
   filterable: boolean
   /** Cell-text override for the Tracks table (duration m:ss, size MB). */
   format?: (value: string | number) => string
+  /**
+   * What the number means and where it comes from (v35): an InfoTooltip in
+   * the filter row, and the column header's native title.
+   */
+  hint?: string
+  /**
+   * Every non-null value comes from the analysis sidecar (v35): no DJ library
+   * supplies it. Groups the filter row into the collapsed Analysis section so
+   * the caveat these share is stated once. Deliberately does NOT suppress the
+   * per-cell provenance underline — a column where every filled cell is
+   * analysed still has to say so somewhere that survives a screenshot.
+   */
+  analysisOnly?: true
+  /** Upper bound for the filter's number boxes; unbounded when absent. */
+  max?: number
 }
+
+type PropertyOptions = Pick<TrackProperty, 'format' | 'hint' | 'analysisOnly' | 'max'>
 
 export function formatDuration(value: string | number): string {
   const secs = Math.round(Number(value))
@@ -48,13 +65,28 @@ function formatSize(value: string | number): string {
   return `${(Number(value) / (1024 * 1024)).toFixed(1)} MB`
 }
 
+function formatPercent(value: string | number): string {
+  return `${value}%`
+}
+
+/**
+ * The v35 descriptors' shared caveat, shown once on the Analysis filter group
+ * rather than repeated in all four hints.
+ */
+export const ANALYSIS_GROUP_HINT =
+  'All four come from one offline analysis run (essentia-tensorflow, 2026-08-25) on models ' +
+  'trained on general-purpose music. None has been validated against your ear. Rekordbox ' +
+  'never supplies them, so a blank means the track has no analysis entry.'
+
+const DESCRIPTOR = { analysisOnly: true, max: 100, format: formatPercent } as const
+
 function prop(
   key: TrackSortField,
   label: string,
   kind: PropertyKind,
-  format?: (value: string | number) => string,
+  options: Partial<PropertyOptions> = {},
 ): TrackProperty {
-  return { key, label, kind, filterable: true, format }
+  return { key, label, kind, filterable: true, ...options }
 }
 
 /** Canonical order: the classic seven, the rest of the metadata, location last. */
@@ -65,11 +97,43 @@ export const TRACK_PROPERTIES: readonly TrackProperty[] = [
   prop('bpm', 'BPM', 'number'),
   prop('genre', 'Genre', 'alpha'),
   prop('year', 'Year', 'number'),
-  prop('rating', 'Rating', 'number'),
-  prop('energy', 'Energy', 'number'),
+  prop('rating', 'Rating', 'number', { max: 5 }),
+  prop('energy', 'Energy', 'number', {
+    hint:
+      '1-10. Derived from arousal, unless an "Energy N" comment supplied it directly ' +
+      '(Mixed In Key) - then the two can disagree. The Arousal column shows the same ' +
+      'measurement on a different curve: energy stretches the 3.5-7.5 band the model ' +
+      'actually uses, arousal shows its nominal 1-9, so 10 and 83% can be one track.',
+  }),
+  prop('arousal', 'Arousal', 'number', {
+    ...DESCRIPTOR,
+    hint:
+      'Model-estimated intensity, 0-100%. From emomusic-msd-musicnn, rescaled from its native ' +
+      '1-9. Your library only spans about 28-83% because the model pulls towards its average. ' +
+      'Measured unreliable above 155 BPM.',
+  }),
+  prop('valence', 'Valence', 'number', {
+    ...DESCRIPTOR,
+    hint:
+      'Model-estimated positivity, 0-100%. Same model and the same caveats as Arousal, and the ' +
+      'most tempo-entangled of the four.',
+  }),
+  prop('danceability', 'Danceability', 'number', {
+    ...DESCRIPTOR,
+    hint:
+      'How confident the model is that the track is danceable, 0-100%. From ' +
+      'danceability-msd-musicnn. Saturated here - 79% of the library scores above 90 - so it ' +
+      'separates ballads from dance tracks, not dance tracks from each other.',
+  }),
+  prop('happiness', 'Happiness', 'number', {
+    ...DESCRIPTOR,
+    hint:
+      "How confident the model is of its 'happy' class, 0-100%. From mood_happy-msd-musicnn. " +
+      'The widest spread of the four, but it tracks genre at least as much as mood.',
+  }),
   prop('album', 'Album', 'alpha'),
   prop('dateAdded', 'Date added', 'date'),
-  prop('durationSec', 'Length', 'number', formatDuration),
+  prop('durationSec', 'Length', 'number', { format: formatDuration }),
   prop('composer', 'Composer', 'alpha'),
   prop('grouping', 'Grouping', 'alpha'),
   prop('remixer', 'Remixer', 'alpha'),
@@ -84,7 +148,7 @@ export const TRACK_PROPERTIES: readonly TrackProperty[] = [
   prop('bitRate', 'Bit rate', 'number'),
   prop('sampleRate', 'Sample rate', 'number'),
   prop('kind', 'Kind', 'quality'),
-  prop('size', 'Size', 'number', formatSize),
+  prop('size', 'Size', 'number', { format: formatSize }),
   prop('dateModified', 'Date modified', 'date'),
   prop('location', 'Location', 'contains'),
 ]

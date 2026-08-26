@@ -38,6 +38,17 @@ export interface Track {
    * any metadata, but no DJ software writes it as a first-class attribute.
    */
   energy: number | null
+  /**
+   * Model-derived descriptors as whole percentages 0–100 (v35). Rekordbox
+   * never supplies these — they arrive only from the analysis sidecar, so a
+   * null means the track has no analysis entry. `arousal` and `valence` are
+   * the emoMusic head's 1–9 rescaled; `danceability` and `happiness` are the
+   * matching heads' probabilities. See `percentFromAffect` in analysis.ts.
+   */
+  arousal: number | null
+  valence: number | null
+  danceability: number | null
+  happiness: number | null
   /** 0 is a real count ("never played"), not "unknown". */
   playCount: number | null
   remixer: string | null
@@ -78,6 +89,10 @@ export const EMPTY_TRACK_FIELDS: Omit<Track, 'id' | 'title'> = {
   sampleRate: null,
   comments: null,
   energy: null,
+  arousal: null,
+  valence: null,
+  danceability: null,
+  happiness: null,
   playCount: null,
   remixer: null,
   label: null,

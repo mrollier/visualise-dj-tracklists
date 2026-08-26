@@ -130,6 +130,11 @@ export function importRekordboxXml(xml: string): ImportResult {
       comments: str('Comments'),
       // Mixed-In-Key writes "Energy N" into Comments; derive it (v12 WS8).
       energy: energyFromComments(str('Comments')),
+      // No DJ library carries these; only the analysis sidecar fills them (v35).
+      arousal: null,
+      valence: null,
+      danceability: null,
+      happiness: null,
       playCount: Number.isFinite(playCount) ? playCount : null,
       remixer: str('Remixer'),
       label: str('Label'),
