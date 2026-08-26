@@ -1,186 +1,186 @@
 {
- "bpm": {
-  "/Volumes/SD 1TB/Music/Media/Music/Clouds/Sharp Like a Razor/04 Arkhangelsk Nightmare.mp3": 140.0,
-  "/Volumes/SD 1TB/Music/Media/Music/DJ Warlock/Energetik EP/Hallucination.mp3": 146.06,
-  "/Volumes/SD 1TB/Music/Media/Music/Dub-Liner/A Rougher Version/02 The Kill.mp3": 175.02,
-  "/Volumes/SD 1TB/Music/Media/Music/Fresh/Jungle Classics - Ministry Of Sound [Explicit]/19 Gatekeeper (Original Mix).mp3": 174.0,
-  "/Volumes/SD 1TB/Music/Media/Music/Herbert/My Orphaned Son _ It's Only/02 It's Only (DJ Koze Remix).mp3": 118.0,
-  "/Volumes/SD 1TB/Music/Media/Music/Just Jungle/Ere Dread _ Ah This Feeling [MEDITATOR028]/01 Ere Dread.wav": 169.74,
-  "/Volumes/SD 1TB/Music/Media/Music/Leafar Legov/Mirror/06 Hidden Treasure.aiff": 127.0,
-  "/Volumes/SD 1TB/Music/Media/Music/Nesh Mayday/Mematrik 03/1-03 Push It Badly.mp3": 170.0,
-  "/Volumes/SD 1TB/Music/Media/Music/Nu/Unknown Album/Fool (Ft. Jo Ke).mp3": 114.0,
-  "/Volumes/SD 1TB/Music/Media/Music/SPK/Mematrik 01/04 Looper.aiff": 175.0,
-  "/Volumes/SD 1TB/Music/Media/Music/Salvatore Ganacci/Unknown Album/Horse (Schacke Remix).mp3": 146.0,
-  "/Volumes/SD 1TB/Music/Media/Music/Shackleton/Soundboy Punishments/13 Blood On My Hands (Ricardo Villalobos' Apocalypso Now Mix).mp3": 127.99,
-  "/Volumes/SD 1TB/Music/Media/Music/Traumprinz/Mothercave/09 Ambient 006.aiff": 121.97,
-  "/Volumes/SD 1TB/Music/Media/Music/Various Artists/Tunnel Trance Force Vol.2 (alte Serie)/01 Die Herdplatte 100\u00b0.mp3": 162.99,
-  "/Volumes/SD 1TB/Music/Media/Music/Versa & Rowl/Smokin Sessions 17/02 Zodiac.mp3": 168.0,
-  "/Volumes/SD 1TB/Music/Media/Music/Yung Lean/Free Soundcloud Download/Agony (dj poolboi Remix).wav": 110.0,
-  "/Volumes/SD 1TB/Music/Media/Music/bollini verdi/Soundcloud Rip/Pump Ton Acid.mp3": 171.97,
-  "/Volumes/SD 1TB/Music/Media/Music/slowthai/Nothing Great About Britain/1-02 Doorman (Ft. Mura Masa).mp3": 175.0
- },
- "signals": {
-  "/Volumes/SD 1TB/Music/Media/Music/Clouds/Sharp Like a Razor/04 Arkhangelsk Nightmare.mp3": {
-   "aggressive_effnet": 0.5833325386047363,
-   "aggressive_musicnn": 0.8362236618995667,
-   "arousal_musicnn": 6.6824212074279785,
-   "arousal_vggish": 6.4377946853637695,
-   "dance_effnet": 0.9997432231903076,
-   "party_effnet": 0.023640943691134453,
-   "party_musicnn": 0.020435893908143044
+  "bpm": {
+    "/Volumes/SD 1TB/Music/Media/Music/Clouds/Sharp Like a Razor/04 Arkhangelsk Nightmare.mp3": 140.0,
+    "/Volumes/SD 1TB/Music/Media/Music/DJ Warlock/Energetik EP/Hallucination.mp3": 146.06,
+    "/Volumes/SD 1TB/Music/Media/Music/Dub-Liner/A Rougher Version/02 The Kill.mp3": 175.02,
+    "/Volumes/SD 1TB/Music/Media/Music/Fresh/Jungle Classics - Ministry Of Sound [Explicit]/19 Gatekeeper (Original Mix).mp3": 174.0,
+    "/Volumes/SD 1TB/Music/Media/Music/Herbert/My Orphaned Son _ It's Only/02 It's Only (DJ Koze Remix).mp3": 118.0,
+    "/Volumes/SD 1TB/Music/Media/Music/Just Jungle/Ere Dread _ Ah This Feeling [MEDITATOR028]/01 Ere Dread.wav": 169.74,
+    "/Volumes/SD 1TB/Music/Media/Music/Leafar Legov/Mirror/06 Hidden Treasure.aiff": 127.0,
+    "/Volumes/SD 1TB/Music/Media/Music/Nesh Mayday/Mematrik 03/1-03 Push It Badly.mp3": 170.0,
+    "/Volumes/SD 1TB/Music/Media/Music/Nu/Unknown Album/Fool (Ft. Jo Ke).mp3": 114.0,
+    "/Volumes/SD 1TB/Music/Media/Music/SPK/Mematrik 01/04 Looper.aiff": 175.0,
+    "/Volumes/SD 1TB/Music/Media/Music/Salvatore Ganacci/Unknown Album/Horse (Schacke Remix).mp3": 146.0,
+    "/Volumes/SD 1TB/Music/Media/Music/Shackleton/Soundboy Punishments/13 Blood On My Hands (Ricardo Villalobos' Apocalypso Now Mix).mp3": 127.99,
+    "/Volumes/SD 1TB/Music/Media/Music/Traumprinz/Mothercave/09 Ambient 006.aiff": 121.97,
+    "/Volumes/SD 1TB/Music/Media/Music/Various Artists/Tunnel Trance Force Vol.2 (alte Serie)/01 Die Herdplatte 100\u00b0.mp3": 162.99,
+    "/Volumes/SD 1TB/Music/Media/Music/Versa & Rowl/Smokin Sessions 17/02 Zodiac.mp3": 168.0,
+    "/Volumes/SD 1TB/Music/Media/Music/Yung Lean/Free Soundcloud Download/Agony (dj poolboi Remix).wav": 110.0,
+    "/Volumes/SD 1TB/Music/Media/Music/bollini verdi/Soundcloud Rip/Pump Ton Acid.mp3": 171.97,
+    "/Volumes/SD 1TB/Music/Media/Music/slowthai/Nothing Great About Britain/1-02 Doorman (Ft. Mura Masa).mp3": 175.0
   },
-  "/Volumes/SD 1TB/Music/Media/Music/DJ Warlock/Energetik EP/Hallucination.mp3": {
-   "aggressive_effnet": 0.13526546955108643,
-   "aggressive_musicnn": 0.8724613785743713,
-   "arousal_musicnn": 6.880847454071045,
-   "arousal_vggish": 5.679103374481201,
-   "dance_effnet": 0.9812411069869995,
-   "party_effnet": 0.07839970290660858,
-   "party_musicnn": 0.07883802056312561
-  },
-  "/Volumes/SD 1TB/Music/Media/Music/Dub-Liner/A Rougher Version/02 The Kill.mp3": {
-   "aggressive_effnet": 0.22844043374061584,
-   "aggressive_musicnn": 0.34324032068252563,
-   "arousal_musicnn": 5.7183098793029785,
-   "arousal_vggish": 6.146801948547363,
-   "dance_effnet": 0.995779812335968,
-   "party_effnet": 0.14654552936553955,
-   "party_musicnn": 0.07267354428768158
-  },
-  "/Volumes/SD 1TB/Music/Media/Music/Fresh/Jungle Classics - Ministry Of Sound [Explicit]/19 Gatekeeper (Original Mix).mp3": {
-   "aggressive_effnet": 0.2067980021238327,
-   "aggressive_musicnn": 0.25750732421875,
-   "arousal_musicnn": 5.821938514709473,
-   "arousal_vggish": 5.678971290588379,
-   "dance_effnet": 0.9474751353263855,
-   "party_effnet": 0.19794774055480957,
-   "party_musicnn": 0.17266352474689484
-  },
-  "/Volumes/SD 1TB/Music/Media/Music/Herbert/My Orphaned Son _ It's Only/02 It's Only (DJ Koze Remix).mp3": {
-   "aggressive_effnet": 0.05609112232923508,
-   "aggressive_musicnn": 0.025580011308193207,
-   "arousal_musicnn": 4.0763397216796875,
-   "arousal_vggish": 4.593481063842773,
-   "dance_effnet": 0.9820209741592407,
-   "party_effnet": 0.7422541975975037,
-   "party_musicnn": 0.844174325466156
-  },
-  "/Volumes/SD 1TB/Music/Media/Music/Just Jungle/Ere Dread _ Ah This Feeling [MEDITATOR028]/01 Ere Dread.wav": {
-   "aggressive_effnet": 0.24706563353538513,
-   "aggressive_musicnn": 0.5072707533836365,
-   "arousal_musicnn": 4.817688465118408,
-   "arousal_vggish": 5.29432487487793,
-   "dance_effnet": 0.9631512761116028,
-   "party_effnet": 0.3413262963294983,
-   "party_musicnn": 0.35060885548591614
-  },
-  "/Volumes/SD 1TB/Music/Media/Music/Leafar Legov/Mirror/06 Hidden Treasure.aiff": {
-   "aggressive_effnet": 0.02394622378051281,
-   "aggressive_musicnn": 0.06183691695332527,
-   "arousal_musicnn": 4.241856098175049,
-   "arousal_vggish": 4.133364677429199,
-   "dance_effnet": 0.9469572305679321,
-   "party_effnet": 0.5643250346183777,
-   "party_musicnn": 0.8837877511978149
-  },
-  "/Volumes/SD 1TB/Music/Media/Music/Nesh Mayday/Mematrik 03/1-03 Push It Badly.mp3": {
-   "aggressive_effnet": 0.5830225944519043,
-   "aggressive_musicnn": 0.36269262433052063,
-   "arousal_musicnn": 5.004690170288086,
-   "arousal_vggish": 5.439749717712402,
-   "dance_effnet": 0.9903676509857178,
-   "party_effnet": 0.10178624838590622,
-   "party_musicnn": 0.5412083864212036
-  },
-  "/Volumes/SD 1TB/Music/Media/Music/Nu/Unknown Album/Fool (Ft. Jo Ke).mp3": {
-   "aggressive_effnet": 0.017991943284869194,
-   "aggressive_musicnn": 0.09168696403503418,
-   "arousal_musicnn": 4.461355686187744,
-   "arousal_vggish": 4.454389572143555,
-   "dance_effnet": 0.7234848737716675,
-   "party_effnet": 0.8221663236618042,
-   "party_musicnn": 0.7910726070404053
-  },
-  "/Volumes/SD 1TB/Music/Media/Music/SPK/Mematrik 01/04 Looper.aiff": {
-   "aggressive_effnet": 0.46924155950546265,
-   "aggressive_musicnn": 0.9180948734283447,
-   "arousal_musicnn": 5.685572624206543,
-   "arousal_vggish": 6.056772708892822,
-   "dance_effnet": 0.9790703058242798,
-   "party_effnet": 0.07666587829589844,
-   "party_musicnn": 0.05235898867249489
-  },
-  "/Volumes/SD 1TB/Music/Media/Music/Salvatore Ganacci/Unknown Album/Horse (Schacke Remix).mp3": {
-   "aggressive_effnet": 0.530068039894104,
-   "aggressive_musicnn": 0.8416292071342468,
-   "arousal_musicnn": 6.494951248168945,
-   "arousal_vggish": 6.254218578338623,
-   "dance_effnet": 0.9971868395805359,
-   "party_effnet": 0.03865732625126839,
-   "party_musicnn": 0.03027539700269699
-  },
-  "/Volumes/SD 1TB/Music/Media/Music/Shackleton/Soundboy Punishments/13 Blood On My Hands (Ricardo Villalobos' Apocalypso Now Mix).mp3": {
-   "aggressive_effnet": 0.20189981162548065,
-   "aggressive_musicnn": 0.9173762798309326,
-   "arousal_musicnn": 5.370343208312988,
-   "arousal_vggish": 4.938821315765381,
-   "dance_effnet": 0.9944465160369873,
-   "party_effnet": 0.21241140365600586,
-   "party_musicnn": 0.36301958560943604
-  },
-  "/Volumes/SD 1TB/Music/Media/Music/Traumprinz/Mothercave/09 Ambient 006.aiff": {
-   "aggressive_effnet": 0.053804852068424225,
-   "aggressive_musicnn": 0.0004010902775917202,
-   "arousal_musicnn": 3.5824992656707764,
-   "arousal_vggish": 4.216433525085449,
-   "dance_effnet": 0.7255760431289673,
-   "party_effnet": 0.6648539304733276,
-   "party_musicnn": 0.9991127252578735
-  },
-  "/Volumes/SD 1TB/Music/Media/Music/Various Artists/Tunnel Trance Force Vol.2 (alte Serie)/01 Die Herdplatte 100\u00b0.mp3": {
-   "aggressive_effnet": 0.22824795544147491,
-   "aggressive_musicnn": 0.5890948176383972,
-   "arousal_musicnn": 5.66172456741333,
-   "arousal_vggish": 5.593287944793701,
-   "dance_effnet": 0.9869492053985596,
-   "party_effnet": 0.09039700776338577,
-   "party_musicnn": 0.25735849142074585
-  },
-  "/Volumes/SD 1TB/Music/Media/Music/Versa & Rowl/Smokin Sessions 17/02 Zodiac.mp3": {
-   "aggressive_effnet": 0.06664160639047623,
-   "aggressive_musicnn": 0.11628059297800064,
-   "arousal_musicnn": 4.42267370223999,
-   "arousal_vggish": 4.414615154266357,
-   "dance_effnet": 0.9902819395065308,
-   "party_effnet": 0.7551859617233276,
-   "party_musicnn": 0.691070556640625
-  },
-  "/Volumes/SD 1TB/Music/Media/Music/Yung Lean/Free Soundcloud Download/Agony (dj poolboi Remix).wav": {
-   "aggressive_effnet": 0.017065688967704773,
-   "aggressive_musicnn": 0.03380601853132248,
-   "arousal_musicnn": 4.572144985198975,
-   "arousal_vggish": 4.848108291625977,
-   "dance_effnet": 0.8300265073776245,
-   "party_effnet": 0.8535167574882507,
-   "party_musicnn": 0.9509042501449585
-  },
-  "/Volumes/SD 1TB/Music/Media/Music/bollini verdi/Soundcloud Rip/Pump Ton Acid.mp3": {
-   "aggressive_effnet": 0.6108047366142273,
-   "aggressive_musicnn": 0.8104077577590942,
-   "arousal_musicnn": 6.2962541580200195,
-   "arousal_vggish": 5.749706745147705,
-   "dance_effnet": 0.9985122084617615,
-   "party_effnet": 0.01630387455224991,
-   "party_musicnn": 0.041357576847076416
-  },
-  "/Volumes/SD 1TB/Music/Media/Music/slowthai/Nothing Great About Britain/1-02 Doorman (Ft. Mura Masa).mp3": {
-   "aggressive_effnet": 0.8407984375953674,
-   "aggressive_musicnn": 0.37335526943206787,
-   "arousal_musicnn": 5.742959499359131,
-   "arousal_vggish": 5.8368048667907715,
-   "dance_effnet": 0.9226036071777344,
-   "party_effnet": 0.17743824422359467,
-   "party_musicnn": 0.2656842768192291
+  "signals": {
+    "/Volumes/SD 1TB/Music/Media/Music/Clouds/Sharp Like a Razor/04 Arkhangelsk Nightmare.mp3": {
+      "aggressive_effnet": 0.5833325386047363,
+      "aggressive_musicnn": 0.8362236618995667,
+      "arousal_musicnn": 6.6824212074279785,
+      "arousal_vggish": 6.4377946853637695,
+      "dance_effnet": 0.9997432231903076,
+      "party_effnet": 0.023640943691134453,
+      "party_musicnn": 0.020435893908143044
+    },
+    "/Volumes/SD 1TB/Music/Media/Music/DJ Warlock/Energetik EP/Hallucination.mp3": {
+      "aggressive_effnet": 0.13526546955108643,
+      "aggressive_musicnn": 0.8724613785743713,
+      "arousal_musicnn": 6.880847454071045,
+      "arousal_vggish": 5.679103374481201,
+      "dance_effnet": 0.9812411069869995,
+      "party_effnet": 0.07839970290660858,
+      "party_musicnn": 0.07883802056312561
+    },
+    "/Volumes/SD 1TB/Music/Media/Music/Dub-Liner/A Rougher Version/02 The Kill.mp3": {
+      "aggressive_effnet": 0.22844043374061584,
+      "aggressive_musicnn": 0.34324032068252563,
+      "arousal_musicnn": 5.7183098793029785,
+      "arousal_vggish": 6.146801948547363,
+      "dance_effnet": 0.995779812335968,
+      "party_effnet": 0.14654552936553955,
+      "party_musicnn": 0.07267354428768158
+    },
+    "/Volumes/SD 1TB/Music/Media/Music/Fresh/Jungle Classics - Ministry Of Sound [Explicit]/19 Gatekeeper (Original Mix).mp3": {
+      "aggressive_effnet": 0.2067980021238327,
+      "aggressive_musicnn": 0.25750732421875,
+      "arousal_musicnn": 5.821938514709473,
+      "arousal_vggish": 5.678971290588379,
+      "dance_effnet": 0.9474751353263855,
+      "party_effnet": 0.19794774055480957,
+      "party_musicnn": 0.17266352474689484
+    },
+    "/Volumes/SD 1TB/Music/Media/Music/Herbert/My Orphaned Son _ It's Only/02 It's Only (DJ Koze Remix).mp3": {
+      "aggressive_effnet": 0.05609112232923508,
+      "aggressive_musicnn": 0.025580011308193207,
+      "arousal_musicnn": 4.0763397216796875,
+      "arousal_vggish": 4.593481063842773,
+      "dance_effnet": 0.9820209741592407,
+      "party_effnet": 0.7422541975975037,
+      "party_musicnn": 0.844174325466156
+    },
+    "/Volumes/SD 1TB/Music/Media/Music/Just Jungle/Ere Dread _ Ah This Feeling [MEDITATOR028]/01 Ere Dread.wav": {
+      "aggressive_effnet": 0.24706563353538513,
+      "aggressive_musicnn": 0.5072707533836365,
+      "arousal_musicnn": 4.817688465118408,
+      "arousal_vggish": 5.29432487487793,
+      "dance_effnet": 0.9631512761116028,
+      "party_effnet": 0.3413262963294983,
+      "party_musicnn": 0.35060885548591614
+    },
+    "/Volumes/SD 1TB/Music/Media/Music/Leafar Legov/Mirror/06 Hidden Treasure.aiff": {
+      "aggressive_effnet": 0.02394622378051281,
+      "aggressive_musicnn": 0.06183691695332527,
+      "arousal_musicnn": 4.241856098175049,
+      "arousal_vggish": 4.133364677429199,
+      "dance_effnet": 0.9469572305679321,
+      "party_effnet": 0.5643250346183777,
+      "party_musicnn": 0.8837877511978149
+    },
+    "/Volumes/SD 1TB/Music/Media/Music/Nesh Mayday/Mematrik 03/1-03 Push It Badly.mp3": {
+      "aggressive_effnet": 0.5830225944519043,
+      "aggressive_musicnn": 0.36269262433052063,
+      "arousal_musicnn": 5.004690170288086,
+      "arousal_vggish": 5.439749717712402,
+      "dance_effnet": 0.9903676509857178,
+      "party_effnet": 0.10178624838590622,
+      "party_musicnn": 0.5412083864212036
+    },
+    "/Volumes/SD 1TB/Music/Media/Music/Nu/Unknown Album/Fool (Ft. Jo Ke).mp3": {
+      "aggressive_effnet": 0.017991943284869194,
+      "aggressive_musicnn": 0.09168696403503418,
+      "arousal_musicnn": 4.461355686187744,
+      "arousal_vggish": 4.454389572143555,
+      "dance_effnet": 0.7234848737716675,
+      "party_effnet": 0.8221663236618042,
+      "party_musicnn": 0.7910726070404053
+    },
+    "/Volumes/SD 1TB/Music/Media/Music/SPK/Mematrik 01/04 Looper.aiff": {
+      "aggressive_effnet": 0.46924155950546265,
+      "aggressive_musicnn": 0.9180948734283447,
+      "arousal_musicnn": 5.685572624206543,
+      "arousal_vggish": 6.056772708892822,
+      "dance_effnet": 0.9790703058242798,
+      "party_effnet": 0.07666587829589844,
+      "party_musicnn": 0.05235898867249489
+    },
+    "/Volumes/SD 1TB/Music/Media/Music/Salvatore Ganacci/Unknown Album/Horse (Schacke Remix).mp3": {
+      "aggressive_effnet": 0.530068039894104,
+      "aggressive_musicnn": 0.8416292071342468,
+      "arousal_musicnn": 6.494951248168945,
+      "arousal_vggish": 6.254218578338623,
+      "dance_effnet": 0.9971868395805359,
+      "party_effnet": 0.03865732625126839,
+      "party_musicnn": 0.03027539700269699
+    },
+    "/Volumes/SD 1TB/Music/Media/Music/Shackleton/Soundboy Punishments/13 Blood On My Hands (Ricardo Villalobos' Apocalypso Now Mix).mp3": {
+      "aggressive_effnet": 0.20189981162548065,
+      "aggressive_musicnn": 0.9173762798309326,
+      "arousal_musicnn": 5.370343208312988,
+      "arousal_vggish": 4.938821315765381,
+      "dance_effnet": 0.9944465160369873,
+      "party_effnet": 0.21241140365600586,
+      "party_musicnn": 0.36301958560943604
+    },
+    "/Volumes/SD 1TB/Music/Media/Music/Traumprinz/Mothercave/09 Ambient 006.aiff": {
+      "aggressive_effnet": 0.053804852068424225,
+      "aggressive_musicnn": 0.0004010902775917202,
+      "arousal_musicnn": 3.5824992656707764,
+      "arousal_vggish": 4.216433525085449,
+      "dance_effnet": 0.7255760431289673,
+      "party_effnet": 0.6648539304733276,
+      "party_musicnn": 0.9991127252578735
+    },
+    "/Volumes/SD 1TB/Music/Media/Music/Various Artists/Tunnel Trance Force Vol.2 (alte Serie)/01 Die Herdplatte 100\u00b0.mp3": {
+      "aggressive_effnet": 0.22824795544147491,
+      "aggressive_musicnn": 0.5890948176383972,
+      "arousal_musicnn": 5.66172456741333,
+      "arousal_vggish": 5.593287944793701,
+      "dance_effnet": 0.9869492053985596,
+      "party_effnet": 0.09039700776338577,
+      "party_musicnn": 0.25735849142074585
+    },
+    "/Volumes/SD 1TB/Music/Media/Music/Versa & Rowl/Smokin Sessions 17/02 Zodiac.mp3": {
+      "aggressive_effnet": 0.06664160639047623,
+      "aggressive_musicnn": 0.11628059297800064,
+      "arousal_musicnn": 4.42267370223999,
+      "arousal_vggish": 4.414615154266357,
+      "dance_effnet": 0.9902819395065308,
+      "party_effnet": 0.7551859617233276,
+      "party_musicnn": 0.691070556640625
+    },
+    "/Volumes/SD 1TB/Music/Media/Music/Yung Lean/Free Soundcloud Download/Agony (dj poolboi Remix).wav": {
+      "aggressive_effnet": 0.017065688967704773,
+      "aggressive_musicnn": 0.03380601853132248,
+      "arousal_musicnn": 4.572144985198975,
+      "arousal_vggish": 4.848108291625977,
+      "dance_effnet": 0.8300265073776245,
+      "party_effnet": 0.8535167574882507,
+      "party_musicnn": 0.9509042501449585
+    },
+    "/Volumes/SD 1TB/Music/Media/Music/bollini verdi/Soundcloud Rip/Pump Ton Acid.mp3": {
+      "aggressive_effnet": 0.6108047366142273,
+      "aggressive_musicnn": 0.8104077577590942,
+      "arousal_musicnn": 6.2962541580200195,
+      "arousal_vggish": 5.749706745147705,
+      "dance_effnet": 0.9985122084617615,
+      "party_effnet": 0.01630387455224991,
+      "party_musicnn": 0.041357576847076416
+    },
+    "/Volumes/SD 1TB/Music/Media/Music/slowthai/Nothing Great About Britain/1-02 Doorman (Ft. Mura Masa).mp3": {
+      "aggressive_effnet": 0.8407984375953674,
+      "aggressive_musicnn": 0.37335526943206787,
+      "arousal_musicnn": 5.742959499359131,
+      "arousal_vggish": 5.8368048667907715,
+      "dance_effnet": 0.9226036071777344,
+      "party_effnet": 0.17743824422359467,
+      "party_musicnn": 0.2656842768192291
+    }
   }
- }
 }
