@@ -55,10 +55,17 @@ function pick<T>(pool: readonly T[], u: (salt: string) => number, salt: string):
   return pool[Math.floor(u(salt) * pool.length)]
 }
 
-// Genre → a 1-10 energy baseline (Mixed-In-Key scale), so the sample energy
-// reads sensibly per style rather than tracking BPM alone (issue #7). Ordered
-// most-specific first, so "hard techno" beats "techno" and "drum & bass"
-// beats a bare "bass".
+/**
+ * Genre → a Mixed-In-Key-style energy level, so the sample's generated energies
+ * read sensibly per style rather than tracking BPM alone (issue #7). Ordered
+ * most-specific first, so "hard techno" beats "techno" and "drum & bass" beats
+ * a bare "bass".
+ *
+ * This is the HUMAN 1-10 scale a DJ writes into a comment, and it stays
+ * separate from the model-descriptor table in sample-analysis.ts: those are
+ * measured neural-net output on their own scales and the two disagree on
+ * purpose (a jungle roller is energy 8 by ear and 24% "happy" by model).
+ */
 const GENRE_ENERGY: readonly (readonly [RegExp, number])[] = [
   [/gabber|hardcore|speedcore/i, 10],
   [/schranz|\btekno\b/i, 9],
@@ -80,17 +87,17 @@ const GENRE_ENERGY: readonly (readonly [RegExp, number])[] = [
 ]
 
 /**
- * A 1-10 energy baseline for a genre (issue #7). Known genres map to a fixed
- * level so energy reflects style, not tempo; an unknown genre falls back to a
- * gentle BPM curve (and 5 with no BPM either). The caller adds a small
- * deterministic jitter on top.
+ * A genre's baseline energy (issue #7). Known genres map to a fixed level so
+ * the value reflects style, not tempo; an unknown genre falls back to a gentle
+ * BPM curve (and 5 with no BPM either). Callers add a small jitter.
  */
 export function genreEnergyBaseline(genre: string | null, bpm: number | null): number {
   if (genre !== null) {
-    for (const [re, e] of GENRE_ENERGY) if (re.test(genre)) return e
+    for (const [re, energy] of GENRE_ENERGY) {
+      if (re.test(genre)) return energy
+    }
   }
-  if (bpm === null) return 5
-  return Math.max(1, Math.min(10, Math.round((bpm - 60) / 13)))
+  return bpm === null ? 5 : Math.max(1, Math.min(10, Math.round((bpm - 60) / 13)))
 }
 
 /** `date` (YYYY-MM-DD) plus `days`, still YYYY-MM-DD — used for the fields

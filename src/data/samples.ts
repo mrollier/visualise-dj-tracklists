@@ -1,6 +1,8 @@
+import type { AnalysisSidecar } from '../core/analysis'
 import { normalizeKey } from '../core/keys'
 import { EMPTY_TRACK_FIELDS, type Playlist, type Track } from '../core/model'
 import { enrichTrack, type PackExtras } from './enrich'
+import { buildSampleSidecar } from './sample-analysis'
 import { SAMPLE_TRACKS } from './sample-tracks'
 
 /**
@@ -495,3 +497,11 @@ export const SAMPLE_COLLECTION: SampleCollection = {
     trackIds: p.tracks.map((t) => t.id),
   })),
 }
+
+/**
+ * The sample's analysis sidecar (v35.1), loaded alongside it so the four
+ * descriptor filters have values to act on. Kept out of `SAMPLE_COLLECTION`
+ * itself: it is not library data, and `loadSampleCollection` hands it to the
+ * `analysis` store rather than to `replaceLibrary`.
+ */
+export const SAMPLE_ANALYSIS: AnalysisSidecar = buildSampleSidecar(SAMPLE_COLLECTION.tracks)

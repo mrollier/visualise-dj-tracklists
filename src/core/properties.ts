@@ -30,6 +30,15 @@ export const REKORDBOX_COLOURS: Record<string, string> = {
 export interface TrackProperty {
   key: TrackSortField
   label: string
+  /**
+   * Filter-rail label, when the full one cannot fit (v35.1). The rail is
+   * 250px and its label column is 52px — "Danceability" needs 85px, and
+   * widening the column for it is what knocked the descriptor rows' number
+   * boxes and ↺ out of line with BPM/Year/Rating. A one-letter label plus
+   * the row's icon fits in 29px, so every row keeps one left edge. Columns
+   * and the Advanced table are unaffected; they show `label`.
+   */
+  shortLabel?: string
   kind: PropertyKind
   /** All true today; the colour checklist now exists (the `colour` kind) —
    *  the flag remains so a future kind can opt a property out of range
@@ -44,8 +53,8 @@ export interface TrackProperty {
   hint?: string
   /**
    * Every non-null value comes from the analysis sidecar (v35): no DJ library
-   * supplies it. Groups the filter row into the collapsed Analysis section so
-   * the caveat these share is stated once. Deliberately does NOT suppress the
+   * supplies it. Groups the filter row under the Analysis caption so the
+   * caveat these share is stated once. Deliberately does NOT suppress the
    * per-cell provenance underline — a column where every filled cell is
    * analysed still has to say so somewhere that survives a screenshot.
    */
@@ -54,7 +63,10 @@ export interface TrackProperty {
   max?: number
 }
 
-type PropertyOptions = Pick<TrackProperty, 'format' | 'hint' | 'analysisOnly' | 'max'>
+type PropertyOptions = Pick<
+  TrackProperty,
+  'format' | 'hint' | 'analysisOnly' | 'max' | 'shortLabel'
+>
 
 export function formatDuration(value: string | number): string {
   const secs = Math.round(Number(value))
@@ -67,6 +79,23 @@ function formatSize(value: string | number): string {
 
 function formatPercent(value: string | number): string {
   return `${value}%`
+}
+
+/**
+ * The four analysis-sidecar descriptors, in registry order. Exported so the
+ * row icons can be keyed exhaustively rather than by an {#if} chain that
+ * silently renders nothing for a fifth one.
+ */
+export const DESCRIPTOR_KEYS = ['arousal', 'valence', 'danceability', 'happiness'] as const
+export type DescriptorKey = (typeof DESCRIPTOR_KEYS)[number]
+
+/**
+ * Narrows a property key to one the row-icon record covers, so a future
+ * `analysisOnly` property that has no icon yet renders without one rather
+ * than crashing on an undefined spec.
+ */
+export function isDescriptorKey(key: TrackSortField): key is DescriptorKey {
+  return (DESCRIPTOR_KEYS as readonly string[]).includes(key)
 }
 
 /**
@@ -107,6 +136,7 @@ export const TRACK_PROPERTIES: readonly TrackProperty[] = [
   }),
   prop('arousal', 'Arousal', 'number', {
     ...DESCRIPTOR,
+    shortLabel: 'A',
     hint:
       'Model-estimated intensity, 0-100%. From emomusic-msd-musicnn, rescaled from its native ' +
       '1-9. Your library only spans about 28-83% because the model pulls towards its average. ' +
@@ -114,12 +144,14 @@ export const TRACK_PROPERTIES: readonly TrackProperty[] = [
   }),
   prop('valence', 'Valence', 'number', {
     ...DESCRIPTOR,
+    shortLabel: 'V',
     hint:
       'Model-estimated positivity, 0-100%. Same model and the same caveats as Arousal, and the ' +
       'most tempo-entangled of the four.',
   }),
   prop('danceability', 'Danceability', 'number', {
     ...DESCRIPTOR,
+    shortLabel: 'D',
     hint:
       'How confident the model is that the track is danceable, 0-100%. From ' +
       'danceability-msd-musicnn. Saturated here - 79% of the library scores above 90 - so it ' +
@@ -127,6 +159,7 @@ export const TRACK_PROPERTIES: readonly TrackProperty[] = [
   }),
   prop('happiness', 'Happiness', 'number', {
     ...DESCRIPTOR,
+    shortLabel: 'H',
     hint:
       "How confident the model is of its 'happy' class, 0-100%. From mood_happy-msd-musicnn. " +
       'The widest spread of the four, but it tracks genre at least as much as mood.',

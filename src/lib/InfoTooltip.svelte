@@ -11,9 +11,17 @@
     label?: string
     /** Which edge of the trigger the panel prefers to align to. */
     align?: 'left' | 'right'
+    /**
+     * Replaces the ⓘ glyph, for rows whose own content is the natural place
+     * to hover (v35.1: the descriptor filters, where a 250px rail has no
+     * width for a label AND an icon). Styling comes from the caller — a
+     * snippet is scoped where it is defined, not where it renders — so the
+     * button only drops its own type and colour here.
+     */
+    trigger?: Snippet
     children: Snippet
   }
-  let { label = 'More information', align = 'left', children }: Props = $props()
+  let { label = 'More information', align = 'left', trigger, children }: Props = $props()
 
   let tipId = `info-tip-${Math.random().toString(36).slice(2, 9)}`
 
@@ -68,6 +76,7 @@
   <button
     type="button"
     class="info"
+    class:custom={trigger !== undefined}
     class:pinned
     aria-label={label}
     aria-expanded={pinned}
@@ -75,7 +84,8 @@
     bind:this={buttonEl}
     onclick={() => (pinned = !pinned)}
     onfocus={() => (hovered = true)}
-    onblur={() => (hovered = false)}>ⓘ</button
+    onblur={() => (hovered = false)}
+    >{#if trigger}{@render trigger()}{:else}ⓘ{/if}</button
   >
   {#if shown}
     <div
@@ -106,6 +116,21 @@
     line-height: 1;
     color: var(--ink-muted);
     cursor: pointer;
+  }
+
+  /* A custom trigger stands in for the glyph, so the button contributes no
+     type or padding of its own — only the hover/pin colour below, which the
+     caller's content inherits through currentColor. `help` (not `pointer`):
+     the click pins, but the affordance being advertised is an explanation.
+     Declared ABOVE the hover rule deliberately: `.info.custom` and
+     `.info:hover` have equal specificity, so the later one wins and putting
+     this second would silently kill the hover colour. */
+  .info.custom {
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    cursor: help;
+    min-width: 0;
   }
 
   .info:hover,

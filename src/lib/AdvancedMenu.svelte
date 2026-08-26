@@ -14,7 +14,7 @@
   import { resetAdvancedCriteria, resetAdvancedSettings } from '../core/reset'
   import { type BpmProgression } from '../core/settings'
   import { COLUMN_LABELS } from '../core/columns'
-  import { PROPERTY_BY_KEY } from '../core/properties'
+  import { isDescriptorKey, PROPERTY_BY_KEY } from '../core/properties'
   import type { TrackSortField } from '../core/trackSort'
   import ConfirmDialog from './ConfirmDialog.svelte'
   import FolderLinkControl from './FolderLinkControl.svelte'
@@ -118,6 +118,13 @@
         : s.visibleFilters.filter((k) => k !== key),
     }))
     if (!nowShown) clearPanelFilter(key)
+  }
+
+  /** Whether a row belongs to the analysed band; `undefined` (past either
+   *  end of the list) counts as outside it, so the band closes at the last
+   *  row instead of running off the bottom. */
+  function isAnalysed(field: TrackSortField | undefined): boolean {
+    return field !== undefined && PROPERTY_BY_KEY.get(field)?.analysisOnly === true
   }
 
   // Column checkboxes list the columns in the user's own order and toggle
@@ -551,9 +558,25 @@
         <span>column</span>
         <span>filter</span>
       </div>
-      {#each $settings.trackColumns as field (field)}
-        <div class="prop-row">
-          <span class="prop-name">{COLUMN_LABELS[field]}</span>
+      {#each $settings.trackColumns as field, i (field)}
+        <!-- The analysis band's own rules, both edges of it. Unlike the
+             Starred/Constellation group below, which is last and so needs
+             only a line above it, this one sits mid-list — a single rule
+             would leave it open-ended at the bottom and read as "everything
+             from Arousal down is analysed". The band follows the user's own
+             column order rather than a fixed index, so dragging a descriptor
+             elsewhere moves the rules with it. -->
+        {#if isAnalysed(field) !== isAnalysed($settings.trackColumns[i - 1]) && i > 0}
+          <div class="group-divider"></div>
+        {/if}
+        <div class="prop-row" class:descriptor={isDescriptorKey(field)}>
+          <!-- The descriptors carry their rail icon here too (v35.1). The
+               rail labels them by one letter, and this table is the only
+               place that shows icon and full name together — it is how "D"
+               becomes readable as Danceability. -->
+          <span class="prop-name">
+            {#if isDescriptorKey(field)}<PanelFilterIcon key={field} />{/if}{COLUMN_LABELS[field]}
+          </span>
           <input
             type="checkbox"
             aria-label="{COLUMN_LABELS[field]} column"
@@ -1012,8 +1035,10 @@
 
   /* flex, so the vector icon and the word are two items with one exact gap
      between them (v27) — see FiltersSection, which pairs these same four
-     rows with the same icons. */
-  .prop-row.pseudo .prop-name {
+     rows with the same icons. The descriptor rows (v35.1) join the same rule
+     rather than getting one of their own: same icon, same gap, same edge. */
+  .prop-row.pseudo .prop-name,
+  .prop-row.descriptor .prop-name {
     display: flex;
     align-items: center;
     gap: 8px;

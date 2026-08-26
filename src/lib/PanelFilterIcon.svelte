@@ -1,9 +1,13 @@
 <script lang="ts">
   import type { PanelFilterKey } from '../core/marks'
+  import type { DescriptorKey } from '../core/properties'
 
   /**
-   * The four permanent panel rows' icons, as vectors rather than the ★/☰/🔗/♪
-   * text glyphs they replace (v27 fix).
+   * Icons for the left panel's non-plain filter rows: the four permanent panel
+   * rows, as vectors rather than the ★/☰/🔗/♪ text glyphs they replace (v27
+   * fix), and since v35.1 the four analysis descriptors, which are labelled by
+   * a single letter in the rail and so lean on their icon to be recognisable.
+   * The v27 reasoning below is exactly why those four are not emoji either.
    *
    * Those four glyphs come from three different fonts (🔗 is a colour emoji,
    * the rest are text) and their advance widths ran 9.5px…18px at the same
@@ -29,9 +33,9 @@
     strokeWidth?: number
   }
 
-  // A Record (not an {#if} chain): a fifth PANEL_FILTERS row then fails to
-  // compile here instead of silently rendering no icon.
-  const ICONS: Record<PanelFilterKey, IconSpec> = {
+  // A Record (not an {#if} chain): a fifth PANEL_FILTERS row or descriptor
+  // then fails to compile here instead of silently rendering no icon.
+  const ICONS: Record<PanelFilterKey | DescriptorKey, IconSpec> = {
     starred: {
       viewBox: '0 0 16 16',
       paths: [
@@ -66,10 +70,50 @@
         { d: 'M18 13a3 3 0 1 0 0 6 3 3 0 0 0 0-6z' },
       ],
     },
+    // The four descriptors (v35.1). Chosen to be distinguishable by SHAPE at
+    // 14px, not by metaphor: a bolt is angular, the wave horizontal, the tone
+    // mark a square and the smiley a circle — so the four never read as one
+    // another in a stacked rail even before the eye resolves the drawing.
+    // Arousal — intensity, as a bolt.
+    arousal: {
+      viewBox: '0 0 16 16',
+      paths: [{ d: 'M9.5 0 2.8 9.2h4.1L6.3 16 13.2 6.6H8.9z' }],
+    },
+    // Valence — the negative↔positive axis, as the half-filled tone mark.
+    // Square, not the usual circle, so it cannot be mistaken for happiness.
+    valence: {
+      viewBox: '0 0 16 16',
+      strokeWidth: 1.5,
+      paths: [
+        {
+          d: 'M3 1.6h10a1.4 1.4 0 0 1 1.4 1.4v10a1.4 1.4 0 0 1-1.4 1.4H3a1.4 1.4 0 0 1-1.4-1.4V3A1.4 1.4 0 0 1 3 1.6z',
+          stroke: true,
+        },
+        { d: 'M3 1.6h5v12.8H3a1.4 1.4 0 0 1-1.4-1.4V3A1.4 1.4 0 0 1 3 1.6z' },
+      ],
+    },
+    // Danceability — groove, as one period of a wave.
+    danceability: {
+      viewBox: '0 0 16 16',
+      strokeWidth: 1.8,
+      paths: [{ d: 'M1 8c1.75-5 5.25-5 7 0s5.25 5 7 0', stroke: true }],
+    },
+    // Happiness — the model's 'happy' class, as the one mark nobody has to
+    // look up.
+    happiness: {
+      viewBox: '0 0 16 16',
+      strokeWidth: 1.5,
+      paths: [
+        { d: 'M8 1.4a6.6 6.6 0 1 0 0 13.2 6.6 6.6 0 1 0 0-13.2z', stroke: true },
+        { d: 'M5.8 6a1 1 0 1 0 0 2 1 1 0 1 0 0-2z' },
+        { d: 'M10.2 6a1 1 0 1 0 0 2 1 1 0 1 0 0-2z' },
+        { d: 'M5 9.7a3.4 3.4 0 0 0 6 0', stroke: true },
+      ],
+    },
   }
 
   interface Props {
-    key: PanelFilterKey
+    key: PanelFilterKey | DescriptorKey
     /** Rendered size in px; the icon fills it edge to edge. */
     size?: number
   }

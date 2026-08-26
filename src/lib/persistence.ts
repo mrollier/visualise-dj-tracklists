@@ -11,7 +11,7 @@ import {
 import { parseProject, type Project } from '../core/persist'
 import { freshFirstSet, type TrackSet } from '../core/sets'
 import { DEFAULT_SETTINGS } from '../core/settings'
-import { ALL_SAMPLE_PACKS, CLASSIC_PACK, SAMPLE_COLLECTION } from '../data/samples'
+import { ALL_SAMPLE_PACKS, CLASSIC_PACK, SAMPLE_ANALYSIS, SAMPLE_COLLECTION } from '../data/samples'
 import {
   activeSetId,
   analysis,
@@ -150,6 +150,12 @@ export function loadSampleCollection(): void {
   // "Sample collection" shows its counts (v11 issue 4).
   const report = buildReport(SAMPLE_COLLECTION.tracks, [])
   report.notes = [`${SAMPLE_COLLECTION.playlists.length} themed playlists`]
+  // Its generated sidecar comes with it (v35.1), so the descriptor columns
+  // and filters have values to act on. Set BEFORE replaceLibrary: the merge
+  // is a derived store over both, and setting it after would leave one frame
+  // in which the new library is on screen with the previous library's
+  // sidecar still joined to it.
+  analysis.set(SAMPLE_ANALYSIS)
   replaceLibrary({
     tracks: SAMPLE_COLLECTION.tracks,
     name: SAMPLE_COLLECTION.name,

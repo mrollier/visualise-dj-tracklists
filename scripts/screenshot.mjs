@@ -2234,39 +2234,101 @@ await page.waitForTimeout(200)
   await page.getByRole('button', { name: 'Wheel', exact: true }).first().click()
   await page.waitForTimeout(300)
 
-  // The Analysis group: present now that one descriptor filter is visible,
-  // and its rows must not have squeezed the shared number boxes.
-  // The group nests inside the Filters section, which this far into the run
-  // is closed — a nested <details> in a closed parent is in the DOM but not
-  // visible, which is what the first run of this block caught.
+  // The Analysis caption: present now that one descriptor filter is visible,
+  // and its rows must line up with BPM/Year/Rating. It nests inside the
+  // Filters section, which this far into the run is closed.
   const filters = page.locator('aside').first().locator('details', { hasText: 'Filters' }).first()
   if (!(await filters.evaluate((d) => d.open))) {
     await page.locator('summary', { hasText: 'Filters' }).first().click()
     await page.waitForTimeout(200)
   }
 
-  const group = page.locator('details.analysis-group')
-  if ((await group.count()) === 0) {
-    errors.push('v35: the Analysis filter group never appeared')
-  } else {
-    await group.locator('summary').click()
-    await page.waitForTimeout(200)
-    if ((await group.locator('.filter-row').count()) === 0) {
-      errors.push('v35: the Analysis group opened empty')
-    }
-    const boxes = await page.evaluate(() => {
-      const rows = [...document.querySelectorAll('.filter-row')]
-      const widths = rows
-        .map((r) => r.querySelector('input[type=number]'))
-        .filter((i) => i !== null)
-        .map((i) => i.getBoundingClientRect().width)
-      return { min: Math.min(...widths), n: widths.length }
-    })
-    if (boxes.n > 0 && boxes.min < 40) {
-      errors.push(`v35: a filter's number box was squeezed to ${Math.round(boxes.min)}px`)
-    }
-    await page.screenshot({ path: `${scratch}/22-analysis-filter-group.png` })
+  // v35.1: a caption, NOT a <details>. The nested collapsible read as a peer
+  // of Playlists/Genres and hid rows the user had just switched on, so this
+  // asserts the group is un-collapsible as much as that it exists.
+  if ((await page.locator('.analysis-caption').count()) === 0) {
+    errors.push('v35.1: the Analysis caption never appeared')
   }
+  if ((await page.locator('details.analysis-group').count()) > 0) {
+    errors.push('v35.1: the Analysis group is a collapsible again')
+  }
+  if ((await page.locator('.filter-label.descriptor').count()) === 0) {
+    errors.push('v35.1: no descriptor filter row rendered')
+  }
+
+  // The alignment this rework exists for: every filter row's min box, max box
+  // and ↺ share one left edge. A regression here is invisible to vitest and
+  // to the typechecker — it is pure layout — and it is exactly what the 72px
+  // descriptor label column used to break.
+  const align = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('.filter-row')].filter(
+      (r) => r.querySelector('input[type=number]') !== null,
+    )
+    const edge = (r, sel) => {
+      const el = r.querySelector(sel)
+      return el === null ? null : Math.round(el.getBoundingClientRect().left)
+    }
+    return {
+      n: rows.length,
+      mins: [...new Set(rows.map((r) => edge(r, 'input[type=number]')))],
+      resets: [...new Set(rows.map((r) => edge(r, '.range-reset')).filter((x) => x !== null))],
+      boxes: rows.map((r) => Math.round(r.querySelector('input').getBoundingClientRect().width)),
+    }
+  })
+  if (align.n < 2) {
+    errors.push(`v35.1: only ${align.n} numeric filter rows on show — alignment unproven`)
+  } else {
+    if (align.mins.length !== 1) {
+      errors.push(`v35.1: filter number boxes start at ${align.mins.join('/')}px, not one edge`)
+    }
+    if (align.resets.length !== 1) {
+      errors.push(`v35.1: filter ↺ buttons start at ${align.resets.join('/')}px, not one edge`)
+    }
+    if (Math.min(...align.boxes) < 40) {
+      errors.push(`v35.1: a filter's number box was squeezed to ${Math.min(...align.boxes)}px`)
+    }
+  }
+  await page.screenshot({ path: `${scratch}/22-analysis-filter-group.png` })
+
+  // v35.1: an emptied box must fall back to the property's OWN ceiling, never
+  // a magic 9999. Deselecting every playlist is the reachable way to reach the
+  // no-extent state the bug needs — with nothing in scope there are no
+  // extremes to fall back to, which is what a fresh import looks like before
+  // a sidecar is loaded. Danceability caps at 100, Rating at 5: the fix is
+  // registry-driven, not special-cased for the descriptors.
+  await page.locator('aside').first().getByRole('button', { name: 'None' }).first().click()
+  await page.waitForTimeout(300)
+  // The descriptor rows are labelled by ONE letter since v35.1, so they are
+  // addressed by their tooltip's aria-label rather than by row text.
+  for (const [label, ceiling, selector] of [
+    ['Danceability', 100, '.filter-row:has(button[aria-label="About Danceability"])'],
+    ['Rating', 5, null],
+  ]) {
+    const row =
+      selector === null
+        ? page.locator('.filter-row', { hasText: label }).first()
+        : page.locator(selector).first()
+    const [minBox, maxBox] = [row.locator('input').first(), row.locator('input').nth(1)]
+    await maxBox.fill('')
+    await minBox.fill('0')
+    await minBox.press('Enter')
+    await page.waitForTimeout(150)
+    const got = Number(await maxBox.inputValue())
+    if (got !== ceiling) {
+      errors.push(`v35.1: an empty ${label} max fell back to ${got}, not its ceiling ${ceiling}`)
+    }
+    // The `max` attribute constrains the spinner, not the keyboard, so a
+    // typed value has to be clamped by the same bound.
+    await maxBox.fill('500')
+    await maxBox.press('Enter')
+    await page.waitForTimeout(150)
+    const typed = Number(await maxBox.inputValue())
+    if (typed !== ceiling) {
+      errors.push(`v35.1: a typed ${label} max of 500 was kept as ${typed}, past its ${ceiling}`)
+    }
+  }
+  await page.locator('aside').first().getByRole('button', { name: 'All' }).first().click()
+  await page.waitForTimeout(300)
 
   // Put the columns back so the reset screenshot below matches its siblings.
   await page.getByRole('button', { name: /Advanced/ }).click()

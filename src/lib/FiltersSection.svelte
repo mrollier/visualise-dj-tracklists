@@ -14,6 +14,7 @@
   import { isPanelFilterKey, PANEL_FILTERS } from '../core/marks'
   import {
     ANALYSIS_GROUP_HINT,
+    isDescriptorKey,
     PROPERTY_BY_KEY,
     REKORDBOX_COLOURS,
     type TrackProperty,
@@ -58,10 +59,27 @@
   const analysisRows = $derived(rows.filter((p) => p.analysisOnly === true))
   const panelRows = $derived(PANEL_FILTERS.filter((m) => $settings.visibleFilters.includes(m.key)))
 
+  /**
+   * The row's own bounds: the key wheel's 1–12, else 0 up to the registry's
+   * `max` (5 for Rating, 100 for the descriptors) — `undefined` where the
+   * property is genuinely unbounded (BPM, Year, play count).
+   *
+   * One source for the boxes' `min`/`max` attributes AND for `commit`'s
+   * clamping. They used to disagree: the attributes came from the registry
+   * while commit fell back to a hardcoded 0/9999, so on a library with no
+   * values for a property, typing one side filled the other with 9999 —
+   * a Danceability of 9999% (and a Rating of 9999) on a control that
+   * advertised a ceiling of 100.
+   */
+  function propBounds(prop: TrackProperty): [number, number | undefined] {
+    if (prop.kind === 'key') return [1, 12]
+    return [0, prop.max]
+  }
+
   /** The number boxes' ceiling: kind for keys, the registry for everything else. */
   function boxMax(prop: TrackProperty): string | undefined {
-    if (prop.kind === 'key') return '12'
-    return prop.max === undefined ? undefined : String(prop.max)
+    const ceiling = propBounds(prop)[1]
+    return ceiling === undefined ? undefined : String(ceiling)
   }
 
   // Extents of the playlist-scoped library for the numeric-ish rows: the
@@ -82,6 +100,13 @@
   // Date sentinels keep persisted JSON finite while a side stays open.
   const DATE_OPEN_MIN = '0000-01-01'
   const DATE_OPEN_MAX = '9999-12-31'
+
+  // The open ceiling for a property with no registry max and nothing in
+  // scope (BPM, Year, play count, file size). Finite, so the range still
+  // serialises; MAX_SAFE_INTEGER rather than a hardcoded 9999, which was
+  // below the real values of size (bytes) and would have filtered them all
+  // out had any track been missing its extent.
+  const OPEN_MAX = Number.MAX_SAFE_INTEGER
 
   function seedRow(prop: TrackProperty, active: LibraryFilters): void {
     const range = active.properties[prop.key]
@@ -197,13 +222,19 @@
       return
     }
     if (prop.kind === 'number' || prop.kind === 'key') {
-      // An emptied side falls back to the selection extreme (keeps JSON-safe
-      // finite bounds); key ranges fall back to the full 1–12 wheel.
+      // An emptied side falls back to the selection extreme, then to the
+      // property's own bound — never past it. With no values in scope there
+      // is no extent, and that is exactly when the fallback is visible.
+      const [floor, ceiling] = propBounds(prop)
       const extent = scopedExtents[prop.key] ?? (prop.kind === 'key' ? [1, 12] : null)
+      // Typed values clamp to the same bound: `max="100"` on a number input
+      // constrains the spinner, not the keyboard, so 500 would otherwise
+      // reach the store on a property that cannot exceed 100.
+      const cap = (n: number): number => Math.min(Math.max(n, floor), ceiling ?? OPEN_MAX)
       const range = clampRange(
         [
-          min === '' ? (extent?.[0] ?? 0) : Number(min),
-          max === '' ? (extent?.[1] ?? 9999) : Number(max),
+          cap(min === '' ? (extent?.[0] ?? floor) : Number(min)),
+          cap(max === '' ? (extent?.[1] ?? ceiling ?? OPEN_MAX) : Number(max)),
         ],
         edited,
       )
@@ -306,9 +337,32 @@
 
   {#snippet filterRow(prop: TrackProperty)}
     <div class="filter-row">
-      <span class="filter-label" title={prop.hint}
-        >{prop.key === 'dateAdded' ? 'Added' : prop.label}</span
-      >
+      {#if prop.analysisOnly === true && isDescriptorKey(prop.key)}
+        {@const key = prop.key}
+        <!-- The whole label — icon and letter together — is the tooltip
+             trigger (v35.1). A separate ⓘ would have to come out of the same
+             52px the label column gives every row, and a dotted underline
+             under a one-character label reads as a stray mark. -->
+        <span class="filter-label descriptor">
+          <InfoTooltip label="About {prop.label}">
+            {#snippet trigger()}
+              <span class="descriptor-trigger">
+                <PanelFilterIcon {key} />{prop.shortLabel ?? prop.label}
+              </span>
+            {/snippet}
+            <!-- The name on its own line (InfoTooltip renders a bare <span>
+                 as a block): the rail shows only a letter, so the tooltip is
+                 a definition and wants a term above its gloss, not a bold
+                 run-in ahead of a capitalised sentence. -->
+            <span><strong>{prop.label}</strong></span>
+            {prop.hint}
+          </InfoTooltip>
+        </span>
+      {:else}
+        <span class="filter-label" title={prop.hint}
+          >{prop.key === 'dateAdded' ? 'Added' : prop.label}</span
+        >
+      {/if}
       {#if prop.kind === 'number' || prop.kind === 'key'}
         <input
           type="number"
@@ -420,15 +474,25 @@
   {/each}
 
   {#if analysisRows.length > 0}
-    <details class="analysis-group">
-      <summary class="micro-label">
-        Analysis
-        <InfoTooltip label="About the analysed values">{ANALYSIS_GROUP_HINT}</InfoTooltip>
-      </summary>
-      {#each analysisRows as prop (prop.key)}
-        {@render filterRow(prop)}
-      {/each}
-    </details>
+    <!-- Not a <details> any more (v35.1): a second collapsible nested inside
+         the Filters one looked like a peer of Playlists/Genres/Combo criteria
+         and hid rows the user had just deliberately switched on. A hairline
+         and a caption say "these four are different" without hiding them —
+         the same break Starred/Constellation get below. -->
+    {#if plainRows.length > 0}
+      <div class="group-divider"></div>
+    {/if}
+    <div class="analysis-caption">
+      Analysis
+      <span class="caption-info">
+        <InfoTooltip label="About the analysed values" align="right"
+          >{ANALYSIS_GROUP_HINT}</InfoTooltip
+        >
+      </span>
+    </div>
+    {#each analysisRows as prop (prop.key)}
+      {@render filterRow(prop)}
+    {/each}
   {/if}
 
   {#if panelRows.length > 0 && rows.length > 0}
@@ -649,19 +713,40 @@
     margin-left: auto;
   }
 
-  /* The descriptors' names run long ("Danceability") and the rail is 250px,
-     so the group's labels get more room than the flat rows' 52px — bought
-     from the number boxes, which are min-width: 0 and shrink to suit. */
-  .analysis-group {
-    margin: 4px 0;
+  /* Deliberately NOT .micro-label: that class is the top-level
+     Playlists/Filters/Genres/Combo criteria voice, and this caption sits one
+     level down inside Filters, not beside them. Sentence case at a smaller
+     size and muted colour reads as a subsection without borrowing a chrome
+     idiom this panel uses nowhere else — it has only type and hairlines. */
+  .analysis-caption {
+    display: flex;
+    align-items: center;
+    padding: 2px 0;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--ink-muted);
   }
 
-  .analysis-group summary {
-    margin-bottom: 4px;
+  /* The ⓘ lands in the ↺ column, so the caption's right edge is the one
+     every row below it already shares. */
+  .caption-info {
+    display: inline-flex;
+    margin-left: auto;
   }
 
-  .analysis-group .filter-label {
-    width: 72px;
+  /* v35.1: the descriptor labels keep the SAME 52px column as every other
+     row — that shared left edge for the number boxes and the ↺ is the whole
+     point of shortening "Danceability" to "D". Icon (14) + gap (5) + letter
+     (~9) = 28px, so the column is no longer the binding constraint it was
+     when it had to hold a full word. */
+  .filter-label.descriptor {
+    overflow: visible;
+  }
+
+  .descriptor-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
   }
 
   /* The one rule dividing metadata ranges above from the marks/ring group

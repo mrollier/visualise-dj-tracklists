@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'vitest'
 import { EMPTY_TRACK_FIELDS } from '../src/core/model'
-import { PROPERTY_BY_KEY, TRACK_PROPERTIES, formatPropertyValue } from '../src/core/properties'
+import {
+  DESCRIPTOR_KEYS,
+  isDescriptorKey,
+  PROPERTY_BY_KEY,
+  TRACK_PROPERTIES,
+  formatPropertyValue,
+} from '../src/core/properties'
 import { track } from './helpers'
 
 describe('TRACK_PROPERTIES (v11 issue 1: the one registry)', () => {
@@ -26,7 +32,7 @@ describe('TRACK_PROPERTIES (v11 issue 1: the one registry)', () => {
   })
 
   test('the four descriptors are analysis-only percent properties (v35)', () => {
-    for (const key of ['arousal', 'valence', 'danceability', 'happiness'] as const) {
+    for (const key of DESCRIPTOR_KEYS) {
       const p = PROPERTY_BY_KEY.get(key)
       expect(p?.kind, key).toBe('number')
       expect(p?.filterable, key).toBe(true)
@@ -34,6 +40,27 @@ describe('TRACK_PROPERTIES (v11 issue 1: the one registry)', () => {
       expect(p?.max, key).toBe(100)
       expect(p?.hint, key).toBeTruthy()
     }
+  })
+
+  test('DESCRIPTOR_KEYS is exactly the analysis-only set — the icon record keys off it', () => {
+    const analysisOnly = TRACK_PROPERTIES.filter((p) => p.analysisOnly === true).map((p) => p.key)
+    expect([...analysisOnly].sort()).toEqual([...DESCRIPTOR_KEYS].sort())
+    expect(DESCRIPTOR_KEYS.every(isDescriptorKey)).toBe(true)
+    expect(isDescriptorKey('bpm')).toBe(false)
+  })
+
+  test('each descriptor has a one-character rail label, and nothing else does (v35.1)', () => {
+    // The 250px rail's label column is 52px and holds an icon too, so a
+    // second character would push the number boxes out of line with
+    // BPM/Year/Rating — the exact defect this shortLabel exists to fix.
+    for (const key of DESCRIPTOR_KEYS) {
+      expect(PROPERTY_BY_KEY.get(key)?.shortLabel, key).toHaveLength(1)
+    }
+    const shortened = TRACK_PROPERTIES.filter((p) => p.shortLabel !== undefined).map((p) => p.key)
+    expect([...shortened].sort()).toEqual([...DESCRIPTOR_KEYS].sort())
+    // Distinct, or two rows would show the same letter.
+    const letters = DESCRIPTOR_KEYS.map((k) => PROPERTY_BY_KEY.get(k)?.shortLabel)
+    expect(new Set(letters).size).toBe(DESCRIPTOR_KEYS.length)
   })
 
   test('energy explains itself but is not analysis-only — a MIK comment also fills it', () => {
