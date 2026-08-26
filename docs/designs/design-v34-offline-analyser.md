@@ -298,7 +298,62 @@ Three layers instead:
 Written for whoever picks this up next, human or agent. The ordering is by
 value per unit of effort, and the first two are the ones that matter.
 
-### 1. Ten anchor tracks (Michiel, ~10 minutes) — the highest-value thing left
+### 0. The anchor labels exist, and they changed the ranking
+
+Michiel supplied 18 labelled tracks on 2026-08-26 — eleven he called
+"invincible" and seven "spaced-out couch potatoes". They are recorded below so
+they survive as a **test set**, which is what they turned out to be good for.
+
+| label | track | BPM | arousal | E (3.5–7.5) |
+| --- | --- | --- | --- | --- |
+| 9.5 | DJ Warlock — Hallucination | 146 | 6.88 | 9 |
+| 9.5 | Clouds — Arkhangelsk Nightmare | 140 | 6.68 | 8 |
+| 9.5 | Salvatore Ganacci — Horse (Schacke Remix) | 146 | 6.49 | 8 |
+| 9.5 | Bollini Verdi — Pump Ton Acid | 172 | 6.30 | 7 |
+| 9.5 | Fresh — Gatekeeper | 174 | 5.82 | 6 |
+| 9.5 | slowthai — Doorman | 175 | 5.74 | 6 |
+| 9.5 | Dub-Liner — The Kill | 175 | 5.72 | 6 |
+| 9.5 | SPK — Looper | 175 | 5.69 | 6 |
+| 9.5 | Timo Maas & Gary D. — Die Herdplatte 100 | 163 | 5.66 | 6 |
+| 9.5 | Nesh Mayday — Push It Badly | 170 | 5.00 | 4 |
+| 9.5 | Just Jungle — Ere Dread | 170 | 4.82 | 4 |
+| 3.5 | Versa & Rowl — Zodiac | 168 | 4.42 | 3 |
+| 3.5 | Yung Lean — Agony (dj poolboi Remix) | 110 | 4.57 | 3 |
+| 3.5 | Herbert — It's Only (DJ Koze Remix) | 118 | 4.08 | 2 |
+| 3.0 | Nu — Fool (Ft. Jo Ke) | 114 | 4.46 | 3 |
+| 2.0 | Leafar Legov — Hidden Treasure | 127 | 4.24 | 3 |
+| 2.0 | Shackleton — Blood On My Hands | 128 | 5.37 | 5 |
+| 1.5 | Traumprinz — Ambient 006 | 122 | 3.58 | 1 |
+
+**The low end is already well calibrated.** Ambient 006 — his own "best
+example" — lands on 1, and five of the seven quiet tracks fall within a step of
+his label. Overall the model correlates with his judgement at **r = +0.783**,
+far better than DEAM's held-out 0.525: on his own material it ranks better than
+the public benchmark suggests.
+
+**The high end fails, and the reason is now precise.** Within the eleven tracks
+he called equally maximal, **r(bpm, arousal) = −0.707** — the model orders them
+by tempo, backwards. The three at 140–146 BPM take the top three places; every
+170–175 BPM track sits below them.
+
+That is a **ranking** failure, so no rescaling can repair it. Refitting the band
+on these anchors was tried and is instructive: mean error improves from 2.31 to
+1.47 steps, but the implied band [3.67, 6.18] pushes **669 of 2040 tracks onto
+energy 10** and 1285 onto 8–10. It buys the anchors at the cost of the library,
+because a stretch cannot move a track past one the model placed above it.
+
+**Consequences for what to do next**, which reorder the sections below:
+
+- **Keep the 3.5–7.5 band.** Both fitted alternatives — DEAM's and the
+  anchors' — are worse across the library.
+- **The anchors are an acceptance test, not a calibration.** Any candidate fix
+  must put the eleven above the seven *and* stop ranking 170 BPM below 146.
+- **More anchors would help only in the middle.** The set is bimodal by
+  construction, which is what makes the variance-matched fit over-stretch
+  (label sd 3.35 against prediction sd 0.93). Five tracks he would call 5–6
+  would tame it — but only after the ranking is fixed.
+
+### 1. Ten anchor tracks (Michiel, ~10 minutes) — superseded by section 0
 
 Name roughly five tracks you would call energy 1–2 and five you would call
 9–10. Those pin `AROUSAL_MIN` and `AROUSAL_MAX` in
@@ -316,7 +371,19 @@ extremes are exactly what determines them. This dominates both €58 of Mixed In
 Key and 1.3 GB of DEAM, which is what the sections above spent their effort
 establishing.
 
-### 2. Fix the jungle failure — needs (1) first
+**Does file format bias any of this?** Checked, because the anchors are mostly
+non-AIFF (Michiel auditions them in the app, and Chromium cannot play AIFF).
+Format itself does not affect analysis — essentia decodes everything to PCM and
+the model works on 16 kHz mel patches, well inside what MP3 preserves. The
+correlation is indirect and real but small: AIFF skews faster and much more
+jungle-heavy (mean 145 BPM, 219 of 763 tracks Jungle) than MP3 (135 BPM, 133 of
+1204), and carries slightly lower mean arousal (5.55 against 5.77) — which is
+the same tempo effect, not a format effect. So an all-MP3 anchor set
+*understates* the problem rather than hiding it in a dangerous direction. No
+reason to avoid AIFF when labelling; the analyser reads them fine (7 failures
+in 763).
+
+### 2. Fix the ranking failure — the anchors above are its acceptance test
 
 The measured problem is that arousal peaks at 125–140 BPM and falls away above
 155, so a quarter of the library is systematically under-rated. The one lead
