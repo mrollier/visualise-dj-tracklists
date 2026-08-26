@@ -427,6 +427,14 @@ labelled 3.5) is the one such track that already exists, and the current model
 gets it right at 3 — this pipeline is not uniformly bad, it is bad in one
 specific place.
 
+**The model-swap question is settled elsewhere.** A survey of the alternatives
+(beaTunes, Sononym, Tunebat, AcousticBrainz, cloud APIs) and a full inventory
+of the Essentia heads we are not using is in
+[research/claude-research-sentiment-alternatives.md](../research/claude-research-sentiment-alternatives.md).
+Short version: buy none of them, ensemble the three arousal datasets we already
+have access to, and note that **no `-discogs-effnet` arousal head exists**, so
+electronic-trained embeddings reach affect only via the binary mood heads.
+
 The labels and every measured signal are committed so this survives the
 session: `scripts/anchors.csv` (`path,label,group`, the format
 `calibrate-arousal.py --labels` takes) and `scripts/anchor-signals.json`
@@ -661,6 +669,10 @@ trial, a 30-day no-questions refund, and that WAV is analysed but not tagged.
   `TF_NUM_INTRAOP_THREADS`/`TF_NUM_INTEROP_THREADS` caps that
   `analyse-audio.py` sets, so six workers each spawned ~10 TF threads. Re-run
   with those two lines set, ~120 tracks, `--jobs 4`, printing incrementally.
+- **The three-arousal ensemble and the EffNet mood heads.** Recommended in
+  [research/claude-research-sentiment-alternatives.md](../research/claude-research-sentiment-alternatives.md)
+  on the strength of the anchor shootout and Ching & Widmer (arXiv:2510.04688),
+  but not run. Acceptance criteria are recorded there; nothing is measured yet.
 - **Whether Mixed In Key handles fast material.** The whole basis of section
   0.2's recommendation is untested: all six existing MIK tags are 112–128 BPM
   and house-adjacent, so they say nothing about 165–175 BPM jungle. The seven

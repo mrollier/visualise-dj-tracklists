@@ -129,6 +129,31 @@ next steps ranked at the end of it.
     key only. **In-app pairwise energy labelling was considered as an
     alternative and rejected** — see the v34 non-goals for the three reasons.
 
+13. **Alternative analysis software was surveyed and all of it rejected.**
+    beaTunes, Sononym, Tunebat, AcousticBrainz and cloud mood APIs were
+    compared against the `essentia-tensorflow` pipeline v34 built; findings and
+    sources in
+    [research/claude-research-sentiment-alternatives.md](research/claude-research-sentiment-alternatives.md).
+    The decisive facts: beaTunes' mood comes from Last.fm tags or
+    AcousticBrainz rather than from audio, and AcousticBrainz *is* Essentia;
+    Tunebat's catalogue is frozen at pre-November-2024 Spotify data; Sononym is
+    a sample browser; and MetaBrainz shut AcousticBrainz down **for data
+    quality**, which is the strongest available warning about the mood
+    classifiers we would be expanding into. Meanwhile
+    `scripts/fetch-models.sh` fetches four model files out of a zoo publishing
+    roughly forty families, so the decision is to use what we have properly, in
+    three gated stages: **energy** (ensemble `emomusic`/`deam`/`muse` across
+    MusiCNN and VGGish, add a Discogs-EffNet mood head, add BPM as an explicit
+    term; acceptance = beat leave-one-out MAE 1.60 on the anchors *and* stop
+    ranking 170 BPM below 146), then **descriptors** (`voice_instrumental`
+    first because it is falsifiable by ear, `mtg_jamendo_moodtheme`'s 56 tags
+    last and most sceptically), then **suggestions** (better inputs into the
+    existing deterministic criteria — an audio-similarity engine was considered
+    and rejected: sounding alike is not the same as mixing well). Constraint
+    that shapes all of it, re-verified: **there is no `-discogs-effnet`
+    arousal/valence head**, so electronic-trained embeddings reach affect only
+    through the binary mood heads.
+
 ## Open — v33 audio-analysis provenance (WS1)
 
 The first workstream of the audio-analysis design in
