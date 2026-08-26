@@ -71,6 +71,39 @@ writes the sidecar the app already imports.
    active energy range filter changes meaning, because a null number passes any
    range (`filter.ts:305`) while a real one may not.
 
+**Shipped 2026-08-26.** 2040 of 2047 tracks analysed in 122 minutes;
+`energy 2036 filled, key 3/33, bpm 0/22, 0 ambiguous`; sidecar 0.93 MB against
+a 5 MB cap. Against the six real Mixed In Key tags — the only direct
+measurement of the target scale that exists — mean absolute error is **0.67
+steps**. Full measurements in
+[designs/design-v34-offline-analyser.md](designs/design-v34-offline-analyser.md),
+next steps ranked at the end of it.
+
+### Still open after v34
+
+8. **Analysed energy is unreliable above ~155 BPM, which is a quarter of the
+   library.** `r(bpm, arousal) = -0.066` and mean arousal follows an inverted U
+   peaking at 125–140 BPM, so Jungle — 374 tracks, the largest genre — ranks
+   thirteenth of sixteen when a DJ would put it near the top. The model's
+   training data (Million Song Dataset embeddings, DEAM head) contains
+   essentially no fast breakbeat music. Shipping it anyway is defensible
+   because the sidecar is opt-in, badge-marked and deleteable, but it is the
+   first thing to say to anyone using the feature. The lead worth chasing is
+   the high-band share of beat loudness, which separates jungle where
+   `OnsetRate` does not.
+
+9. **The energy band is bracketed, not fitted.** DEAM was tried as a
+   calibration and rejected on measurement — held-out `r = 0.525` against
+   `r = 0.846` on MTG's own training block, per-genre slopes spanning 0.38 to
+   0.83, and both fitted bands compressing the library back towards a
+   two-value field. Ten hand-labelled anchor tracks would settle it;
+   `scripts/calibrate-arousal.py` takes them directly.
+
+10. **MTG's published arousal accuracy is in-sample.** They advertise Pearson
+    0.821; our pipeline reproduces 0.846 on the DEAM block that must therefore
+    be their training set, and manages 0.525 on the rest. Treat the published
+    figure as advertising in any future model comparison.
+
 ## Open — v33 audio-analysis provenance (WS1)
 
 The first workstream of the audio-analysis design in

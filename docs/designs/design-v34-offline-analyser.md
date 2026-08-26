@@ -293,16 +293,84 @@ Three layers instead:
   see Not verified for why the surface should wait.
 - **No genre embeddings.** WS5, research-gated.
 
-## Deferred
+## Next steps, ranked
 
-- **WS4** — `happiness` and `danceability` joining `TrackSortField` and the
-  property registry.
+Written for whoever picks this up next, human or agent. The ordering is by
+value per unit of effort, and the first two are the ones that matter.
+
+### 1. Ten anchor tracks (Michiel, ~10 minutes) — the highest-value thing left
+
+Name roughly five tracks you would call energy 1–2 and five you would call
+9–10. Those pin `AROUSAL_MIN` and `AROUSAL_MAX` in
+`src/core/analysis.ts` directly, in your genres and your taste — the only
+calibration in this whole investigation that is genuinely in-distribution.
+Write them as `path,label` and run:
+
+```sh
+scripts/.venv/bin/python scripts/calibrate-arousal.py \
+  --sidecar scripts/out/library.analysis.json --labels anchors.csv --scale energy
+```
+
+Ten labels cannot fit a curve, but the band is only two numbers and the
+extremes are exactly what determines them. This dominates both €58 of Mixed In
+Key and 1.3 GB of DEAM, which is what the sections above spent their effort
+establishing.
+
+### 2. Fix the jungle failure — needs (1) first
+
+The measured problem is that arousal peaks at 125–140 BPM and falls away above
+155, so a quarter of the library is systematically under-rated. The one lead
+worth pursuing is the **high-band share of beat loudness**, which separated
+jungle cleanly in the 130-track probe (0.130 against House 0.101, Techno
+0.057, Lo-Fi 0.035) where `OnsetRate` did not. It is also what Mixed In Key's
+patent actually describes.
+
+Shape of the work: add `OnsetRate` and `BeatsLoudness` to the same pass in
+`analyse-audio.py` (they are non-ML, so no new model and no new licence), re-run
+(~2 h, and the existing sidecar means only the new fields cost anything), then
+test any candidate formula against **both** the anchor labels from (1) **and**
+the genre ordering. Do not build the formula before the labels exist — an
+invented blend is exactly the confident-wrong-number this layer exists to
+prevent.
+
+**Do not blend BPM into energy**, however tempting: BPM is already its own
+combo criterion and its own radial axis, so energy would become a partial
+duplicate and the combo engine would double-count tempo.
+
+### 3. WS4 — `happiness` and `danceability` as real properties
+
+Both are already in the sidecar for all 2040 tracks, so this costs no
+re-analysis: `TrackSortField` (`trackSort.ts:10`), a `TRACK_PROPERTIES` entry
+each (`properties.ts:61`, which buys filter and column for free),
+`EMPTY_TRACK_FIELDS`, and `migrateColumns`. The pinned counts in
+`tests/properties.test.ts` and `tests/columns.test.ts` (both 28) will need
+updating — that is the work.
+
+Worth noting `danceability` looked **more trustworthy than energy** in the run:
+Turkish Funk 0.62, Funk 0.85, every dance genre 0.90–0.98. It orders the
+library the way a listener would, which analysed energy does not.
+
+### 4. Merge the stack
+
+`v33-audio-analysis-provenance` and `v34-offline-analyser` are both unmerged
+and stacked. Two waves of unreviewed work on one branch line is a growing
+liability.
+
+### 5. Only then, and probably not
+
+- **The per-track disagreement report.** The data is stored for every track,
+  but analysed key matched Rekordbox exactly on roughly 7 of 18 spot-checked
+  tracks and BPM showed half- and two-thirds-time errors. The report would be
+  mostly noise unless gated hard on confidence. Measure key accuracy properly
+  first.
 - **WS5** — Discogs-EffNet genre embeddings for the blank-genre tracks.
-- **A per-track disagreement report.** The data exists; the evidence below
-  suggests the report would be mostly noise.
-- **Refitting the energy curve against real labels**, if a labelled set ever
-  arrives. Raw arousal in the sidecar keeps that an evening's work rather than
-  a re-run.
+  Untouched and research-gated. Note the genre-ordering test above makes genre
+  tags load-bearing for validating anything else, which raises WS5's value
+  slightly.
+- **The seven undecodable AIFFs.** Probably AIFF-C with an unusual compression
+  type. Trivial either to diagnose or to ignore.
+- **Do not revive WS3**, the in-app analyser, without re-measuring the gap it
+  targets. See the top of this document.
 
 ## Verified
 

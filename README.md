@@ -379,6 +379,45 @@ The core (`src/core/`) is pure TypeScript with no DOM or Svelte imports — the 
 logic is reusable and fully unit-tested. The Svelte components in `src/lib/` are a thin
 view layer over it.
 
+### Optional: the offline audio analyser
+
+Fills the metadata Rekordbox left blank — mainly **energy**, which Rekordbox never
+computes — by analysing the audio files themselves. It is a separate program that
+writes a JSON _analysis sidecar_; the app imports it through the ordinary Import
+button, fills nulls only, and marks every filled value with a dotted underline. Nothing
+it produces can overwrite a Rekordbox value. Full design and measured results:
+[docs/designs/design-v34-offline-analyser.md](docs/designs/design-v34-offline-analyser.md).
+
+```sh
+/opt/homebrew/bin/python3 -m venv scripts/.venv    # 3.14 — the only version with a wheel
+scripts/.venv/bin/pip install -r scripts/requirements.txt
+scripts/fetch-models.sh                            # MTG model weights, ~3.4 MB, gitignored
+scripts/.venv/bin/python scripts/analyse-audio.py --self-test        # synthesised sanity check
+caffeinate -i scripts/.venv/bin/python scripts/analyse-audio.py \
+  --collection docs/rekordbox/collection.xml --out scripts/out/library.analysis.json
+```
+
+Roughly **two hours for 2000 tracks** on ten cores. Resumable: it skips paths already in
+`--out`, so adding tracks later costs only the new ones. Rekordbox's own sampler content
+is excluded by default (`--exclude`), because energy is not confidence-gated and a
+one-shot would otherwise acquire one.
+
+To check a produced sidecar against a collection without opening a browser, and
+to re-fit the energy curve if you ever have labelled tracks to fit it against:
+
+```sh
+ANALYSIS_SIDECAR=scripts/out/library.analysis.json npm test -- analysis-contract
+scripts/.venv/bin/python scripts/calibrate-arousal.py \
+  --sidecar scripts/out/library.analysis.json --labels anchors.csv --scale energy
+```
+
+**Know before you trust it.** `essentia-tensorflow` is AGPL-3.0 and the MTG models are
+CC BY-NC-SA 4.0, but neither enters the app bundle — that separation is deliberate and
+is what keeps the app's own licensing free (see [legal/README.md](legal/README.md)).
+Analysed **key and BPM are weak** and fill almost nothing; the payload is energy. And
+analysed **energy is unreliable above ~155 BPM** — the model's arousal peaks at 125–140
+BPM and under-rates fast breakbeat music. The design doc measures all of this.
+
 ## Deploy
 
 The app is a fully client-side static bundle — no backend, database, or secrets — so it
