@@ -97,22 +97,40 @@ the collapsible group's summary carries the one real tooltip.
   above with every value a whole number inside 0–100.
 - Removing the four `num(entry.x)` lines from `sanitizeTrack` was confirmed to
   turn the round-trip test red, so it tests what it claims to.
+- **The browser probe** — `node scripts/screenshot.mjs` against `npm run dev`,
+  exit 0, no console errors, across the v33, v34 and v35 blocks. v35's block
+  pins what vitest cannot see: a descriptor cell renders `94%` and not `0.94`
+  or `94`, it keeps its `td.analysed` underline, the column header carries its
+  hint as a `title`, the Analysis group appears and opens with rows in it, and
+  no filter's number box is squeezed below 40px by the group's wider labels.
+  It caught two real defects on its first run — the probe's own `.prop-row`
+  count (28 properties + 4 pseudo-rows) needed to go to 36, and the group's
+  `<summary>` is unclickable because a nested `<details>` inside the collapsed
+  Filters section is in the DOM but not visible.
 
 ## Not verified
 
-- **Everything in `src/lib/`.** Vitest runs in node env with no Svelte
-  component plugin, so the Analysis group, the header `title`, the label
-  widths and the badge are manual-verify only.
+- **`arousal`, `valence` and `happiness` as columns**, and the group's own
+  tooltip panel. The probe drives `danceability` end to end and ticks
+  `arousal`'s column on; the other two ride the same registry-driven path, so
+  they are covered by construction rather than by assertion.
 - **Whether any of the four is any good.** This wave surfaces numbers; it does
   not validate them. Only danceability has evidence beyond a glance: Spearman
   −0.047 against BPM on a 330-track sample, so unlike energy it is not a
   tempo meter in disguise, and its bottom tail is right by eye — the ten
   least-danceable tracks in the library are all Anatolian and Persian ballads.
-- **The filter boxes seed blank for these rows on an existing project.**
-  `FiltersSection`'s seeding `$effect` keys off the raw `$library`, while the
-  extents derive from the augmented one, so analysis arriving later does not
-  reseed. `↺` fills them. Pre-existing behaviour for any property whose
-  extents change after seeding, not new here.
+- **Whether the filter boxes ever seed blank.** Review predicted they would:
+  `FiltersSection`'s seeding `$effect` keys off the raw `$library` while the
+  extents derive from the augmented one, so analysis arriving later cannot
+  reseed. The probe shows the opposite in the case that matters — enabling the
+  Danceability filter *after* a sidecar is loaded seeds it 38–94 from the real
+  extents, because switching a row on seeds that row. The predicted failure
+  needs the reverse order, a sidecar arriving while the row is already
+  visible, which the probe does not cover. `↺` fills them either way.
+- **`Danceability` still ellipsises to `Danceabi…`** in the filter row. The
+  group's labels are 72px against the flat rows' 52px, and widening further
+  buys the name at the cost of the number boxes, which have to hold `100`. The
+  full text is on the label's `title`, and the group header supplies context.
 - **Danceability's mapping is honest but not useful across its whole range.**
   Mean 0.921, and 79% of the library above 90%. It is a top-decile switch that
   separates ballads from dance tracks, not a ranking within dance tracks. The

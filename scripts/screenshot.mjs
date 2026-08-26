@@ -666,11 +666,12 @@ if ((await page.locator('.tracks-view td.rating .stars').count()) === 0) {
 // one row per property with a Column and a Filter checkbox.
 await page.getByRole('button', { name: /Advanced/ }).click()
 await ensureSectionOpen('Track properties')
-// One row per track property (28) plus one .pseudo row per permanent panel
-// filter (4 since v25: starred, constellation, combos, keys).
-if ((await page.locator('.prop-row').count()) !== 32) {
+// One row per track property (32 since v35, which added the four analysis
+// descriptors) plus one .pseudo row per permanent panel filter (4 since v25:
+// starred, constellation, combos, keys).
+if ((await page.locator('.prop-row').count()) !== 36) {
   errors.push(
-    `the Track properties table should list 32 rows, got ${await page.locator('.prop-row').count()}`,
+    `the Track properties table should list 36 rows, got ${await page.locator('.prop-row').count()}`,
   )
 }
 await page.getByRole('checkbox', { name: 'Length column', exact: true }).check()
@@ -2173,6 +2174,108 @@ await page.waitForTimeout(200)
   await page.screenshot({ path: `${scratch}/20-analysis-energy-radius.png` })
   await page.locator('select').filter({ hasText: 'Energy' }).first().selectOption('bpm')
   await page.waitForTimeout(300)
+}
+
+// ---- v35: the descriptors as columns and filters ----
+// Everything below is invisible to vitest: .svelte files have no coverage, so
+// the registry can be right in the unit suite while the column renders a bare
+// number, the group never opens, or the ⓘ steals the filter boxes' width. The
+// energy sidecar loaded just above carries all four descriptors already.
+{
+  await page.getByRole('button', { name: /Advanced/ }).click()
+  await page.locator('.panel details.section > summary', { hasText: 'Track properties' }).click()
+  await page.getByRole('checkbox', { name: 'Danceability column', exact: true }).check()
+  await page.getByRole('checkbox', { name: 'Danceability filter', exact: true }).check()
+  await page.getByRole('checkbox', { name: 'Arousal column', exact: true }).check()
+  await page.locator('.panel details.section > summary', { hasText: 'Track properties' }).click()
+  await page.keyboard.press('Escape')
+
+  await page.getByRole('button', { name: 'Tracks', exact: true }).first().click()
+  await page.waitForTimeout(500)
+
+  // The registry's percent formatter, on the real merge path: danceability
+  // 0.94 in the fixture must read 94%, not 0.94 and not 94.
+  const cells = await page.evaluate(() => {
+    const heads = [...document.querySelectorAll('th')].map((h) => h.innerText.trim())
+    const col = heads.findIndex((h) => /Danceability/i.test(h))
+    if (col === -1) return null
+    return [...document.querySelectorAll('tbody tr')]
+      .map((r) => r.children[col]?.textContent?.trim() ?? '')
+      .filter((t) => t !== '' && t !== '—')
+  })
+  if (cells === null) {
+    errors.push('v35: the Danceability column never reached the Tracks table')
+  } else if (!cells.some((t) => /^\d{1,3}%$/.test(t))) {
+    errors.push(`v35: a descriptor is not rendering as a whole percentage — got ${cells[0]}`)
+  }
+
+  // The provenance underline must survive on an analysis-only column. The
+  // first draft exempted these and review was right that it should not.
+  const underlined = await page.evaluate(() => {
+    const heads = [...document.querySelectorAll('th')].map((h) => h.innerText.trim())
+    const col = heads.findIndex((h) => /Danceability/i.test(h))
+    return [...document.querySelectorAll('tbody tr')].some(
+      (r) => r.children[col]?.classList.contains('analysed') === true,
+    )
+  })
+  if (!underlined) errors.push('v35: a descriptor cell lost its analysed marker')
+
+  // The header carries its hint as a title, not an ⓘ — the colgroup measures
+  // header TEXT, so an icon would cost width the measurement cannot see.
+  const headTitle = await page.evaluate(() => {
+    const th = [...document.querySelectorAll('th')].find((h) => /Danceability/i.test(h.innerText))
+    return th?.getAttribute('title') ?? ''
+  })
+  if (!/danceable/i.test(headTitle)) {
+    errors.push(`v35: the Danceability header explains nothing — "${headTitle}"`)
+  }
+  await page.screenshot({ path: `${scratch}/21-descriptor-columns.png` })
+
+  await page.getByRole('button', { name: 'Wheel', exact: true }).first().click()
+  await page.waitForTimeout(300)
+
+  // The Analysis group: present now that one descriptor filter is visible,
+  // and its rows must not have squeezed the shared number boxes.
+  // The group nests inside the Filters section, which this far into the run
+  // is closed — a nested <details> in a closed parent is in the DOM but not
+  // visible, which is what the first run of this block caught.
+  const filters = page.locator('aside').first().locator('details', { hasText: 'Filters' }).first()
+  if (!(await filters.evaluate((d) => d.open))) {
+    await page.locator('summary', { hasText: 'Filters' }).first().click()
+    await page.waitForTimeout(200)
+  }
+
+  const group = page.locator('details.analysis-group')
+  if ((await group.count()) === 0) {
+    errors.push('v35: the Analysis filter group never appeared')
+  } else {
+    await group.locator('summary').click()
+    await page.waitForTimeout(200)
+    if ((await group.locator('.filter-row').count()) === 0) {
+      errors.push('v35: the Analysis group opened empty')
+    }
+    const boxes = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll('.filter-row')]
+      const widths = rows
+        .map((r) => r.querySelector('input[type=number]'))
+        .filter((i) => i !== null)
+        .map((i) => i.getBoundingClientRect().width)
+      return { min: Math.min(...widths), n: widths.length }
+    })
+    if (boxes.n > 0 && boxes.min < 40) {
+      errors.push(`v35: a filter's number box was squeezed to ${Math.round(boxes.min)}px`)
+    }
+    await page.screenshot({ path: `${scratch}/22-analysis-filter-group.png` })
+  }
+
+  // Put the columns back so the reset screenshot below matches its siblings.
+  await page.getByRole('button', { name: /Advanced/ }).click()
+  await page.locator('.panel details.section > summary', { hasText: 'Track properties' }).click()
+  await page.getByRole('checkbox', { name: 'Danceability column', exact: true }).uncheck()
+  await page.getByRole('checkbox', { name: 'Danceability filter', exact: true }).uncheck()
+  await page.getByRole('checkbox', { name: 'Arousal column', exact: true }).uncheck()
+  await page.locator('.panel details.section > summary', { hasText: 'Track properties' }).click()
+  await page.keyboard.press('Escape')
 }
 
 // reset with confirmation dialog
