@@ -280,9 +280,30 @@ Three layers instead:
 ## Deliberate non-goals
 
 - **No in-app analyser.** WS3 is rejected on the evidence above, not deferred.
-- **No Mixed In Key purchase and no Pearson r.** n=6, three by the same
-  artist, all 112–128 BPM and house-adjacent. v33 already struck that plan
-  from the report.
+- **No Pearson r against the six MIK tags.** n=6, three by the same artist,
+  all 112–128 BPM and house-adjacent. v33 already struck that plan from the
+  report. (The *purchase*, separately, was reopened on 2026-08-26 and is now
+  the recommended next move — see section 0.2.)
+- **No in-app energy labelling feature.** Michiel proposed shipping a pairwise
+  A/B comparison UI so users could teach the app their own energy scale.
+  Rejected on three grounds. The measured defect is a **ranking** failure from
+  a model that never heard 167 BPM breakbeat — identical for every user with
+  jungle, so it wants fixing once and centrally, not re-learned per user. What
+  genuinely varies between DJs is where the 1–10 boundaries sit, and rescaling
+  was already measured not to repair a ranking failure. Fitting a blend
+  honestly needs a few hundred pairs, so shipping it puts two or three hours of
+  listening between a new user and a working energy axis, on an app whose pitch
+  is "drop your XML in". And 772 of the collection's tracks are AIFF, which
+  Chromium never plays — a listening feature is blind to 37% of the library in
+  the browser build. What survives is the same labelling done **offline, once,
+  by Michiel**, feeding a curve that ships for everyone. If a learn-from-the-user
+  feature is ever wanted, the right target is **transitions**, not energy —
+  "did this blend work?" trains what the app is actually for, whereas energy is
+  a means to that end.
+- **No manual energy override — yet.** The small product residue of the
+  rejected labelling feature: "this is a 9, not a 6", slotting into the v33
+  provenance layer as a third tier above analysed and Rekordbox. The
+  architecture already has the shape for it. Not built, not scoped.
 - **No half/double-time correction.** Three of the first twenty tracks came
   back at 1/2 or 2/3 of the Rekordbox tempo — a real hardcore/gabber failure
   mode. It is not worth fixing, because analysed BPM fills **zero** real
@@ -296,7 +317,10 @@ Three layers instead:
 ## Next steps, ranked
 
 Written for whoever picks this up next, human or agent. The ordering is by
-value per unit of effort, and the first two are the ones that matter.
+value per unit of effort. **Sections 0, 0.1 and 0.2 are the live ones**;
+everything from 1 onward predates them and is kept for the reasoning, not the
+recommendation. If you read only one thing, read 0.1 — it says the shipped
+energy is beaten by a column we already have for free.
 
 ### 0. The anchor labels exist, and they changed the ranking
 
@@ -353,6 +377,135 @@ because a stretch cannot move a track past one the model placed above it.
   (label sd 3.35 against prediction sd 0.93). Five tracks he would call 5–6
   would tame it — but only after the ranking is fixed.
 
+### 0.1 Plain BPM beats the shipped energy (measured 2026-08-26)
+
+Michiel pushed back on the phrase "tempo bias", correctly: energy and tempo
+*are* correlated in the real world, so a signal that tracks tempo is not
+thereby wrong. The pushback survived measurement and changed the conclusion.
+
+Across the 18 anchors, **r(BPM, Michiel's label) = +0.773**. The relationship
+is real and strong in his own judgement, and nothing should try to remove it.
+What section 0's −0.707 measured was never that correlation but the
+**residual** — how much the model still varies with tempo once the label is
+held fixed. Within the eleven tracks he called equally 9.5 that residual is
+Spearman −0.401 for the shipped MusiCNN arousal and −0.050 for the VGGish head.
+That is error shaped like tempo, not signal. The bathroom-scale test: heavy
+people do weigh more, but a scale that reads light for tall people is found by
+weighing people of *equal* true weight.
+
+The library-wide `r(bpm, arousal) = -0.066` is the same fact from the other
+side. The model ought to show something near +0.773 and shows nothing, because
+the inverted U gives it the correct slope below 140 BPM and the inverted one
+above 155, netting to zero.
+
+Leave-one-out mean absolute error on the 18 anchors, label scale 1–10:
+
+```
+  BPM alone                 1.60
+  arousal_musicnn alone     1.66
+  arousal_vggish alone      1.10
+  BPM + arousal_musicnn     1.15
+  BPM + arousal_vggish      0.90
+  predict the mean          3.23   <- baseline
+  what currently ships      2.31
+```
+
+**Plain Rekordbox BPM predicts Michiel's energy labels better than the energy
+this wave shipped.** That is the most consequential number in this document.
+It reframes the model's job: not to predict energy, but to predict the part BPM
+cannot know — that a 140 BPM ambient dub and a 140 BPM techno roller are worlds
+apart. Under that framing a tempo-shaped model error is bad precisely because
+it *cancels* a free and accurate tempo term instead of complementing it.
+
+The caveat that must travel with the table: the anchors are bimodal and
+genre-typical — the highs are fast, the lows are slow — so BPM looks better
+here than it would on mid-range material. **The label set that would settle it
+is same-tempo pairs with different energy**, e.g. two tracks near 140 where one
+is a 9 and one is a 3. That is the test BPM structurally cannot pass, so it
+isolates what the model actually contributes. `Versa & Rowl — Zodiac` (168 BPM,
+labelled 3.5) is the one such track that already exists, and the current model
+gets it right at 3 — this pipeline is not uniformly bad, it is bad in one
+specific place.
+
+The labels and every measured signal are committed so this survives the
+session: `scripts/anchors.csv` (`path,label,group`, the format
+`calibrate-arousal.py --labels` takes) and `scripts/anchor-signals.json`
+(Rekordbox BPM plus seven candidate model outputs per track — the shootout
+data). Section 0's table is the same 18 tracks in readable form.
+
+### 0.2 The Mixed In Key route — the cheapest exit, and the test that decides it
+
+Reopened 2026-08-26 and now the recommended next move, superseding the
+"no Mixed In Key purchase" non-goal above.
+
+**The import path is already built and shipping.** `energyFromComments`
+(`model.ts:95`) parses MIK's `Energy N` token out of Rekordbox Comments, added
+in v12 WS8. Six tracks in the collection prove it end to end. So this is not an
+engineering project — it is: run MIK, let it tag, re-export the XML, import.
+Zero new code, no import format to design.
+
+The open-source objection Michiel raised does not bite here: reading a file
+another program produced is not a dependency, the app already imports from
+closed-source Rekordbox, and energy is optional — the wheel works without it.
+His objection was aimed at bundling an engine, which this is not.
+
+**Tagging by format**, checked against MIK's FAQ and community and against the
+collection itself:
+
+| | count | tagging |
+| --- | --- | --- |
+| `.mp3` | 1205 (57.9%) | ID3v2 — fine |
+| `.aiff` | 772 (37.1%) | ID3 in an AIFF chunk — fine |
+| `.m4a` | 9 (0.4%) | iTunes atoms — fine |
+| `.wav` | 94 (4.5%) | no agreed chunk — **MIK will not tag these** |
+
+WAV is a RIFF container with no tagging convention the DJ ecosystem ever
+agreed on, so this is a format limitation rather than a MIK defect — Rekordbox's
+own WAV tag support is equally patchy. Of the 94, **30 are Rekordbox sampler
+one-shots that must never carry an energy anyway**, leaving 64 real tracks:
+3.1% of the library. AIFF is confirmed good from two directions — MIK's
+community names it as the format to use when WAV fails, and **282 of the 772
+AIFFs in this collection already carry Comments that survived to the XML
+export**.
+
+The gap does not block the route, because the app reads Rekordbox's XML and a
+path-keyed sidecar, not the files. Options for the 64, in order of preference:
+leave them null (already a first-class state — gutter placement, criterion
+skipped); convert a MIK export into the sidecar format `analyse-audio.py`
+already writes (~30 lines); type them into Rekordbox by hand. Do **not**
+convert WAV to AIFF — it changes 64 paths and breaks Rekordbox's references.
+
+**There is no trial.** MIK's FAQ offers a 30-day no-questions money-back
+guarantee instead, which is what makes the test below risk-free.
+
+**The test, with pass/fail registered in advance** so the result cannot be
+rationalised afterwards:
+
+| Track | BPM | Michiel | App now | MIK must show |
+| --- | --- | --- | --- | --- |
+| Just Jungle — Ere Dread `.wav` | 170 | 9.5 | **4** | ≥ 8 |
+| Dub-Liner — The Kill `.mp3` | 175 | 9.5 | 6 | ≥ 8 |
+| SPK — Looper `.aiff` | 175 | 9.5 | 6 | ≥ 8 |
+| Fresh — Gatekeeper `.mp3` | 174 | 9.5 | 6 | ≥ 8 |
+| **Versa & Rowl — Zodiac** `.mp3` | **168** | **3.5** | 3 | **≤ 5** |
+| Clouds — Arkhangelsk Nightmare `.mp3` | 140 | 9.5 | 8 | ≥ 8 |
+| Traumprinz — Ambient 006 `.aiff` | 122 | 1.5 | 1 | ≤ 3 |
+
+**Zodiac decides it.** It is 168 BPM and labelled 3.5. If MIK returns 8+ for
+it, MIK is reading tempo — which Rekordbox gives us free — and it should be
+refunded. If it returns ≤ 5 while the jungle comes back ≥ 8, MIK hears
+something this pipeline cannot, and the purchase closes the whole problem.
+
+Formats are mixed deliberately so one session answers the second question too:
+does `Energy N` actually reach the AIFF Comments? A community report says AIFF
+sometimes receives key only. Check with
+`ffprobe -v quiet -show_entries format_tags=comment -of csv=p=0 <file>`. Expect
+nothing for `Ere Dread.wav` — read its energy off MIK's screen.
+
+Outcomes: jungle ≥ 8 and Zodiac ≤ 5 with AIFF tagged → buy, delete the sidecar,
+this thread closes. Same but AIFF untagged → the numbers are right but cannot be
+delivered, and a sidecar converter becomes real work. Zodiac ≥ 8 → refund.
+
 ### 1. Ten anchor tracks (Michiel, ~10 minutes) — superseded by section 0
 
 Name roughly five tracks you would call energy 1–2 and five you would call
@@ -363,7 +516,7 @@ Write them as `path,label` and run:
 
 ```sh
 scripts/.venv/bin/python scripts/calibrate-arousal.py \
-  --sidecar scripts/out/library.analysis.json --labels anchors.csv --scale energy
+  --sidecar scripts/out/library.analysis.json --labels scripts/anchors.csv --scale energy
 ```
 
 Ten labels cannot fit a curve, but the band is only two numbers and the
@@ -400,9 +553,16 @@ the genre ordering. Do not build the formula before the labels exist — an
 invented blend is exactly the confident-wrong-number this layer exists to
 prevent.
 
-**Do not blend BPM into energy**, however tempting: BPM is already its own
-combo criterion and its own radial axis, so energy would become a partial
-duplicate and the combo engine would double-count tempo.
+**Blending BPM into energy was rejected here and is no longer rejected.** The
+original objection stands as a real cost — BPM is already its own combo
+criterion and its own radial axis, so energy becomes a partial duplicate and
+the combo engine can double-count tempo — but it was a *design* objection made
+before anything was measured. Section 0.1 then measured that plain BPM predicts
+Michiel's labels better than the energy this wave ships. A duplicate signal
+that is right beats an independent one that is wrong, and the double-counting
+is a criteria-defaults question rather than a blocker. Do not build the blend
+before the same-tempo labels exist, though: the anchors are bimodal, which is
+exactly what flatters BPM.
 
 ### 3. WS4 — `happiness` and `danceability` as real properties
 
@@ -482,8 +642,32 @@ test die:
 both tracks tried (`Ab major` = 4B, `C# minor` = 12A), and BPM to 0.02 on the
 M4A. Essentia decodes AIFF, unlike Chromium.
 
+**Added 2026-08-26, after the anchors.** `r(BPM, Michiel's label) = +0.773`
+across the 18 anchors; leave-one-out MAE of 1.60 for BPM alone against 2.31 for
+the shipped energy (section 0.1). File formats counted from the collection:
+1205 mp3, 772 aiff, 94 wav, 9 m4a. Comments already present in the XML export
+per format: 43.4% of mp3, **36.5% of aiff (282 tracks)**, 55.3% of wav — which
+is what proves the AIFF tag → Rekordbox → XML → app route works on real data.
+30 of the 94 WAVs are `/Sampler/` one-shots. Mixed In Key's FAQ confirms no
+trial, a 30-day no-questions refund, and that WAV is analysed but not tagged.
+
 ## Not verified
 
+- **`arousal_vggish` at library scale.** It wins the 18-anchor shootout
+  (ρ +0.840 against MusiCNN's +0.781, residual tempo slope −0.050 against
+  −0.401) but n=18 with seven candidates cannot separate that from noise. A
+  330-track tempo-stratified run to check whether the inverted U disappears was
+  started and killed — the throwaway script omitted the
+  `TF_NUM_INTRAOP_THREADS`/`TF_NUM_INTEROP_THREADS` caps that
+  `analyse-audio.py` sets, so six workers each spawned ~10 TF threads. Re-run
+  with those two lines set, ~120 tracks, `--jobs 4`, printing incrementally.
+- **Whether Mixed In Key handles fast material.** The whole basis of section
+  0.2's recommendation is untested: all six existing MIK tags are 112–128 BPM
+  and house-adjacent, so they say nothing about 165–175 BPM jungle. The seven
+  tracks in 0.2 are the test.
+- **Whether AIFF receives `Energy N` specifically.** AIFF tagging is confirmed;
+  a community report claims AIFF sometimes gets key only where MP3 gets the
+  full string. The two AIFFs in the 0.2 test set exist to settle this.
 - **Analysed key accuracy is poor and was not fixed.** Over the first 20
   tracks, roughly 7 of 18 keys matched Rekordbox exactly, with several
   relative-major and parallel-minor confusions. It does not matter for this

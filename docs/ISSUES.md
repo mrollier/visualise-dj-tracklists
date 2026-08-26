@@ -104,6 +104,31 @@ next steps ranked at the end of it.
     be their training set, and manages 0.525 on the rest. Treat the published
     figure as advertising in any future model comparison.
 
+11. **Plain Rekordbox BPM predicts Michiel's energy labels better than the
+    energy this wave ships.** Leave-one-out MAE on the 18 anchors: BPM alone
+    1.60, the shipped `arousal`-derived energy 2.31, BPM + `arousal_vggish`
+    0.90. `r(BPM, his label) = +0.773` — the tempo/energy correlation is real
+    and the model captures almost none of it library-wide (`-0.066`), because
+    the inverted U gives the correct slope below 140 BPM and the inverted one
+    above 155. This supersedes the earlier "do not blend BPM into energy"
+    ruling, which was made on design grounds before anything was measured.
+    **Do not build the blend before same-tempo labels exist** — the anchors are
+    bimodal, which flatters BPM. Detail in section 0.1 of the v34 design.
+
+12. **The decision now pending is whether to buy Mixed In Key, and there is a
+    registered test for it.** The import path is already built and shipping —
+    `energyFromComments` (`model.ts:95`, v12 WS8) reads MIK's `Energy N` from
+    Rekordbox Comments, and six tracks prove it end to end — so this costs zero
+    code. Seven anchor tracks with pass/fail fixed in advance are listed in
+    section 0.2 of the v34 design; `Versa & Rowl — Zodiac` (168 BPM, labelled
+    3.5) is the discriminator, because a MIK that returns 8+ for it is reading
+    tempo, which Rekordbox already gives us free. No trial exists; a 30-day
+    no-questions refund is what makes the test risk-free. Secondary question in
+    the same test: MIK does not tag WAV (a RIFF-format limitation, 64 real
+    tracks + 30 samplers here), and AIFF tagging is confirmed but may deliver
+    key only. **In-app pairwise energy labelling was considered as an
+    alternative and rejected** — see the v34 non-goals for the three reasons.
+
 ## Open — v33 audio-analysis provenance (WS1)
 
 The first workstream of the audio-analysis design in
