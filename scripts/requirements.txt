@@ -8,3 +8,5 @@
 # `tensorflow` — the two essentia packages own the same namespace and the
 # combination is what breaks arm64 installs.
 essentia-tensorflow==2.1b6.dev1438
+# v38 --write-tags: the [AxxVxxDxxHxx] descriptor token in file comment tags.
+mutagen==1.47.0

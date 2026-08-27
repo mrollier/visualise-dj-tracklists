@@ -1,7 +1,7 @@
 import { buildFileIndex, matchLocation } from './audio/pathMatch'
 import { foldSegments } from './location'
 import { normalizeKey } from './keys'
-import type { Track } from './model'
+import { parseDescriptorToken, type Track } from './model'
 
 /**
  * The analysis provenance layer (v33 WS1).
@@ -89,6 +89,12 @@ export interface MergeStats {
    * numbers would bury the BPM and key figures that actually vary.
    */
   descriptorsFilled: number
+  /**
+   * Tracks that gained a descriptor from the `[A..V..D..H..]` comment token
+   * (v38) — the sidecar's own lossy export, read back when no sidecar entry
+   * matched. Counted separately so the note can say where values came from.
+   */
+  descriptorsFromComments: number
   /** Tracks whose Rekordbox BPM/key was absent — the gap analysis could close. */
   bpmMissing: number
   keyMissing: number
@@ -171,79 +177,107 @@ export function mergeAnalysis(tracks: Track[], sidecar: AnalysisSidecar | null):
     bpmFilled: 0,
     keyFilled: 0,
     descriptorsFilled: 0,
+    descriptorsFromComments: 0,
     bpmMissing: tracks.filter((t) => t.bpm === null).length,
     keyMissing: tracks.filter((t) => t.key === null).length,
     belowConfidence: 0,
     notFound: 0,
     ambiguous: 0,
   }
-  if (sidecar === null) return { tracks, analysedFields, stats }
 
-  const index = buildFileIndex(
-    Object.keys(sidecar.tracks).map((key) => ({
-      path: foldSegments(key.split('/').filter((segment) => segment !== '')),
-      handle: key,
-    })),
-  )
+  const index =
+    sidecar === null
+      ? null
+      : buildFileIndex(
+          Object.keys(sidecar.tracks).map((key) => ({
+            path: foldSegments(key.split('/').filter((segment) => segment !== '')),
+            handle: key,
+          })),
+        )
 
-  let filledAny = false
-  const merged = tracks.map((t) => {
+  // The join outcome, with `stats` as its side channel. Split out so the
+  // comment-token fill below still runs for a track the sidecar cannot place
+  // — and with no sidecar at all, the XML-only case the token exists for.
+  const entryFor = (t: Track): AnalysisEntry | null => {
+    if (sidecar === null || index === null) return null
     if (t.location === null) {
       stats.notFound += 1
-      return t
+      return null
     }
     const match = matchLocation(index, t.location)
     if (match.kind === 'ambiguous') {
       stats.ambiguous += 1
-      return t
+      return null
     }
     if (match.kind !== 'hit') {
       stats.notFound += 1
-      return t
+      return null
     }
     const entry = sidecar.tracks[match.entry.handle]
     if (entry === undefined) {
       stats.notFound += 1
-      return t
+      return null
     }
+    return entry
+  }
 
+  let filledAny = false
+  const merged = tracks.map((t) => {
+    const entry = entryFor(t)
     const fields = new Set<AnalysedField>()
     const next = { ...t }
-    // Fill nulls only. A non-null Rekordbox value is never reachable here.
-    if (t.bpm === null && typeof entry.bpm === 'number') {
-      if (confident(entry.bpmConf)) {
-        next.bpm = entry.bpm
-        fields.add('bpm')
-        stats.bpmFilled += 1
-      } else stats.belowConfidence += 1
-    }
-    if (t.key === null && entry.key !== null && entry.key !== undefined) {
-      if (confident(entry.keyConf)) {
-        const key = normalizeKey(entry.key)
-        if (key !== null) {
-          next.key = key
-          fields.add('key')
-          stats.keyFilled += 1
-        }
-      } else stats.belowConfidence += 1
-    }
-    // Energy is NEVER filled from analysis (v36): the only source is the
-    // "Energy N" comment token, parsed at import. A track without one keeps
-    // an honest null rather than an arousal-derived guess.
+    if (entry !== null) {
+      // Fill nulls only. A non-null Rekordbox value is never reachable here.
+      if (t.bpm === null && typeof entry.bpm === 'number') {
+        if (confident(entry.bpmConf)) {
+          next.bpm = entry.bpm
+          fields.add('bpm')
+          stats.bpmFilled += 1
+        } else stats.belowConfidence += 1
+      }
+      if (t.key === null && entry.key !== null && entry.key !== undefined) {
+        if (confident(entry.keyConf)) {
+          const key = normalizeKey(entry.key)
+          if (key !== null) {
+            next.key = key
+            fields.add('key')
+            stats.keyFilled += 1
+          }
+        } else stats.belowConfidence += 1
+      }
+      // Energy is NEVER filled from analysis (v36): the only source is the
+      // "Energy N" comment token, parsed at import. A track without one keeps
+      // an honest null rather than an arousal-derived guess.
 
-    // The v35 descriptors. Every one is analysis-only, so fill-nulls-only is
-    // vacuously true here; the loop keeps them on the same path as the rest
-    // rather than inventing a second one.
-    let gainedDescriptor = false
-    for (const [field, toPercent] of DESCRIPTORS) {
-      if (t[field] !== null) continue
-      const value = entry[field]
-      if (typeof value !== 'number' || !Number.isFinite(value)) continue
-      next[field] = toPercent(value)
-      fields.add(field)
-      gainedDescriptor = true
+      // The v35 descriptors. Every one is analysis-only, so fill-nulls-only is
+      // vacuously true here; the loop keeps them on the same path as the rest
+      // rather than inventing a second one.
+      let gainedDescriptor = false
+      for (const [field, toPercent] of DESCRIPTORS) {
+        if (t[field] !== null) continue
+        const value = entry[field]
+        if (typeof value !== 'number' || !Number.isFinite(value)) continue
+        next[field] = toPercent(value)
+        fields.add(field)
+        gainedDescriptor = true
+      }
+      if (gainedDescriptor) stats.descriptorsFilled += 1
     }
-    if (gainedDescriptor) stats.descriptorsFilled += 1
+
+    // The `[A..V..D..H..]` comment token (v38): the sidecar's own lossy 0-100
+    // export, read back. Runs AFTER the sidecar loop and fills nulls only, so
+    // a matched sidecar entry — the precise original — always wins.
+    const token = parseDescriptorToken(t.comments)
+    if (token !== null) {
+      let gainedFromToken = false
+      for (const [field] of DESCRIPTORS) {
+        if (next[field] !== null) continue
+        next[field] = token[field]
+        fields.add(field)
+        gainedFromToken = true
+      }
+      if (gainedFromToken) stats.descriptorsFromComments += 1
+    }
 
     if (fields.size === 0) return t
     filledAny = true
@@ -252,6 +286,17 @@ export function mergeAnalysis(tracks: Track[], sidecar: AnalysisSidecar | null):
   })
 
   return { tracks: filledAny ? merged : tracks, analysedFields, stats }
+}
+
+/**
+ * Union two sidecars, next wins per path (v38). A playlist-scoped helper run
+ * must add to a whole-library sidecar, never discard it — and the union is
+ * bounded by unique file paths, so it adds nothing to the autosave footprint
+ * a full sidecar would not.
+ */
+export function mergeSidecars(prev: AnalysisSidecar | null, next: AnalysisSidecar): AnalysisSidecar {
+  if (prev === null) return next
+  return { zodiacAnalysis: 1, run: next.run, tracks: { ...prev.tracks, ...next.tracks } }
 }
 
 export interface AnalysisImportSummary extends MergeStats {
@@ -274,6 +319,11 @@ export function summariseAnalysisImport(
     `key ${stats.keyFilled}/${stats.keyMissing}`,
     `descriptors ${stats.descriptorsFilled} ${stats.descriptorsFilled === 1 ? 'track' : 'tracks'}`,
   ]
+  if (stats.descriptorsFromComments > 0) {
+    parts.push(
+      `comment tokens ${stats.descriptorsFromComments} ${stats.descriptorsFromComments === 1 ? 'track' : 'tracks'}`,
+    )
+  }
   const caveats = []
   if (stats.belowConfidence > 0) caveats.push(`${stats.belowConfidence} below confidence`)
   if (stats.ambiguous > 0) caveats.push(`${stats.ambiguous} ambiguous`)

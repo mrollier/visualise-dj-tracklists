@@ -4,10 +4,12 @@ import {
   percentFromAffect,
   percentFromUnit,
   mergeAnalysis,
+  mergeSidecars,
   sanitizeAnalysis,
   summariseAnalysisImport,
   type AnalysisSidecar,
 } from '../src/core/analysis'
+import { parseDescriptorToken } from '../src/core/model'
 import { SAMPLE_COLLECTION } from '../src/data/samples'
 import { track } from './helpers'
 
@@ -403,6 +405,159 @@ describe('the descriptor percent scales (v35)', () => {
     expect(percentFromAffect(14)).toBe(100)
     expect(percentFromUnit(-0.5)).toBe(0)
     expect(percentFromUnit(2)).toBe(100)
+  })
+})
+
+describe('parseDescriptorToken (v38)', () => {
+  test('a bare token parses to the four percents', () => {
+    expect(parseDescriptorToken('[A55V35D90H55]')).toEqual({
+      arousal: 55,
+      valence: 35,
+      danceability: 90,
+      happiness: 55,
+    })
+  })
+
+  test('a token embedded in a Mixed In Key comment parses, beside the MIK tokens', () => {
+    expect(parseDescriptorToken('8A - Energy 7 - [A55V35D90H55]')).toEqual({
+      arousal: 55,
+      valence: 35,
+      danceability: 90,
+      happiness: 55,
+    })
+  })
+
+  test('the scale ends are legal values', () => {
+    expect(parseDescriptorToken('[A0V100D0H100]')).toEqual({
+      arousal: 0,
+      valence: 100,
+      danceability: 0,
+      happiness: 100,
+    })
+  })
+
+  test('a value beyond 100 cannot match', () => {
+    expect(parseDescriptorToken('[A101V35D90H55]')).toBeNull()
+  })
+
+  test('lowercase letters are refused — the producer writes uppercase only', () => {
+    expect(parseDescriptorToken('[a55v35d90h55]')).toBeNull()
+  })
+
+  test('the AVDH order is fixed', () => {
+    expect(parseDescriptorToken('[V35A55D90H55]')).toBeNull()
+  })
+
+  test('null, empty and token-free comments yield null', () => {
+    expect(parseDescriptorToken(null)).toBeNull()
+    expect(parseDescriptorToken('')).toBeNull()
+    expect(parseDescriptorToken('8A - Energy 7')).toBeNull()
+  })
+})
+
+describe('the comment token as a descriptor source (v38)', () => {
+  const TOKEN = '8A - Energy 7 - [A55V35D90H55]'
+
+  test('fills descriptors with no sidecar at all — an XML-only import', () => {
+    const tracks = [track({ id: 'a', comments: TOKEN })]
+    const merged = mergeAnalysis(tracks, null)
+
+    expect(merged.tracks[0].arousal).toBe(55)
+    expect(merged.tracks[0].valence).toBe(35)
+    expect(merged.tracks[0].danceability).toBe(90)
+    expect(merged.tracks[0].happiness).toBe(55)
+    expect(merged.tracks).not.toBe(tracks)
+  })
+
+  test('a sidecar value beats the token — the token is its own lossy export', () => {
+    const tracks = [
+      track({ id: 'a', location: 'file://localhost/Users/dj/a.mp3', comments: TOKEN }),
+    ]
+    const merged = mergeAnalysis(
+      tracks,
+      sidecar({ '/Users/dj/a.mp3': { arousal: 9 } }),
+    )
+
+    expect(merged.tracks[0].arousal).toBe(100)
+    expect(merged.tracks[0].valence).toBe(35)
+  })
+
+  test('never overwrites a descriptor the track already carries', () => {
+    const tracks = [track({ id: 'a', arousal: 40, comments: TOKEN })]
+    const merged = mergeAnalysis(tracks, null)
+
+    expect(merged.tracks[0].arousal).toBe(40)
+    expect(merged.tracks[0].valence).toBe(35)
+  })
+
+  test('token-filled fields wear the same analysed badge', () => {
+    const tracks = [track({ id: 'a', comments: TOKEN })]
+    const merged = mergeAnalysis(tracks, null)
+
+    expect(merged.analysedFields.get('a')).toEqual(
+      new Set(['arousal', 'valence', 'danceability', 'happiness']),
+    )
+  })
+
+  test('the energy token beside it is untouched — energy never comes from here', () => {
+    const tracks = [track({ id: 'a', comments: TOKEN })]
+    const merged = mergeAnalysis(tracks, null)
+
+    expect(merged.tracks[0].energy).toBeNull()
+  })
+
+  test('the import note counts token-filled tracks', () => {
+    const tracks = [
+      track({ id: 'a', comments: TOKEN }),
+      track({ id: 'b', location: 'file://localhost/Users/dj/b.mp3' }),
+    ]
+    const summary = summariseAnalysisImport(
+      tracks,
+      sidecar({ '/Users/dj/b.mp3': { arousal: 5 } }),
+    )
+
+    expect(summary.descriptorsFromComments).toBe(1)
+    expect(summary.note).toContain('comment tokens 1 track')
+  })
+
+  test('a token-free library reports no comment-token line', () => {
+    const tracks = [track({ id: 'a', location: 'file://localhost/Users/dj/a.mp3' })]
+    const summary = summariseAnalysisImport(tracks, sidecar({ '/Users/dj/a.mp3': { arousal: 5 } }))
+
+    expect(summary.note).not.toContain('comment tokens')
+  })
+})
+
+describe('mergeSidecars (v38)', () => {
+  test('unions the track maps, next wins per path', () => {
+    const prev = sidecar({ '/a.mp3': { arousal: 3 }, '/b.mp3': { arousal: 4 } })
+    const next = sidecar({ '/b.mp3': { arousal: 7 }, '/c.mp3': { arousal: 8 } })
+    const merged = mergeSidecars(prev, next)
+
+    expect(merged.tracks['/a.mp3'].arousal).toBe(3)
+    expect(merged.tracks['/b.mp3'].arousal).toBe(7)
+    expect(merged.tracks['/c.mp3'].arousal).toBe(8)
+  })
+
+  test('a null previous sidecar yields the next one unchanged', () => {
+    const next = sidecar({ '/a.mp3': { arousal: 3 } })
+
+    expect(mergeSidecars(null, next)).toEqual(next)
+  })
+
+  test('keeps the newest run provenance', () => {
+    const prev: AnalysisSidecar = {
+      zodiacAnalysis: 1,
+      run: { analysedAt: '2026-01-01', tool: 'old', models: [] },
+      tracks: {},
+    }
+    const next: AnalysisSidecar = {
+      zodiacAnalysis: 1,
+      run: { analysedAt: '2026-08-27', tool: 'new', models: [] },
+      tracks: {},
+    }
+
+    expect(mergeSidecars(prev, next).run?.tool).toBe('new')
   })
 })
 

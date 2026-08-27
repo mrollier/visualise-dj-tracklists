@@ -151,6 +151,36 @@ export function parseMikComment(comments: string | null): MikComment {
 }
 
 /**
+ * The `[A55V35D90H55]` descriptor token our own analyser writes into a file's
+ * comment tag (v38): arousal, valence, danceability, happiness as 0–100 whole
+ * percents, fixed order, uppercase. Values are already on the Track percent
+ * scale, so a parse is a straight copy. Out-of-range digits cannot match by
+ * construction. The token is written as its own ` - `-delimited segment and
+ * matches none of the MIK regexes above, so the two parsers never collide.
+ */
+const DESCRIPTOR_TOKEN_RE = /\[A(100|\d{1,2})V(100|\d{1,2})D(100|\d{1,2})H(100|\d{1,2})\]/
+
+/** The four descriptor percents found in a Comments field. */
+export interface DescriptorToken {
+  arousal: number
+  valence: number
+  danceability: number
+  happiness: number
+}
+
+export function parseDescriptorToken(comments: string | null): DescriptorToken | null {
+  if (comments === null) return null
+  const match = DESCRIPTOR_TOKEN_RE.exec(comments)
+  if (match === null) return null
+  return {
+    arousal: Number(match[1]),
+    valence: Number(match[2]),
+    danceability: Number(match[3]),
+    happiness: Number(match[4]),
+  }
+}
+
+/**
  * Mixed-In-Key-style energy from a Comments field (v12 WS8, widened v36 to
  * MIK's bare-number formats: "7", "10A - 7", "10A - 126 - 7").
  */

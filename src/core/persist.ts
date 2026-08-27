@@ -470,6 +470,12 @@ export function parseProject(json: string): Project {
       rawSettings.bpmSource === 'rekordbox' || rawSettings.bpmSource === 'comments'
         ? rawSettings.bpmSource
         : DEFAULT_SETTINGS.bpmSource,
+    // v38: additive boolean, no version bump — an older save with no key
+    // resolves to false, which is exactly the wanted "never touch files".
+    analysisWriteTags:
+      typeof rawSettings.analysisWriteTags === 'boolean'
+        ? rawSettings.analysisWriteTags
+        : DEFAULT_SETTINGS.analysisWriteTags,
   }
   // v11 (issue 1): filters normalize into the per-property map, whatever
   // their vintage; migrateFilters lifts v3 top-level ranges and drops

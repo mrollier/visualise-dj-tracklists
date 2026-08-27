@@ -126,6 +126,13 @@ export interface AppSettings {
    */
   keySource: MetadataSource
   bpmSource: MetadataSource
+  /**
+   * Ask the analysis helper to write the `[AxxVxxDxxHxx]` descriptor token
+   * into each analysed file's comment tag (v38). Off by default: it modifies
+   * audio files on disk, and Rekordbox only sees the result after a Reload
+   * Tags — which can overwrite Rekordbox-only fields.
+   */
+  analysisWriteTags: boolean
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -152,4 +159,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   audioPreview: false,
   keySource: 'rekordbox',
   bpmSource: 'rekordbox',
+  analysisWriteTags: false,
 }

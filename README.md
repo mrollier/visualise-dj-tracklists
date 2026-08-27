@@ -402,6 +402,18 @@ Roughly **two hours for 2000 tracks** on ten cores. Resumable: it skips paths al
 is excluded by default (`--exclude`), because energy is not confidence-gated and a
 one-shot would otherwise acquire one.
 
+Since v38 the analyser can also run as the app's **localhost helper**: start it with
+`--serve` and the Advanced → Sentiment analysis section can analyse the selected
+playlists from inside the app, with live progress, merging the result automatically.
+`--write-tags` (or the section's checkbox) additionally writes a `[A78V35D86H55]`
+descriptor token into each analysed file's Comment tag — Mixed In Key content is
+preserved — so the descriptors travel with the files and come back in from any
+Rekordbox XML after a Reload Tags.
+
+```sh
+scripts/.venv/bin/python scripts/analyse-audio.py --serve
+```
+
 To check a produced sidecar against a collection without opening a browser, and
 to re-fit the energy curve if you ever have labelled tracks to fit it against:
 

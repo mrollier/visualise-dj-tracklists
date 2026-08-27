@@ -16,10 +16,18 @@
   import { COLUMN_LABELS } from '../core/columns'
   import { isDescriptorKey, PROPERTY_BY_KEY } from '../core/properties'
   import type { TrackSortField } from '../core/trackSort'
+  import { locationToPath } from '../core/location'
+  import {
+    estimateMinutes,
+    helperJob,
+    setPanelOpen,
+    startAnalysis,
+  } from './analysisHelper'
   import ConfirmDialog from './ConfirmDialog.svelte'
   import FolderLinkControl from './FolderLinkControl.svelte'
   import InfoTooltip from './InfoTooltip.svelte'
   import PanelFilterIcon from './PanelFilterIcon.svelte'
+  import ProgressBar from './ProgressBar.svelte'
   import { sampleLoadNeedsConfirmation } from './persistence'
   import SliderRow from './SliderRow.svelte'
   import { startTour } from './tour'
@@ -34,6 +42,7 @@
     pinnedFirst,
     pinnedLast,
     playlists,
+    playlistScopedLibrary,
     rightPanel,
     selectedId,
     settings,
@@ -281,7 +290,7 @@
   // narrower thing is not memory of this one — and an id called 'audio' on a
   // section called View misleads whoever reads it next. It costs one click,
   // once.
-  const SECTION_IDS = ['genre', 'keybpm', 'display', 'tracks', 'set', 'view'] as const
+  const SECTION_IDS = ['genre', 'keybpm', 'display', 'tracks', 'set', 'view', 'analysis'] as const
   type SectionId = (typeof SECTION_IDS)[number]
   // One-time init from the store: settings is a svelte store, not runes state.
   const initiallyOpen = get(settings).advancedOpen
@@ -294,6 +303,39 @@
   // Persist SYNCHRONOUSLY on the toggle event, not via a deferred $effect:
   // a pending effect is discarded when the panel unmounts right after a
   // toggle (open section → Escape), silently forgetting the change.
+  // --- Sentiment analysis (v38) ---
+  // Tracks the section's open state into the helper client: polling runs
+  // while the section is open or a job is running; teardown on unmount stops
+  // an idle poll but never a live job's.
+  $effect(() => {
+    setPanelOpen(sectionState.analysis)
+    return () => setPanelOpen(false)
+  })
+  const analysable = $derived($playlistScopedLibrary.filter((t) => t.location !== null))
+  let analysisError = $state('')
+  const HELPER_COMMAND = 'scripts/.venv/bin/python scripts/analyse-audio.py --serve'
+
+  async function runAnalysis() {
+    analysisError = ''
+    const error = await startAnalysis(
+      analysable.map((t) => locationToPath(t.location!)),
+      $settings.analysisWriteTags,
+    )
+    if (error !== null) analysisError = error
+  }
+
+  function exportPathsFile() {
+    const blob = new Blob([analysable.map((t) => locationToPath(t.location!)).join('\n') + '\n'], {
+      type: 'text/plain',
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'playlist.paths.txt'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   function persistToggle(id: SectionId, event: Event) {
     const open = event.currentTarget instanceof HTMLDetailsElement && event.currentTarget.open
     settings.update((s) =>
@@ -804,6 +846,94 @@
     </p>
   </details>
 
+  <details
+    class="section"
+    bind:open={sectionState.analysis}
+    ontoggle={(e) => persistToggle('analysis', e)}
+  >
+    <summary>Sentiment analysis</summary>
+    <p class="hint">
+      Analyses the audio of the tracks in your selected playlists and estimates four descriptors,
+      each 0–100%: <strong>arousal</strong> (calm → intense), <strong>valence</strong> (dark →
+      positive), <strong>danceability</strong> and <strong>happiness</strong>. They appear as
+      columns and filters with an ~ provenance badge.
+      <InfoTooltip label="About the descriptors">
+        The analyser runs machine-listening models (essentia, MusiCNN) on your own machine —
+        nothing is uploaded. The descriptors are model estimates, not ground truth: treat them as
+        a sorting aid, not a verdict. Energy is unaffected — it still comes only from the Mixed In
+        Key comment tag.
+      </InfoTooltip>
+    </p>
+    <p class="hint">
+      Scope: <strong>{analysable.length}</strong> tracks in the selected playlists — roughly
+      <strong>{estimateMinutes(analysable.length)} min</strong>. Results land in
+      <code>scripts/out/library.analysis.json</code>, merge into this project (autosaved), and
+      survive importing a new XML — they are keyed by file path, not by Rekordbox id.
+    </p>
+    {#if typeof $helperJob === 'object' && $helperJob !== null && $helperJob.state === 'running'}
+      <ProgressBar
+        label="Analysing tracks"
+        value={$helperJob.done}
+        max={Math.max(1, $helperJob.total)}
+      />
+      <p class="hint">
+        {$helperJob.done}/{$helperJob.total} analysed{$helperJob.etaSec !== null
+          ? ` · ~${Math.ceil($helperJob.etaSec / 60)} min left`
+          : ''}{$helperJob.errors > 0 ? ` · ${$helperJob.errors} failed` : ''}
+      </p>
+    {:else if $helperJob === 'offline'}
+      <p class="hint">
+        The analyser runs outside the browser. Start the helper in a terminal, then reopen this
+        section:
+      </p>
+      <p class="cmd">
+        <code>{HELPER_COMMAND}</code>
+        <button
+          class="reset-defaults"
+          onclick={() => navigator.clipboard.writeText(HELPER_COMMAND)}
+        >
+          Copy command
+        </button>
+      </p>
+      <p class="hint">
+        Or without the helper: export the playlist's file paths and run the analyser over them
+        with <code>--paths-from playlist.paths.txt</code>, then import the resulting JSON via
+        Import.
+      </p>
+      <button class="reset-defaults" onclick={exportPathsFile} disabled={analysable.length === 0}>
+        ⤓ Export paths file
+      </button>
+    {:else}
+      <label class="row">
+        <input type="checkbox" bind:checked={$settings.analysisWriteTags} />
+        Also write results into file comment tags
+        <InfoTooltip label="About tag write-back">
+          Appends a token like [A78V35D86H55] to each analysed file's Comment tag — the Mixed In
+          Key content already there is preserved. This modifies your audio files. Rekordbox shows
+          it only after Reload Tags on the tracks, and Reload Tags re-reads the whole file: fields
+          you edited only in Rekordbox (colour, My Tags) can be overwritten. Once the token is in
+          the comment, the descriptors travel with any XML export — even to a machine without the
+          analysis file.
+        </InfoTooltip>
+      </label>
+      <button class="reset-defaults" onclick={runAnalysis} disabled={analysable.length === 0}>
+        ▶ Analyse {analysable.length} tracks
+      </button>
+      {#if typeof $helperJob === 'object' && $helperJob !== null && $helperJob.state === 'done'}
+        <p class="hint">
+          Last run: {$helperJob.done}/{$helperJob.total} analysed{$helperJob.errors > 0
+            ? `, ${$helperJob.errors} failed — see the helper's terminal`
+            : ''}. Results are merged; the import note in the header has the details.
+        </p>
+      {:else if typeof $helperJob === 'object' && $helperJob !== null && $helperJob.state === 'failed'}
+        <p class="hint">The run failed — see the helper's terminal for the error.</p>
+      {/if}
+    {/if}
+    {#if analysisError !== ''}
+      <p class="hint">{analysisError}</p>
+    {/if}
+  </details>
+
   <!-- The guided tour otherwise only replays from a link buried in the
        header's import-details tooltip, which needs a live $lastImportReport
        to even render — gone again after a reload. This is the reliable,
@@ -1148,6 +1278,19 @@
     color: var(--ink-muted);
     font-size: 11px;
     margin: 2px 0 0;
+  }
+  /* The helper command (v38): monospace, wrappable, with its copy button. */
+  .cmd {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    margin: 2px 0 0;
+  }
+  .cmd code,
+  .hint code {
+    font-size: 10px;
+    word-break: break-all;
   }
 
   .hint a {

@@ -1061,6 +1061,7 @@ describe('WS6 sanitize round-trip pins (v14.1)', () => {
     showLeftPanel: false,
     showRightPanel: true,
     audioPreview: false,
+    analysisWriteTags: true,
   }
 
   // A second fixture with a DIFFERENT valid value on every field.
@@ -1337,6 +1338,20 @@ describe('analysis sidecar persistence (v33)', () => {
     run: { analysedAt: '2026-08-25', tool: 'essentia-tensorflow 2.1b6', models: ['musicnn'] },
     tracks: { '/Users/dj/a.mp3': { bpm: 128.02, bpmConf: 0.93 } },
   }
+
+  test('analysisWriteTags is additive — an older save loads as false (v38)', () => {
+    const raw = JSON.parse(serializeProject(project)) as { settings: Record<string, unknown> }
+    delete raw.settings.analysisWriteTags
+
+    expect(parseProject(JSON.stringify(raw)).settings.analysisWriteTags).toBe(false)
+  })
+
+  test('a saved analysisWriteTags survives the round-trip (v38)', () => {
+    const raw = JSON.parse(serializeProject(project)) as { settings: Record<string, unknown> }
+    raw.settings.analysisWriteTags = true
+
+    expect(parseProject(JSON.stringify(raw)).settings.analysisWriteTags).toBe(true)
+  })
 
   test('a sidecar survives a save and load round-trip', () => {
     const parsed = parseProject(serializeProject({ ...project, analysis: sidecar }))

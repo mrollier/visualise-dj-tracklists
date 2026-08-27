@@ -7,7 +7,7 @@
   import { importRekordboxXml } from '../core/importers/rekordbox'
   import { importRekordboxTxt, isRekordboxTxt } from '../core/importers/rekordboxTxt'
   import { computeGenreCoverage } from '../core/genre'
-  import { sanitizeAnalysis, summariseAnalysisImport } from '../core/analysis'
+  import { mergeSidecars, sanitizeAnalysis, summariseAnalysisImport } from '../core/analysis'
   import { buildReport, type ImportResult } from '../core/model'
   import { parseProject, serializeProject } from '../core/persist'
   import {
@@ -93,7 +93,9 @@
         const sidecar = sanitizeAnalysis(JSON.parse(text))
         if (sidecar !== null) {
           const summary = summariseAnalysisImport(get(library), sidecar)
-          analysis.set(sidecar)
+          // Union, not replace (v37): a playlist-scoped run must add to a
+          // whole-library sidecar, never discard it.
+          analysis.update((prev) => mergeSidecars(prev, sidecar))
           lastImportReport.set({
             ...buildReport(get(library), []),
             notes: [summary.note],

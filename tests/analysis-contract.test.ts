@@ -1,10 +1,11 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, test } from 'vitest'
-import { mergeAnalysis, sanitizeAnalysis } from '../src/core/analysis'
+import { mergeAnalysis, percentFromAffect, percentFromUnit, sanitizeAnalysis } from '../src/core/analysis'
 import { buildFileIndex, matchSegments } from '../src/core/audio/pathMatch'
 import { importRekordboxXml } from '../src/core/importers/rekordbox'
 import { normalizeKey } from '../src/core/keys'
 import { foldSegments, locationSegments } from '../src/core/location'
+import { parseDescriptorToken } from '../src/core/model'
 
 /**
  * v34 WS2 — the contract between `scripts/analyse-audio.py` and the app.
@@ -85,6 +86,23 @@ describe("the script's key strings survive normalizeKey (v34)", () => {
   test('a scale essentia never emits is refused rather than guessed', () => {
     expect(normalizeKey('F# dorian')).toBeNull()
     expect(normalizeKey('H minor')).toBeNull()
+  })
+})
+
+describe("the script's descriptor token matches the app's percent scales (v38)", () => {
+  // The same fixed vector `self_test()` in scripts/analyse-audio.py asserts:
+  // this raw entry must serialise to exactly this token. Pinning it from both
+  // languages is what keeps the comment tag and the sidecar telling one story.
+  const RAW = { arousal: 5.37, valence: 3.8, danceability: 0.898, happiness: 0.55 }
+  const TOKEN = '[A55V35D90H55]'
+
+  test('the pinned raw vector lands on the pinned token values', () => {
+    expect(parseDescriptorToken(TOKEN)).toEqual({
+      arousal: percentFromAffect(RAW.arousal),
+      valence: percentFromAffect(RAW.valence),
+      danceability: percentFromUnit(RAW.danceability),
+      happiness: percentFromUnit(RAW.happiness),
+    })
   })
 })
 
