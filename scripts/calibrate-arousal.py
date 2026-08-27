@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Check an analysis sidecar's arousal against a set of human labels (v34, WS2).
 
-`energyFromArousal` in src/core/analysis.ts maps predicted arousal onto the
-app's 1-10 energy scale with two constants. Those constants bracket a measured
-range rather than fitting labelled data, because no usable label set existed
-when they were chosen. This script is how you replace them when one does.
+Historical (v34): this script tuned the arousal-to-energy constants that
+lived in src/core/analysis.ts until v36, when the arousal-derived energy was
+removed entirely — Mixed In Key's comment tag outperformed it against the 18
+anchor labels (r +0.91 vs +0.83). The script remains useful for judging the
+arousal descriptor itself against human labels.
 
 It answers three questions, and the third is the one that decides whether a
 calibration transfers to a library the model was not trained on:

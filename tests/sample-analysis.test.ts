@@ -110,9 +110,12 @@ describe('the sample collection ships a generated analysis sidecar (v35.1)', () 
     expect(buildSampleSidecar(SAMPLE_COLLECTION.tracks)).toEqual(SAMPLE_ANALYSIS)
   })
 
-  test('fills the energy a missing "Energy N" comment left null', () => {
-    // energyOf derives energy from raw arousal when a producer supplies none,
-    // which is exactly the real sidecar's behaviour on the six-track gap.
-    expect(merged.stats.energyFilled).toBeGreaterThan(0)
+  test('never invents an energy for the tracks whose comment has no token (v36)', () => {
+    // Energy's only source is the "Energy N" comment; the deliberate sample
+    // gap stays an honest null instead of an arousal-derived guess.
+    const gapless = SAMPLE_COLLECTION.tracks.filter((t) => t.energy === null)
+    expect(gapless.length).toBeGreaterThan(0)
+    const byId = new Map(merged.tracks.map((t) => [t.id, t]))
+    for (const t of gapless) expect(byId.get(t.id)?.energy, t.id).toBeNull()
   })
 })

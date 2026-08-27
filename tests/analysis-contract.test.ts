@@ -140,7 +140,7 @@ describe.skipIf(!canRun)('a produced sidecar against the real collection (v34)',
     expect(stats.ambiguous).toBe(0)
     console.log(
       `merge: bpm ${stats.bpmFilled}/${stats.bpmMissing}, key ${stats.keyFilled}/${stats.keyMissing}, ` +
-        `energy ${stats.energyFilled}, below confidence ${stats.belowConfidence}, not found ${stats.notFound}`,
+        `below confidence ${stats.belowConfidence}, not found ${stats.notFound}`,
     )
   })
 

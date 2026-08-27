@@ -129,10 +129,9 @@ export const TRACK_PROPERTIES: readonly TrackProperty[] = [
   prop('rating', 'Rating', 'number', { max: 5 }),
   prop('energy', 'Energy', 'number', {
     hint:
-      '1-10. Derived from arousal, unless an "Energy N" comment supplied it directly ' +
-      '(Mixed In Key) - then the two can disagree. The Arousal column shows the same ' +
-      'measurement on a different curve: energy stretches the 3.5-7.5 band the model ' +
-      'actually uses, arousal shows its nominal 1-9, so 10 and 83% can be one track.',
+      '1-10, read from an "Energy N" token in the Comments field (Mixed In Key writes ' +
+      'these). Never estimated: a track without the token stays blank rather than ' +
+      'carrying a model-derived guess.',
   }),
   prop('arousal', 'Arousal', 'number', {
     ...DESCRIPTOR,

@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, test } from 'vitest'
 import {
-  energyFromArousal,
   percentFromAffect,
   percentFromUnit,
   mergeAnalysis,
@@ -190,7 +189,6 @@ describe('sanitizeAnalysis (v33)', () => {
       keyConf: null,
       arousal: 7.1,
       valence: null,
-      energy: null,
       happiness: null,
       danceability: null,
     })
@@ -224,7 +222,6 @@ describe('sanitizeAnalysis (v33)', () => {
       keyConf: null,
       arousal: null,
       valence: null,
-      energy: null,
       happiness: null,
       danceability: null,
     })
@@ -263,56 +260,23 @@ describe('sanitizeAnalysis (v33)', () => {
   })
 })
 
-describe('energy (v33)', () => {
-  test('a direct energy beats raw arousal', () => {
-    const tracks = [track({ id: 'a', location: 'file://localhost/Users/dj/a.mp3' })]
-    const merged = mergeAnalysis(tracks, sidecar({ '/Users/dj/a.mp3': { energy: 7, arousal: 9 } }))
-
-    expect(merged.tracks[0].energy).toBe(7)
-  })
-
-  test('arousal is used when no direct energy is supplied', () => {
+describe('energy comes only from Comments (v36)', () => {
+  test('the merge never invents an energy, whatever the sidecar carries', () => {
+    // The arousal-derived fallback was removed in v36: against the 18 anchor
+    // labels the Mixed In Key comment token outperformed it, and an honest
+    // null beats an inferior estimate.
     const tracks = [track({ id: 'a', location: 'file://localhost/Users/dj/a.mp3' })]
     const merged = mergeAnalysis(tracks, sidecar({ '/Users/dj/a.mp3': { arousal: 9 } }))
 
-    expect(merged.tracks[0].energy).toBe(10)
+    expect(merged.tracks[0].energy).toBeNull()
+    expect(merged.analysedFields.get('a')?.has('arousal')).toBe(true)
   })
 
-  test('a Mixed In Key tag in Comments wins over analysed energy', () => {
-    // energyFromComments already runs in sanitizeTrack and the Rekordbox
-    // importer, so a MIK tag is a non-null energy before the merge sees it.
-    // Fill-nulls-only gives it precedence with no special case.
+  test('a Mixed In Key tag in Comments passes through the merge untouched', () => {
     const tracks = [track({ id: 'a', location: 'file://localhost/Users/dj/a.mp3', energy: 5 })]
     const merged = mergeAnalysis(tracks, sidecar({ '/Users/dj/a.mp3': { arousal: 9 } }))
 
     expect(merged.tracks[0].energy).toBe(5)
-  })
-
-  test('maps the useful arousal band onto 1-10', () => {
-    expect(energyFromArousal(3.5)).toBe(1)
-    expect(energyFromArousal(7.5)).toBe(10)
-    expect(energyFromArousal(5.5)).toBe(6)
-  })
-
-  test('clamps predictions that fall outside the band', () => {
-    // The regression head is linear over unnormalised targets, so it does not
-    // even respect its own [1, 9] annotation range.
-    expect(energyFromArousal(-4)).toBe(1)
-    expect(energyFromArousal(14)).toBe(10)
-    expect(energyFromArousal(1)).toBe(1)
-    expect(energyFromArousal(9)).toBe(10)
-  })
-
-  test("the model's real output band spreads across the scale (v34)", () => {
-    // Measured over the real 2080-track collection: arousal lands between
-    // roughly 4.1 and 7.3, mean 5.8, sd 0.53 — nothing like the [1, 9] the
-    // annotations nominally span. Stretching the nominal range instead of the
-    // observed one collapses the whole library onto two energy values, which
-    // is worse than no energy at all: it hands the combo engine a criterion
-    // that always matches, quietly loosening the threshold library-wide.
-    const observed = [4.1, 4.6, 5.1, 5.5, 5.9, 6.3, 6.8, 7.3]
-    const energies = new Set(observed.map(energyFromArousal))
-    expect(energies.size).toBeGreaterThanOrEqual(6)
   })
 })
 
@@ -338,7 +302,6 @@ describe('summariseAnalysisImport (v33)', () => {
       bpmFilled: 1,
       bpmMissing: 4,
       keyFilled: 1,
-      energyFilled: 1,
       notFound: 2,
       belowConfidence: 1,
     })
@@ -351,7 +314,7 @@ describe('summariseAnalysisImport (v33)', () => {
       sidecar({ '/Users/dj/a.mp3': { bpm: 174, arousal: 9 } }),
     )
 
-    expect(summary.note).toBe('BPM filled 1/1, key 0/1, energy 1 track, descriptors 1 track')
+    expect(summary.note).toBe('BPM filled 1/1, key 0/1, descriptors 1 track')
   })
 
   test('names the refusals rather than swallowing them', () => {
@@ -365,7 +328,7 @@ describe('summariseAnalysisImport (v33)', () => {
     )
 
     expect(summary.note).toBe(
-      'BPM filled 0/2, key 0/2, energy 0 tracks, descriptors 0 tracks; 1 below confidence, 1 not found',
+      'BPM filled 0/2, key 0/2, descriptors 0 tracks; 1 below confidence, 1 not found',
     )
   })
 
@@ -405,10 +368,11 @@ describe('the sample-collection fixture (v33)', () => {
     expect(summary.belowConfidence).toBe(1)
   })
 
-  test('leaves the sample energies alone — they are already set', () => {
-    const summary = summariseAnalysisImport(SAMPLE_COLLECTION.tracks, sidecar as AnalysisSidecar)
+  test('never touches energy — comments are its only source (v36)', () => {
+    const { tracks } = mergeAnalysis(SAMPLE_COLLECTION.tracks, sidecar)
 
-    expect(summary.energyFilled).toBe(0)
+    const before = SAMPLE_COLLECTION.tracks.map((t) => t.energy)
+    expect(tracks.map((t) => t.energy)).toEqual(before)
   })
 })
 
@@ -420,7 +384,7 @@ describe('the descriptor percent scales (v35)', () => {
   })
 
   test('the nominal range is used, so the model shrinking to its mean stays visible', () => {
-    // Deliberately NOT energyFromArousal's eyeballed 3.5-7.5 band. The
+    // Deliberately NOT an eyeballed observed band. The
     // emoMusic head barely leaves the middle of its own annotation range —
     // over the real 2040-track collection arousal spans 3.20 to 7.63 — and a
     // rescale that hides that would claim a precision the model has not got.

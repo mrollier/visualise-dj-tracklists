@@ -171,6 +171,30 @@ next steps ranked at the end of it.
     all four columns because nothing simulates an analysis run, and the filter
     boxes seed blank on an existing project until `↺` is pressed.
 
+15. **Mixed In Key was bought, and analysed energy was removed (v36,
+    2026-08-27).** This closes items 8, 9, 11 and 12. The registered
+    seven-track test came out 4-of-7 missed by the letter but with perfect
+    ordering and Zodiac (the tempo discriminator) passing — MIK is not
+    reading tempo (r = +0.17 against BPM library-wide) and it beats the
+    shipped energy against Michiel's labels (anchor r = +0.911 vs +0.828).
+    Library-wide: 2041 of 2051 real tracks tagged, including every WAV — the
+    "MIK will not tag WAV" prediction was wrong in practice because the value
+    travels through Rekordbox's database, not the file. Consequences shipped
+    in v36: `parseMikComment` reads all eight MIK comment formats;
+    `keySource`/`bpmSource` advanced settings choose Rekordbox XML or the
+    MIK comment as ground truth (comment wins, Rekordbox fills gaps);
+    **energy's only source is now the `Energy N` comment — `energyOf` /
+    `energyFromArousal` are deleted and a track without the token stays
+    null** rather than carrying an inferior model-derived guess. Items 8 and
+    9 die with that deletion (there is no analysed energy left to be
+    unreliable or to calibrate); item 11's BPM-blend idea is moot for the
+    same reason. MIK's scale is compressed (87% of the library on 5–7, no 1s
+    or 10s) and Michiel decided to keep the values exactly as MIK wrote
+    them — the fitted rescale is recorded in the design doc, unused. Full
+    statistics and the two remaining loose ends (30 sampler one-shots now
+    carry an energy; 10 real tracks untagged) in
+    [designs/design-v36-mik-energy.md](designs/design-v36-mik-energy.md).
+
 ## Open — v33 audio-analysis provenance (WS1)
 
 The first workstream of the audio-analysis design in

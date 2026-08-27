@@ -18,10 +18,12 @@ import type { Track } from './model'
 /**
  * The Track fields analysis can fill. The last four (v35) are analysis-only:
  * no DJ library supplies them, so every non-null value on a Track came from
- * here.
+ * here. Energy is deliberately absent (v36): it comes exclusively from the
+ * "Energy N" comment token (Mixed In Key), never from analysis — the
+ * arousal-derived fallback was removed after MIK beat it against Michiel's
+ * own labels, and an honest null beats an inferior guess.
  */
-export type AnalysedField =
-  'bpm' | 'key' | 'energy' | 'arousal' | 'valence' | 'danceability' | 'happiness'
+export type AnalysedField = 'bpm' | 'key' | 'arousal' | 'valence' | 'danceability' | 'happiness'
 
 /** One track's analysis, as a producer writes it. Every field is optional. */
 export interface AnalysisEntry {
@@ -29,14 +31,9 @@ export interface AnalysisEntry {
   bpmConf?: number | null
   key?: string | null
   keyConf?: number | null
-  /**
-   * Raw model output. `energy` is derived from `arousal` when a producer
-   * supplies no direct value — see `energyOf`.
-   */
+  /** Raw model output on the emoMusic 1–9 annotation scale. */
   arousal?: number | null
   valence?: number | null
-  /** A direct 1–10 energy from a producer that already has one (e.g. Mixed In Key). */
-  energy?: number | null
   happiness?: number | null
   danceability?: number | null
 }
@@ -86,7 +83,6 @@ export interface MergeResult {
 export interface MergeStats {
   bpmFilled: number
   keyFilled: number
-  energyFilled: number
   /**
    * Tracks that gained at least one v35 descriptor. One counter rather than
    * four: the import note reports what a run achieved, and four near-identical
@@ -139,7 +135,6 @@ export function sanitizeAnalysis(raw: unknown): AnalysisSidecar | null {
       keyConf: num(entry.keyConf),
       arousal: num(entry.arousal),
       valence: num(entry.valence),
-      energy: num(entry.energy),
       happiness: num(entry.happiness),
       danceability: num(entry.danceability),
     }
@@ -175,7 +170,6 @@ export function mergeAnalysis(tracks: Track[], sidecar: AnalysisSidecar | null):
   const stats: MergeStats = {
     bpmFilled: 0,
     keyFilled: 0,
-    energyFilled: 0,
     descriptorsFilled: 0,
     bpmMissing: tracks.filter((t) => t.bpm === null).length,
     keyMissing: tracks.filter((t) => t.key === null).length,
@@ -233,14 +227,9 @@ export function mergeAnalysis(tracks: Track[], sidecar: AnalysisSidecar | null):
         }
       } else stats.belowConfidence += 1
     }
-    if (t.energy === null) {
-      const energy = energyOf(entry)
-      if (energy !== null) {
-        next.energy = energy
-        fields.add('energy')
-        stats.energyFilled += 1
-      }
-    }
+    // Energy is NEVER filled from analysis (v36): the only source is the
+    // "Energy N" comment token, parsed at import. A track without one keeps
+    // an honest null rather than an arousal-derived guess.
 
     // The v35 descriptors. Every one is analysis-only, so fill-nulls-only is
     // vacuously true here; the loop keeps them on the same path as the rest
@@ -283,7 +272,6 @@ export function summariseAnalysisImport(
   const parts = [
     `BPM filled ${stats.bpmFilled}/${stats.bpmMissing}`,
     `key ${stats.keyFilled}/${stats.keyMissing}`,
-    `energy ${stats.energyFilled} ${stats.energyFilled === 1 ? 'track' : 'tracks'}`,
     `descriptors ${stats.descriptorsFilled} ${stats.descriptorsFilled === 1 ? 'track' : 'tracks'}`,
   ]
   const caveats = []
@@ -316,64 +304,12 @@ function confident(conf: number | null | undefined): boolean {
   return conf >= MIN_CONFIDENCE
 }
 
-/**
- * One entry's energy on the app's 1–10 scale. A direct value from a producer
- * that already has one wins; otherwise it is derived from raw arousal, so the
- * curve can be retuned without re-running a multi-hour analysis batch.
- */
-export function energyOf(entry: AnalysisEntry): number | null {
-  if (typeof entry.energy === 'number' && Number.isFinite(entry.energy))
-    return clampEnergy(entry.energy)
-  if (typeof entry.arousal === 'number' && Number.isFinite(entry.arousal))
-    return energyFromArousal(entry.arousal)
-  return null
-}
-
-/**
- * MTG's arousal/valence heads are trained on annotations in [1, 9], but two
- * things stop that from being the range to stretch.
- *
- * The head is a linear regressor over unnormalised targets, so predictions
- * fall outside [1, 9] and must be clamped. And emoMusic's own annotations sit
- * near the middle of their scale and never reach its ends, so a regressor
- * trained on them shrinks towards the mean: over the real 2080-track
- * collection (v34) arousal came back between 4.08 and 7.26, mean 5.80, sd
- * 0.53. Stretching [1, 9] therefore barely stretches at all — it put 159 of
- * the first 175 tracks on energy 6 or 7.
- *
- * A near-constant energy is worse than none. Energy is an enabled-by-default
- * combo criterion with a ±2 window (combos.ts:83), so a field that is always
- * within tolerance adds a criterion that always matches, quietly loosening the
- * N-of-M threshold across the whole library while conveying nothing.
- *
- * So the band below brackets the observed range with headroom on both sides,
- * which keeps a genuinely quiet or genuinely brutal track able to reach 1 or
- * 10 rather than being clipped, and keeps the centre of mass near 5-7 — where
- * Mixed In Key's own scale puts dance music, and where the six MIK-tagged
- * tracks this library already carries actually sit.
- *
- * Deliberately NOT a percentile or decile map over the library. Those
- * fabricate a uniform spread, which would manufacture 1s and 10s that do not
- * exist and clash with those six real values; this stays linear, so the shape
- * of the distribution survives.
- *
- * ponytail: two constants bracketing a measured range, not a fitted curve —
- * there is still no labelled set to fit against. The sidecar stores raw
- * arousal precisely so replacing these costs an evening rather than a
- * multi-hour re-run.
- */
-const AROUSAL_MIN = 3.5
-const AROUSAL_MAX = 7.5
-
-export function energyFromArousal(arousal: number): number {
-  const span = (arousal - AROUSAL_MIN) / (AROUSAL_MAX - AROUSAL_MIN)
-  return clampEnergy(Math.round(1 + span * 9))
-}
-
-/** Round onto the app's 1–10 energy scale. Callers guarantee a finite input. */
-function clampEnergy(value: number): number {
-  return Math.min(10, Math.max(1, Math.round(value)))
-}
+// The arousal→energy mapping (energyOf / energyFromArousal, v33–v35) lived
+// here until v36. It was removed, not retuned: against Michiel's 18 anchor
+// labels the arousal-derived energy managed r = +0.83 / MAE 2.31 while the
+// Mixed In Key tag managed r = +0.91, and above 155 BPM the model's slope
+// inverted outright. Energy now has exactly one source — the "Energy N"
+// comment token — and a track without one stays null.
 
 /**
  * The descriptor percent scales (v35). `arousal` and `valence` come off the
@@ -383,12 +319,11 @@ function clampEnergy(value: number): number {
  * filter works at all, since `wholeExtent` floors and ceils and a 0–1 domain
  * would collapse its two boxes onto 0 and 1.
  *
- * Deliberately the NOMINAL range, not the observed one `energyFromArousal`
- * stretches. That band exists because energy is a combo criterion and a
- * near-constant criterion always matches; these four gate nothing, so there
- * is nothing to protect and no reason to add a second eyeballed constant.
- * Over the real collection arousal then spans about 28–83% and valence 28–77%
- * — the head's shrink towards its mean, shown rather than hidden.
+ * Deliberately the NOMINAL range, not an observed band. These four gate
+ * nothing, so there is nothing to protect and no reason for an eyeballed
+ * constant. Over the real collection arousal then spans about 28–83% and
+ * valence 28–77% — the head's shrink towards its mean, shown rather than
+ * hidden.
  */
 export function percentFromAffect(value: number): number {
   return clampPercent(((value - 1) / 8) * 100)

@@ -8,11 +8,9 @@ every filled value with a provenance badge; nothing here can overwrite a
 Rekordbox value, because the merge happens in a derived layer the raw library
 never sees. See docs/designs/design-v34-offline-analyser.md.
 
-Deliberately does NOT emit `energy`. `energyOf` in src/core/analysis.ts prefers
-a direct `energy` over deriving one from `arousal`, so writing a number here
-would freeze today's uncalibrated curve into a file that costs hours to
-regenerate. Raw `arousal`/`valence` go in instead and the app derives — which
-is the whole reason the sidecar format has both routes.
+Deliberately does NOT emit `energy`, and since v36 the app would ignore one
+anyway: energy's only source is the "Energy N" comment token (Mixed In Key),
+never analysis. Raw `arousal`/`valence` go in as descriptors, display-only.
 
 Usage:
     scripts/.venv/bin/python scripts/analyse-audio.py \\
