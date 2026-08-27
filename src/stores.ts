@@ -55,6 +55,12 @@ export const analysis = writable<AnalysisSidecar | null>(null)
  * analysis sidecar is what makes a breach plausible on a real library.
  */
 export const autosaveError = writable<string | null>(null)
+/**
+ * Label of the import phase in flight ('Parsing foo.xml…'), null when idle.
+ * Every phase is indeterminate, so the label IS the whole state — the header
+ * renders it next to an indeterminate ProgressBar.
+ */
+export const importStatus = writable<string | null>(null)
 /** Playlists imported with the library (Rekordbox XML); [] otherwise. */
 export const playlists = writable<Playlist[]>([])
 /** Central view: the Camelot wheel or the genre map. Session-only. */

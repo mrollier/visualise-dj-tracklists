@@ -14,6 +14,7 @@
     analysis,
     autosaveError,
     colorAxis,
+    importStatus,
     lastImportReport,
     library,
     libraryName,
@@ -25,8 +26,10 @@
     tracklist,
     viewMode,
   } from '../stores'
+  import { yieldToPaint } from './audio/sourceStore'
   import ConfirmDialog from './ConfirmDialog.svelte'
   import InfoTooltip from './InfoTooltip.svelte'
+  import ProgressBar from './ProgressBar.svelte'
   import ResetDialog from './ResetDialog.svelte'
   import { promptExportName } from './exportName'
   import {
@@ -79,6 +82,7 @@
     importError = ''
     try {
       const first = files[0]
+      importStatus.set(`Reading ${first.name}…`)
       if (first.name.toLowerCase().endsWith('.json')) {
         const text = await first.text()
         // An analysis sidecar is a .json too, and parseProject would throw on
@@ -163,6 +167,8 @@
           `${rematch.matched} playlist track${rematch.matched === 1 ? '' : 's'} matched to the imported collection`,
         ]
       }
+      importStatus.set('Computing wheel…')
+      await yieldToPaint()
       replaceLibrary({
         tracks: rematch.library,
         name: files.length > 1 ? `${files.length} audio files` : first.name,
@@ -173,6 +179,7 @@
     } catch (e) {
       importError = e instanceof Error ? e.message : String(e)
     } finally {
+      importStatus.set(null)
       fileInput.value = ''
     }
   }
@@ -180,6 +187,10 @@
   async function importTextFile(file: File): Promise<ImportResult> {
     const text = await file.text()
     const isXml = file.name.toLowerCase().endsWith('.xml') || text.trimStart().startsWith('<')
+    // The parse is one synchronous call that can block for seconds on a big
+    // collection — paint the label first, so the user sees WHAT is blocking.
+    importStatus.set(`Parsing ${file.name}…`)
+    await yieldToPaint()
     return isXml ? importRekordboxXml(text) : importCsv(text)
   }
 
@@ -397,6 +408,10 @@
   <!-- Just the collection name; the import details live behind the ⓘ icon
        (hover or focus it) so the header stays uncrowded (ISSUES.md #7/#13). -->
   <div class="status">
+    {#if $importStatus}
+      <span class="busy" role="status">{$importStatus}</span>
+      <ProgressBar label={$importStatus} width="110px" />
+    {/if}
     {#if importError}
       <span class="error">{importError}</span>
     {/if}
@@ -547,6 +562,10 @@
 
   .status .error {
     color: var(--walk-bright);
+  }
+
+  .status .busy {
+    white-space: nowrap;
   }
 
   /* The import-report popover converted to the shared InfoTooltip (v11

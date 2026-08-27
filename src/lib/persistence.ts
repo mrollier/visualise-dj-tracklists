@@ -117,7 +117,14 @@ export function replaceLibrary(replacement: {
     selectedPlaylists = [],
     report = null,
   } = replacement
-  library.set(tracks)
+  // Clear the library FIRST and set the new tracks LAST: every store write in
+  // between propagates synchronously through the derived graph, and any pass
+  // where a non-empty library meets not-yet-final filters runs the O(n²)
+  // combo compute for nothing (the pre-v37 order did exactly that — the
+  // 10-20s import freeze was mostly this waste, computed twice). Against an
+  // empty library every intermediate recompute is trivial, and the single
+  // final set() computes once, under the final filters.
+  library.set([])
   libraryName.set(name)
   // A fresh library's ids share nothing with the old marks (v12 WS9).
   manualEdges.set([])
@@ -136,6 +143,7 @@ export function replaceLibrary(replacement: {
   lastImportReport.set(report)
   selectedId.set(null)
   resetSuggestions()
+  library.set(tracks)
 }
 
 /**

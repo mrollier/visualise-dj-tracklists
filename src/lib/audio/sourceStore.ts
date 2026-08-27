@@ -48,7 +48,7 @@ export const coverage = writable<CoverageReport | null>(null)
 const MATCH_CHUNK = 2000
 
 /** Hand the browser a frame, so a progress bar can actually paint. */
-function yieldToPaint(): Promise<void> {
+export function yieldToPaint(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
 }
 

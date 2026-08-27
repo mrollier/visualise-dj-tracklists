@@ -27,6 +27,7 @@ import {
   playlists,
   selectedId,
   tracklist,
+  visibleLibrary,
 } from '../src/stores'
 import { track } from './helpers'
 
@@ -86,6 +87,26 @@ describe('replaceLibrary', () => {
   test('clears the previous import report when none is given', () => {
     replaceLibrary({ tracks: [track({ id: 'csv-0' })], name: 'new.csv' })
     expect(get(lastImportReport)).toBeNull()
+  })
+
+  test('never exposes the new library to stale filters (the v37 import freeze)', () => {
+    // Permissive filters left over from the old library: before v37 the new
+    // tracks propagated through them (a full O(n²) combo pass) before the
+    // playlist filter narrowed the wheel to empty.
+    filters.set(structuredClone(EMPTY_FILTERS))
+    const seen: number[] = []
+    const unsubscribe = visibleLibrary.subscribe((tracks) => seen.push(tracks.length))
+    const next = [track({ id: 'rb-7' }), track({ id: 'rb-8' }), track({ id: 'rb-9' })]
+    replaceLibrary({
+      tracks: next,
+      name: 'collection.xml',
+      playlists: [{ name: 'Warm-up', trackIds: ['rb-7'] }],
+    })
+    unsubscribe()
+    // Playlists arrive with none selected, so the wheel ends empty — and no
+    // intermediate emission may ever contain the full new library either.
+    expect(seen.at(-1)).toBe(0)
+    expect(seen).not.toContain(next.length)
   })
 })
 
