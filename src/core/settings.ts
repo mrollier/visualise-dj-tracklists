@@ -1,5 +1,6 @@
 import { ALL_TRACK_COLUMNS, DEFAULT_HIDDEN_COLUMNS } from './columns'
 import { PANEL_FILTER_KEYS, type PanelFilterKey } from './marks'
+import type { MetadataSource } from './model'
 import { DEFAULT_VISIBLE_FILTERS } from './properties'
 import type { TrackSortField } from './trackSort'
 
@@ -116,6 +117,15 @@ export interface AppSettings {
    * needs the user to grant a music folder.
    */
   audioPreview: boolean
+  /**
+   * Ground truth for a track's key / BPM (v36): Rekordbox's XML attribute, or
+   * the Mixed In Key token in Comments. With 'comments', a track whose comment
+   * has no parsable token keeps its Rekordbox value — flipping the setting
+   * never blanks metadata. Energy has no source setting: it is always read
+   * from Comments, because Rekordbox produces none.
+   */
+  keySource: MetadataSource
+  bpmSource: MetadataSource
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -140,4 +150,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showLeftPanel: true,
   showRightPanel: true,
   audioPreview: false,
+  keySource: 'rekordbox',
+  bpmSource: 'rekordbox',
 }

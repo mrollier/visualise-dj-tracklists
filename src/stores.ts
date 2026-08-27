@@ -25,7 +25,13 @@ import {
   type MarksFilter,
   type PanelFilterKey,
 } from './core/marks'
-import type { ImportReport, ManualEdge, Playlist, Track } from './core/model'
+import {
+  applySourcePreference,
+  type ImportReport,
+  type ManualEdge,
+  type Playlist,
+  type Track,
+} from './core/model'
 import { canAddSet, freshFirstSet, nextSetName, uniqueSetName, type TrackSet } from './core/sets'
 import { DEFAULT_SETTINGS, type AppSettings } from './core/settings'
 import type { TrackSort } from './core/trackSort'
@@ -454,8 +460,27 @@ export function clearPanelFilter(key: PanelFilterKey): void {
  * so with no sidecar loaded this is identity and every downstream memo behaves
  * exactly as it did before the feature existed.
  */
-const merged = derived([library, analysis], ([$library, $analysis]) =>
-  mergeAnalysis($library, $analysis),
+/**
+ * The v36 source preference, projected through `distinct` so unrelated
+ * settings churn (an edge-opacity slider drag) never re-emits into the
+ * O(n²) combo view downstream. Reads the EFFECTIVE layer: easy mode runs
+ * on Rekordbox truth like every other computed default.
+ */
+const sourcePrefs = distinct(
+  derived(effectiveSettings, ($s) => ({ keySource: $s.keySource, bpmSource: $s.bpmSource })),
+  (a, b) => a.keySource === b.keySource && a.bpmSource === b.bpmSource,
+)
+/**
+ * Comment-sourced key/BPM substitution (v36), BEFORE the sidecar merge:
+ * the fallback chain is comment token → Rekordbox value → analysis sidecar,
+ * and a comment-sourced key is non-null so the sidecar never fills-and-badges
+ * it. Identity when both prefs are 'rekordbox'.
+ */
+const sourced = derived([library, sourcePrefs], ([$library, $prefs]) =>
+  applySourcePreference($library, $prefs),
+)
+const merged = derived([sourced, analysis], ([$sourced, $analysis]) =>
+  mergeAnalysis($sourced, $analysis),
 )
 export const augmentedLibrary = derived(merged, ($merged) => $merged.tracks)
 /** Which fields on which track came from analysis — drives the provenance badges. */

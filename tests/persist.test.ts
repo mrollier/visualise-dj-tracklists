@@ -846,6 +846,42 @@ describe('same-artist preference (v31)', () => {
   })
 })
 
+describe('key/BPM source preference (v36)', () => {
+  test('a save from before v36 back-fills both sources to rekordbox', () => {
+    const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    const stored = raw.settings as Record<string, unknown>
+    delete stored.keySource
+    delete stored.bpmSource
+    const parsed = parseProject(JSON.stringify(raw)).settings
+    expect(parsed.keySource).toBe('rekordbox')
+    expect(parsed.bpmSource).toBe('rekordbox')
+  })
+
+  test('comments as source survives the round-trip', () => {
+    const comments = {
+      ...project,
+      settings: {
+        ...structuredClone(DEFAULT_SETTINGS),
+        keySource: 'comments' as const,
+        bpmSource: 'comments' as const,
+      },
+    }
+    const parsed = parseProject(serializeProject(comments)).settings
+    expect(parsed.keySource).toBe('comments')
+    expect(parsed.bpmSource).toBe('comments')
+  })
+
+  test('garbage source values fall back to rekordbox', () => {
+    const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    const stored = raw.settings as Record<string, unknown>
+    stored.keySource = 'id3'
+    stored.bpmSource = 42
+    const parsed = parseProject(JSON.stringify(raw)).settings
+    expect(parsed.keySource).toBe('rekordbox')
+    expect(parsed.bpmSource).toBe('rekordbox')
+  })
+})
+
 describe('panel visibility (v30)', () => {
   test('saves from before collapsible panels back-fill to both panels shown', () => {
     // The layout every save before v30 was written from. Additive booleans

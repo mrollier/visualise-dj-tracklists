@@ -460,6 +460,16 @@ export function parseProject(json: string): Project {
       typeof rawSettings.audioPreview === 'boolean'
         ? rawSettings.audioPreview
         : DEFAULT_SETTINGS.audioPreview,
+    // v36: additive enums, no version bump — an older save with no key
+    // resolves to 'rekordbox', which is exactly today's behaviour.
+    keySource:
+      rawSettings.keySource === 'rekordbox' || rawSettings.keySource === 'comments'
+        ? rawSettings.keySource
+        : DEFAULT_SETTINGS.keySource,
+    bpmSource:
+      rawSettings.bpmSource === 'rekordbox' || rawSettings.bpmSource === 'comments'
+        ? rawSettings.bpmSource
+        : DEFAULT_SETTINGS.bpmSource,
   }
   // v11 (issue 1): filters normalize into the per-property map, whatever
   // their vintage; migrateFilters lifts v3 top-level ranges and drops

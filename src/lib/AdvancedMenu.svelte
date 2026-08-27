@@ -452,6 +452,29 @@
         most edges to vanish.
       </InfoTooltip>
     </label>
+    <label>
+      Key source
+      <select bind:value={$settings.keySource}>
+        <option value="rekordbox">Rekordbox</option>
+        <option value="comments">Comments (Mixed In Key)</option>
+      </select>
+      <InfoTooltip label="About key sources">
+        Comments reads the Mixed In Key token written into the file's Comment field ("10A", "05A -
+        Energy 7", …). Tracks without one keep their Rekordbox value — switching never blanks a key.
+      </InfoTooltip>
+    </label>
+    <label>
+      BPM source
+      <select bind:value={$settings.bpmSource}>
+        <option value="rekordbox">Rekordbox</option>
+        <option value="comments">Comments (Mixed In Key)</option>
+      </select>
+      <InfoTooltip label="About BPM sources">
+        Comments reads a tempo token out of the file's Comment field ("10A - 126 - 7"). Tracks
+        without one keep their Rekordbox value. Rekordbox's beatgrid BPM carries decimals; a comment
+        tempo is usually a whole number.
+      </InfoTooltip>
+    </label>
   </details>
 
   <details

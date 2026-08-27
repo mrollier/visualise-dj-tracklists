@@ -19,6 +19,7 @@
     activeSet,
     activeSetId,
     addSet,
+    augmentedTrackById,
     effectiveCriteria,
     effectiveManualEdges,
     effectiveSettings,
@@ -49,7 +50,17 @@
 
   let clearDialog: ConfirmDialog
 
+  // v36: the panel DISPLAYS and REASONS (key·bpm meta, transition chips), so
+  // it resolves through the augmented map like every other display surface —
+  // otherwise the wheel places by comment/analysis keys while the chips judge
+  // by raw Rekordbox ones. The two data exports below stay raw.
   const walkTracks = $derived(
+    $tracklist.map((id) => $augmentedTrackById.get(id)).filter((t): t is Track => t !== undefined),
+  )
+  // Raw Rekordbox truth for the .m3u8/.csv exports — the app also IMPORTS
+  // CSV, so an augmented export could launder derived values into the
+  // library (the stores.ts trackById rule).
+  const exportTracks = $derived(
     $tracklist.map((id) => $trackById.get(id)).filter((t): t is Track => t !== undefined),
   )
 
@@ -612,10 +623,10 @@
     </ol>
 
     <div class="footer">
-      <button onclick={() => download('.m3u8', () => exportM3u(walkTracks), 'audio/x-mpegurl')}>
+      <button onclick={() => download('.m3u8', () => exportM3u(exportTracks), 'audio/x-mpegurl')}>
         Export M3U8
       </button>
-      <button onclick={() => download('.csv', () => exportTracklistCsv(walkTracks), 'text/csv')}>
+      <button onclick={() => download('.csv', () => exportTracklistCsv(exportTracks), 'text/csv')}>
         Export CSV
       </button>
       <button
