@@ -65,6 +65,13 @@ describe('genreComponents', () => {
     // "Organic House / Downtempo" is a Beatport category, not two genres.
     expect(genreComponents('Organic House / Downtempo')).toEqual(['organic house'])
   })
+
+  test('memoised: repeated calls return the identical array (v37 perf)', () => {
+    // The combo pair loop calls this twice per O(n²) pair — the cache is
+    // what keeps a criteria change from re-splitting every raw label
+    // millions of times.
+    expect(genreComponents('House / Techno')).toBe(genreComponents('House / Techno'))
+  })
 })
 
 describe('genreSimilarity: multi-genre fields', () => {

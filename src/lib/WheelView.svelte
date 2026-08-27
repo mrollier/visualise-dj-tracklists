@@ -55,6 +55,7 @@
     type RadialAxis,
     rightPanel,
     selectedId,
+    slotSpreadFactor,
     tracklist,
     visibleLibrary,
     walkRevealRange,
@@ -112,6 +113,18 @@
     return a + (b - a) * t
   }
 
+  /** Min/max in one pass — `Math.min(...values)` blows the argument limit
+   * (~65k) on a big enough library, and spreads allocate besides. */
+  function extent(values: readonly number[]): [number, number] {
+    let min = values[0]
+    let max = values[0]
+    for (const v of values) {
+      if (v < min) min = v
+      if (v > max) max = v
+    }
+    return [min, max]
+  }
+
   // The radial axis is the one part of the frame that rescales: its domain
   // follows the active filter for the radial metric, falling back to the
   // playlist selection's extent (design-v6 §A). Everything else — angles,
@@ -131,9 +144,9 @@
   })
 
   const targetDomain = $derived.by((): [number, number] => {
-    const extent: [number, number] | null =
-      radialValues.length === 0 ? null : [Math.min(...radialValues), Math.max(...radialValues)]
-    const domain = radialDomain(radialFilterRange, extent)
+    const valueExtent: [number, number] | null =
+      radialValues.length === 0 ? null : extent(radialValues)
+    const domain = radialDomain(radialFilterRange, valueExtent)
     // Nice once here (not per animation frame — nicing interpolated
     // endpoints would make the tween judder in rounded steps).
     return scaleLinear().domain(domain).nice().domain() as [number, number]
@@ -215,7 +228,9 @@
     // group's MINIMUM radius is the most constraining (largest angular
     // radius), so one deterministic half-window keeps relaxSlotAngles
     // single-valued per group.
-    const factor = $effectiveSettings.slotSpreadFactor
+    // Sliced + throttled in stores.ts (v37): unrelated settings writes never
+    // reach this O(m²)-per-slot relaxation, and a spread drag coalesces.
+    const factor = $slotSpreadFactor
     for (const [key, group] of bySlot) {
       const slotNodes = group.map((track) => {
         const value = track[$radialAxis]
@@ -272,6 +287,13 @@
     return (b[$radialAxis] ?? -1) - (a[$radialAxis] ?? -1) || a.id.localeCompare(b.id)
   }
 
+  /** The gutter population, sorted once per library/axis change (v37) — the
+   * `nodes` derived reruns EVERY FRAME during a tween, and this filter+sort
+   * was O(n log n) inside it. Consumers only iterate; nobody mutates it. */
+  const unkeyedSorted = $derived(
+    $augmentedLibrary.filter((t) => t.key === null).sort(compareGutterTracks),
+  )
+
   /** Gutter analogue of slotAngleById (v20 #3): settled x-slot per unkeyed
    * track, banded on each track's SETTLED gutter y — never the animated one
    * `nodes` renders each frame. The old per-frame version banded on
@@ -282,9 +304,8 @@
    * here and letting the DISPLAYED x glide toward it via displacedScalar
    * (below) is the fix; y itself is untouched. */
   const gutterTargetXById = $derived.by(() => {
-    const unkeyed = $augmentedLibrary.filter((t) => t.key === null).sort(compareGutterTracks)
     return gutterSlotX(
-      unkeyed.map((t) => ({ id: t.id, y: settledGutterYOf(t, $radialAxis, targetDomain) })),
+      unkeyedSorted.map((t) => ({ id: t.id, y: settledGutterYOf(t, $radialAxis, targetDomain) })),
       GUTTER_X,
     )
   })
@@ -584,8 +605,7 @@
     // member's fan index are decided once, on settled y, by
     // gutterTargetXById above (v20 #3); this loop just draws x glided
     // toward that target (displacedScalar) and y unchanged.
-    const unkeyed = $augmentedLibrary.filter((t) => t.key === null).sort(compareGutterTracks)
-    for (const track of unkeyed) {
+    for (const track of unkeyedSorted) {
       const value = track[$radialAxis]
       const y = unkeyedY(track) // unchanged: still rides morph/domain tween
       const x = displacedScalar(gutterXFrom, track.id, gutterTargetXById.get(track.id) ?? GUTTER_X)
@@ -633,7 +653,7 @@
       .map((t) => t[$effectiveColorAxis])
       .filter((v): v is number => v !== null)
     if (values.length === 0) return [0, 1]
-    return [Math.min(...values), Math.max(...values)]
+    return extent(values)
   })
 
   /** Tracks per genre class among the *visible* nodes. */
@@ -1372,7 +1392,7 @@
               fill={nodeColor(node.track[$effectiveColorAxis])}
               class="dot"
               class:selected={node.track.id === $selectedId}
-              class:in-walk={$tracklist.includes(node.track.id)}
+              class:in-walk={usedIds.has(node.track.id)}
               class:playing={audibleIds.has(node.track.id)}
               vector-effect="non-scaling-stroke"
             />

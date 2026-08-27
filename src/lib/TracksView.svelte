@@ -1,3 +1,16 @@
+<script module lang="ts">
+  // Measured column widths survive remounts (v37): the view is torn down on
+  // every wheel↔tracks switch, and re-running canvas measureText over the
+  // library × every text column was the whole cost of coming back. Keyed by
+  // library reference + column list — exactly the derived's dependencies, so
+  // the width-stability guarantee below is unchanged.
+  let widthsMemo: {
+    lib: unknown
+    colsKey: string
+    widths: Partial<Record<string, number>>
+  } | null = null
+</script>
+
 <script lang="ts">
   // The Tracks central view (issue 7): the selected playlists as a classic
   // sortable table, like the browser in DJ software. Rows share the global
@@ -91,8 +104,24 @@
   // analysis sidecar therefore DOES reflow columns; that is a library-level
   // change like an import, not the filter/mark toggle the guarantee above is
   // about.
+  // ponytail: widths sampled over the first 2000 tracks — a wider outlier
+  // beyond that spills its column; measure all if it ever bites. Text columns
+  // are ELLIPSIS_CAPped anyway and numeric formats are near-constant width.
+  const WIDTH_SAMPLE = 2000
+
   const columnWidths = $derived.by(() => {
+    const colsKey = columns.join()
+    if (
+      widthsMemo !== null &&
+      widthsMemo.lib === $augmentedLibrary &&
+      widthsMemo.colsKey === colsKey
+    )
+      return widthsMemo.widths as Partial<Record<TrackSortField, number>>
     const widths: Partial<Record<TrackSortField, number>> = {}
+    const sample =
+      $augmentedLibrary.length > WIDTH_SAMPLE
+        ? $augmentedLibrary.slice(0, WIDTH_SAMPLE)
+        : $augmentedLibrary
     const arrowWidth = measureWidth('▲', HEADER_FONT) + 3 // .dir's margin-left
     for (const field of columns) {
       const label = COLUMN_LABEL[field].toUpperCase()
@@ -104,7 +133,7 @@
         body = measureWidth(RATING_REFERENCE, BODY_FONT) + BODY_PAD
       } else {
         let maxText = 0
-        for (const track of $augmentedLibrary) {
+        for (const track of sample) {
           const w = measureWidth(formatPropertyValue(track, field), BODY_FONT)
           if (w > maxText) maxText = w
         }
@@ -114,6 +143,7 @@
 
       widths[field] = Math.ceil(Math.max(header, body)) + SAFETY_MARGIN
     }
+    widthsMemo = { lib: $augmentedLibrary, colsKey, widths }
     return widths
   })
 

@@ -48,6 +48,15 @@ export interface TrackSort {
 
 const KEY_ORDER = new Map(ALL_CAMELOT_KEYS.map((key, i) => [key as string, i]))
 
+// One shared collator: localeCompare with an options object resolves a
+// Collator PER CALL, which dominates the sort at O(n log n) comparisons.
+const collator = new Intl.Collator(undefined, { sensitivity: 'base' })
+
+/** Deterministic tiebreak on internal ids — code-unit order, locale-free. */
+function compareIds(a: Track, b: Track): number {
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
+}
+
 /** null = missing (sinks); number = comparable rank; string = locale text. */
 function sortValue(track: Track, field: TrackSortField): number | string | null {
   const value = track[field]
@@ -61,13 +70,13 @@ export function sortTracks(tracks: readonly Track[], sort: TrackSort): Track[] {
   return [...tracks].sort((a, b) => {
     const va = sortValue(a, sort.field)
     const vb = sortValue(b, sort.field)
-    if (va === null && vb === null) return a.id.localeCompare(b.id)
+    if (va === null && vb === null) return compareIds(a, b)
     if (va === null) return 1 // missing sinks regardless of direction
     if (vb === null) return -1
     const cmp =
       typeof va === 'string' || typeof vb === 'string'
-        ? String(va).localeCompare(String(vb), undefined, { sensitivity: 'base' })
+        ? collator.compare(String(va), String(vb))
         : va - vb
-    return sign * cmp || a.id.localeCompare(b.id)
+    return sign * cmp || compareIds(a, b)
   })
 }

@@ -140,6 +140,11 @@ export function normalizeGenre(label: string): string {
   return Object.hasOwn(ALIASES, s) ? ALIASES[s] : s
 }
 
+// ponytail: unbounded cache — keyed by raw genre strings, vocabulary is a few
+// hundred entries. The combo pair loop calls genreComponents twice per pair
+// (O(n²) pairs), so the regex+split work must not repeat per call.
+const componentsCache = new Map<string, string[]>()
+
 /**
  * Multi-genre fields ("House / Techno", "Melodic House, Techno") split into
  * their component genres; similarity then takes the best component pair.
@@ -147,6 +152,14 @@ export function normalizeGenre(label: string): string {
  * alias table knows ("Organic House / Downtempo") stay whole.
  */
 export function genreComponents(raw: string): string[] {
+  const cached = componentsCache.get(raw)
+  if (cached !== undefined) return cached
+  const result = splitGenreComponents(raw)
+  componentsCache.set(raw, result)
+  return result
+}
+
+function splitGenreComponents(raw: string): string[] {
   // En/em dashes separate too (v12 WS5) — hyphens never do ("hip-hop").
   if (/[/,;–—]/.test(raw) && !Object.hasOwn(ALIASES, cleanupGenre(raw))) {
     const parts = [

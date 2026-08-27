@@ -346,6 +346,42 @@ function distinct<T>(store: Readable<T>, equal: (a: T, b: T) => boolean): Readab
   })
 }
 
+/**
+ * Throttle a store with a trailing edge (v37): the first write after an idle
+ * period passes through synchronously (a checkbox toggle stays instant), then
+ * at most one emission per `ms` while writes keep coming (a slider drag emits
+ * ~4×/s at 250ms instead of once per pixel), and the last value is always
+ * delivered. The gate in front of every O(n²)-and-worse derivation below.
+ *
+ * `initial` covers the one cold path: the app keeps these stores permanently
+ * subscribed (CriteriaPanel never unmounts), but a `get()` on a cold store
+ * inside the throttle window would otherwise read `undefined`.
+ */
+function throttled<T>(store: Readable<T>, ms: number, initial: T): Readable<T> {
+  let lastEmit = -Infinity
+  let timer: ReturnType<typeof setTimeout> | undefined
+  return derived(
+    store,
+    ($value, set) => {
+      clearTimeout(timer)
+      const wait = ms - (Date.now() - lastEmit)
+      if (wait <= 0) {
+        lastEmit = Date.now()
+        set($value)
+      } else {
+        timer = setTimeout(() => {
+          lastEmit = Date.now()
+          set($value)
+        }, wait)
+      }
+    },
+    initial,
+  )
+}
+
+/** One throttle window for every tuning control that feeds heavy recomputes. */
+const TUNING_THROTTLE_MS = 250
+
 function marksContextEqual(a: MarksContext | null, b: MarksContext | null): boolean {
   if (a === null || b === null) return a === b
   const setEqual = (x: ReadonlySet<string>, y: ReadonlySet<string>): boolean =>
@@ -544,13 +580,28 @@ export const scopedGenres = derived(playlistScopedLibrary, ($scoped) => {
 })
 
 /**
+ * Criteria as the combo engine sees them (v37): throttled, so a slider drag
+ * or a number-input keystroke burst costs a handful of O(n²) recomputes, not
+ * one per input event. Everything else (UI bindings, undo, autosave, tests)
+ * keeps reading the synchronous `effectiveCriteria`.
+ */
+const settledCriteria = throttled(
+  effectiveCriteria,
+  TUNING_THROTTLE_MS,
+  structuredClone(DEFAULT_CRITERIA),
+)
+
+/**
  * The combo graph, possibly symbolic: at threshold 0 every pair is a combo
  * and the edge list stays empty (v11 issue 2a) — consumers read `complete`
  * and `pairCount` instead of materializing n²/2 edges.
  */
+// ponytail: O(n²) pairs — usable to ~3-5k visible tracks. computeComboView is
+// a pure (tracks, criteria) function, so a Web Worker behind derived's
+// (values, set) async form + candidate bucketing is the drop-in beyond that.
 const comboView = derived(
-  [visibleLibrary, effectiveCriteria],
-  ([$visibleLibrary, $effectiveCriteria]) => computeComboView($visibleLibrary, $effectiveCriteria),
+  [visibleLibrary, settledCriteria],
+  ([$visibleLibrary, $settledCriteria]) => computeComboView($visibleLibrary, $settledCriteria),
 )
 
 export const edges = derived(comboView, ($comboView) => $comboView.edges)
@@ -565,26 +616,32 @@ export const comboPairCount = derived(comboView, ($comboView) => $comboView.pair
  * star is synthesized around the selection — the cluster option is ignored
  * there, since "the cluster" would be every pair on the wheel.
  */
+/**
+ * Primitive projection, so svelte's own dedup absorbs unrelated settings
+ * churn (v37) — an edge-opacity drag no longer re-filters O(E) edges.
+ */
+const focusClusterEdges = derived(effectiveSettings, ($s) => $s.focusClusterEdges)
+
 export const focusEdges = derived(
-  [edges, selectedId, effectiveSettings, comboComplete, visibleLibrary],
-  ([$edges, $selectedId, $effectiveSettings, $comboComplete, $visibleLibrary]) => {
+  [edges, selectedId, focusClusterEdges, comboComplete, visibleLibrary],
+  ([$edges, $selectedId, $focusClusterEdges, $comboComplete, $visibleLibrary]) => {
     if ($comboComplete) {
       if ($selectedId === null) return []
       return $visibleLibrary
         .filter((t) => t.id !== $selectedId)
         .map((t) => ({ sourceId: $selectedId, targetId: t.id, matched: [] }))
     }
-    return computeFocusEdges($edges, $selectedId, $effectiveSettings.focusClusterEdges)
+    return computeFocusEdges($edges, $selectedId, $focusClusterEdges)
   },
 )
 
 /** Library-wide genre matcher, so pairwise UI (set transitions) agrees with the wheel's edges. */
 export const genreMatcher = derived(
-  [visibleLibrary, effectiveCriteria],
-  ([$visibleLibrary, $effectiveCriteria]) =>
+  [visibleLibrary, settledCriteria],
+  ([$visibleLibrary, $settledCriteria]) =>
     makeGenreMatcher(
       $visibleLibrary.map((t) => t.genre),
-      $effectiveCriteria,
+      $settledCriteria,
     ),
 )
 
@@ -596,11 +653,19 @@ export const genreMatcher = derived(
  * Still scoped to the selected playlists (v7 issue 14): range/genre
  * filtering never re-classes; playlist toggles deliberately do.
  */
+const iconPrefs = distinct(
+  derived(effectiveSettings, ($s) => ({
+    iconMode: $s.iconMode,
+    maxGenreClasses: $s.maxGenreClasses,
+  })),
+  (a, b) => a.iconMode === b.iconMode && a.maxGenreClasses === b.maxGenreClasses,
+)
+
 export const iconClasses = derived(
-  [playlistScopedLibrary, playlists, effectiveFilters, effectiveSettings],
-  ([$scoped, $playlists, $effectiveFilters, $effectiveSettings]) => {
-    const max = $effectiveSettings.maxGenreClasses
-    if ($effectiveSettings.iconMode === 'playlists') {
+  [playlistScopedLibrary, playlists, effectiveFilters, iconPrefs],
+  ([$scoped, $playlists, $effectiveFilters, $iconPrefs]) => {
+    const max = $iconPrefs.maxGenreClasses
+    if ($iconPrefs.iconMode === 'playlists') {
       const selectedNames = $effectiveFilters.playlists
       const selected =
         selectedNames === null
@@ -609,12 +674,24 @@ export const iconClasses = derived(
       return playlistClasses($scoped, selected, max)
     }
     const genres = $scoped.map((t) => t.genre)
-    if ($effectiveSettings.iconMode === 'clusters') {
+    if ($iconPrefs.iconMode === 'clusters') {
       const clustered = computeGenreClasses(genres, 'hybrid', max)
       return clustered === null ? null : { ...clustered, keyedBy: 'genre' as const }
     }
     return genreFamilyClasses(genres, max)
   },
+)
+
+/**
+ * The slot-spread setting on its own (v37): the wheel's per-slot relaxation
+ * (relaxSlotAngles, O(m²) per Camelot slot) reads THIS, so unrelated settings
+ * writes never re-trigger it and a spread-slider drag coalesces to the
+ * throttle window instead of relaxing per pixel.
+ */
+export const slotSpreadFactor = throttled(
+  derived(effectiveSettings, ($s) => $s.slotSpreadFactor),
+  TUNING_THROTTLE_MS,
+  DEFAULT_SETTINGS.slotSpreadFactor,
 )
 
 /**

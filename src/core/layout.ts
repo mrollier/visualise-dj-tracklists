@@ -53,6 +53,9 @@ export function relaxSlotAngles(
 
   // Union-find over the overlap graph: link every pair that genuinely needs a
   // gap. Components are then the groups that must be spread apart together.
+  // ponytail: O(m²) all-pairs per slot — fine to ~200 tracks/slot; switch to a
+  // sort-by-radius sweep (overlap only reaches nearby radii) if slot
+  // relaxation ever shows up in profiles.
   const parent = Array.from({ length: n }, (_, i) => i)
   const find = (x: number): number => {
     while (parent[x] !== x) {
