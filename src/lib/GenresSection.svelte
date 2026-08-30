@@ -7,7 +7,10 @@
   import { filters, scopedGenres } from '../stores'
 
   function toggleGenre(genre: string, on: boolean) {
-    filters.update((f) => ({ ...f, genres: nextGenreSelection(f.genres, $scopedGenres, genre, on) }))
+    filters.update((f) => ({
+      ...f,
+      genres: nextGenreSelection(f.genres, $scopedGenres, genre, on),
+    }))
   }
 
   function setAllGenres(on: boolean) {
