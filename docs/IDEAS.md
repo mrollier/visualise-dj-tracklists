@@ -55,14 +55,19 @@ lives in [designs/design-v12.md](designs/design-v12.md). Statuses: **done** ·
   workstream: the pure-TypeScript provenance layer that fills nulls only and
   never overwrites Rekordbox, in
   designs/design-v33-audio-analysis-provenance.md. The analyser itself (WS2)
-  is **v34** — `scripts/analyse-audio.py`, an `essentia-tensorflow` batch that
-  fills energy for the whole library, in designs/design-v34-offline-analyser.md.
+  is **v34** — `scripts/analyse-audio.py`, an `essentia-tensorflow` batch, in
+  designs/design-v34-offline-analyser.md; **v36** then deleted analysed energy
+  outright (Mixed In Key beat it against Michiel's own labels) and **v38** gave
+  the analyser a localhost helper mode plus a comment token so its numbers
+  travel with the files (designs/design-v38-analysis-helper.md).
   The in-app gap-fill (WS3) is **rejected, not backlog**: the metadata gap it
   existed to fill measures 3 tracks, not the ~55 the report claims (see the
   v34 design). happiness/danceability as properties (WS4) is **done in v35**, which
   shipped them plus arousal and valence as columns and filters
-  (designs/design-v35-descriptor-columns.md); genre embeddings (WS5) remain
-  **backlog, shaped**.
+  (designs/design-v35-descriptor-columns.md); genre from the audio is **done in
+  v39** — a predicted Discogs style beside your own label, measured against the
+  real library (designs/design-v39-analysed-genre.md) — while genre embeddings
+  as a similarity method (WS5) remain **backlog, shaped**.
 
 ## Design ideas
 

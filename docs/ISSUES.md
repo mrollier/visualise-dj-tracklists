@@ -195,6 +195,24 @@ next steps ranked at the end of it.
     carry an energy; 10 real tracks untagged) in
     [designs/design-v36-mik-energy.md](designs/design-v36-mik-energy.md).
 
+16. **The genre can now come from the audio, and the two vocabularies were
+    taught to match (v39 + v39.1, 2026-08-30).** A `--genre` pass
+    (Discogs-EffNet → `genre_discogs400`) predicts one of 400 styles per
+    track; the pre-registered gate failed at cutoff 0 and passed at 0.30, so
+    that is the default confidence. `analysedGenre` is a **parallel** value —
+    the Rekordbox label is never overwritten, `genreSource` chooses which one
+    the app reads — and it is stripped from saves, being derived. Two findings
+    worth keeping: **widening `genre-tree.json` for information content is a
+    trap** (adding 381 styles lifts `electronic` 0.043 → 0.176 and
+    techno↔house 0.169 → 0.419, destroying the property Lin was chosen for —
+    so the tree is widened for lineage only), and **partial substitution
+    splits the vocabulary** ("Tribe" beside "Tribal", which link in no
+    method). The second is fixed by aliases learned from the library's own
+    (label, predicted style) pairs, forced into the mutual top-k matcher —
+    without the forcing they are a measured no-op, because `tribe` already has
+    five closer neighbours. Numbers, the false start it replaced, and what was
+    left unbuilt: [designs/design-v39-analysed-genre.md](designs/design-v39-analysed-genre.md).
+
 ## Open — v33 audio-analysis provenance (WS1)
 
 The first workstream of the audio-analysis design in

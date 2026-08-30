@@ -163,6 +163,13 @@ Your library never leaves your machine — there is no backend, no account, no u
   (electronic) and sparse genre regions; a classic score threshold remains available.
   Umbrella tags ("Electronic", "Dance") never drive a match, and multi-genre fields
   ("House / Techno") match through their best component.
+- **Or let the audio pick the genre**: with an analysis sidecar loaded, Advanced →
+  Genre matching can read the style predicted from the audio (one of 400 Discogs
+  styles) instead of your own label, above a confidence you set. Your genres are
+  never overwritten — switching back restores them — and the app learns which of
+  your words means which predicted style ("Tribe" is the model's "Tribal"), so the
+  two vocabularies match each other. Measured results in
+  [docs/designs/design-v39-analysed-genre.md](docs/designs/design-v39-analysed-genre.md).
 - **Weave a set**: click to focus (a card with the selection's details docks under
   the set panel, and hovering a set row highlights its node on the wheel and its
   table row), double-click to append (the same track can appear twice — just not
@@ -381,12 +388,16 @@ view layer over it.
 
 ### Optional: the offline audio analyser
 
-Fills the metadata Rekordbox left blank — mainly **energy**, which Rekordbox never
-computes — by analysing the audio files themselves. It is a separate program that
-writes a JSON _analysis sidecar_; the app imports it through the ordinary Import
-button, fills nulls only, and marks every filled value with a dotted underline. Nothing
-it produces can overwrite a Rekordbox value. Full design and measured results:
-[docs/designs/design-v34-offline-analyser.md](docs/designs/design-v34-offline-analyser.md).
+Adds what Rekordbox does not carry — four mood descriptors, a predicted genre, and
+key/BPM for the tracks missing them — by analysing the audio files themselves. It is a
+separate program that writes a JSON _analysis sidecar_; the app imports it through the
+ordinary Import button, fills nulls only, and marks every filled value with a dotted
+underline. Nothing it produces can overwrite a Rekordbox value. Full design and measured
+results:
+[design-v34](docs/designs/design-v34-offline-analyser.md) (the analyser),
+[design-v38](docs/designs/design-v38-analysis-helper.md) (the localhost helper and the
+comment token) and
+[design-v39](docs/designs/design-v39-analysed-genre.md) (the predicted genre).
 
 ```sh
 /opt/homebrew/bin/python3 -m venv scripts/.venv    # 3.14 — the only version with a wheel
@@ -395,7 +406,18 @@ scripts/fetch-models.sh                            # MTG model weights, ~3.4 MB,
 scripts/.venv/bin/python scripts/analyse-audio.py --self-test        # synthesised sanity check
 caffeinate -i scripts/.venv/bin/python scripts/analyse-audio.py \
   --collection docs/rekordbox/collection.xml --out scripts/out/library.analysis.json
+scripts/.venv/bin/python scripts/analyse-audio.py --genre \
+  --collection docs/rekordbox/collection.xml --out scripts/out/library.analysis.json
+scripts/.venv/bin/python scripts/analyse-audio.py --genre-report \
+  --collection docs/rekordbox/collection.xml --out scripts/out/library.analysis.json
 ```
+
+The `--genre` pass is a second run over the same sidecar (it augments, never replaces)
+and is **3.5× faster** than the descriptor pass — about 30 minutes for 2000 tracks on
+eight workers. `--genre-report` reads a finished sidecar back and prints how
+fine-grained and how consistent the predictions are, without touching audio. Whichever
+runs you do, the sidecar has to be **imported once** in the app — the same button as
+your collection XML — before anything analysed shows up.
 
 Roughly **two hours for 2000 tracks** on ten cores. Resumable: it skips paths already in
 `--out`, so adding tracks later costs only the new ones. Rekordbox's own sampler content
@@ -426,9 +448,11 @@ scripts/.venv/bin/python scripts/calibrate-arousal.py \
 **Know before you trust it.** `essentia-tensorflow` is AGPL-3.0 and the MTG models are
 CC BY-NC-SA 4.0, but neither enters the app bundle — that separation is deliberate and
 is what keeps the app's own licensing free (see [legal/README.md](legal/README.md)).
-Analysed **key and BPM are weak** and fill almost nothing; the payload is energy. And
-analysed **energy is unreliable above ~155 BPM** — the model's arousal peaks at 125–140
-BPM and under-rates fast breakbeat music. The design doc measures all of this.
+Analysed **key and BPM are weak** and fill almost nothing. **Energy never comes from
+analysis at all** since v36 — its only source is the `Energy N` token Mixed In Key
+writes into the comment, and a track without one stays honestly empty. The descriptors
+are display-only and unvalidated against anyone's ear; the predicted genre is the one
+analysed value that has been measured against the real library (design-v39).
 
 ## Deploy
 
