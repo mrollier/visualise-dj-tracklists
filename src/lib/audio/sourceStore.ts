@@ -6,6 +6,7 @@ import {
   openFsaSource,
   pickDirectory,
   queryStoredPermission,
+  requestReadPermission,
   supportsDirectoryPicker,
 } from './fsaSource'
 import { forgetRootHandle, loadRootHandle, saveRootHandle } from './handleStore'
@@ -133,8 +134,29 @@ export async function linkFolder(): Promise<void> {
     // A folder can be renamed, unmounted or have its permission revoked partway
     // through the walk. Without this the state stuck on 'indexing' for the rest
     // of the session and the UI scanned forever.
-    await forgetFolder()
+    //
+    // Known accepted edge: if saveRootHandle(B) succeeded and adopt then threw,
+    // IndexedDB holds B while this session keeps A; the next reload restores B.
+    // Rare and self-correcting — not worth extra code.
+    await abandonLink()
   }
+}
+
+/**
+ * A link attempt failed partway. Forgetting everything is only right when
+ * there was nothing before it (v40, Codex bug 2) — a failed REPLACEMENT used
+ * to unlink the still-working folder from memory and IndexedDB. `adopt` never
+ * ran, so `resolutions`/`coverage` still describe the surviving source and
+ * only the three stores the attempt touched need restoring.
+ */
+async function abandonLink(): Promise<void> {
+  if (source === null) {
+    await forgetFolder()
+    return
+  }
+  rootName.set(source.rootName)
+  indexProgress.set(null)
+  sourceState.set('ready')
 }
 
 function beginScan(): void {
@@ -164,7 +186,7 @@ export async function usePickedFiles(files: readonly File[]): Promise<void> {
       ),
     )
   } catch {
-    await forgetFolder()
+    await abandonLink()
   }
 }
 
@@ -172,17 +194,18 @@ export async function usePickedFiles(files: readonly File[]): Promise<void> {
 export async function reconnect(): Promise<void> {
   const handle = pendingHandle
   if (handle === null) return
+  // The prompt must come BEFORE the walk (v40, Codex bug 1): iterating an
+  // ungranted handle rejects, and the old order treated that rejection — and
+  // even a plain Cancel on the prompt — as a reason to forget the folder.
+  // A refusal keeps the parked handle; the Reconnect button stays offered.
+  if (!(await requestReadPermission(handle))) return
   beginScan()
   try {
     const next = await openFsaSource(handle, reportScan)
-    if (!(await next.ensurePermission())) {
-      await forgetFolder()
-      return
-    }
     pendingHandle = null
     await adopt(next)
   } catch {
-    await forgetFolder()
+    await abandonLink()
   }
 }
 

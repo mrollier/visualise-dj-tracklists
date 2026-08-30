@@ -37,6 +37,20 @@ export async function queryStoredPermission(
   }
 }
 
+/**
+ * Ensure read permission, prompting if needed. Must be reachable from a user
+ * gesture when the stored state is 'prompt' — and it must run BEFORE any
+ * directory walk, which rejects outright on an ungranted handle.
+ */
+export async function requestReadPermission(handle: FileSystemDirectoryHandle): Promise<boolean> {
+  if ((await queryStoredPermission(handle)) === 'granted') return true
+  try {
+    return (await handle.requestPermission?.({ mode: 'read' })) === 'granted'
+  } catch {
+    return false
+  }
+}
+
 async function* walk(
   directory: FileSystemDirectoryHandle,
   prefix: readonly string[],
@@ -76,13 +90,6 @@ export async function openFsaSource(
     rootName: handle.name,
     index: buildFileIndex(entries),
     fileFor: (file) => (file instanceof File ? Promise.resolve(file) : file.getFile()),
-    ensurePermission: async () => {
-      if ((await queryStoredPermission(handle)) === 'granted') return true
-      try {
-        return (await handle.requestPermission?.({ mode: 'read' })) === 'granted'
-      } catch {
-        return false
-      }
-    },
+    ensurePermission: () => requestReadPermission(handle),
   }
 }
