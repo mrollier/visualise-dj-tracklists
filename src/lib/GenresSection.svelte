@@ -3,19 +3,11 @@
   // to nest INSIDE the Filters disclosure at the same visual width, which
   // broke the hierarchy — as a sibling it mirrors the Playlists pattern,
   // summary count included. Still playlist-scoped, still part of `filters`.
+  import { nextGenreSelection } from '../core/filter'
   import { filters, scopedGenres } from '../stores'
 
   function toggleGenre(genre: string, on: boolean) {
-    filters.update((f) => {
-      const current = f.genres ?? $scopedGenres
-      const next = on
-        ? current.includes(genre)
-          ? current
-          : [...current, genre]
-        : current.filter((g) => g !== genre)
-      // All genres selected = no filter.
-      return { ...f, genres: next.length >= $scopedGenres.length ? null : next }
-    })
+    filters.update((f) => ({ ...f, genres: nextGenreSelection(f.genres, $scopedGenres, genre, on) }))
   }
 
   function setAllGenres(on: boolean) {

@@ -10,6 +10,7 @@ import {
   colourChipOptions,
   EMPTY_FILTERS,
   migrateFilters,
+  nextGenreSelection,
   NOT_IN_PLAYLIST,
   propertyExtents,
   wholeExtent,
@@ -827,6 +828,32 @@ describe('clampRange (generic over numbers and strings since v11)', () => {
     expect(clampRange(['k', 'b'], 'min')).toEqual(['b', 'b'])
     expect(clampRange(['k', 'b'], 'max')).toEqual(['k', 'k'])
     expect(clampRange(['b', 'k'], 'min')).toEqual(['b', 'k'])
+  })
+})
+
+describe('nextGenreSelection (v40, Codex bug 5: stale selections must not invert a click)', () => {
+  test('unticking with a stale longer list keeps the remaining selection', () => {
+    // Three genres survived from another playlist's scope; the old length
+    // comparison saw 2 >= 2 and collapsed to null — showing EVERYTHING.
+    expect(nextGenreSelection(['House', 'Techno', 'Trance'], ['House', 'Techno'], 'Techno', false)) //
+      .toEqual(['House', 'Trance'])
+  })
+
+  test('ticking with a stale out-of-scope list adds, never collapses to all', () => {
+    expect(nextGenreSelection(['Trance'], ['House', 'Techno'], 'House', true)) //
+      .toEqual(['Trance', 'House'])
+  })
+
+  test('null selection means all: unticking one leaves the rest of the scope', () => {
+    expect(nextGenreSelection(null, ['House', 'Techno'], 'House', false)).toEqual(['Techno'])
+  })
+
+  test('ticking the last missing scoped genre collapses to null (no filter)', () => {
+    expect(nextGenreSelection(['House'], ['House', 'Techno'], 'Techno', true)).toBeNull()
+  })
+
+  test('ticking an already-included genre changes nothing', () => {
+    expect(nextGenreSelection(['House'], ['House', 'Techno'], 'House', true)).toEqual(['House'])
   })
 })
 

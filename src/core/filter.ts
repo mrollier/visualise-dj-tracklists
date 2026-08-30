@@ -272,6 +272,29 @@ export function colourChipOptions(
 }
 
 /**
+ * One genre checkbox toggled. `current === null` means "no filter", which
+ * reads as the whole scope. Collapsing back to null asks whether every SCOPED
+ * genre is selected — set membership, not a length comparison: a selection
+ * carried over from another playlist's scope can be longer than the current
+ * scope, and the old `next.length >= scoped.length` check turned an untick
+ * into "show everything" (v40, Codex bug 5).
+ */
+export function nextGenreSelection(
+  current: readonly string[] | null,
+  scoped: readonly string[],
+  genre: string,
+  on: boolean,
+): string[] | null {
+  const base = current ?? scoped
+  const next = on
+    ? base.includes(genre)
+      ? [...base]
+      : [...base, genre]
+    : base.filter((g) => g !== genre)
+  return scoped.every((g) => next.includes(g)) ? null : next
+}
+
+/**
  * Whole numbers just outside the extent: [floor(min), ceil(max)]. The range
  * filters reset to these, so the bounds read cleanly and still cover every
  * track in the current selection.
