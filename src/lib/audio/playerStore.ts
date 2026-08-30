@@ -133,6 +133,14 @@ function apply(effects: readonly DeckEffect[]): void {
       // first play click materialises it. Debounced, so a click-storm through
       // the wheel does not churn the media pipeline under a playing deck.
       const { deck, trackId } = effect
+      // The replaced track stops sounding NOW, not after a materialise that
+      // may fail — the UI already shows the new track (v40, Codex bug 4).
+      // whileSilenced supplies the de-click fade and `src` is untouched, so
+      // browsing stays as cheap as before.
+      if (engine.isPlaying(deck)) engine.pause(deck)
+      // Claimed here, not in materialise: an in-flight materialise for the
+      // previous click must fail its staleness check during the debounce.
+      wanted[deck] = trackId
       pendingSeek[deck] = null
       cancelPreload(deck)
       if (engine.hasContext()) {
