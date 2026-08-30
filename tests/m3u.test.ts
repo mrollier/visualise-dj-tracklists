@@ -96,6 +96,17 @@ describe('importM3u', () => {
     expect(result.tracklist).toEqual(['a'])
   })
 
+  test('uses an exact location before a colliding basename', () => {
+    const sameNamed = [
+      track({ id: 'house', title: 'Track', location: 'file:///Music/House/Track.mp3' }),
+      track({ id: 'techno', title: 'Track', location: 'file:///Music/Techno/Track.mp3' }),
+    ]
+
+    const result = importM3u('/Music/House/Track.mp3', sameNamed)
+
+    expect(result.tracklist).toEqual(['house'])
+  })
+
   test('empty input reports an error', () => {
     const result = importM3u('', [])
     expect(result.tracklist).toEqual([])

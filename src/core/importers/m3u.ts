@@ -1,4 +1,4 @@
-import { basenameOf as basename } from '../location'
+import { basenameOf as basename, locationToPath } from '../location'
 import { buildReport, EMPTY_TRACK_FIELDS, type ImportReport, type Track } from '../model'
 
 /**
@@ -26,20 +26,31 @@ const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
 
 /** Match a playlist-ish entry against `tracks` by basename, then "artist - title". */
 function buildMatcher(tracks: Track[]) {
+  const byLocation = new Map<string, Track>()
   const byBasename = new Map<string, Track>()
   const byArtistTitle = new Map<string, Track>()
   for (const track of tracks) {
-    if (track.location !== null) byBasename.set(basename(track.location), track)
+    if (track.location !== null) {
+      byLocation.set(normalizeLocation(track.location), track)
+      byBasename.set(basename(track.location), track)
+    }
     if (track.artist !== null)
       byArtistTitle.set(normalize(`${track.artist} - ${track.title}`), track)
   }
   return (location: string | null, artistTitle: string | null): Track | undefined => {
     if (location !== null) {
+      const exact = byLocation.get(normalizeLocation(location))
+      if (exact !== undefined) return exact
       const hit = byBasename.get(basename(location))
       if (hit !== undefined) return hit
     }
     return artistTitle !== null ? byArtistTitle.get(normalize(artistTitle)) : undefined
   }
+}
+
+/** URL and filesystem spellings of one M3U entry compare as the same path. */
+function normalizeLocation(location: string): string {
+  return locationToPath(location).normalize('NFC').toLowerCase()
 }
 
 export function importM3u(m3u: string, library: Track[]): M3uImportResult {

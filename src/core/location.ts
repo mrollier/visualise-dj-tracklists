@@ -20,6 +20,16 @@ export function locationToPath(location: string): string {
 }
 
 /**
+ * Filesystem spelling for an M3U entry. Rekordbox represents a Windows drive
+ * as a URL path (`file:///C:/...`), but an M3U consumer expects `C:\\...`, not
+ * the URL's leading-slash form.
+ */
+export function locationToM3uPath(location: string): string {
+  const path = locationToPath(location)
+  return /^\/[A-Za-z]:\//.test(path) ? path.slice(1).replaceAll('/', '\\') : path
+}
+
+/**
  * The decoded path as non-empty segments. A Windows `file:///C:/…` keeps `C:`
  * as an ordinary segment: it never matches a granted folder's contents, so it
  * simply drops out of suffix scoring instead of needing a special case.

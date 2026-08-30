@@ -93,6 +93,14 @@ describe('newSetId / freshFirstSet', () => {
     expect(set.id.length).toBeGreaterThan(0)
     expect(freshFirstSet().trackIds).toEqual([])
   })
+
+  test('takes ownership of the supplied track ids', () => {
+    const supplied = ['a']
+    const set = freshFirstSet(supplied)
+    supplied.push('b')
+
+    expect(set.trackIds).toEqual(['a'])
+  })
 })
 
 describe('removeAllOccurrences (v9 issue 14)', () => {

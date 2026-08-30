@@ -110,5 +110,5 @@ export function moveItem<T>(items: readonly T[], from: number, insertAt: number)
 
 /** A fresh un-generated "First" constellation, optionally seeded with tracks. */
 export function freshFirstSet(trackIds: string[] = []): TrackSet {
-  return { id: newSetId(), name: ordinalSetName(0), trackIds, generated: false }
+  return { id: newSetId(), name: ordinalSetName(0), trackIds: [...trackIds], generated: false }
 }

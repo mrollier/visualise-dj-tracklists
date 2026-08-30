@@ -43,6 +43,23 @@ describe('exportM3u', () => {
     const lines = m3u.split('\n')
     expect(lines).not.toContain('Glasswork')
   })
+
+  test('keeps metadata on one EXTINF line and writes Windows locations as Windows paths', () => {
+    const out = exportM3u([
+      track({
+        id: 'windows',
+        artist: 'Artist\r\n#EXTINF:999,Injected',
+        title: 'Title\nC:\\other-file.mp3',
+        durationSec: 180,
+        location: 'file:///C:/Music/Set/Track%20One.mp3',
+      }),
+    ])
+
+    const lines = out.trimEnd().split('\n')
+    expect(lines).toHaveLength(3)
+    expect(lines[1]).toBe('#EXTINF:180,Artist #EXTINF:999,Injected - Title C:\\other-file.mp3')
+    expect(lines[2]).toBe('C:\\Music\\Set\\Track One.mp3')
+  })
 })
 
 describe('exportTracklistCsv', () => {
@@ -70,6 +87,15 @@ describe('exportTracklistCsv', () => {
     expect(out).toContain('"One, Two"')
     const { tracks: back } = importCsv(out)
     expect(back[0].title).toBe('One, Two')
+  })
+
+  test('round-trips a lone carriage return in metadata as one CSV field', () => {
+    const source = [{ ...tracks[0], title: 'First\rSecond' }]
+    const { tracks: back, report } = importCsv(exportTracklistCsv(source))
+
+    expect(report.errors).toEqual([])
+    expect(back).toHaveLength(1)
+    expect(back[0].title).toBe('First\rSecond')
   })
 })
 
