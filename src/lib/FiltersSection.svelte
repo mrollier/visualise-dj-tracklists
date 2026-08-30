@@ -241,7 +241,21 @@
       if (reflect) inputs[prop.key] = { min: String(range[0]), max: String(range[1]) }
       writeProperty(prop.key, range)
     } else if (prop.kind === 'date') {
-      writeProperty(prop.key, [min === '' ? DATE_OPEN_MIN : min, max === '' ? DATE_OPEN_MAX : max])
+      // Clamped like every other range (v40, Codex bug 6): an inverted pair
+      // used to be stored raw, and it hides every track — dated ones match
+      // nothing, undated ones are excluded by the date rule itself. ISO
+      // YYYY-MM-DD compares lexically, which is clampRange's string mode.
+      const range = clampRange(
+        [min === '' ? DATE_OPEN_MIN : min, max === '' ? DATE_OPEN_MAX : max],
+        edited,
+      )
+      if (reflect) {
+        inputs[prop.key] = {
+          min: range[0] === DATE_OPEN_MIN ? '' : range[0],
+          max: range[1] === DATE_OPEN_MAX ? '' : range[1],
+        }
+      }
+      writeProperty(prop.key, range)
     }
     // alpha/contains/colour/quality use their own handlers, never setBox/commit.
   }
@@ -388,14 +402,14 @@
           type="date"
           aria-label="{prop.label} after"
           value={boxes(prop.key).min}
-          onchange={(e) => setBox(prop, 'min', e.currentTarget.value)}
+          onchange={(e) => setBox(prop, 'min', e.currentTarget.value, true)}
         />
         <span class="dash">–</span>
         <input
           type="date"
           aria-label="{prop.label} before"
           value={boxes(prop.key).max}
-          onchange={(e) => setBox(prop, 'max', e.currentTarget.value)}
+          onchange={(e) => setBox(prop, 'max', e.currentTarget.value, true)}
         />
       {:else if prop.kind === 'alpha'}
         <select

@@ -642,6 +642,14 @@ describe('date-kind filters exclude undated tracks (generalizes v10 issue 4b)', 
     expect(out.map((t) => t.id)).toEqual(['old', 'mid', 'new'])
   })
 
+  test('an inverted stored range hides every track — why the commit path must clamp (v40)', () => {
+    const out = applyFilters(
+      dated,
+      filters({ properties: { dateAdded: ['2024-01-01', '2020-01-01'] } }),
+    )
+    expect(out).toEqual([])
+  })
+
   test('the rule covers every date-kind property (lastPlayed too)', () => {
     const played = [
       track({
@@ -828,6 +836,12 @@ describe('clampRange (generic over numbers and strings since v11)', () => {
     expect(clampRange(['k', 'b'], 'min')).toEqual(['b', 'b'])
     expect(clampRange(['k', 'b'], 'max')).toEqual(['k', 'k'])
     expect(clampRange(['b', 'k'], 'min')).toEqual(['b', 'k'])
+  })
+
+  test('ISO dates clamp lexically too — the property the date boxes lean on (v40, Codex bug 6)', () => {
+    expect(clampRange(['2025-06-01', '2024-01-01'], 'min')).toEqual(['2024-01-01', '2024-01-01'])
+    expect(clampRange(['2025-06-01', '2024-01-01'], 'max')).toEqual(['2025-06-01', '2025-06-01'])
+    expect(clampRange(['2024-01-01', '2025-06-01'], 'max')).toEqual(['2024-01-01', '2025-06-01'])
   })
 })
 
