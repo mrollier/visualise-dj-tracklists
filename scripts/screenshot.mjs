@@ -424,11 +424,11 @@ if ((await page.locator('.marks .mark-toggle').count()) !== 4) {
 await page.screenshot({ path: `${scratch}/04-selected.png` })
 
 // shorter walks (8) keep unused neighbours around for the hub step below;
-// View sits LAST (v30 added it after Constellation & suggestions)
+// Sentiment analysis sits LAST (v38 added it after View)
 await page.getByRole('button', { name: /Advanced/ }).click()
 const lastSectionName = await page.locator('.panel details.section > summary').last().textContent()
-if (lastSectionName?.trim() !== 'View') {
-  errors.push(`the last advanced section should be View, got "${lastSectionName}"`)
+if (lastSectionName?.trim() !== 'Sentiment analysis') {
+  errors.push(`the last advanced section should be Sentiment analysis, got "${lastSectionName}"`)
 }
 const openAtFirst = await page
   .locator('.panel details.section')
@@ -2140,14 +2140,15 @@ await page.waitForTimeout(200)
   await page.waitForTimeout(300)
 }
 
-// ---- v34: analysed ENERGY reaches the radial axis ----
-// v33's block proves an analysed KEY moves a node between the gutter and the
-// ring. WS2's payload is energy, which travels a different road: it is not in
-// the node's aria-label at all, it lands on the radial scale, and a track with
-// no radial value renders dimmed (WheelView.svelte:694, opacity 0.55) at the
-// bottom of the wheel. So the only observable proof that an arousal in the
-// sidecar became a radius is the node's own geometry. Unit tests reach
-// mergeAnalysis but never the placement pass.
+// ---- v36: an arousal-only sidecar leaves energy ALONE ----
+// This block used to prove the opposite: v34's arousal→energy mapping filled
+// the radial axis and lifted "Warehouse Prayer" off the dimmed gutter. v36
+// deleted that mapping (MIK's tag beat it, r +0.91 vs +0.83 — see the note in
+// analysis.ts), so the same import must now change NOTHING on the energy
+// axis. The wheel is the only place a regression would show: unit tests reach
+// mergeAnalysis but never the placement pass. The descriptors themselves must
+// still land — the ⓘ report proves the sidecar was ingested, and the v35
+// block below leans on exactly that.
 {
   await page.locator('select').filter({ hasText: 'Energy' }).first().selectOption('energy')
   await page.waitForTimeout(800)
@@ -2179,10 +2180,10 @@ await page.waitForTimeout(200)
   const before = await nodeGeometry('Warehouse Prayer')
   const dimmedBefore = await dimmedCount()
   if (before === null) {
-    errors.push('v34: the sample library no longer offers "Warehouse Prayer" on the wheel')
+    errors.push('v36: the sample library no longer offers "Warehouse Prayer" on the wheel')
   } else if (Math.abs(before.opacity - 0.55) > 0.01) {
     errors.push(
-      `v34: "Warehouse Prayer" should start with no energy and render dimmed, got opacity ${before.opacity}`,
+      `v36: "Warehouse Prayer" should start with no energy and render dimmed, got opacity ${before.opacity}`,
     )
   }
 
@@ -2191,24 +2192,26 @@ await page.waitForTimeout(200)
 
   const after = await nodeGeometry('Warehouse Prayer')
   if (after === null) {
-    errors.push('v34: "Warehouse Prayer" vanished from the wheel after the energy sidecar')
-  } else {
-    if (Math.abs(after.opacity - 1) > 0.01) {
-      errors.push(
-        `v34: an analysed energy never reached the radial axis — the node is still dimmed at ${after.opacity}`,
-      )
-    }
-    // arousal 8.8 maps to energy 10, the outer edge; it started with no
-    // radial value at all, parked below the wheel.
-    if (before !== null && Math.abs(after.y - before.y) < 1 && Math.abs(after.x - before.x) < 1) {
-      errors.push('v34: the node never moved, so the energy fill did not reach placement')
-    }
+    errors.push('v36: "Warehouse Prayer" vanished from the wheel after the arousal sidecar')
+  } else if (Math.abs(after.opacity - 0.55) > 0.01) {
+    errors.push(
+      `v36: an arousal-only sidecar reached the energy axis — the node lit up to opacity ${after.opacity}`,
+    )
   }
 
   const dimmedAfter = await dimmedCount()
-  if (!(dimmedAfter < dimmedBefore)) {
+  if (dimmedAfter !== dimmedBefore) {
     errors.push(
-      `v34: filling five energies left the missing-radial count unchanged (${dimmedBefore} then ${dimmedAfter})`,
+      `v36: the sidecar changed the missing-radial count (${dimmedBefore} then ${dimmedAfter}) — arousal must not fill energy`,
+    )
+  }
+
+  // The sidecar was still INGESTED: five tracks of descriptors in the ⓘ
+  // report. Without this the block would also pass on a rejected import.
+  const sidecarReport = await importReportText()
+  if (!/descriptors 5 tracks/.test(sidecarReport)) {
+    errors.push(
+      `v36: the arousal sidecar's descriptors never landed — report reads "${sidecarReport}"`,
     )
   }
 
@@ -2221,10 +2224,10 @@ await page.waitForTimeout(200)
     return el ? el.getAttribute('aria-label') : null
   })
   if (label !== null && !/9A/.test(label)) {
-    errors.push(`v34: an energy-only sidecar disturbed the node's key — "${label}"`)
+    errors.push(`v36: an arousal-only sidecar disturbed the node's key — "${label}"`)
   }
 
-  await page.screenshot({ path: `${scratch}/20-analysis-energy-radius.png` })
+  await page.screenshot({ path: `${scratch}/20-analysis-arousal-untouched.png` })
   await page.locator('select').filter({ hasText: 'Energy' }).first().selectOption('bpm')
   await page.waitForTimeout(300)
 }

@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 const handleStore = vi.hoisted(() => ({
   saveRootHandle: vi.fn(async () => {}),
-  loadRootHandle: vi.fn(async (): Promise<unknown> => null),
+  loadRootHandle: vi.fn((): Promise<unknown> => Promise.resolve(null)),
   forgetRootHandle: vi.fn(async () => {}),
 }))
 
@@ -35,14 +35,15 @@ function fakeHandle(opts: {
   const handle = {
     name: opts.name,
     kind: 'directory' as const,
-    queryPermission: vi.fn(async () => opts.permission),
-    requestPermission: vi.fn(async () => {
+    queryPermission: vi.fn(() => Promise.resolve(opts.permission)),
+    requestPermission: vi.fn(() => {
       events.push('request')
-      return opts.request ?? 'denied'
+      return Promise.resolve(opts.request ?? 'denied')
     }),
     entries() {
       events.push('iterate')
-      async function* iterate(): AsyncGenerator<[string, { kind: 'file'; name: string }]> {
+      // A sync generator suffices: `for await … of` iterates it natively.
+      function* iterate(): Generator<[string, { kind: 'file'; name: string }]> {
         if (opts.failWalk === true) throw new DOMException('not allowed', 'NotAllowedError')
         for (const name of opts.files ?? []) yield [name, { kind: 'file', name }]
       }
@@ -108,7 +109,7 @@ describe('sourceStore link/reconnect failure paths (v40, Codex bugs 1+2)', () =>
 
   test('bug 2: a failed replacement link keeps the working folder', async () => {
     const a = fakeHandle({ name: 'A', permission: 'granted', files: ['a.mp3'] })
-    vi.stubGlobal('window', { showDirectoryPicker: async () => a.handle })
+    vi.stubGlobal('window', { showDirectoryPicker: () => Promise.resolve(a.handle) })
     const store = await freshStore()
     await store.linkFolder()
     expect(get(store.sourceState)).toBe('ready')
@@ -116,7 +117,7 @@ describe('sourceStore link/reconnect failure paths (v40, Codex bugs 1+2)', () =>
     expect(linked?.rootName).toBe('A')
 
     const b = fakeHandle({ name: 'B', permission: 'granted', failWalk: true })
-    vi.stubGlobal('window', { showDirectoryPicker: async () => b.handle })
+    vi.stubGlobal('window', { showDirectoryPicker: () => Promise.resolve(b.handle) })
     await store.linkFolder()
 
     expect(get(store.sourceState)).toBe('ready')
@@ -128,7 +129,7 @@ describe('sourceStore link/reconnect failure paths (v40, Codex bugs 1+2)', () =>
 
   test('a failed link with nothing to fall back to still forgets (pinned behaviour)', async () => {
     const b = fakeHandle({ name: 'B', permission: 'granted', failWalk: true })
-    vi.stubGlobal('window', { showDirectoryPicker: async () => b.handle })
+    vi.stubGlobal('window', { showDirectoryPicker: () => Promise.resolve(b.handle) })
     const store = await freshStore()
 
     await store.linkFolder()

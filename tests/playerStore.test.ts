@@ -26,7 +26,7 @@ const engineMock = vi.hoisted(() => ({
 
 const sourceMock = vi.hoisted(() => {
   const state = {
-    fileFor: vi.fn(async (): Promise<unknown> => ({})),
+    fileFor: vi.fn((): Promise<unknown> => Promise.resolve({})),
   }
   return {
     state,
