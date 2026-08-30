@@ -164,7 +164,9 @@ function whileSilenced(slot: 0 | 1, action: () => void): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(() => {
       action()
-      ducks[slot] -= 1
+      // Clamped: dispose() zeroes the counters but cannot cancel this timer,
+      // and a -1 here would gate commandGain off for the session.
+      ducks[slot] = Math.max(0, ducks[slot] - 1)
       if (ducks[slot] === 0) rampTo(slot, commanded[slot], RESTORE_MS)
       resolve()
     }, DUCK_MS + 4)
