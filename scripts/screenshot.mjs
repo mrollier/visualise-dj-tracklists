@@ -209,6 +209,12 @@ await page.screenshot({ path: `${scratch}/02-wheel.png` })
   const firstBox = page.locator('.boxes .box').first()
   await firstBox.click() // fill down to 1
   await firstBox.click() // …and clear to 0
+  // The combo stat derives from settledCriteria, throttled at 250 ms (v37):
+  // the leading edge computes the first click's threshold-1 graph, and the
+  // trailing edge lands the threshold-0 one. Reading before it settles saw
+  // the stale edge count. The threshold-head needs no wait — it reads the
+  // live criteria.
+  await page.waitForTimeout(400)
   const thresholdText = (await page.locator('.threshold-head').textContent())?.replace(/\s+/g, ' ')
   if (!thresholdText?.includes(`0 of ${enabledCount}`)) {
     errors.push(
