@@ -18,6 +18,11 @@ Usage:
 
     caffeinate -i scripts/.venv/bin/python scripts/analyse-audio.py ...   # full run
 
+    # v39: a second pass over the same sidecar adding a Discogs400 style
+    # prediction per track, then the report that says whether to trust it.
+    scripts/.venv/bin/python scripts/analyse-audio.py --genre --out ...
+    scripts/.venv/bin/python scripts/analyse-audio.py --genre-report --out ...
+
 Setup:
     /opt/homebrew/bin/python3 -m venv scripts/.venv       # 3.14: the only wheel
     scripts/.venv/bin/pip install -r scripts/requirements.txt
@@ -37,6 +42,7 @@ os.environ.setdefault("TF_NUM_INTEROP_THREADS", "1")
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 
 import argparse
+import collections
 import json
 import math
 import multiprocessing as mp
@@ -73,6 +79,19 @@ MODEL_FILES = {
     "happy": "mood_happy-msd-musicnn-1.pb",
 }
 
+# v39 --genre: a different embedding family (Discogs-EffNet, not MusiCNN), so
+# the genre pass is its own run over the same sidecar rather than a fifth head
+# on the descriptor run. Measured at ~3 s/track against MusiCNN's ~11 s.
+GENRE_MODEL_FILES = {
+    "embeddings": "discogs-effnet-bs64-1.pb",
+    "head": "genre_discogs400-discogs-effnet-1.pb",
+    "classes": "genre_discogs400-discogs-effnet-1.json",
+}
+
+#: How many of the 400 styles a sidecar entry keeps. Top-1 is the genre; the
+#: other two exist so a weak or close call is visible rather than implied.
+GENRE_TOP_N = 3
+
 
 @dataclass(frozen=True)
 class Job:
@@ -83,6 +102,7 @@ class Job:
 # MusiCNN graph costs ~0.4 s; doing it per track would dominate the run.
 _models: dict | None = None
 _models_dir: str = ""
+_genre_only: bool = False
 
 
 def _load_models() -> dict:
@@ -91,6 +111,27 @@ def _load_models() -> dict:
         import essentia.standard as es
 
         base = Path(_models_dir)
+        if _genre_only:
+            # Node names are the model's own documented schema, not guesses:
+            # the embedder's second output is the 1280-d penultimate layer,
+            # and the head takes it on `serving_default_model_Placeholder`.
+            classes = json.loads(
+                (base / GENRE_MODEL_FILES["classes"]).read_text(encoding="utf-8")
+            )["classes"]
+            _models = {
+                "es": es,
+                "effnet": es.TensorflowPredictEffnetDiscogs(
+                    graphFilename=str(base / GENRE_MODEL_FILES["embeddings"]),
+                    output="PartitionedCall:1",
+                ),
+                "genre": es.TensorflowPredict2D(
+                    graphFilename=str(base / GENRE_MODEL_FILES["head"]),
+                    input="serving_default_model_Placeholder",
+                    output="PartitionedCall:0",
+                ),
+                "classes": classes,
+            }
+            return _models
         _models = {
             "es": es,
             "embeddings": es.TensorflowPredictMusiCNN(
@@ -114,14 +155,63 @@ def _load_models() -> dict:
     return _models
 
 
-def _init_worker(models_dir: str) -> None:
-    global _models_dir
+def _init_worker(models_dir: str, genre_only: bool = False) -> None:
+    global _models_dir, _genre_only
     _models_dir = models_dir
+    _genre_only = genre_only
+
+
+def top_styles(activations, classes: list[str], top: int = GENRE_TOP_N) -> list:
+    """Frame-wise activations → the strongest `top` [label, score] pairs.
+
+    Mean-pool over frames first: the head is a per-frame sigmoid over 400
+    styles, and a track's genre is the whole track's, not its loudest 3 s.
+    Scores round to 3 dp — everything downstream compares them to a
+    threshold, so more precision would only be noise in a JSON the browser
+    has to hold.
+    """
+    import numpy as np
+
+    mean = np.asarray(activations, dtype=float).mean(axis=0)
+    return [[classes[i], round(float(mean[i]), 3)] for i in np.argsort(-mean)[:top]]
+
+
+def split_style(label: str) -> tuple[str, str]:
+    """`Electronic---Deep House` → `("Electronic", "Deep House")`.
+
+    The app shows the style and feeds the parent into the genre tree as an
+    edge, which is why the taxonomy costs no hand-mapping. A label without
+    the separator is its own style with no parent.
+    """
+    parent, sep, style = label.partition("---")
+    return (parent, style) if sep else ("", parent)
+
+
+def analyse_genre(path: str) -> tuple[str, dict | None, str | None]:
+    """The --genre worker: Discogs-EffNet embedding → 400-style head.
+
+    Loads straight at 16 kHz (the models' own rate) rather than at 44.1 kHz
+    and resampling, because unlike the descriptor pass nothing here needs the
+    full-rate signal.
+    """
+    try:
+        m = _load_models()
+        es = m["es"]
+        audio = es.MonoLoader(filename=path, sampleRate=MODEL_SAMPLE_RATE, resampleQuality=4)()
+        if len(audio) < MODEL_SAMPLE_RATE:
+            return path, None, "shorter than one second"
+        activations = m["genre"](m["effnet"](audio))
+        return path, {"genre": top_styles(activations, m["classes"])}, None
+    except Exception as e:  # noqa: BLE001 — one bad file must not end the batch
+        return path, None, f"{type(e).__name__}: {e}"
 
 
 def analyse(path: str) -> tuple[str, dict | None, str | None]:
     """Analyse one file. Returns (path, entry, error) — never raises."""
     import numpy as np
+
+    if _genre_only:
+        return analyse_genre(path)
 
     try:
         m = _load_models()
@@ -195,7 +285,9 @@ def load_existing(out_path: Path) -> dict:
     return tracks if isinstance(tracks, dict) else {}
 
 
-def write_sidecar(out_path: Path, tracks: dict, started: str) -> None:
+def write_sidecar(
+    out_path: Path, tracks: dict, started: str, models: list[str] | None = None
+) -> None:
     """Atomic, compact. Compact because the app's autosave copy is compact too
     and the project sits at ~3.9 MB against a 5 MB localStorage cap."""
     sidecar = {
@@ -203,7 +295,7 @@ def write_sidecar(out_path: Path, tracks: dict, started: str) -> None:
         "run": {
             "analysedAt": started,
             "tool": "essentia-tensorflow 2.1b6.dev1438",
-            "models": sorted(MODEL_FILES.values()),
+            "models": models if models is not None else sorted(MODEL_FILES.values()),
         },
         "tracks": tracks,
     }
@@ -340,6 +432,21 @@ def self_test() -> int:
         return 1
     print(f"splice: '8A - Energy 7' → '{respliced}' — MIK segments preserved, replace idempotent")
 
+    # v39 genre helpers. Column means are 0.2, 0.8, 0.5 — so the ranking is
+    # by mean activation over frames, not by any single frame's peak.
+    frames = [[0.1, 0.9, 0.5], [0.3, 0.7, 0.5]]
+    styles = top_styles(frames, ["a---x", "b---y", "c---z"], top=2)
+    print(f"top_styles: {styles} (expect [['b---y', 0.8], ['c---z', 0.5]])")
+    if styles != [["b---y", 0.8], ["c---z", 0.5]]:
+        print("FAIL: top_styles must mean-pool frames and rank descending", file=sys.stderr)
+        return 1
+    if split_style("Electronic---Deep House") != ("Electronic", "Deep House"):
+        print("FAIL: split_style on a Parent---Style label", file=sys.stderr)
+        return 1
+    if split_style("Jungle") != ("", "Jungle"):
+        print("FAIL: split_style on a bare label", file=sys.stderr)
+        return 1
+
     if mutagen_available():
         import wave as wave_mod
 
@@ -399,6 +506,145 @@ def self_test() -> int:
     return 0
 
 
+def _entropy(counts) -> float:
+    total = sum(counts)
+    return -sum(c / total * math.log2(c / total) for c in counts if c > 0) if total else 0.0
+
+
+def _nmi(pairs: list[tuple[str, str]]) -> float:
+    """Normalised mutual information between two labellings of the same tracks.
+
+    The honest headline number here. Purity alone is fooled — a model that
+    answered "Jungle" for every track scores purity 1.0 against every one of
+    Michiel's labels — whereas NMI of a constant predictor is exactly 0.
+    """
+    n = len(pairs)
+    if n == 0:
+        return 0.0
+    own = collections.Counter(a for a, _ in pairs)
+    pred = collections.Counter(b for _, b in pairs)
+    joint = collections.Counter(pairs)
+    h_own, h_pred = _entropy(own.values()), _entropy(pred.values())
+    if h_own <= 0 or h_pred <= 0:
+        return 0.0
+    mutual = sum(
+        v / n * math.log2((v / n) / ((own[a] / n) * (pred[b] / n))) for (a, b), v in joint.items()
+    )
+    return mutual / math.sqrt(h_own * h_pred)
+
+
+#: An own-label needs this many tracks before its purity means anything.
+REPORT_MIN_LABEL = 10
+REPORT_CUTOFFS = (0.0, 0.05, 0.1, 0.2, 0.3, 0.5)
+
+
+def _consistency(pairs: list[tuple[str, str]]) -> dict:
+    """How well the predicted styles line up with labels the user already wrote."""
+    by_own: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
+    by_pred: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
+    for own, pred in pairs:
+        by_own[own][pred] += 1
+        by_pred[pred][own] += 1
+    big = {k: v for k, v in by_own.items() if sum(v.values()) >= REPORT_MIN_LABEL}
+    pure = {k: max(v.values()) / sum(v.values()) for k, v in big.items()}
+    tracks = sum(sum(v.values()) for v in by_pred.values())
+    return {
+        "labels": len(big),
+        "purity": pure,
+        "clearLabels": sum(1 for x in pure.values() if x >= 0.5),
+        "reversePurity": (
+            sum(max(v.values()) for v in by_pred.values()) / tracks if tracks else 0.0
+        ),
+        "nmi": _nmi(pairs),
+        "dominant": {k: v.most_common(1)[0] for k, v in big.items()},
+        "byOwn": by_own,
+    }
+
+
+def genre_report(out_path: Path, collection: Path) -> int:
+    """Read the sidecar's genre predictions back and say whether they are worth
+    shipping — granularity, consistency with the existing labels, and the
+    confidence cutoff that buys the most consistency for the least coverage."""
+    entries = load_existing(out_path)
+    predicted = {
+        path: entry["genre"] for path, entry in entries.items() if entry.get("genre")
+    }
+    if not predicted:
+        print(f"no genre predictions in {out_path} — run with --genre first", file=sys.stderr)
+        return 2
+    own: dict[str, str] = {}
+    if collection.exists():
+        root = ET.parse(collection).getroot()
+        for track in root.iterfind("./COLLECTION/TRACK"):
+            location = track.get("Location")
+            if location:
+                own[decode_location(location)] = (track.get("Genre") or "").strip()
+
+    rows = []
+    for path, top in predicted.items():
+        parent, style = split_style(top[0][0])
+        rows.append((path, style, parent, float(top[0][1]), own.get(path, "")))
+
+    print(f"\n=== genre report · {out_path} ===")
+    print(f"{len(entries)} sidecar entries · {len(predicted)} with a genre prediction")
+
+    styles = collections.Counter(r[1] for r in rows)
+    parents = collections.Counter(r[2] for r in rows)
+    top_share = styles.most_common(1)[0][1] / len(rows)
+    top5 = sum(c for _, c in styles.most_common(5)) / len(rows)
+    print(
+        f"\ngranularity: {len(styles)} distinct styles, {len(parents)} parents · "
+        f"top style {top_share:.0%} of the library, top 5 {top5:.0%} · "
+        f"entropy {_entropy(styles.values()):.2f} bits of {math.log2(len(styles)):.2f} max"
+    )
+    print("  most predicted: " + ", ".join(f"{s} {c}" for s, c in styles.most_common(12)))
+    print("  parents: " + ", ".join(f"{s} {c}" for s, c in parents.most_common(8)))
+
+    pairs = [(r[4], r[1]) for r in rows if r[4]]
+    stats = _consistency(pairs)
+    print(
+        f"\nconsistency over {len(pairs)} already-labelled tracks "
+        f"({stats['labels']} labels with n>={REPORT_MIN_LABEL}):"
+    )
+    print(
+        f"  {stats['clearLabels']}/{stats['labels']} "
+        f"({stats['clearLabels'] / max(stats['labels'], 1):.0%}) have a dominant style at "
+        f"purity >= 0.5 · reverse purity {stats['reversePurity']:.2f} · NMI {stats['nmi']:.3f}"
+    )
+    if pairs:
+        prior = collections.Counter(a for a, _ in pairs).most_common(1)[0]
+        print(
+            f"  baseline 'everything is {prior[0]}': purity 1.00 by construction, "
+            f"reverse purity {prior[1] / len(pairs):.2f}, NMI 0.000"
+        )
+    print(f"\n  {'your label':<24}{'n':>5}  {'dominant predicted style':<28}purity")
+    for label, purity in sorted(stats["purity"].items(), key=lambda kv: -kv[1]):
+        style, count = stats["dominant"][label]
+        n = sum(stats["byOwn"][label].values())
+        print(f"  {label[:23]:<24}{n:>5}  {style[:27]:<28}{purity:.2f}")
+
+    print(f"\n  {'cutoff':>7}{'kept':>8}{'styles':>8}{'top%':>7}{'clear':>8}{'NMI':>8}")
+    for cutoff in REPORT_CUTOFFS:
+        kept = [r for r in rows if r[3] >= cutoff]
+        if not kept:
+            continue
+        kept_styles = collections.Counter(r[1] for r in kept)
+        kept_stats = _consistency([(r[4], r[1]) for r in kept if r[4]])
+        clear = kept_stats["clearLabels"] / max(kept_stats["labels"], 1)
+        print(
+            f"  {cutoff:>5.2f}{len(kept) / len(rows):>8.0%}{len(kept_styles):>8}"
+            f"{kept_styles.most_common(1)[0][1] / len(kept):>7.0%}{clear:>8.0%}"
+            f"{kept_stats['nmi']:>8.3f}"
+        )
+    scores = sorted(r[3] for r in rows)
+    print(
+        "\n  top-1 confidence: median "
+        f"{scores[len(scores) // 2]:.2f}, "
+        f"10th pct {scores[len(scores) // 10]:.2f}, 90th pct {scores[len(scores) * 9 // 10]:.2f}"
+    )
+    return 0
+
+
 def run_batch(
     paths: list[str],
     *,
@@ -408,6 +654,7 @@ def run_batch(
     force: bool = False,
     flush_every: int = 25,
     write_tags: bool = False,
+    genre: bool = False,
     progress=None,
 ) -> dict:
     """Analyse `paths` into the sidecar at `out` — the one pool loop both the
@@ -415,13 +662,23 @@ def run_batch(
     skipped (though still tagged, when write_tags — "analyse first, tag later"
     costs only the tag). `progress(done, total, rate, eta_sec)` fires on every
     flush."""
-    existing = {} if force else load_existing(out)
+    # A genre pass ADDS a field to entries that already exist, so results
+    # always start from the stored sidecar — under --force too, which
+    # re-predicts into those entries rather than dropping their descriptors.
+    stored = load_existing(out)
     errors: list[str] = []
     skipped_done: list[str] = []
     absent = 0
     todo: list[str] = []
+
+    def done_already(path: str) -> bool:
+        entry = stored.get(path)
+        if entry is None or force:
+            return False
+        return "genre" in entry if genre else True
+
     for path in paths:
-        if path in existing:
+        if done_already(path):
             skipped_done.append(path)
         elif not os.path.exists(path):
             absent += 1
@@ -430,28 +687,36 @@ def run_batch(
 
     if write_tags:
         for path in skipped_done:
-            error = write_token(path, existing[path])
+            error = write_token(path, stored[path])
             if error is not None:
                 errors.append(f"{path}: {error}")
 
     started = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    results = dict(existing)
+    models = sorted(
+        {*MODEL_FILES.values(), *(GENRE_MODEL_FILES.values() if genre else ())}
+        - {GENRE_MODEL_FILES["classes"]}
+    )
+    results = dict(stored)
     done = 0
     t0 = time.time()
     if todo:
-        with mp.Pool(jobs, initializer=_init_worker, initargs=(str(models_dir),)) as pool:
+        with mp.Pool(
+            jobs, initializer=_init_worker, initargs=(str(models_dir), genre)
+        ) as pool:
             for path, entry, error in pool.imap_unordered(analyse, todo, chunksize=1):
                 done += 1
                 if entry is None:
                     errors.append(f"{path}: {error}")
                 else:
-                    results[path] = entry
+                    # Merge, never replace: the genre pass must leave the
+                    # descriptor fields of an existing entry intact.
+                    results[path] = {**results.get(path, {}), **entry}
                     if write_tags:
                         tag_error = write_token(path, entry)
                         if tag_error is not None:
                             errors.append(f"{path}: {tag_error}")
                 if done % flush_every == 0 or done == len(todo):
-                    write_sidecar(out, results, started)
+                    write_sidecar(out, results, started, models)
                     rate = done / max(time.time() - t0, 1e-6)
                     eta = (len(todo) - done) / max(rate, 1e-6)
                     if progress is not None:
@@ -659,6 +924,18 @@ def main() -> int:
     parser.add_argument("--flush-every", type=int, default=25)
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument(
+        "--genre",
+        action="store_true",
+        help="predict Discogs400 music styles instead of the descriptor set, "
+        "adding a `genre` field to each entry of the same sidecar",
+    )
+    parser.add_argument(
+        "--genre-report",
+        action="store_true",
+        help="read back an existing sidecar's genre predictions and report their "
+        "granularity and consistency with the collection's own genres",
+    )
+    parser.add_argument(
         "--serve",
         action="store_true",
         help="run as the app's localhost helper instead of a one-shot batch",
@@ -674,8 +951,11 @@ def main() -> int:
 
     if args.self_test:
         return self_test()
+    if args.genre_report:
+        return genre_report(args.out, args.collection)
 
-    missing = [n for n in MODEL_FILES.values() if not (args.models / n).exists()]
+    needed = GENRE_MODEL_FILES if args.genre else MODEL_FILES
+    missing = [n for n in needed.values() if not (args.models / n).exists()]
     if missing:
         print(f"missing model files in {args.models}: {', '.join(missing)}", file=sys.stderr)
         print("run scripts/fetch-models.sh first", file=sys.stderr)
@@ -711,7 +991,13 @@ def main() -> int:
         if args.paths_from is not None
         else read_collection(args.collection)
     )
-    existing = {} if args.force else load_existing(args.out)
+    stored = load_existing(args.out)
+
+    def done_already(path: str) -> bool:
+        entry = stored.get(path)
+        if entry is None or args.force:
+            return False
+        return "genre" in entry if args.genre else True
 
     skipped = {"excluded": 0, "filtered": 0, "done": 0, "absent": 0}
     jobs: list[str] = []
@@ -721,7 +1007,7 @@ def main() -> int:
             skipped["excluded"] += 1
         elif args.only is not None and args.only not in path:
             skipped["filtered"] += 1
-        elif path in existing:
+        elif done_already(path):
             skipped["done"] += 1
             done_paths.append(path)
         elif not os.path.exists(path):
@@ -756,12 +1042,15 @@ def main() -> int:
         force=args.force,
         flush_every=args.flush_every,
         write_tags=args.write_tags,
+        genre=args.genre,
         progress=progress,
     )
     results = batch["results"]
 
-    gated_bpm = sum(1 for e in results.values() if e["bpmConf"] < 0.5)
-    gated_key = sum(1 for e in results.values() if e["keyConf"] < 0.5)
+    # An entry can hold a genre and nothing else — a file the descriptor pass
+    # never reached but --genre did — so the tallies read what is there.
+    gated_bpm = sum(1 for e in results.values() if e.get("bpmConf", 1.0) < 0.5)
+    gated_key = sum(1 for e in results.values() if e.get("keyConf", 1.0) < 0.5)
     print(f"\nwrote {len(results)} entries to {args.out} in {(time.time() - t0) / 60:.1f} min")
     print(f"  {gated_bpm} tempos and {gated_key} keys fall below the app's confidence gate")
     if batch["errors"]:

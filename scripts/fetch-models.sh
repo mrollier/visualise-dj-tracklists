@@ -28,5 +28,12 @@ fetch "$BASE/classification-heads/emomusic/emomusic-msd-musicnn-2.pb"
 fetch "$BASE/classification-heads/danceability/danceability-msd-musicnn-1.pb"
 fetch "$BASE/classification-heads/mood_happy/mood_happy-msd-musicnn-1.pb"
 
+# v39 genre: the Discogs-EffNet embedder and the 400-style head. Different
+# embedding family from the MusiCNN block above — the genre pass is its own
+# run, and its .json carries the 400 class names the head's outputs index.
+fetch "$BASE/feature-extractors/discogs-effnet/discogs-effnet-bs64-1.pb"
+fetch "$BASE/classification-heads/genre_discogs400/genre_discogs400-discogs-effnet-1.pb"
+fetch "$BASE/classification-heads/genre_discogs400/genre_discogs400-discogs-effnet-1.json"
+
 echo "models in $DIR:"
 ls -la "$DIR"
