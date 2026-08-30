@@ -666,12 +666,12 @@ if ((await page.locator('.tracks-view td.rating .stars').count()) === 0) {
 // one row per property with a Column and a Filter checkbox.
 await page.getByRole('button', { name: /Advanced/ }).click()
 await ensureSectionOpen('Track properties')
-// One row per track property (32 since v35, which added the four analysis
-// descriptors) plus one .pseudo row per permanent panel filter (4 since v25:
-// starred, constellation, combos, keys).
-if ((await page.locator('.prop-row').count()) !== 36) {
+// One row per track property (34 since v39, which added the analysed genre
+// and its confidence to v35's four descriptors) plus one .pseudo row per
+// permanent panel filter (4 since v25: starred, constellation, combos, keys).
+if ((await page.locator('.prop-row').count()) !== 38) {
   errors.push(
-    `the Track properties table should list 36 rows, got ${await page.locator('.prop-row').count()}`,
+    `the Track properties table should list 38 rows, got ${await page.locator('.prop-row').count()}`,
   )
 }
 await page.getByRole('checkbox', { name: 'Length column', exact: true }).check()
@@ -1199,7 +1199,7 @@ if ((await page.locator('aside.panel').count()) === 0) {
 await ensureSectionOpen('Genre matching')
 await page
   .locator('.panel details.section', { hasText: 'Genre matching' })
-  .locator('select')
+  .locator('label:has-text("Method") select')
   .selectOption('hybrid')
 if ((await page.locator('.panel .hint a').count()) === 0) {
   errors.push('method explainer carries no source links')
@@ -1445,8 +1445,7 @@ await page.getByRole('button', { name: /Advanced/ }).click()
 await ensureSectionOpen('Genre matching')
 const advMethodSelect = page
   .locator('.panel details.section', { hasText: 'Genre matching' })
-  .locator('select')
-  .first()
+  .locator('label:has-text("Method") select')
 await advMethodSelect.selectOption('graph')
 await page.waitForTimeout(500)
 if ((await shapeFingerprint()) !== shapesHybrid) {
@@ -1459,8 +1458,7 @@ await page.waitForTimeout(300)
 {
   const methodInfo = page
     .locator('.panel details.section', { hasText: 'Genre matching' })
-    .locator('.info')
-    .first()
+    .locator('label:has-text("Method") .info')
   await methodInfo.click()
   await page.locator('h1').hover() // move the pointer well away
   await page.waitForTimeout(200)
@@ -2057,6 +2055,61 @@ await page.waitForTimeout(200)
     errors.push(`v33: a below-confidence key was shown rather than refused — "${tape}"`)
   }
   await page.screenshot({ path: `${scratch}/18-analysis-wheel.png` })
+
+  // ---- v39: the analysed genre, and the source toggle over it ----
+  // Nothing in vitest can see this either: the flip is a setting read through
+  // the merged layer into .svelte reads of `track.genre`. The wheel's own
+  // aria-label carries the genre, so it is the honest witness.
+  const genreOf = async (title) => ((await labelOf(title)) ?? '').split(' · ').pop()
+  const setGenreSource = async (value, threshold) => {
+    await page.getByRole('button', { name: /Advanced/ }).click()
+    const sourceLabel = page.locator('label:has-text("Genre source")')
+    if (!(await sourceLabel.isVisible())) {
+      await page.locator('details.section > summary:text-is("Genre matching")').click()
+    }
+    await sourceLabel.locator('select').selectOption(value)
+    if (threshold !== undefined) {
+      await page
+        .locator('label:has-text("Genre confidence") input[type=range]')
+        .fill(String(threshold))
+    }
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(400)
+  }
+
+  if ((await genreOf('White Label 03')) !== 'Techno') {
+    errors.push('v39: the sample no longer offers a genred track to flip')
+  }
+  await setGenreSource('analysis')
+  if ((await genreOf('White Label 03')) !== 'Acid House') {
+    errors.push(
+      `v39: the predicted style never reached the wheel — "${await labelOf('White Label 03')}"`,
+    )
+  }
+  if ((await genreOf('Untitled Dub')) !== 'Dub Techno') {
+    errors.push(
+      `v39: a genre-less track was not filled by its prediction — "${await labelOf('Untitled Dub')}"`,
+    )
+  }
+  // 0.12 sits below the 0.3 default, so the refusal must hold on screen.
+  if ((await genreOf('Found Tape')) !== '—') {
+    errors.push(
+      `v39: a below-threshold style was shown rather than refused — "${await labelOf('Found Tape')}"`,
+    )
+  }
+  await page.screenshot({ path: `${scratch}/18b-analysed-genre.png` })
+
+  // Above every score: the collection's own genres come back, and the gaps
+  // go back to being gaps. Moving the slider must never blank a real genre.
+  await setGenreSource('analysis', 0.8)
+  if ((await genreOf('White Label 03')) !== 'Techno' || (await genreOf('Untitled Dub')) !== '—') {
+    errors.push('v39: raising the confidence bar did not fall back to the collection genre')
+  }
+  // And back: the flip is reversible, exactly (the v36 rule for key/BPM).
+  await setGenreSource('rekordbox', 0.3)
+  if ((await genreOf('White Label 03')) !== 'Techno' || (await genreOf('Untitled Dub')) !== '—') {
+    errors.push('v39: switching back to Rekordbox genres did not restore them')
+  }
 
   const info = page
     .locator('.status')

@@ -977,6 +977,10 @@ describe('WS6 sanitize round-trip pins (v14.1)', () => {
     valence: over.valence ?? null,
     danceability: over.danceability ?? null,
     happiness: over.happiness ?? null,
+    // v39: derived, and serializeProject strips them — present here only so
+    // the literal is a Track.
+    analysedGenre: over.analysedGenre ?? null,
+    analysedGenreScore: over.analysedGenreScore ?? null,
     playCount: over.playCount ?? null,
     remixer: over.remixer ?? null,
     label: over.label ?? null,

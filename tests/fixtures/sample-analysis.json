@@ -12,13 +12,22 @@
       "arousal": 7.4,
       "valence": 3.1,
       "happiness": 0.28,
-      "danceability": 0.91
+      "danceability": 0.91,
+      "genre": [
+        ["Electronic---Dub Techno", 0.41],
+        ["Electronic---Dub", 0.22]
+      ]
     },
     "/Users/dj/Music/Night Shift Trax/Unknown Artist - White Label 03.aac": {
       "bpm": 138.02,
       "bpmConf": 0.94,
       "arousal": 7.9,
-      "valence": 4.2
+      "valence": 4.2,
+      "genre": [
+        ["Electronic---Acid House", 0.66],
+        ["Electronic---Techno", 0.31],
+        ["Electronic---Acid", 0.12]
+      ]
     },
     "/Users/dj/Music/Night Shift Trax/Greyfield - Found Tape.aac": {
       "bpm": 122.5,
@@ -26,7 +35,8 @@
       "key": "9B",
       "keyConf": 0.18,
       "arousal": 5.2,
-      "valence": 5.5
+      "valence": 5.5,
+      "genre": [["Electronic---Ambient", 0.12]]
     },
     "/Users/dj/Music/white-label/Unknown Artist - Untitled Two-Step.aac": {
       "key": "4A",

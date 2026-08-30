@@ -130,7 +130,10 @@ export function importRekordboxXml(xml: string): ImportResult {
       comments: str('Comments'),
       // Mixed-In-Key writes "Energy N" into Comments; derive it (v12 WS8).
       energy: energyFromComments(str('Comments')),
-      // No DJ library carries these; only the analysis sidecar fills them (v35).
+      // No DJ library carries these; only the analysis sidecar fills them
+      // (v35, and the predicted style v39).
+      analysedGenre: null,
+      analysedGenreScore: null,
       arousal: null,
       valence: null,
       danceability: null,

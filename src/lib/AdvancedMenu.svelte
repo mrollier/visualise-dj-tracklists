@@ -17,12 +17,7 @@
   import { isDescriptorKey, PROPERTY_BY_KEY } from '../core/properties'
   import type { TrackSortField } from '../core/trackSort'
   import { locationToPath } from '../core/location'
-  import {
-    estimateMinutes,
-    helperJob,
-    setPanelOpen,
-    startAnalysis,
-  } from './analysisHelper'
+  import { estimateMinutes, helperJob, setPanelOpen, startAnalysis } from './analysisHelper'
   import ConfirmDialog from './ConfirmDialog.svelte'
   import FolderLinkControl from './FolderLinkControl.svelte'
   import InfoTooltip from './InfoTooltip.svelte'
@@ -33,9 +28,13 @@
   import { startTour } from './tour'
   import { withOneUndoStep } from './undoStore'
   import {
+    analysedFieldsById,
+    analysis,
+    augmentedLibrary,
     clearPanelFilter,
     criteria,
     filters,
+    genreBridge,
     library,
     manualEdges,
     mustInclude,
@@ -50,6 +49,14 @@
     viewMode,
     visibleLibrary,
   } from '../stores'
+
+  // v39: with no predictions loaded, every genre-source control is inert —
+  // and silently so, since a missing prediction leaves the collection's own
+  // genre showing. This line is the only thing on screen that says why.
+  const genrePredicted = $derived($augmentedLibrary.filter((t) => t.analysedGenre !== null).length)
+  const genreSubstituted = $derived(
+    [...$analysedFieldsById.values()].filter((f) => f.has('genre')).length,
+  )
 
   // --- Set & suggestions (v7, issue 10) ---
   // Opener/closer/must-include are CHOSEN in the Tracks view (or via the ⏮/⏭
@@ -379,6 +386,55 @@
     ontoggle={(e) => persistToggle('genre', e)}
   >
     <summary>Genre matching</summary>
+    <label>
+      Genre source
+      <select bind:value={$settings.genreSource}>
+        <option value="rekordbox">Rekordbox</option>
+        <option value="analysis">Analysis (Discogs styles)</option>
+      </select>
+      <InfoTooltip label="About genre sources">
+        Analysis reads the style predicted from the audio itself — one of 400 Discogs styles — out
+        of an analysis file. That file has to be <strong>imported once</strong>: use the same button
+        you use for your collection XML and pick
+        <code>scripts/out/library.analysis.json</code>. It is then remembered with the project, and
+        importing it again after a new analysis run adds to it rather than replacing it. Your own
+        genres are never overwritten: switching back restores them, and a track with no prediction
+        keeps the genre it already had.
+      </InfoTooltip>
+    </label>
+    <SliderRow
+      label="Genre confidence"
+      bind:value={$settings.genreThreshold}
+      min={0}
+      max={0.8}
+      step={0.05}
+      display={(v) => v.toFixed(2)}
+      dimmed={$settings.genreSource !== 'analysis'}
+      title="How sure the model must be before its style replaces your own genre — in the columns and in combo matching alike. Stricter means fewer tracks change hands, so the wheel drifts back towards your own labels."
+    />
+    <p class="hint">
+      {#if $analysis === null}
+        No analysis file loaded. Import your analysis JSON with the same button as your collection —
+        nothing needs re-analysing, the results are already in the file.
+      {:else if genrePredicted === 0}
+        The loaded analysis file carries no style predictions. Re-run the analyser with
+        <code>--genre</code> and import it again.
+      {:else if $settings.genreSource === 'analysis'}
+        {genrePredicted} tracks carry a predicted style; {genreSubstituted} are showing it instead of
+        your own genre. {$genreBridge.length} of your own genres are linked to the style the model uses
+        for the same music.
+        <InfoTooltip label="About the linked genres">
+          Your words and the model's are different vocabularies: it has never heard of
+          <em>Tribe</em>, you never write <em>Tribal</em>. So each of your genres is matched against
+          the style the model most often predicts for the tracks carrying it — measured on your own
+          library, at least 3 tracks and a clear majority — and the two then count as the same genre
+          when combos are worked out. Without that, raising the confidence above would split
+          identical music into two dialects that match nothing.
+        </InfoTooltip>
+      {:else}
+        {genrePredicted} tracks carry a predicted style.
+      {/if}
+    </p>
     <label>
       <span class="label-with-info">
         Method
@@ -858,10 +914,10 @@
       positive), <strong>danceability</strong> and <strong>happiness</strong>. They appear as
       columns and filters with an ~ provenance badge.
       <InfoTooltip label="About the descriptors">
-        The analyser runs machine-listening models (essentia, MusiCNN) on your own machine —
-        nothing is uploaded. The descriptors are model estimates, not ground truth: treat them as
-        a sorting aid, not a verdict. Energy is unaffected — it still comes only from the Mixed In
-        Key comment tag.
+        The analyser runs machine-listening models (essentia, MusiCNN) on your own machine — nothing
+        is uploaded. The descriptors are model estimates, not ground truth: treat them as a sorting
+        aid, not a verdict. Energy is unaffected — it still comes only from the Mixed In Key comment
+        tag.
       </InfoTooltip>
     </p>
     <p class="hint">
@@ -869,6 +925,12 @@
       <strong>{estimateMinutes(analysable.length)} min</strong>. Results land in
       <code>scripts/out/library.analysis.json</code>, merge into this project (autosaved), and
       survive importing a new XML — they are keyed by file path, not by Rekordbox id.
+      <InfoTooltip label="About analysis results">
+        A run started here merges itself when it finishes. A run you started in a terminal instead
+        does not: import <code>scripts/out/library.analysis.json</code> once, with the same button you
+        use for your collection XML. Until you do, nothing analysed shows up — no descriptors, no analysed
+        genres — because the app never reads your disk on its own.
+      </InfoTooltip>
     </p>
     {#if typeof $helperJob === 'object' && $helperJob !== null && $helperJob.state === 'running'}
       <ProgressBar
@@ -896,9 +958,9 @@
         </button>
       </p>
       <p class="hint">
-        Or without the helper: export the playlist's file paths and run the analyser over them
-        with <code>--paths-from playlist.paths.txt</code>, then import the resulting JSON via
-        Import.
+        Or without the helper: export the playlist's file paths and run the analyser over them with <code
+          >--paths-from playlist.paths.txt</code
+        >, then import the resulting JSON via Import.
       </p>
       <button class="reset-defaults" onclick={exportPathsFile} disabled={analysable.length === 0}>
         ⤓ Export paths file
@@ -908,11 +970,11 @@
         <input type="checkbox" bind:checked={$settings.analysisWriteTags} />
         Also write results into file comment tags
         <InfoTooltip label="About tag write-back">
-          Appends a token like [A78V35D86H55] to each analysed file's Comment tag — the Mixed In
-          Key content already there is preserved. This modifies your audio files. Rekordbox shows
-          it only after Reload Tags on the tracks, and Reload Tags re-reads the whole file: fields
-          you edited only in Rekordbox (colour, My Tags) can be overwritten. Once the token is in
-          the comment, the descriptors travel with any XML export — even to a machine without the
+          Appends a token like [A78V35D86H55] to each analysed file's Comment tag — the Mixed In Key
+          content already there is preserved. This modifies your audio files. Rekordbox shows it
+          only after Reload Tags on the tracks, and Reload Tags re-reads the whole file: fields you
+          edited only in Rekordbox (colour, My Tags) can be overwritten. Once the token is in the
+          comment, the descriptors travel with any XML export — even to a machine without the
           analysis file.
         </InfoTooltip>
       </label>

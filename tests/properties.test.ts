@@ -15,7 +15,7 @@ describe('TRACK_PROPERTIES (v11 issue 1: the one registry)', () => {
     const expected = ['title', ...Object.keys(EMPTY_TRACK_FIELDS)].sort()
     expect([...keys].sort()).toEqual(expected)
     expect(new Set(keys).size).toBe(keys.length)
-    expect(keys).toHaveLength(32)
+    expect(keys).toHaveLength(34)
   })
 
   test('keeps the classic seven first and location last', () => {
@@ -43,8 +43,13 @@ describe('TRACK_PROPERTIES (v11 issue 1: the one registry)', () => {
   })
 
   test('DESCRIPTOR_KEYS is exactly the analysis-only set — the icon record keys off it', () => {
-    const analysisOnly = TRACK_PROPERTIES.filter((p) => p.analysisOnly === true).map((p) => p.key)
-    expect([...analysisOnly].sort()).toEqual([...DESCRIPTOR_KEYS].sort())
+    // The descriptors are analysis-only, but not every analysis-only property
+    // is a descriptor (v39 added the analysed genre and its confidence). What
+    // the icon record needs is the narrowing, not equality of the two sets.
+    const analysisOnly = new Set(
+      TRACK_PROPERTIES.filter((p) => p.analysisOnly === true).map((p) => p.key),
+    )
+    for (const key of DESCRIPTOR_KEYS) expect(analysisOnly.has(key), key).toBe(true)
     expect(DESCRIPTOR_KEYS.every(isDescriptorKey)).toBe(true)
     expect(isDescriptorKey('bpm')).toBe(false)
   })

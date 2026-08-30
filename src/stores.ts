@@ -14,6 +14,7 @@ import {
   EMPTY_FILTERS,
   type LibraryFilters,
 } from './core/filter'
+import { setGenreBridge } from './core/genre'
 import { computeGenreClasses } from './core/genreClasses'
 import { genreFamilyClasses, playlistClasses } from './core/iconClasses'
 import {
@@ -521,10 +522,31 @@ const sourcePrefs = distinct(
 const sourced = derived([library, sourcePrefs], ([$library, $prefs]) =>
   applySourcePreference($library, $prefs),
 )
-const merged = derived([sourced, analysis], ([$sourced, $analysis]) =>
-  mergeAnalysis($sourced, $analysis),
+/** The v39 genre preference, `distinct` for the same reason as `sourcePrefs`:
+ * it feeds the O(n²) combo view, so unrelated settings churn must not re-emit. */
+const genrePrefs = distinct(
+  derived(effectiveSettings, ($s) => ({
+    genreSource: $s.genreSource,
+    genreThreshold: $s.genreThreshold,
+  })),
+  (a, b) => a.genreSource === b.genreSource && a.genreThreshold === b.genreThreshold,
 )
+const merged = derived([sourced, analysis, genrePrefs], ([$sourced, $analysis, $genrePrefs]) => {
+  const result = mergeAnalysis($sourced, $analysis, $genrePrefs)
+  // The own-label ↔ predicted-style aliases are module state in genre.ts
+  // (v39.1): every matcher — wheel, genre map, set panel, suggestions — must
+  // read the same table, and this is the one place a new merge is seen before
+  // anything downstream matches on genre.
+  setGenreBridge(result.genreBridge)
+  return result
+})
 export const augmentedLibrary = derived(merged, ($merged) => $merged.tracks)
+/**
+ * The own-label ↔ predicted-style aliases this library supports (v39.1).
+ * Exported for the advanced menu's count; the matchers read the installed
+ * copy in genre.ts, never this store.
+ */
+export const genreBridge = derived(merged, ($merged) => $merged.genreBridge)
 /** Which fields on which track came from analysis — drives the provenance badges. */
 export const analysedFieldsById = derived(merged, ($merged) => $merged.analysedFields)
 

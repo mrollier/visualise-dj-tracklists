@@ -14,7 +14,7 @@ describe('the canonical column set (issues 10 + 12)', () => {
   test('covers every sortable field exactly once, classic seven first', () => {
     expect(new Set(ALL_TRACK_COLUMNS).size).toBe(ALL_TRACK_COLUMNS.length)
     expect(ALL_TRACK_COLUMNS.slice(0, 7)).toEqual([...CLASSIC_SEVEN])
-    expect(ALL_TRACK_COLUMNS.length).toBe(32)
+    expect(ALL_TRACK_COLUMNS.length).toBe(34)
     expect(ALL_TRACK_COLUMNS.at(-1)).toBe('location')
   })
 

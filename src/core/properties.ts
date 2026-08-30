@@ -103,7 +103,7 @@ export function isDescriptorKey(key: TrackSortField): key is DescriptorKey {
  * rather than repeated in all four hints.
  */
 export const ANALYSIS_GROUP_HINT =
-  'All four come from one offline analysis run (essentia-tensorflow, 2026-08-25) on models ' +
+  'These come from offline analysis runs (essentia-tensorflow) on models ' +
   'trained on general-purpose music. None has been validated against your ear. Rekordbox ' +
   'never supplies them, so a blank means the track has no analysis entry.'
 
@@ -162,6 +162,21 @@ export const TRACK_PROPERTIES: readonly TrackProperty[] = [
     hint:
       "How confident the model is of its 'happy' class, 0-100%. From mood_happy-msd-musicnn. " +
       'The widest spread of the four, but it tracks genre at least as much as mood.',
+  }),
+  prop('analysedGenre', 'Analysed genre', 'alpha', {
+    analysisOnly: true,
+    hint:
+      'The style predicted from the audio, one of 400 Discogs styles (genre_discogs400 on ' +
+      'discogs-effnet). Always parallel to Genre, never a replacement: the Genre source ' +
+      'setting decides which of the two the app reads.',
+  }),
+  prop('analysedGenreScore', 'Genre confidence', 'number', {
+    analysisOnly: true,
+    max: 1,
+    hint:
+      'How sure the model is of the analysed genre, 0-1. Median 0.40 across the library. ' +
+      'Measured on the 2046-track run: at 0.30 and above, 64% of the genres you had already ' +
+      'written have a dominant predicted style; below it the model is mostly guessing.',
   }),
   prop('album', 'Album', 'alpha'),
   prop('dateAdded', 'Date added', 'date'),

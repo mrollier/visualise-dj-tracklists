@@ -1,4 +1,5 @@
 import {
+  genreAliases,
   genreComponents,
   genreSimilarity,
   labelSimilarity,
@@ -154,6 +155,13 @@ export function makeGenreMatcher(
       .sort((x, y) => y.sim - x.sim || (x.other < y.other ? -1 : 1))
       .slice(0, k)
     topOf.set(label, new Set(ranked.map(({ other }) => other)))
+  }
+  // Learned aliases (v39.1) skip the ranking but not the score floor; `?.add`
+  // ignores a label this pairing universe never mentions.
+  for (const { own, style, weight } of genreAliases()) {
+    if (weight < threshold) continue
+    topOf.get(own)?.add(style)
+    topOf.get(style)?.add(own)
   }
   return (rawA, rawB) => {
     for (const a of genreComponents(rawA)) {

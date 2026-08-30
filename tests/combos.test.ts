@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test } from 'vitest'
 import {
   computeComboView,
   computeEdges,
@@ -12,6 +12,7 @@ import {
   toggleDemanded,
 } from '../src/core/combos'
 import type { ComboEdge, CriteriaConfig } from '../src/core/combos'
+import { setGenreBridge } from '../src/core/genre'
 import { track } from './helpers'
 
 function config(overrides: Partial<CriteriaConfig> = {}): CriteriaConfig {
@@ -916,6 +917,40 @@ describe('individual criteria', () => {
     )
     expect(result.evaluable).not.toContain('genre')
     expect(result.matched).not.toContain('genre')
+  })
+})
+
+describe('the learned vocabulary bridge in matching (v39.1)', () => {
+  // The threshold shows the predicted style on some tracks and the
+  // collection's own label on others. "Tribe" (his word) and "Tribal" (the
+  // model's) describe the same music and link to each other in no method, so
+  // until the bridge is installed the pair silently stops matching.
+  const genreOnly = (): CriteriaConfig => {
+    const cfg = config({ threshold: 1 })
+    for (const field of ['key', 'bpm', 'energy', 'year'] as const) cfg[field].enabled = false
+    return cfg
+  }
+  const a = track({ id: 'a', genre: 'Tribe' })
+  const b = track({ id: 'b', genre: 'Tribal' })
+
+  afterEach(() => setGenreBridge())
+
+  test('one dialect each: no edge', () => {
+    expect(computeEdges([a, b], genreOnly())).toHaveLength(0)
+  })
+
+  test('with the alias installed the pair matches again', () => {
+    setGenreBridge([{ own: 'tribe', style: 'tribal', weight: 0.64 }])
+    const edges = computeEdges([a, b], genreOnly())
+    expect(edges).toHaveLength(1)
+    expect(edges[0].matched).toEqual(['genre'])
+  })
+
+  test('an alias below the criterion floor still cannot link', () => {
+    setGenreBridge([{ own: 'tribe', style: 'tribal', weight: 0.64 }])
+    const cfg = genreOnly()
+    cfg.genre.threshold = 0.7
+    expect(computeEdges([a, b], cfg)).toHaveLength(0)
   })
 })
 

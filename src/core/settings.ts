@@ -1,6 +1,6 @@
 import { ALL_TRACK_COLUMNS, DEFAULT_HIDDEN_COLUMNS } from './columns'
 import { PANEL_FILTER_KEYS, type PanelFilterKey } from './marks'
-import type { MetadataSource } from './model'
+import type { GenreSource, MetadataSource } from './model'
 import { DEFAULT_VISIBLE_FILTERS } from './properties'
 import type { TrackSortField } from './trackSort'
 
@@ -127,6 +127,21 @@ export interface AppSettings {
   keySource: MetadataSource
   bpmSource: MetadataSource
   /**
+   * Genre ground truth (v39): the collection's own field, or the analysis
+   * sidecar's Discogs400 style prediction. Same never-blank rule as key and
+   * BPM — with 'analysis', a track with no prediction, or one scoring below
+   * `genreThreshold`, keeps the genre it already had.
+   */
+  genreSource: GenreSource
+  /**
+   * How sure a style prediction must be to be read, 0–1. Measured over the
+   * 2046-track run behind this feature: at 0.3, 64% of the labels the library
+   * already carries have a dominant predicted style (42% at 0, 85% at 0.5),
+   * and 70% of tracks still get a prediction. It is a setting rather than a
+   * constant because that trade is the user's to make.
+   */
+  genreThreshold: number
+  /**
    * Ask the analysis helper to write the `[AxxVxxDxxHxx]` descriptor token
    * into each analysed file's comment tag (v38). Off by default: it modifies
    * audio files on disk, and Rekordbox only sees the result after a Reload
@@ -159,5 +174,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   audioPreview: false,
   keySource: 'rekordbox',
   bpmSource: 'rekordbox',
+  genreSource: 'rekordbox',
+  genreThreshold: 0.3,
   analysisWriteTags: false,
 }

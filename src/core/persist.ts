@@ -72,7 +72,16 @@ export interface Project {
 }
 
 export function serializeProject(project: Project): string {
-  return JSON.stringify(project, null, 2)
+  // v39: the analysed genre is DERIVED — it lives on the merged layer and is
+  // null on every raw track — so it never enters a save. Two dead keys per
+  // track is ~90 KB on a 2000-track library, against a 5 MB localStorage cap.
+  // The parse side restores them as null, so the round-trip stays exact.
+  return JSON.stringify(
+    project,
+    (key: string, value: unknown): unknown =>
+      key === 'analysedGenre' || key === 'analysedGenreScore' ? undefined : value,
+    2,
+  )
 }
 
 /** A non-null, non-array object — the shape every hand-edited sub-record must have. */
@@ -208,6 +217,10 @@ function sanitizeTrack(raw: unknown): Track | null {
     valence: num(entry.valence),
     danceability: num(entry.danceability),
     happiness: num(entry.happiness),
+    // v39: derived, never saved — the analysed genre lives on the merged
+    // layer, and the raw library a save round-trips is Rekordbox truth.
+    analysedGenre: null,
+    analysedGenreScore: null,
     playCount: num(entry.playCount),
     remixer: str(entry.remixer),
     label: str(entry.label),
@@ -470,6 +483,18 @@ export function parseProject(json: string): Project {
       rawSettings.bpmSource === 'rekordbox' || rawSettings.bpmSource === 'comments'
         ? rawSettings.bpmSource
         : DEFAULT_SETTINGS.bpmSource,
+    // v39: additive, no version bump — an older save resolves to
+    // 'rekordbox', the behaviour that predates the analysed-genre layer.
+    genreSource:
+      rawSettings.genreSource === 'rekordbox' || rawSettings.genreSource === 'analysis'
+        ? rawSettings.genreSource
+        : DEFAULT_SETTINGS.genreSource,
+    genreThreshold:
+      typeof rawSettings.genreThreshold === 'number' &&
+      rawSettings.genreThreshold >= 0 &&
+      rawSettings.genreThreshold <= 1
+        ? rawSettings.genreThreshold
+        : DEFAULT_SETTINGS.genreThreshold,
     // v38: additive boolean, no version bump — an older save with no key
     // resolves to false, which is exactly the wanted "never touch files".
     analysisWriteTags:

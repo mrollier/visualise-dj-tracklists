@@ -22,6 +22,124 @@ function sidecar(tracks: AnalysisSidecar['tracks']): AnalysisSidecar {
   return { zodiacAnalysis: 1, run: null, tracks }
 }
 
+describe('the analysed genre (v39)', () => {
+  const at = (path: string) => `file://localhost${path}`
+  const predicted = sidecar({
+    '/Users/dj/a.mp3': {
+      genre: [
+        ['Electronic---Deep House', 0.72],
+        ['Electronic---House', 0.3],
+      ],
+    },
+  })
+
+  test('the prediction is attached as a parallel value, genre untouched', () => {
+    const tracks = [track({ id: 'a', location: at('/Users/dj/a.mp3'), genre: 'Funky House' })]
+    const merged = mergeAnalysis(tracks, predicted)
+
+    expect(merged.tracks[0].genre).toBe('Funky House')
+    expect(merged.tracks[0].analysedGenre).toBe('Deep House')
+    expect(merged.tracks[0].analysedGenreScore).toBe(0.72)
+    // Parallel, not filled: no provenance badge on a genre nothing replaced.
+    expect(merged.analysedFields.has('a')).toBe(false)
+  })
+
+  test("with genreSource 'analysis' the style is read, and badged", () => {
+    const tracks = [track({ id: 'a', location: at('/Users/dj/a.mp3'), genre: 'Funky House' })]
+    const merged = mergeAnalysis(tracks, predicted, {
+      genreSource: 'analysis',
+      genreThreshold: 0.3,
+    })
+
+    expect(merged.tracks[0].genre).toBe('Deep House')
+    expect(merged.analysedFields.get('a')).toEqual(new Set(['genre']))
+  })
+
+  test('below the threshold the collection genre stays — switching never blanks', () => {
+    const tracks = [track({ id: 'a', location: at('/Users/dj/a.mp3'), genre: 'Funky House' })]
+    const merged = mergeAnalysis(tracks, predicted, {
+      genreSource: 'analysis',
+      genreThreshold: 0.8,
+    })
+
+    expect(merged.tracks[0].genre).toBe('Funky House')
+    expect(merged.tracks[0].analysedGenre).toBe('Deep House')
+  })
+
+  test('the vocabulary bridge is learned from every prediction, whatever is shown', () => {
+    // Three tracks the DJ calls "Funky House" and the model calls "Deep
+    // House" earn the alias — and they earn it at every threshold, because
+    // the aliases describe the library, not what the slider currently shows.
+    const tracks = ['a', 'b', 'c'].map((id) =>
+      track({ id, location: at(`/Users/dj/${id}.mp3`), genre: 'Funky House' }),
+    )
+    const entry = predicted.tracks['/Users/dj/a.mp3']
+    const three = sidecar({
+      '/Users/dj/a.mp3': entry,
+      '/Users/dj/b.mp3': entry,
+      '/Users/dj/c.mp3': entry,
+    })
+
+    for (const genreThreshold of [0.3, 0.8]) {
+      const merged = mergeAnalysis(tracks, three, { genreSource: 'analysis', genreThreshold })
+      expect(merged.genreBridge).toEqual([{ own: 'funky house', style: 'deep house', weight: 1 }])
+    }
+  })
+
+  test('no bridge in Rekordbox mode, nor from a label the model agrees with', () => {
+    const tracks = ['a', 'b', 'c'].map((id) =>
+      track({ id, location: at(`/Users/dj/${id}.mp3`), genre: 'deep house' }),
+    )
+    const entry = predicted.tracks['/Users/dj/a.mp3']
+    const three = sidecar({
+      '/Users/dj/a.mp3': entry,
+      '/Users/dj/b.mp3': entry,
+      '/Users/dj/c.mp3': entry,
+    })
+
+    expect(mergeAnalysis(tracks, three).genreBridge).toEqual([])
+    expect(
+      mergeAnalysis(tracks, three, { genreSource: 'analysis', genreThreshold: 0.3 }).genreBridge,
+    ).toEqual([]) // his word and the model's are already the same one
+  })
+
+  test('a genre-less track below the threshold stays genre-less rather than guessing', () => {
+    const tracks = [track({ id: 'a', location: at('/Users/dj/a.mp3') })]
+    const merged = mergeAnalysis(tracks, predicted, {
+      genreSource: 'analysis',
+      genreThreshold: 0.8,
+    })
+
+    expect(merged.tracks[0].genre).toBeNull()
+  })
+
+  test('a ragged or hand-edited prediction list is rebuilt, not trusted', () => {
+    const raw = {
+      zodiacAnalysis: 1,
+      tracks: {
+        '/Users/dj/a.mp3': {
+          genre: [['Electronic---Techno', 0.5], ['no score'], [42, 0.4], ['Rock---Punk', 'high']],
+        },
+        '/Users/dj/b.mp3': { genre: 'Electronic---Techno' },
+      },
+    }
+    const clean = sanitizeAnalysis(raw)
+
+    expect(clean?.tracks['/Users/dj/a.mp3'].genre).toEqual([['Electronic---Techno', 0.5]])
+    expect(clean?.tracks['/Users/dj/b.mp3'].genre).toBeUndefined()
+  })
+
+  test('a label with no parent prefix is its own style', () => {
+    const tracks = [track({ id: 'a', location: at('/Users/dj/a.mp3') })]
+    const merged = mergeAnalysis(
+      tracks,
+      sidecar({ '/Users/dj/a.mp3': { genre: [['Jungle', 0.9]] } }),
+    )
+
+    expect(merged.tracks[0].analysedGenre).toBe('Jungle')
+  })
+})
+
 describe('mergeAnalysis — the never-overwrite invariant (v33)', () => {
   test('a Rekordbox BPM is never replaced by an analysed one', () => {
     const tracks = [track({ id: 'a', location: 'file://localhost/Users/dj/a.mp3', bpm: 128 })]
@@ -473,10 +591,7 @@ describe('the comment token as a descriptor source (v38)', () => {
     const tracks = [
       track({ id: 'a', location: 'file://localhost/Users/dj/a.mp3', comments: TOKEN }),
     ]
-    const merged = mergeAnalysis(
-      tracks,
-      sidecar({ '/Users/dj/a.mp3': { arousal: 9 } }),
-    )
+    const merged = mergeAnalysis(tracks, sidecar({ '/Users/dj/a.mp3': { arousal: 9 } }))
 
     expect(merged.tracks[0].arousal).toBe(100)
     expect(merged.tracks[0].valence).toBe(35)
@@ -511,10 +626,7 @@ describe('the comment token as a descriptor source (v38)', () => {
       track({ id: 'a', comments: TOKEN }),
       track({ id: 'b', location: 'file://localhost/Users/dj/b.mp3' }),
     ]
-    const summary = summariseAnalysisImport(
-      tracks,
-      sidecar({ '/Users/dj/b.mp3': { arousal: 5 } }),
-    )
+    const summary = summariseAnalysisImport(tracks, sidecar({ '/Users/dj/b.mp3': { arousal: 5 } }))
 
     expect(summary.descriptorsFromComments).toBe(1)
     expect(summary.note).toContain('comment tokens 1 track')

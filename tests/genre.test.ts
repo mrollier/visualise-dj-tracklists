@@ -1,8 +1,11 @@
-import { describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test } from 'vitest'
 import {
   computeGenreCoverage,
   GENRE_METHODS,
+  learnGenreBridge,
+  setGenreBridge,
   genreComponents,
+  genreFamilyOf,
   genreSimilarity,
   METHOD_LABEL,
   METHOD_LABEL_LONG,
@@ -11,6 +14,33 @@ import {
   packNeighbours,
   UMBRELLA_GENRES,
 } from '../src/core/genre'
+
+describe('the Discogs400 widening (v39)', () => {
+  // The widened tree must not move a single curated pair. IC is computed over
+  // the curated node set alone precisely because counting 380 added leaves
+  // would grow N and lift every umbrella's information content with it —
+  // measured at the time: techno↔house 0.169 → 0.419, which would let
+  // 'electronic' drive matches it is explicitly not allowed to drive.
+  test('curated pairs score exactly as they did before the widening', () => {
+    expect(genreSimilarity('techno', 'house', 'taxonomy')).toBeCloseTo(0.169, 3)
+    expect(genreSimilarity('deep house', 'tech house', 'taxonomy')).toBeCloseTo(0.222, 3)
+    expect(genreSimilarity('jungle', 'drum & bass', 'taxonomy')).toBeCloseTo(0.943, 3)
+    expect(genreSimilarity('techno', 'jungle', 'taxonomy')).toBeCloseTo(0.095, 3)
+  })
+
+  test('a predicted style the curated tree lacks gets a lineage, not the lexical fallback', () => {
+    // 'euro house' is Discogs-only: without the widening its only route to
+    // 'house' was spelling, which is why it scored as a string, not a genre.
+    expect(genreSimilarity('euro house', 'house', 'taxonomy')).toBeGreaterThan(0)
+    expect(genreFamilyOf('deep techno')).toBeNull()
+  })
+
+  test("Discogs' own spellings normalize onto the curated labels", () => {
+    expect(normalizeGenre('Drum n Bass')).toBe('drum & bass')
+    expect(normalizeGenre('Psy-Trance')).toBe('psytrance')
+    expect(normalizeGenre('Synth-pop')).toBe('synthpop')
+  })
+})
 
 describe('method labels', () => {
   test('short labels carry no parenthetical explainer (issue 9)', () => {
@@ -408,5 +438,60 @@ describe('mined aliases from the real-library dry run (v12 WS7)', () => {
     // confidently mis-map them; they stay (correctly) genre-invisible.
     expect(normalizeGenre('Nieuw!!!')).toBe('nieuw!!!')
     expect(normalizeGenre('90s')).toBe('90s')
+  })
+})
+
+describe('the learned vocabulary bridge (v39.1)', () => {
+  afterEach(() => setGenreBridge())
+
+  // Each pair is one track: the genre the DJ wrote, and the style the
+  // analyser predicted for that same audio.
+  const tribe = (n: number): [string, string][] =>
+    Array.from({ length: n }, () => ['Tribe', 'Tribal'] as [string, string])
+
+  test('a label the model agrees about earns an alias, weighted by that agreement', () => {
+    expect(learnGenreBridge([...tribe(7), ['Tribe', 'Techno'], ['Tribe', 'Techno']])).toEqual([
+      { own: 'tribe', style: 'tribal', weight: 7 / 9 },
+    ])
+  })
+
+  test('too few tracks, or no majority, earns nothing', () => {
+    expect(learnGenreBridge(tribe(2))).toEqual([])
+    expect(
+      learnGenreBridge([...tribe(2), ['Tribe', 'Techno'], ['Tribe', 'Techno'], ['Tribe', 'House']]),
+    ).toEqual([])
+  })
+
+  test('a multi-genre label votes per component, and never aliases itself', () => {
+    const pairs: [string, string][] = Array.from(
+      { length: 3 },
+      () => ['Techno / Tribe', 'Tribal'] as [string, string],
+    )
+    expect(learnGenreBridge(pairs)).toEqual([
+      { own: 'techno', style: 'tribal', weight: 1 },
+      { own: 'tribe', style: 'tribal', weight: 1 },
+    ])
+    expect(
+      learnGenreBridge(Array.from({ length: 3 }, () => ['Tribal', 'tribal'] as [string, string])),
+    ).toEqual([])
+  })
+
+  test('an installed alias links two words that link in no method', () => {
+    for (const method of GENRE_METHODS)
+      expect(genreSimilarity('tribe', 'tribal', method)).toBeLessThan(0.2)
+    setGenreBridge([{ own: 'tribe', style: 'tribal', weight: 0.64 }])
+    expect(genreSimilarity('tribe', 'tribal', 'hybrid')).toBeCloseTo(0.64)
+    expect(genreSimilarity('tribal', 'tribe', 'hybrid')).toBeCloseTo(0.64)
+    // Exact means literally the same word; a learned alias must not widen it.
+    expect(genreSimilarity('tribe', 'tribal', 'exact')).toBe(0)
+    // And it never lowers a similarity the methods already found.
+    expect(genreSimilarity('deep house', 'house', 'hybrid')).toBeGreaterThan(0.64)
+  })
+
+  test('clearing restores the curated numbers exactly', () => {
+    const before = genreSimilarity('tribe', 'tribal', 'hybrid')
+    setGenreBridge([{ own: 'tribe', style: 'tribal', weight: 0.64 }])
+    setGenreBridge()
+    expect(genreSimilarity('tribe', 'tribal', 'hybrid')).toBe(before)
   })
 })

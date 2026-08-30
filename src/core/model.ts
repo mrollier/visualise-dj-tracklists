@@ -49,6 +49,14 @@ export interface Track {
   valence: number | null
   danceability: number | null
   happiness: number | null
+  /**
+   * The analysis sidecar's Discogs400 style prediction and the probability it
+   * carries (v39): "Deep House", 0.72. Parallel to `genre`, never a
+   * replacement for it — the Rekordbox label stays where it is and the
+   * `genreSource` setting chooses which one the app reads.
+   */
+  analysedGenre: string | null
+  analysedGenreScore: number | null
   /** 0 is a real count ("never played"), not "unknown". */
   playCount: number | null
   remixer: string | null
@@ -93,6 +101,8 @@ export const EMPTY_TRACK_FIELDS: Omit<Track, 'id' | 'title'> = {
   valence: null,
   danceability: null,
   happiness: null,
+  analysedGenre: null,
+  analysedGenreScore: null,
   playCount: null,
   remixer: null,
   label: null,
@@ -101,6 +111,14 @@ export const EMPTY_TRACK_FIELDS: Omit<Track, 'id' | 'title'> = {
   dateModified: null,
   lastPlayed: null,
 }
+
+/**
+ * Where a track's genre comes from (v39): the collection's own field, or the
+ * Discogs400 prediction in the analysis sidecar. Its own type rather than a
+ * third member of MetadataSource — a key can come from a comment token, a
+ * genre never can, and the type says so.
+ */
+export type GenreSource = 'rekordbox' | 'analysis'
 
 /** Where a track's key/BPM ground truth comes from (v36). */
 export type MetadataSource = 'rekordbox' | 'comments'

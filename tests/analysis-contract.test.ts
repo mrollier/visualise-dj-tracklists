@@ -1,6 +1,11 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, test } from 'vitest'
-import { mergeAnalysis, percentFromAffect, percentFromUnit, sanitizeAnalysis } from '../src/core/analysis'
+import {
+  mergeAnalysis,
+  percentFromAffect,
+  percentFromUnit,
+  sanitizeAnalysis,
+} from '../src/core/analysis'
 import { buildFileIndex, matchSegments } from '../src/core/audio/pathMatch'
 import { importRekordboxXml } from '../src/core/importers/rekordbox'
 import { normalizeKey } from '../src/core/keys'

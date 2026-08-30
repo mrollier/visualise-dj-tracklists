@@ -20,6 +20,8 @@ export type TrackSortField =
   | 'valence'
   | 'danceability'
   | 'happiness'
+  | 'analysedGenre'
+  | 'analysedGenreScore'
   | 'album'
   | 'dateAdded'
   | 'durationSec'

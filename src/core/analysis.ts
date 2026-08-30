@@ -1,7 +1,8 @@
 import { buildFileIndex, matchLocation } from './audio/pathMatch'
 import { foldSegments } from './location'
 import { normalizeKey } from './keys'
-import { parseDescriptorToken, type Track } from './model'
+import { learnGenreBridge, type GenreBridgeEdge } from './genre'
+import { parseDescriptorToken, type GenreSource, type Track } from './model'
 
 /**
  * The analysis provenance layer (v33 WS1).
@@ -23,7 +24,8 @@ import { parseDescriptorToken, type Track } from './model'
  * arousal-derived fallback was removed after MIK beat it against Michiel's
  * own labels, and an honest null beats an inferior guess.
  */
-export type AnalysedField = 'bpm' | 'key' | 'arousal' | 'valence' | 'danceability' | 'happiness'
+export type AnalysedField =
+  'bpm' | 'key' | 'genre' | 'arousal' | 'valence' | 'danceability' | 'happiness'
 
 /** One track's analysis, as a producer writes it. Every field is optional. */
 export interface AnalysisEntry {
@@ -36,6 +38,20 @@ export interface AnalysisEntry {
   valence?: number | null
   happiness?: number | null
   danceability?: number | null
+  /**
+   * The Discogs400 head's strongest styles for this track, `[label, score]`
+   * strongest first, labels in the model's own `Parent---Style` spelling
+   * (v39). All of them are stored: the confidence cutoff is a setting the
+   * user moves, not a decision the analyser bakes in.
+   */
+  genre?: [string, number][]
+}
+
+/** Which genre the app reads, and how sure a prediction must be to be read. */
+export interface GenrePrefs {
+  genreSource: GenreSource
+  /** 0–1. A prediction below it leaves the collection's own genre showing. */
+  genreThreshold: number
 }
 
 /** Batch-level provenance: when, by what, with which models. */
@@ -78,6 +94,12 @@ export interface MergeResult {
    * the import report can never disagree with the merge it describes.
    */
   stats: MergeStats
+  /**
+   * Aliases learned from this library's own (label, predicted style) pairs
+   * (v39.1) — empty unless the analysed genre is the one in use. Install with
+   * `setGenreBridge` before anything matches on genre.
+   */
+  genreBridge: GenreBridgeEdge[]
 }
 
 export interface MergeStats {
@@ -143,10 +165,36 @@ export function sanitizeAnalysis(raw: unknown): AnalysisSidecar | null {
       valence: num(entry.valence),
       happiness: num(entry.happiness),
       danceability: num(entry.danceability),
+      genre: sanitizeGenre(entry.genre),
     }
   }
 
   return { zodiacAnalysis: 1, run: sanitizeRun(raw.run), tracks }
+}
+
+/**
+ * The prediction list, rebuilt pair by pair: a hand-edited sidecar cannot
+ * smuggle in a non-string label, a NaN score, or a ragged row. An empty
+ * result is `undefined`, not `[]`, so `entry.genre?.[0]` stays the one test.
+ */
+function sanitizeGenre(raw: unknown): [string, number][] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const out: [string, number][] = []
+  for (const pair of raw) {
+    if (!Array.isArray(pair)) continue
+    const label = str(pair[0])
+    const score = num(pair[1])
+    if (label !== null && score !== null) out.push([label, score])
+  }
+  return out.length === 0 ? undefined : out
+}
+
+/** `Electronic---Deep House` → `Deep House`: what the app displays. The
+ * parent is not lost — src/data/discogs-genres.json gives every style its
+ * lineage in the genre tree, which is where the parent does its work. */
+function styleOf(label: string): string {
+  const cut = label.lastIndexOf('---')
+  return cut === -1 ? label : label.slice(cut + 3)
 }
 
 function sanitizeRun(raw: unknown): AnalysisRun | null {
@@ -171,8 +219,15 @@ function sanitizeRun(raw: unknown): AnalysisRun | null {
  * would decode it a second time, turning a filename that genuinely contains
  * `%20` into one with a space.
  */
-export function mergeAnalysis(tracks: Track[], sidecar: AnalysisSidecar | null): MergeResult {
+export function mergeAnalysis(
+  tracks: Track[],
+  sidecar: AnalysisSidecar | null,
+  // Defaults to the collection's own genre, so every caller that predates
+  // v39 — and every test — behaves exactly as it did.
+  prefs: GenrePrefs = { genreSource: 'rekordbox', genreThreshold: 1 },
+): MergeResult {
   const analysedFields = new Map<string, Set<AnalysedField>>()
+  const bridgePairs: [string, string][] = []
   const stats: MergeStats = {
     bpmFilled: 0,
     keyFilled: 0,
@@ -226,6 +281,7 @@ export function mergeAnalysis(tracks: Track[], sidecar: AnalysisSidecar | null):
     const entry = entryFor(t)
     const fields = new Set<AnalysedField>()
     const next = { ...t }
+    let gainedGenre = false
     if (entry !== null) {
       // Fill nulls only. A non-null Rekordbox value is never reachable here.
       if (t.bpm === null && typeof entry.bpm === 'number') {
@@ -262,6 +318,29 @@ export function mergeAnalysis(tracks: Track[], sidecar: AnalysisSidecar | null):
         gainedDescriptor = true
       }
       if (gainedDescriptor) stats.descriptorsFilled += 1
+
+      // The Discogs400 prediction (v39). Attached to every matched track
+      // whatever the setting says — it is a PARALLEL value, not a fill, and
+      // the Rekordbox genre it sits beside is never touched. Only the
+      // substitution below is thresholded, and it reads the threshold at
+      // merge time, so moving the slider re-decides without re-analysing.
+      const top = entry.genre?.[0]
+      if (top !== undefined) {
+        next.analysedGenre = styleOf(top[0])
+        next.analysedGenreScore = top[1]
+        gainedGenre = true
+        if (prefs.genreSource === 'analysis') {
+          if (top[1] >= prefs.genreThreshold) {
+            next.genre = next.analysedGenre
+            fields.add('genre')
+          }
+          // Every (own label, predicted style) pair votes on the vocabulary
+          // bridge, whatever the threshold does with this particular track —
+          // the aliases describe the LIBRARY, so moving the slider must not
+          // move them (v39.1).
+          if (t.genre !== null) bridgePairs.push([t.genre, next.analysedGenre])
+        }
+      }
     }
 
     // The `[A..V..D..H..]` comment token (v38): the sidecar's own lossy 0-100
@@ -279,13 +358,21 @@ export function mergeAnalysis(tracks: Track[], sidecar: AnalysisSidecar | null):
       if (gainedFromToken) stats.descriptorsFromComments += 1
     }
 
-    if (fields.size === 0) return t
+    if (fields.size === 0 && !gainedGenre) return t
     filledAny = true
-    analysedFields.set(t.id, fields)
+    // A track can reach here having gained ONLY the parallel prediction, and
+    // an empty badge set would read as "analysis touched this track" when it
+    // replaced nothing.
+    if (fields.size > 0) analysedFields.set(t.id, fields)
     return next
   })
 
-  return { tracks: filledAny ? merged : tracks, analysedFields, stats }
+  return {
+    tracks: filledAny ? merged : tracks,
+    analysedFields,
+    stats,
+    genreBridge: learnGenreBridge(bridgePairs),
+  }
 }
 
 /**
@@ -294,7 +381,10 @@ export function mergeAnalysis(tracks: Track[], sidecar: AnalysisSidecar | null):
  * bounded by unique file paths, so it adds nothing to the autosave footprint
  * a full sidecar would not.
  */
-export function mergeSidecars(prev: AnalysisSidecar | null, next: AnalysisSidecar): AnalysisSidecar {
+export function mergeSidecars(
+  prev: AnalysisSidecar | null,
+  next: AnalysisSidecar,
+): AnalysisSidecar {
   if (prev === null) return next
   return { zodiacAnalysis: 1, run: next.run, tracks: { ...prev.tracks, ...next.tracks } }
 }

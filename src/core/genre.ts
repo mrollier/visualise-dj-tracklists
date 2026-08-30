@@ -1,5 +1,6 @@
 import genreGraph from '../data/genre-graph.json'
 import genreTree from '../data/genre-tree.json'
+import discogsGenres from '../data/discogs-genres.json'
 import embeddingPack from '../data/genre-embedding.json'
 
 /**
@@ -116,6 +117,9 @@ const ALIASES: Record<string, string> = {
   'funk thai': 'thai funk',
   // In a club crate "psychedelic" points at the psy lineage, not psych rock.
   psychedelic: 'psytrance',
+  // v39: the one Discogs400 spelling the table did not already answer
+  // (dnb and psy-trance arrive covered).
+  'synth pop': 'synthpop',
 }
 
 function cleanupGenre(label: string): string {
@@ -226,7 +230,24 @@ function graphDistance(a: string, b: string): number {
 // content IC(n) = 1 − log(descendants(n)+1)/log(N) (Seco et al. 2004). Deep,
 // specific common ancestors score high; umbrella nodes near the root have
 // IC ≈ 0 and cannot produce strong matches.
-const treeParents = genreTree.parents as Record<string, string[]>
+/**
+ * The curated tree, widened with the Discogs400 styles the analysed-genre
+ * layer can predict (v39, src/data/discogs-genres.json). Curated entries win
+ * every collision — the spread order is what guarantees it — so a label
+ * Michiel placed himself keeps his lineage, and a predicted style that would
+ * otherwise fall through to lexical similarity gets a real one. Keys go
+ * through `normalizeGenre` here so the generated file can keep the model's
+ * own spelling.
+ */
+const treeParents: Record<string, string[]> = {
+  ...Object.fromEntries(
+    Object.entries(discogsGenres.parents as Record<string, string[]>).map(([style, parents]) => [
+      normalizeGenre(style),
+      parents,
+    ]),
+  ),
+  ...(genreTree.parents as Record<string, string[]>),
+}
 
 const treeAncestors = new Map<string, Set<string>>() // label → ancestors incl. self
 
@@ -243,7 +264,13 @@ function ancestorsOf(label: string): Set<string> {
 
 const treeIC = new Map<string, number>()
 {
-  const nodes = new Set<string>([genreTree.root, ...Object.keys(treeParents)])
+  // Over the CURATED tree alone. Every Discogs-added node is a leaf, so its
+  // own IC is 1 under either node set — but counting them would grow N and
+  // lift every umbrella's IC with it (measured: 'electronic' 0.04 → 0.18,
+  // techno↔house 0.17 → 0.42), destroying the "umbrellas near the root cannot
+  // produce strong matches" property this measure is chosen for. Curated
+  // pairs therefore score exactly as they did before the widening.
+  const nodes = new Set<string>([genreTree.root, ...Object.keys(genreTree.parents)])
   const descendants = new Map<string, number>()
   for (const node of nodes) {
     for (const ancestor of ancestorsOf(node)) {
@@ -254,6 +281,9 @@ const treeIC = new Map<string, number>()
   for (const node of nodes) {
     treeIC.set(node, 1 - Math.log((descendants.get(node) ?? 0) + 1) / logN)
   }
+  // The widened-only styles: leaves, so IC 1 — and having an IC at all is what
+  // routes them through Lin instead of the lexical fallback.
+  for (const node of Object.keys(treeParents)) if (!treeIC.has(node)) treeIC.set(node, 1)
 }
 
 function linSimilarity(a: string, b: string): number {
@@ -275,12 +305,18 @@ function linSimilarity(a: string, b: string): number {
 // jazz, r&b, reggae and the other root children stand for themselves.
 const FAMILY_LEVEL = new Set<string>()
 {
-  const childrenOf = (node: string): string[] =>
-    Object.entries(treeParents)
+  const childrenOf = (node: string, from: Record<string, string[]> = treeParents): string[] =>
+    Object.entries(from)
       .filter(([, parents]) => parents.includes(node))
       .map(([label]) => label)
-  for (const child of childrenOf(genreTree.root)) {
-    if (child === 'electronic') for (const sub of childrenOf(child)) FAMILY_LEVEL.add(sub)
+  // Curated children only, for the same reason the IC block uses them: the
+  // widened tree hangs ~120 styles directly off 'electronic' and ~40 off the
+  // root, which would turn a handful of icon families into a hundred. A
+  // predicted style the curated tree does not name has no family and draws a
+  // circle, exactly as an unrecognised Rekordbox genre does.
+  for (const child of childrenOf(genreTree.root, genreTree.parents)) {
+    if (child === 'electronic')
+      for (const sub of childrenOf(child, genreTree.parents)) FAMILY_LEVEL.add(sub)
     else FAMILY_LEVEL.add(child)
   }
 }
@@ -401,9 +437,108 @@ export function packNeighbours(rawLabel: string, limit: number): [string, number
     .slice(0, limit)
 }
 
+/**
+ * A learned alias between one of the collection's own labels and the style
+ * the analyser uses for the same music (v39.1).
+ *
+ * The Discogs head predicts a style for every track, so the tracks already
+ * carrying one of the DJ's labels vote on what that label means in the
+ * model's words: 53 "Tribe" tracks are called "Tribal" 64% of the time. The
+ * two words link in NO similarity method — different tokens, and the personal
+ * label is in no public taxonomy — so without the alias, a confidence
+ * threshold that swaps one track of a pair and not the other splits identical
+ * music across two dialects and the pair stops matching.
+ */
+export interface GenreBridgeEdge {
+  own: string
+  style: string
+  /** The style's share of that label's tracks, used as the similarity. */
+  weight: number
+}
+
+/** Below these the vote is noise. Measured on a 2081-track library (v39.1). */
+const BRIDGE_MIN_TRACKS = 3
+const BRIDGE_MIN_PURITY = 0.5
+
+/**
+ * The aliases a library's own (label, predicted style) pairs support. Each
+ * own label keeps at most one style — the one it most often turns into — so
+ * a label the model cannot agree with itself about earns nothing.
+ */
+export function learnGenreBridge(pairs: Iterable<readonly [string, string]>): GenreBridgeEdge[] {
+  const votes = new Map<string, Map<string, number>>()
+  for (const [own, predicted] of pairs) {
+    const style = normalizeGenre(predicted)
+    // Per COMPONENT, because that is the unit similarity compares: a track
+    // labelled "Electro; Techno/House" votes for each of its three.
+    for (const component of genreComponents(own)) {
+      if (component === style) continue
+      let counts = votes.get(component)
+      if (counts === undefined) {
+        counts = new Map()
+        votes.set(component, counts)
+      }
+      counts.set(style, (counts.get(style) ?? 0) + 1)
+    }
+  }
+  const edges: GenreBridgeEdge[] = []
+  for (const [own, counts] of votes) {
+    let style = ''
+    let best = 0
+    let total = 0
+    for (const [candidate, n] of counts) {
+      total += n
+      if (n > best) {
+        best = n
+        style = candidate
+      }
+    }
+    const weight = best / total
+    if (total < BRIDGE_MIN_TRACKS || weight < BRIDGE_MIN_PURITY) continue
+    edges.push({ own, style, weight })
+  }
+  return edges
+}
+
+// Module state rather than a parameter: the wheel, the genre map, the set
+// panel and the suggestion engine all build their own matchers, and a
+// vocabulary bridge that only some of them knew about would make them
+// disagree about what "matches" means. One library is loaded at a time.
+let bridgeWeights = new Map<string, number>()
+
+function bridgeKey(a: string, b: string): string {
+  return a < b ? `${a}|${b}` : `${b}|${a}`
+}
+
+let bridgeAliases: readonly GenreBridgeEdge[] = []
+
+/** Install the aliases for the loaded library; no argument clears them. */
+export function setGenreBridge(edges: readonly GenreBridgeEdge[] = []): void {
+  bridgeWeights = new Map(edges.map((e) => [bridgeKey(e.own, e.style), e.weight]))
+  bridgeAliases = edges
+}
+
+/**
+ * The installed aliases. The mutual top-k matcher forces these in rather than
+ * ranking them: "tribe" already has five neighbours above the 0.64 its vote
+ * earned ("tekno" 0.99, "acidcore" 0.97, …), so on similarity alone the alias
+ * never makes the cut — and an alias claims two words are the same thing, not
+ * that they are somewhat alike. The criterion's own floor still applies.
+ */
+export function genreAliases(): readonly GenreBridgeEdge[] {
+  return bridgeAliases
+}
+
 /** Similarity between two already-normalized single genre labels. */
 export function labelSimilarity(a: string, b: string, method: GenreMethod): number {
   if (a === b) return 1
+  const base = baseSimilarity(a, b, method)
+  // 'Exact' promises literal identity, so a learned alias must not widen it.
+  if (bridgeWeights.size === 0 || method === 'exact') return base
+  return Math.max(base, bridgeWeights.get(bridgeKey(a, b)) ?? 0)
+}
+
+function baseSimilarity(a: string, b: string, method: GenreMethod): number {
   switch (method) {
     case 'exact':
       return 0
