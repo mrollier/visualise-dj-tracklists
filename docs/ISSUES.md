@@ -21,6 +21,38 @@ nineteen v13 items resolved in **v14**
 ([designs/design-v14.md](designs/design-v14.md) has the older per-issue notes).
 Each "Resolved" list records what actually shipped.
 
+## Open — v40 deferred performance
+
+An external Codex review (triaged in **v40**, branch `v40-bugfix-wave`) framed
+these as blockers for a "10k–50k library target" that exists nowhere in the
+repo — the de-facto target is ~2k tracks (README.md, analyser runtimes) with
+10k an aspiration in docs/POSITIONING.md. All three are real ceilings, all
+three were already deliberate; they are recorded here so the upgrade paths
+survive.
+
+1. **Combo computation is O(n²) on the main thread.** Already ponytail-marked
+   at `stores.ts:621` with the recorded upgrade path: a Web Worker behind
+   `derived`'s async `(values, set)` form plus candidate bucketing by
+   key/BPM/genre. Comfortable to ~3k–5k visible tracks; do the work when a
+   real library approaches that, and keep deterministic edge ordering when it
+   moves.
+
+2. **Wheel rendering is one SVG node per visible track, and same-slot layout
+   is O(m²).** Already ponytail-marked at `layout.ts:56` (~200 tracks/slot
+   ceiling, sort-by-radius sweep as the upgrade). Canvas/WebGL or
+   detail-level rendering is a product decision, not a hygiene fix; nothing
+   to do at 2k.
+
+3. **The 827 kB genre embedding pack is statically imported.** `genre.ts:4`
+   pulls `src/data/genre-embedding.json` into the entry chunk (965 kB
+   minified, 283 kB gzip — the build warns on every run). A dynamic import is
+   viable but not one line: `UMBRELLA_GENRES` and the two `PackSection`
+   constructions evaluate at module level, and the consumers are wired into
+   synchronous deriveds (`stores.ts:610-615`, `:662-668`, `:700`), so
+   deferring the pack needs a readiness gate and a deterministic fallback
+   while it loads. Measure first-contentful paint on real hardware before
+   spending this.
+
 ## Open — v34 offline analyser (WS2)
 
 The producer for v33's provenance layer, which shipped with a hand-written
@@ -290,11 +322,28 @@ labels still don't counter-scale under zoom.
 
 ## Open — tooling
 
-Nothing open. The three `scripts/screenshot.mjs` defects this section carried
-since v20/v22/v23 are fixed in **v32**, together with the eleven more the
-script had accumulated and the nine failures the repair then surfaced. The
-probe runs clean — 194 assertions, 40 screenshots, exit 0, twelve runs across
-two sessions — for the first time since v18. See `## Resolved in v32` below.
+The probe runs clean again as of **v40** — 229 `errors.push` assertion sites,
+45 screenshots, exit 0. The v32-era claim that it "runs clean" had silently
+rotted: three assertions staled between v36 and v39 (the v38 Sentiment
+section displaced View from the last Advanced slot; v36 deleted the
+arousal→energy fill the v34 block proved; the v37 `settledCriteria` throttle
+made the threshold-zero block read a stale combo stat). All three are
+repaired in v40, but the rot itself is the finding:
+
+1. **Nothing runs the probe automatically.** `scripts/screenshot.mjs` needs a
+   live dev server on 5173 and exits 2 without one (`screenshot.mjs:104`);
+   CI runs only lint, test, check and build, so probe assertions rot silently
+   between manual runs. Wiring it into CI needs a build + preview server +
+   `playwright install chromium` step and a tolerance for screenshot-timing
+   flake — deferred by choice in v40.
+
+2. **No component-test infrastructure.** The 28 `.svelte` files have zero
+   rendered coverage; vitest runs `environment: 'node'`. The v40 bugs 5 and 6
+   (GenresSection, FiltersSection) could only be regression-tested by
+   extracting the decision logic into `src/core/filter.ts` helpers. jsdom +
+   a component-test library is a new dependency and a second test
+   environment — deferred by choice; extract-and-test remains the pattern
+   until the glue itself starts breaking.
 
 ## Open — v32 code review
 
@@ -1130,6 +1179,70 @@ decision that is Michiel's rather than the reviewer's.
    Matroska, Asf, Musepack, Dsdiff, Dsf, Ogg, Flac, APEv2. Worth checking
    whether a narrower entry point exists.
 
+
+## Resolved in v40
+
+An external Codex review reported seven bugs; verification confirmed six (one
+— M3U newline injection and Windows `file:///C:/` paths — was already fixed
+and tested in `db25d02`, the reviewer read a stale tree) and surfaced a
+seventh the review missed. Branch `v40-bugfix-wave`; every fix carries a
+regression test in the node suite (`tests/engine.test.ts`,
+`tests/sourceStore.test.ts`, `tests/playerStore.test.ts`,
+`tests/filter.test.ts`).
+
+1. **Reconnect walked the folder before asking permission.** `reconnect()`
+   called `openFsaSource` — which iterates `entries()` immediately — before
+   the permission check, which was unreachable dead code built inside the
+   walk's own return value. A stored handle in `prompt` state rejected at
+   the first entry, and the catch wiped the saved handle from IndexedDB;
+   even Cancel on the prompt unlinked the folder. Permission now comes
+   first (`requestReadPermission`, lifted out of `openFsaSource`'s closure
+   into `fsaSource.ts`), and a refusal keeps the parked handle
+   (`sourceStore.ts:reconnect`).
+
+2. **A failed replacement link destroyed the working folder.** Any throw in
+   `linkFolder()`/`usePickedFiles()` ran `forgetFolder()`, although the old
+   source had not been replaced — linking an unmounted folder B unlinked
+   working folder A from memory and IndexedDB. `abandonLink()`
+   (`sourceStore.ts`) now restores the surviving source's stores and only
+   forgets when there was nothing before the attempt.
+
+3. **A de-click timer surviving `dispose()` killed the crossfader.**
+   `whileSilenced()` timers are uncancellable; `dispose()` zeroed the duck
+   counters, so a late callback decremented to −1 and `commandGain`'s
+   `=== 0` gate ignored every `setGains` for the rest of the session. The
+   decrement clamps at 0 now (`engine.ts`).
+
+4. **Loading an unresolvable track left the old one audibly playing.** The
+   load effect reset the deck UI but never touched the element, so a failed
+   `materialise` left the old audio sounding under the new track's UI — and
+   the first play click paused the ghost instead of retrying. The deck now
+   pauses at the click (`playerStore.ts` load branch); the duck fade covers
+   it and `src` is untouched, so browsing stays cheap.
+
+5. **The preload debounce could load the previous click's bytes.** (Not in
+   the Codex review.) `wanted[deck]` was only claimed inside `materialise`,
+   so during the 200 ms debounce an in-flight materialise for the previous
+   track passed its own staleness check. The load effect claims the deck
+   immediately now.
+
+6. **A stale genre selection inverted the click.** The "all selected"
+   collapse compared lengths (`next.length >= scopedGenres.length`), and a
+   selection carried over from another playlist's scope can be longer than
+   the new scope — both ticking and unticking then wrote `genres: null` and
+   showed everything. `nextGenreSelection` (`filter.ts`) asks whether every
+   scoped genre is selected instead; `GenresSection.svelte` is one call now.
+
+7. **An inverted date range silently hid every track.** The date branch of
+   `FiltersSection.svelte` stored `[min, max]` raw while every other range
+   went through `clampRange`; an inverted pair matches no dated track and
+   the date rule excludes undated ones, so the wheel emptied with no
+   explanation. Dates now clamp like everything else (ISO strings compare
+   lexically) and the corrected value reflects into the boxes.
+
+Also in this wave: the three stale probe assertions repaired (see `## Open —
+tooling`), and `tsconfig.tests.json` picks up `src/audio-fs.d.ts` so the new
+audio-store tests typecheck against the File System Access ambient types.
 
 ## Resolved in v32
 
