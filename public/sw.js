@@ -5,7 +5,10 @@
 // Note the standard hand-rolled-shell shape: assets enter the cache when a
 // request routes THROUGH the worker, so offline works from the second online
 // visit onward (the first visit installs the worker after fetching).
-const CACHE = 'vdt-shell-v1'
+// Stamped per build (vite.config.ts): every deploy ships a byte-different
+// worker, the browser installs it, and `activate` below deletes the previous
+// build's cache — hashed assets, manifest and icons with it.
+const CACHE = 'vdt-shell-__BUILD_ID__'
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -32,8 +35,11 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          const copy = response.clone()
-          caches.open(CACHE).then((cache) => cache.put('./', copy))
+          // Only a real page may become the offline shell, never an error.
+          if (response.ok) {
+            const copy = response.clone()
+            caches.open(CACHE).then((cache) => cache.put('./', copy))
+          }
           return response
         })
         .catch(() => caches.match('./')),
