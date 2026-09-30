@@ -69,7 +69,7 @@ describe('mapMotion (v13): physics calm scales with node count', () => {
   test('small maps keep the classic damping and a gentle drag reheat', () => {
     // 0.15, not d3's classic 0.3: with this map's slow cooling a 0.3 target
     // keeps the whole field boiling for as long as the mouse is held.
-    expect(mapMotion(22)).toEqual({ velocityDecay: 0.6, dragAlphaTarget: 0.15 })
+    expect(mapMotion(22)).toMatchObject({ velocityDecay: 0.6, dragAlphaTarget: 0.15 })
   })
 
   test('bigger maps damp harder and drag with less energy', () => {
@@ -80,7 +80,21 @@ describe('mapMotion (v13): physics calm scales with node count', () => {
   })
 
   test('both knobs clamp on huge maps', () => {
-    expect(mapMotion(500)).toEqual({ velocityDecay: 0.8, dragAlphaTarget: 0.06 })
+    expect(mapMotion(500)).toMatchObject({ velocityDecay: 0.8, dragAlphaTarget: 0.06 })
+  })
+
+  /** Ticks for alpha to fall from `from` to the simulation's stopping point. */
+  const ticksToRest = (n: number, from: number) => {
+    const { alphaDecay, alphaMin } = mapMotion(n)
+    return Math.ceil(Math.log(alphaMin / from) / Math.log(1 - alphaDecay))
+  }
+
+  test('a fresh layout comes to rest within about 8 seconds at 60 fps', () => {
+    for (const n of [5, 22, 80, 400]) expect(ticksToRest(n, 1)).toBeLessThanOrEqual(8 * 60)
+  })
+
+  test('it still glides: cooling stays slower than d3’s default 300-tick run', () => {
+    for (const n of [5, 22, 80, 400]) expect(ticksToRest(n, 1)).toBeGreaterThan(300)
   })
 })
 

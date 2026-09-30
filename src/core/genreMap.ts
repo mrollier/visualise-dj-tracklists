@@ -53,6 +53,8 @@ export function skeletonOpacity(nodeCount: number): number {
 interface MapMotion {
   velocityDecay: number
   dragAlphaTarget: number
+  alphaDecay: number
+  alphaMin: number
 }
 
 /**
@@ -68,6 +70,12 @@ export function mapMotion(nodeCount: number): MapMotion {
     // 0.3 target keeps the whole field boiling for as long as the mouse is
     // held; 0.15 still lets neighbours follow an active drag.
     dragAlphaTarget: Math.max(0.06, 0.15 / growth),
+    // Slow cooling, so nodes drift into place instead of springing, but a
+    // map that comes to rest: from a cold start about 460 ticks (~7.6 s at
+    // 60 fps), from a toggle's 0.3 reheat about 340 (~5.6 s). The old 0.002
+    // decay kept every tick of the page busy for nearly a minute.
+    alphaDecay: 0.01,
+    alphaMin: 0.01,
   }
 }
 

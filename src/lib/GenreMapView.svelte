@@ -214,10 +214,11 @@
       // of frame under a fixed 0.05.
       .force('x', forceX<GenreNode>(WIDTH / 2).strength(containStrength(nodes.length)))
       .force('y', forceY<GenreNode>(HEIGHT / 2).strength(containStrength(nodes.length)))
-      // Slow cooling and strong damping: nodes drift into place organically
-      // instead of springing, and a k change eases into its new layout.
-      .alphaDecay(0.002)
-      // Damping grows with the map: big vocabularies drift, not churn.
+      // Slow cooling and strong damping (genreMap.ts): nodes drift into
+      // place, and a k change eases into its new layout; damping grows with
+      // the map, so big vocabularies drift, not churn.
+      .alphaDecay(mapMotion(nodes.length).alphaDecay)
+      .alphaMin(mapMotion(nodes.length).alphaMin)
       .velocityDecay(mapMotion(nodes.length).velocityDecay)
       .on('tick', publishPositions)
     return () => simulation?.stop()
