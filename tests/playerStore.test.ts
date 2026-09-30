@@ -1,4 +1,6 @@
+import { get } from 'svelte/store'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
+import { EMPTY_TRACK_FIELDS } from '../src/core/model'
 
 /**
  * playerStore holds module-singleton deck bookkeeping (materialised, wanted),
@@ -110,6 +112,75 @@ describe('playerStore load branch (v40, Codex bug 4 + debounce race)', () => {
     await vi.advanceTimersByTimeAsync(0)
 
     // t1 lost the race; its bytes must not reach the element.
+    expect(engineMock.loadDeck).not.toHaveBeenCalled()
+  })
+})
+
+describe('deck bookkeeping (review fixes)', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.clearAllMocks()
+    vi.useFakeTimers()
+    sourceMock.resolutionFor.mockReturnValue({ kind: 'playable', handle: {} })
+    sourceMock.state.fileFor.mockReturnValue(Promise.resolve({}))
+    vi.stubGlobal(
+      'Audio',
+      class {
+        canPlayType() {
+          return ''
+        }
+      },
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+  })
+
+  test('re-clicking a track after the decks were cleared loads it again', async () => {
+    const { stores, player } = await freshPlayer()
+    const t1 = { ...EMPTY_TRACK_FIELDS, id: 't1', title: 'One' }
+    stores.library.set([t1])
+    stores.selectOrLink('t1')
+    expect(get(player.decks).b).toBe('t1')
+    stores.library.set([]) // a re-import clears the decks…
+    stores.library.set([t1])
+    expect(get(player.decks).b).toBeNull()
+    stores.selectOrLink('t1') // …and the same click must still be heard
+    expect(get(player.decks).b).toBe('t1')
+  })
+
+  test('an unplayable track leaves the verdict to the live resolution, not a frozen error', async () => {
+    sourceMock.resolutionFor.mockReturnValue({ kind: 'unplayable', reason: 'not-found' } as never)
+    const { stores, player } = await freshPlayer()
+    stores.clickedTrackId.set('t1')
+    await player.togglePlay('b')
+    // Frozen here, the error outlived relinking the right folder (ISSUES #7).
+    expect(get(player.deckError).b).toBeNull()
+  })
+
+  test('a play() interrupted by a newer load is not a read error', async () => {
+    engineMock.play.mockRejectedValueOnce(new DOMException('interrupted', 'AbortError'))
+    const { stores, player } = await freshPlayer()
+    stores.clickedTrackId.set('t1')
+    await player.togglePlay('b')
+    expect(get(player.deckError).b).toBeNull()
+  })
+
+  test('unpinning never lets a load for the discarded track land on the kept one', async () => {
+    const { stores, player } = await freshPlayer()
+    stores.clickedTrackId.set('t0')
+    await vi.advanceTimersByTimeAsync(200) // t0 is in deck B
+    player.lockDeck() // …and pinned up to A
+    let release: (file: unknown) => void = () => {}
+    sourceMock.state.fileFor.mockReturnValue(new Promise((resolve) => (release = resolve)))
+    stores.clickedTrackId.set('t1')
+    await vi.advanceTimersByTimeAsync(200) // t1's read is in flight for deck B
+    engineMock.loadDeck.mockClear()
+    player.unlockDeck() // t0 comes back down as B; t1 is discarded
+    release({})
+    await vi.advanceTimersByTimeAsync(0)
     expect(engineMock.loadDeck).not.toHaveBeenCalled()
   })
 })

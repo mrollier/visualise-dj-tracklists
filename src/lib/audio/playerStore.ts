@@ -113,12 +113,16 @@ function apply(effects: readonly DeckEffect[]): void {
       // #8): lock moves B up, unlock moves A down. `swapDeckUi` was already
       // symmetric; this was not, and the `clear` effect that always follows
       // nulls whichever side is being discarded anyway.
-      const held = materialised.a
-      materialised.a = materialised.b
-      materialised.b = held
-      const seek = pendingSeek.a
-      pendingSeek.a = pendingSeek.b
-      pendingSeek.b = seek
+      // Everything this module tracks per deck follows its element across the
+      // swap — an in-flight load's staleness check included, or a read started
+      // for the discarded track lands on the one the user kept.
+      for (const record of [materialised, wanted, pendingSeek, busy] as Record<DeckId, unknown>[]) {
+        const held = record.a
+        record.a = record.b
+        record.b = held
+      }
+      cancelPreload('a')
+      cancelPreload('b')
       swapDeckUi()
     } else if (effect.kind === 'clear') {
       cancelPreload(effect.deck)
@@ -162,12 +166,10 @@ async function materialise(deck: DeckId, trackId: string): Promise<boolean> {
   wanted[deck] = trackId
   const source = currentSource()
   const resolution = resolutionFor(trackId)
-  if (source === null || resolution === undefined || resolution.kind !== 'playable') {
-    const reason: UnplayableReason =
-      resolution !== undefined && resolution.kind === 'unplayable' ? resolution.reason : 'no-source'
-    deckError.update((e) => ({ ...e, [deck]: reason }))
-    return false
-  }
+  // Not an error of this deck's: the bar reads the folder and the resolution
+  // live, so relinking the right folder clears the verdict by itself. Frozen
+  // into deckError it outlived the fix.
+  if (source === null || resolution === undefined || resolution.kind !== 'playable') return false
   try {
     const file = await source.fileFor(resolution.handle)
     // A newer click won while this one was reading the disk.
@@ -207,8 +209,12 @@ export async function togglePlay(deck: DeckId): Promise<void> {
     applyGains(get(decks))
     await engine.play(deck)
     playing.update((p) => ({ ...p, [deck]: true }))
-  } catch {
-    deckError.update((e) => ({ ...e, [deck]: 'read-error' }))
+  } catch (error) {
+    // A play() cut short by the next click's load is not the file's fault.
+    const interrupted = error instanceof DOMException && error.name === 'AbortError'
+    if (!interrupted && wanted[deck] === trackId) {
+      deckError.update((e) => ({ ...e, [deck]: 'read-error' }))
+    }
   } finally {
     busy[deck] = false
   }

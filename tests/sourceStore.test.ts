@@ -137,4 +137,34 @@ describe('sourceStore link/reconnect failure paths (v40, Codex bugs 1+2)', () =>
     expect(get(store.sourceState)).toBe('no-source')
     expect(handleStore.forgetRootHandle).toHaveBeenCalled()
   })
+
+  test('a remembered folder on an unmounted drive stays remembered, ready to reconnect', async () => {
+    // Permission granted, but the walk fails: the volume is not plugged in.
+    const { handle } = fakeHandle({ name: 'SD 1TB', permission: 'granted', failWalk: true })
+    handleStore.loadRootHandle.mockResolvedValue(handle)
+    const store = await freshStore()
+
+    await store.restoreSavedFolder()
+
+    expect(handleStore.forgetRootHandle).not.toHaveBeenCalled()
+    expect(get(store.sourceState)).toBe('needs-permission')
+    expect(get(store.rootName)).toBe('SD 1TB')
+  })
+
+  test('a reconnect that cannot reach the drive keeps the folder for the next try', async () => {
+    const { handle } = fakeHandle({
+      name: 'SD 1TB',
+      permission: 'prompt',
+      request: 'granted',
+      failWalk: true,
+    })
+    handleStore.loadRootHandle.mockResolvedValue(handle)
+    const store = await freshStore()
+    await store.restoreSavedFolder()
+
+    await store.reconnect()
+
+    expect(handleStore.forgetRootHandle).not.toHaveBeenCalled()
+    expect(get(store.sourceState)).toBe('needs-permission')
+  })
 })

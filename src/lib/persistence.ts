@@ -70,8 +70,11 @@ export function saveProject(): Promise<void> {
 }
 
 export function applyProject(project: Project): void {
+  // Cleared first and set last, like replaceLibrary: the heavy derivations
+  // run once against the final state, and the audio decks drop tracks that
+  // vanish — so an id both libraries share can never keep the old file.
+  library.set([])
   libraryName.set(project.libraryName)
-  library.set(project.tracks)
   // Unconditional, not `?? keep`: the tour snapshots the live project and
   // restores it here, so a sidecar loaded DURING the tour must not survive
   // "return to my work" any more than a library change would.
@@ -87,6 +90,7 @@ export function applyProject(project: Project): void {
   colorAxis.set(project.colorAxis)
   selectedId.set(null)
   lastImportReport.set(null)
+  library.set(project.tracks)
 }
 
 /**

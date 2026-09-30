@@ -759,7 +759,10 @@ export function selectOrLink(id: string): void {
   }
   // Announced before the toggle, and announced even when the toggle DESELECTS:
   // clicking a track is still a click on that track, and the audio deck it
-  // feeds (v29 #10) should keep playing it rather than empty itself.
+  // feeds should keep playing it rather than empty itself. Through null first,
+  // because a store does not re-announce an unchanged value — and a deck
+  // cleared by a re-import must still hear the next click on the same track.
+  clickedTrackId.set(null)
   clickedTrackId.set(id)
   selectedId.update((current) => (current === id ? null : id))
 }

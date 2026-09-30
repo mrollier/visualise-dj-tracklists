@@ -205,8 +205,19 @@ export async function reconnect(): Promise<void> {
     pendingHandle = null
     await adopt(next)
   } catch {
-    await abandonLink()
+    // Unreachable (an unmounted drive, most often) is not a reason to forget
+    // the folder: keep offering Reconnect for when it is plugged back in.
+    if (source === null) park(handle)
+    else await abandonLink()
   }
+}
+
+/** Remember a folder without reading it, and offer Reconnect. */
+function park(handle: FileSystemDirectoryHandle): void {
+  pendingHandle = handle
+  rootName.set(handle.name)
+  indexProgress.set(null)
+  sourceState.set('needs-permission')
 }
 
 async function forgetFolder(): Promise<void> {
@@ -224,8 +235,9 @@ async function forgetFolder(): Promise<void> {
 /**
  * Reconnect a folder granted in an earlier session. Never calls
  * requestPermission — there is no user gesture at app start, and it would
- * reject. A stale handle (folder renamed, deleted, volume unmounted) surfaces
- * as a throw at the first enumeration, so it degrades rather than erroring.
+ * reject. A handle that cannot be read now (volume unmounted, folder moved)
+ * is parked behind Reconnect rather than forgotten: a DJ's music drive is
+ * routinely not plugged in when the app opens.
  */
 export async function restoreSavedFolder(): Promise<void> {
   const handle = await loadRootHandle()
@@ -237,14 +249,12 @@ export async function restoreSavedFolder(): Promise<void> {
     try {
       await adopt(await openFsaSource(handle, reportScan))
     } catch {
-      await forgetFolder()
+      park(handle)
     }
   } else if (state === 'prompt') {
-    // Park the handle and let the bar offer a Reconnect button whose click
-    // can pay for the permission prompt.
-    pendingHandle = handle
-    rootName.set(handle.name)
-    sourceState.set('needs-permission')
+    // Let the bar offer a Reconnect button whose click can pay for the
+    // permission prompt.
+    park(handle)
   } else {
     await forgetFolder()
   }

@@ -442,3 +442,18 @@ describe('the sample collection and a real analysis sidecar', () => {
     expect(get(augmentedLibrary).some((t) => t.arousal !== null)).toBe(true)
   })
 })
+
+describe('applyProject', () => {
+  test('clears the library before the project tracks arrive', () => {
+    // The decks drop tracks that vanish from the library. A project whose ids
+    // collide with the loaded library's (rb-1 is in every collection) would
+    // otherwise keep playing the old file under the new title.
+    replaceLibrary({ tracks: [track({ id: 'rb-1', title: 'Old' })], name: 'a.xml' })
+    const project = { ...currentProject(), tracks: [track({ id: 'rb-1', title: 'New' })] }
+    const seen: string[][] = []
+    const stop = library.subscribe((l) => seen.push(l.map((t) => t.title)))
+    applyProject(project)
+    stop()
+    expect(seen.slice(-2)).toEqual([[], ['New']])
+  })
+})
