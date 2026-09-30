@@ -4,7 +4,7 @@
   import GenreMapView from './lib/GenreMapView.svelte'
   import { startPlayer } from './lib/audio/playerStore'
   import PanelToggle from './lib/PanelToggle.svelte'
-  import { restoreAutosave, startAutosave } from './lib/persistence'
+  import { restoreAutosave, saveProject, startAutosave } from './lib/persistence'
   import PlayerBar from './lib/PlayerBar.svelte'
   import SelectedTrackCard from './lib/SelectedTrackCard.svelte'
   import { startTheme } from './lib/theme'
@@ -43,11 +43,16 @@
   startUndo()
   startPlayer()
 
-  // The deliberately small hotkey set (issue 2; v12 WS14, ISSUES.md stub):
-  // Cmd/Ctrl+Z undoes set edits, selection AND settings changes (+Shift
-  // redoes); plain 1/2/3 switch the central view; plain s runs ✨. Text
-  // fields and open dialogs keep their native behaviour.
+  // The deliberately small hotkey set: Cmd/Ctrl+S saves the project from
+  // anywhere; Cmd/Ctrl+Z undoes set edits, selection AND settings changes
+  // (+Shift redoes); plain 1/2/3 switch the central view; plain s runs ✨.
+  // Text fields and open dialogs keep their native behaviour.
   function onKeydown(e: KeyboardEvent) {
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 's') {
+      e.preventDefault() // never the browser's "save this page"
+      if ($library.length > 0) void saveProject()
+      return
+    }
     const target = e.target instanceof HTMLElement ? e.target : null
     const inField = target?.matches('input, textarea, select, [contenteditable="true"]') ?? false
     if (inField || document.querySelector('dialog[open]') !== null) return

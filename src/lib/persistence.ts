@@ -15,7 +15,8 @@ import {
   type LibraryDiff,
   type RemappedWork,
 } from '../core/libraryUpdate'
-import { parseProject, type Project } from '../core/persist'
+import { fileStem } from '../core/exporters/filename'
+import { parseProject, serializeProject, type Project } from '../core/persist'
 import { freshFirstSet, type TrackSet } from '../core/sets'
 import { DEFAULT_SETTINGS } from '../core/settings'
 import { ALL_SAMPLE_PACKS, CLASSIC_PACK, SAMPLE_ANALYSIS, SAMPLE_COLLECTION } from '../data/samples'
@@ -36,6 +37,7 @@ import {
   sets,
   settings,
 } from '../stores'
+import { saveFile } from './saveFile'
 import { resetUndo } from './undoStore'
 
 // ":v1" names the storage slot, not the project schema (parseProject
@@ -58,6 +60,18 @@ export function currentProject(): Project {
     colorAxis: get(colorAxis),
     analysis: get(analysis),
   }
+}
+
+/** Save the whole project as a JSON file the user keeps (⌘S, Save project). */
+export function saveProject(): Promise<void> {
+  return saveFile(`${fileStem(get(libraryName)) || 'Zodiac Tracker'} project`, [
+    {
+      description: 'Zodiac Tracker project',
+      mime: 'application/json',
+      ext: '.json',
+      blob: () => new Blob([serializeProject(currentProject())], { type: 'application/json' }),
+    },
+  ])
 }
 
 export function applyProject(project: Project): void {

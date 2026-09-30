@@ -1490,24 +1490,39 @@ await page.locator('input[type=file]').setInputFiles('tests/fixtures/playlist.m3
 await page.getByText('4 tracks', { exact: true }).waitFor()
 await page.screenshot({ path: `${scratch}/12-m3u-import.png` })
 
-// exports ask for a name first (ISSUES.md #15): accepting the prompt with a
-// custom name downloads it (extension appended), cancelling aborts
-page.once('dialog', (d) => d.accept('my export'))
+// Exports go through the native save dialog where the browser has one — the
+// user names the file and picks the format there…
+await page.evaluate(() => {
+  window.__saved = []
+  window.showSaveFilePicker = async (options) => ({
+    name: options.suggestedName,
+    createWritable: async () => ({
+      write: async (blob) => window.__saved.push({ name: options.suggestedName, size: blob.size }),
+      close: async () => {},
+    }),
+  })
+})
+await page.getByRole('button', { name: 'M3U8', exact: true }).click()
+await page.waitForFunction(() => window.__saved.length === 1)
+{
+  const saved = await page.evaluate(() => window.__saved[0])
+  if (!saved.name.endsWith('.m3u8') || saved.size === 0) {
+    errors.push(`the M3U8 export through the save dialog wrote ${JSON.stringify(saved)}`)
+  }
+}
+// …and download under a sensible name where it has none (Firefox, Safari).
+await page.evaluate(() => {
+  window.showSaveFilePicker = undefined
+})
 const downloadPromise = page.waitForEvent('download')
-await page.getByRole('button', { name: 'Export M3U8' }).click()
+await page.getByRole('button', { name: 'M3U8', exact: true }).click()
 const download = await downloadPromise
-if (download.suggestedFilename() !== 'my export.m3u8') {
-  errors.push(`export filename should be "my export.m3u8", got "${download.suggestedFilename()}"`)
+if (!/ – .+\.m3u8$/.test(download.suggestedFilename())) {
+  errors.push(
+    `export filename should name the collection and set: "${download.suggestedFilename()}"`,
+  )
 }
 await download.saveAs(`${scratch}/exported.m3u8`)
-let cancelledDownload = false
-page.once('dialog', (d) => d.dismiss())
-page.once('download', () => {
-  cancelledDownload = true
-})
-await page.getByRole('button', { name: 'Export CSV' }).click()
-await page.waitForTimeout(600)
-if (cancelledDownload) errors.push('a cancelled export prompt still downloaded a file')
 
 // reload → autosave restores everything, the set's custom name included
 // (give the debounced save time to flush)
@@ -1816,12 +1831,14 @@ await page.screenshot({ path: `${scratch}/20-energy-radius.png` })
 await page.locator('header select').first().selectOption('bpm')
 await page.waitForTimeout(400)
 
-// The set portrait (WS3) downloads as a PNG poster.
-page.once('dialog', (d) => d.accept(d.defaultValue()))
+// The set portrait downloads as a PNG poster (no save dialog in this run).
+await page.evaluate(() => {
+  window.showSaveFilePicker = undefined
+})
 {
   const [portrait] = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: 'Portrait', exact: true }).click(),
+    page.getByRole('button', { name: 'Poster', exact: true }).click(),
   ])
   if (!portrait.suggestedFilename().endsWith('.png')) {
     errors.push(`portrait download name: ${portrait.suggestedFilename()}`)

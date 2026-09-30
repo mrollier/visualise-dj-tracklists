@@ -16,7 +16,7 @@
     type Playlist,
     type Track,
   } from '../core/model'
-  import { parseProject, serializeProject } from '../core/persist'
+  import { parseProject } from '../core/persist'
   import {
     analysis,
     autosaveError,
@@ -38,15 +38,14 @@
   import InfoTooltip from './InfoTooltip.svelte'
   import ProgressBar from './ProgressBar.svelte'
   import ResetDialog from './ResetDialog.svelte'
-  import { promptExportName } from './exportName'
   import {
     applyProject,
-    currentProject,
     loadSampleCollection,
     planLibraryImport,
     replaceLibrary,
     replaceNeedsConfirmation,
     sampleLoadNeedsConfirmation,
+    saveProject,
     updateLibrary,
   } from './persistence'
   import { effectiveTheme, toggleTheme } from './theme'
@@ -241,19 +240,6 @@
     return isXml ? importRekordboxXml(text) : importCsv(text)
   }
 
-  function saveProject() {
-    const filename = promptExportName('dj-tracklists-project', '.json')
-    if (filename === null) return
-    const url = URL.createObjectURL(
-      new Blob([serializeProject(currentProject())], { type: 'application/json' }),
-    )
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
   // One sample collection (design-v6 §D): all packs as playlists in a single
   // library, loaded like an XML import. Confirms once over user work, via
   // the in-app dialog (issue 6) — including work sitting on top of an
@@ -394,7 +380,11 @@
       hidden
       onchange={onFileChosen}
     />
-    <button onclick={saveProject} disabled={$library.length === 0}>Save project</button>
+    <button
+      onclick={() => void saveProject()}
+      disabled={$library.length === 0}
+      title="Save the whole project as a file (⌘S)">Save project</button
+    >
     <button
       class="advanced-toggle"
       class:easy-hidden={easy}

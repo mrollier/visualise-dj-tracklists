@@ -8,7 +8,7 @@
   import { suggestWalk, type ManualPair } from '../core/suggest'
   import type { BpmProgression } from '../core/settings'
   import { revealRange, walkRevealPlan } from '../core/walkReveal'
-  import { promptExportName } from './exportName'
+  import { saveFile, type SaveFormat } from './saveFile'
   import { svgToPngBlob } from './portraitPng'
   import { effectiveTheme } from './theme'
   import ConfirmDialog from './ConfirmDialog.svelte'
@@ -154,48 +154,48 @@
     dropGap = null
   }
 
-  /** Ask for a name first (ISSUES.md #15); cancelling aborts the export. */
-  function download(ext: string, content: () => string, mime: string) {
-    const filename = promptExportName(exportBase, ext)
-    if (filename === null) return
-    saveBlob(new Blob([content()], { type: mime }), filename)
+  /** Exports are named after the collection and the set, so they are findable. */
+  const exportBase = $derived(`${fileStem($libraryName || 'Zodiac Tracker')} – ${$activeSet.name}`)
+
+  function exportText(ext: string, description: string, mime: string, content: () => string) {
+    void saveFile(exportBase, [
+      { description, mime, ext, blob: () => new Blob([content()], { type: mime }) },
+    ])
   }
 
-  function saveBlob(blob: Blob, filename: string) {
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    a.click()
-    URL.revokeObjectURL(url)
-  }
+  let portraitError = $state<string | null>(null)
 
-  /**
-   * The set portrait (v12 WS3): the walk over the wheel as a poster. PNG by
-   * default; a name typed with .svg gets the vector original instead (the
-   * prompt's ensureExtension turns that into "….svg.png", undone here).
-   */
-  async function downloadPortrait() {
-    const filename = promptExportName(`${exportBase}-portrait`, '.png')
-    if (filename === null) return
-    const svg = buildSetPortrait({
-      setName: $activeSet.name,
-      libraryName: $libraryName,
-      walk: walkTracks,
-      library: $visibleLibrary,
-      radialAxis: $radialAxis,
-      theme: $effectiveTheme,
-      scheme: $effectiveSettings.colorScheme,
-    })
-    const wantsSvg = /\.svg\.png$/i.test(filename)
-    if (wantsSvg) {
-      saveBlob(new Blob([svg], { type: 'image/svg+xml' }), filename.replace(/\.png$/i, ''))
-    } else {
-      saveBlob(await svgToPngBlob(svg), filename)
+  /** The set portrait: the walk over the wheel as a poster, PNG or SVG. */
+  async function savePortrait(formats: 'png' | 'svg') {
+    portraitError = null
+    const svg = () =>
+      buildSetPortrait({
+        setName: $activeSet.name,
+        libraryName: $libraryName,
+        walk: walkTracks,
+        library: $visibleLibrary,
+        radialAxis: $radialAxis,
+        theme: $effectiveTheme,
+        scheme: $effectiveSettings.colorScheme,
+      })
+    const png: SaveFormat = {
+      description: 'PNG image',
+      mime: 'image/png',
+      ext: '.png',
+      blob: () => svgToPngBlob(svg()),
+    }
+    const vector: SaveFormat = {
+      description: 'SVG image',
+      mime: 'image/svg+xml',
+      ext: '.svg',
+      blob: () => new Blob([svg()], { type: 'image/svg+xml' }),
+    }
+    try {
+      await saveFile(`${exportBase} portrait`, formats === 'png' ? [png, vector] : [vector])
+    } catch {
+      portraitError = 'The portrait could not be rendered as a PNG — the SVG still works.'
     }
   }
-
-  const exportBase = $derived(fileStem($libraryName || 'tracklist'))
 
   // The sets ARE the suggestion browser (v8 issue 18): the dropdown
   // navigates the (≤ 8) named sets. ✨ regenerates IN PLACE while the active
@@ -615,18 +615,29 @@
     </ol>
 
     <div class="footer">
-      <button onclick={() => download('.m3u8', () => exportM3u(exportTracks), 'audio/x-mpegurl')}>
-        Export M3U8
-      </button>
-      <button onclick={() => download('.csv', () => exportTracklistCsv(exportTracks), 'text/csv')}>
-        Export CSV
+      <button
+        title="Export the constellation as an M3U8 playlist (Rekordbox imports it)"
+        onclick={() =>
+          exportText('.m3u8', 'M3U8 playlist', 'audio/x-mpegurl', () => exportM3u(exportTracks))}
+      >
+        M3U8
       </button>
       <button
-        onclick={downloadPortrait}
-        title="Save the walk as a poster image (PNG; name it .svg for the vector)"
+        title="Export the constellation as a CSV table"
+        onclick={() =>
+          exportText('.csv', 'CSV table', 'text/csv', () => exportTracklistCsv(exportTracks))}
       >
-        Portrait
+        CSV
       </button>
+      <button
+        title="Save the walk over the wheel as a poster image"
+        onclick={() => savePortrait('png')}
+      >
+        Poster
+      </button>
+      <button title="Save the poster as an SVG vector" onclick={() => savePortrait('svg')}
+        >SVG</button
+      >
       <button
         class="danger"
         onclick={() => {
@@ -639,6 +650,9 @@
         }}>Clear</button
       >
     </div>
+    {#if portraitError !== null}
+      <p class="forced-note">{portraitError}</p>
+    {/if}
   {/if}
 </aside>
 

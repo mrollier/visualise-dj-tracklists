@@ -22,6 +22,7 @@
   import InfoTooltip from './InfoTooltip.svelte'
   import PanelFilterIcon from './PanelFilterIcon.svelte'
   import ProgressBar from './ProgressBar.svelte'
+  import { saveFile } from './saveFile'
   import { sampleLoadNeedsConfirmation } from './persistence'
   import SliderRow from './SliderRow.svelte'
   import { startTour } from './tour'
@@ -272,15 +273,15 @@
   }
 
   function exportPathsFile() {
-    const blob = new Blob([analysable.map((t) => locationToPath(t.location!)).join('\n') + '\n'], {
-      type: 'text/plain',
-    })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'playlist.paths.txt'
-    a.click()
-    URL.revokeObjectURL(url)
+    const paths = analysable.map((t) => locationToPath(t.location!)).join('\n') + '\n'
+    void saveFile('playlist.paths', [
+      {
+        description: 'Paths file',
+        mime: 'text/plain',
+        ext: '.txt',
+        blob: () => new Blob([paths], { type: 'text/plain' }),
+      },
+    ])
   }
 
   function persistToggle(id: SectionId, event: Event) {
