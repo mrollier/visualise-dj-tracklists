@@ -826,6 +826,7 @@
   $effect(() => {
     const id = $revealRequest
     if (id === null) return
+    revealRequest.set(null)
     const node = untrack(() => nodeById.get(id))
     if (node === undefined) return
     viewZoom.centerOn(
@@ -836,7 +837,6 @@
         untrack(() => zoomK),
       ),
     )
-    revealRequest.set(null)
   })
 
   // --- hub button: suggest the next track ---
@@ -1005,8 +1005,10 @@
 
 <svelte:window
   onkeydown={(e) => {
-    // With the advanced panel open, Escape belongs to closing the panel.
-    if (e.key === 'Escape' && $rightPanel === 'set') selectedId.set(null)
+    // With the advanced panel open, Escape belongs to closing the panel; with
+    // a dialog open, to the dialog.
+    if (e.key !== 'Escape' || document.querySelector('dialog[open]') !== null) return
+    if ($rightPanel === 'set') selectedId.set(null)
   }}
 />
 

@@ -254,12 +254,12 @@
   $effect(() => {
     const id = $revealRequest
     if (id === null) return
+    revealRequest.set(null)
     const index = untrack(() => listed.findIndex((t) => t.id === id))
     if (index === -1) return
     const head = sectionEl.querySelector('thead')?.getBoundingClientRect().height ?? 0
     const h = untrack(() => rowHeight)
     sectionEl.scrollTop = Math.max(0, head + index * h + h / 2 - sectionEl.clientHeight / 2)
-    revealRequest.set(null)
   })
   const connectedIds = $derived.by(() => {
     if ($selectedId === null) return null

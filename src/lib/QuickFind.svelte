@@ -9,6 +9,7 @@
     quickFindOpen,
     revealRequest,
     selectedId,
+    settings,
     viewMode,
     visibleLibrary,
   } from '../stores'
@@ -40,21 +41,27 @@
 
   function pick(id: string) {
     selectedId.set(id)
-    // The genre map has no tracks to show; the wheel does.
-    if ($viewMode === 'genres') viewMode.set('wheel')
+    // The genre map has no tracks to show; the wheel does. Easy mode already
+    // shows the wheel and keeps the stored view for when it is left.
+    if ($viewMode === 'genres' && $settings.uiMode !== 'easy') viewMode.set('wheel')
     revealRequest.set(id)
     quickFindOpen.set(false)
   }
 
   function onkeydown(e: KeyboardEvent) {
     const n = found.matches.length
-    if (n === 0) return
+    // An input method's Enter confirms the characters being composed.
+    if (n === 0 || e.isComposing || e.keyCode === 229) return
     if (e.key === 'ArrowDown') active = (active + 1) % n
     else if (e.key === 'ArrowUp') active = (active - 1 + n) % n
     else if (e.key === 'Enter') pick(found.matches[active].id)
     else return
     e.preventDefault()
   }
+
+  // Tied to the track, so the active option's id changes with the list and a
+  // screen reader announces the new top match.
+  const optionId = (id: string) => `quick-find-${id.replace(/\s/g, '_')}`
 
   function describe(t: { artist: string | null; key: string | null; bpm: number | null }) {
     return [t.artist, t.key, t.bpm === null ? null : `${Math.round(t.bpm)} BPM`]
@@ -69,7 +76,11 @@
 <dialog
   bind:this={dialogEl}
   aria-label="Find a track"
-  onclose={() => quickFindOpen.set(false)}
+  onclose={() => {
+    // The close event fires a task later: a / pressed right after a pick has
+    // reopened the dialog by then, and that must not be shut again.
+    if (!dialogEl.open) quickFindOpen.set(false)
+  }}
   onclick={(e) => {
     if (e.target === dialogEl) dialogEl.close()
   }}
@@ -83,49 +94,54 @@
     aria-expanded={found.matches.length > 0}
     aria-controls="quick-find-results"
     aria-autocomplete="list"
-    aria-activedescendant={found.matches.length > 0 ? `quick-find-${active}` : undefined}
+    aria-activedescendant={found.matches.length > 0
+      ? optionId(found.matches[active].id)
+      : undefined}
     placeholder="Find a track by artist or title"
     autocomplete="off"
     spellcheck="false"
     bind:value={query}
     {onkeydown}
   />
-  {#if found.matches.length > 0}
-    <ul id="quick-find-results" role="listbox" aria-label="Matching tracks">
-      {#each found.matches as track, i (track.id)}
-        <!-- Keyboard choice happens in the input (aria-activedescendant);
-             the mouse picks here. -->
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <li
-          id="quick-find-{i}"
-          role="option"
-          aria-selected={i === active}
-          class:active={i === active}
-          onmousemove={() => (active = i)}
-          onclick={() => pick(track.id)}
-        >
-          <span class="title">{track.title}</span>
-          <span class="meta">{describe(track)}</span>
-        </li>
-      {/each}
-    </ul>
-  {/if}
-  {#if query.trim() !== ''}
-    <p class="hint">
-      {#if found.total === 0}
-        {hidden > 0
-          ? `No match on the wheel — ${hidden} hidden by your playlists or filters.`
-          : 'No track matches.'}
-      {:else}
-        {[
-          more > 0 ? `${more} more — keep typing to narrow` : null,
-          hidden > 0 ? `${hidden} more hidden by your playlists or filters` : null,
-        ]
-          .filter((part) => part !== null)
-          .join(' · ')}
-      {/if}
-    </p>
-  {/if}
+  <!-- Always in the DOM, so aria-controls always points somewhere and the
+       live hint is announced when it changes. -->
+  <ul
+    id="quick-find-results"
+    role="listbox"
+    aria-label="Matching tracks"
+    hidden={found.matches.length === 0}
+  >
+    {#each found.matches as track, i (track.id)}
+      <!-- Keyboard choice happens in the input (aria-activedescendant);
+           the mouse picks here. -->
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <li
+        id={optionId(track.id)}
+        role="option"
+        aria-selected={i === active}
+        class:active={i === active}
+        onmousemove={() => (active = i)}
+        onclick={() => pick(track.id)}
+      >
+        <span class="title">{track.title}</span>
+        <span class="meta">{describe(track)}</span>
+      </li>
+    {/each}
+  </ul>
+  <p class="hint" aria-live="polite" hidden={query.trim() === ''}>
+    {#if query.trim() === ''}{:else if found.total === 0}
+      {hidden > 0
+        ? `No visible match — ${hidden} hidden by your playlists or filters.`
+        : 'No track matches.'}
+    {:else}
+      {[
+        more > 0 ? `${more} more — keep typing to narrow` : null,
+        hidden > 0 ? `${hidden} more hidden by your playlists or filters` : null,
+      ]
+        .filter((part) => part !== null)
+        .join(' · ')}
+    {/if}
+  </p>
 </dialog>
 
 <style>
@@ -173,8 +189,10 @@
     cursor: pointer;
   }
 
+  /* The tint alone is too faint to mark the choice; the edge carries it. */
   li.active {
     background: color-mix(in srgb, var(--accent) 18%, transparent);
+    box-shadow: inset 3px 0 0 var(--accent);
   }
 
   .title {

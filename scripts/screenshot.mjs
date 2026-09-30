@@ -2550,6 +2550,43 @@ await page.locator('g.node').first().waitFor()
   ) {
     errors.push('Quick find should select the picked track')
   }
+  // Escape belongs to Quick find: it must not also clear the selection
+  // underneath, nor close the Advanced panel.
+  await page.keyboard.press('/')
+  await input.fill('glass')
+  await page.keyboard.press('Escape')
+  const kept = await page
+    .locator('.selected-card')
+    .innerText({ timeout: 3000 })
+    .catch((e) => `(no card: ${String(e).slice(0, 200)})`)
+  if (!/Glasswork/.test(kept)) {
+    errors.push(`Escape out of Quick find should keep the selection — card: "${kept.slice(0, 60)}"`)
+  }
+
+  await page.getByRole('button', { name: /Advanced/ }).click()
+  await page.keyboard.press('/')
+  await input.waitFor()
+  await page.keyboard.press('Escape')
+  if (!(await page.getByText('Track properties').first().isVisible())) {
+    errors.push('Escape out of Quick find should leave the Advanced panel open')
+  }
+  await page.getByRole('button', { name: /Advanced/ }).click()
+  // From the genre map, a pick hands over to the wheel, centred on the star.
+  await page.getByRole('button', { name: 'Genres', exact: true }).click()
+  await page.keyboard.press('/')
+  await input.fill('slow horizon')
+  await page.keyboard.press('Enter')
+  await page.locator('path.dot.selected').waitFor()
+  await page.waitForTimeout(300)
+  const offCentre = await page.evaluate(() => {
+    const dot = document.querySelector('path.dot.selected').getBoundingClientRect()
+    const svg = document.querySelector('svg:has(g.zoom-layer)').getBoundingClientRect()
+    return Math.hypot(
+      dot.x + dot.width / 2 - (svg.x + svg.width / 2),
+      dot.y + dot.height / 2 - (svg.y + svg.height / 2),
+    )
+  })
+  if (offCentre > 2) errors.push(`a pick from the genre map is ${offCentre} px off centre`)
   await page.getByRole('button', { name: /Find a track/ }).click()
   await input.fill('a')
   const hint = await page.locator('dialog[open] .hint').innerText()

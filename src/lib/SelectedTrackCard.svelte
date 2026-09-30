@@ -147,7 +147,8 @@
 
 <svelte:window
   onkeydown={(e) => {
-    if (e.key === 'Escape') linkArmed.set(false)
+    // An open dialog owns Escape.
+    if (e.key === 'Escape' && document.querySelector('dialog[open]') === null) linkArmed.set(false)
   }}
 />
 

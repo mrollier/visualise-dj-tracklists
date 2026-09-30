@@ -317,7 +317,8 @@
 
 <svelte:window
   onkeydown={(e) => {
-    if (e.key === 'Escape') close()
+    // An open dialog (Quick find, a confirmation) owns Escape.
+    if (e.key === 'Escape' && document.querySelector('dialog[open]') === null) close()
   }}
 />
 

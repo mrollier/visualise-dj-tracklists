@@ -87,8 +87,13 @@
 >
   <!-- Looks like the search box above a DJ app's track browser; opens Quick
        find, which the / and ⌘K keys open from anywhere. -->
-  <button class="find" onclick={() => quickFindOpen.set(true)}>
-    <span>Find a track</span><kbd>/</kbd>
+  <button
+    class="find"
+    aria-label="Find a track"
+    aria-keyshortcuts="/ Meta+K Control+K"
+    onclick={() => quickFindOpen.set(true)}
+  >
+    <span>Find a track</span><kbd aria-hidden="true">/</kbd>
   </button>
   <div class="stats">
     <div class="stat">

@@ -282,6 +282,15 @@ Items marked **(Wave B)** are scheduled in the v41 plan.
   happiness) has been validated against the 18 anchor tracks; only
   danceability has evidence beyond a glance.
 
+## Quick find
+
+- The query survives closing, so the hidden dialog re-runs its search on
+  every playlist or filter change until it is next opened (7–14 ms at 10k).
+- Drag-selecting text in the input and releasing outside the box closes the
+  dialog (the click lands on the dialog element).
+- Holding ⌘K flickers the dialog open and shut (key repeat), and on macOS
+  Ctrl+K — delete to end of line in text fields — is taken as Quick find.
+
 ## Tooling, tests and deploy
 
 - Nothing runs `scripts/screenshot.mjs` automatically, and CI has no browser

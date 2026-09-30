@@ -60,7 +60,8 @@
     if (pinned && e.target instanceof Node && !wrapEl.contains(e.target)) pinned = false
   }}
   onkeydown={(e) => {
-    if (e.key === 'Escape') pinned = false
+    // An open dialog owns Escape.
+    if (e.key === 'Escape' && document.querySelector('dialog[open]') === null) pinned = false
   }}
 />
 
