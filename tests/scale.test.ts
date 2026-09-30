@@ -12,9 +12,9 @@ import { randomLibrary } from './helpers'
 
 /**
  * A 10k-track library must feel instant: nothing the app does per click may
- * scan every pair. Budgets are generous against a laptop's numbers (noted per
- * test) so a slow CI runner does not flake, yet an O(n²) path — tens of
- * seconds at this size — fails them by two orders of magnitude.
+ * scan every pair. Each budget sits about 8× or more above a laptop's time,
+ * because a CI runner working through the whole suite was measured about 4×
+ * slower. An O(n²) path, seconds to tens of seconds at this size, still fails.
  */
 const tracks = randomLibrary(10_000, 11)
 const time = (run: () => unknown) => {
@@ -51,7 +51,7 @@ describe.each<[string, CriteriaConfig]>([
   })
 
   test('one ✨ walk of 15', () => {
-    expect(time(() => suggestWalk(tracks, criteria, { ...options, seed: 1 }))).toBeLessThan(600)
+    expect(time(() => suggestWalk(tracks, criteria, { ...options, seed: 1 }))).toBeLessThan(1500)
   })
 })
 
