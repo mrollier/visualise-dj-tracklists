@@ -8,6 +8,13 @@ import {
   type Playlist,
   type Track,
 } from '../core/model'
+import {
+  diffLibraries,
+  importDecision,
+  remapWork,
+  type LibraryDiff,
+  type RemappedWork,
+} from '../core/libraryUpdate'
 import { parseProject, type Project } from '../core/persist'
 import { freshFirstSet, type TrackSet } from '../core/sets'
 import { DEFAULT_SETTINGS } from '../core/settings'
@@ -29,6 +36,7 @@ import {
   sets,
   settings,
 } from '../stores'
+import { resetUndo } from './undoStore'
 
 // ":v1" names the storage slot, not the project schema (parseProject
 // migrates whatever schema version it finds in the slot).
@@ -124,6 +132,86 @@ export function replaceLibrary(replacement: {
   lastImportReport.set(report)
   selectedId.set(null)
   library.set(tracks)
+}
+
+/** What importing a collection over the current one would do, before doing it. */
+export interface ImportPlan {
+  decision: ReturnType<typeof importDecision>
+  diff: LibraryDiff
+  remapped: RemappedWork
+}
+
+export function planLibraryImport(
+  tracks: Track[],
+  incomingPlaylists: readonly Playlist[],
+): ImportPlan {
+  const diff = diffLibraries(get(library), tracks)
+  const remapped = remapWork(
+    {
+      sets: get(sets),
+      manualEdges: get(manualEdges),
+      selectedId: get(selectedId),
+      playlistSelection: get(filters).playlists,
+    },
+    diff,
+    incomingPlaylists,
+  )
+  const { slots, marks, manualEdges: edges } = remapped.lost
+  return {
+    decision: importDecision(!replaceNeedsConfirmation(), diff, slots + marks + edges),
+    diff,
+    remapped,
+  }
+}
+
+/** The import report's account of an update, in the ⓘ's house style. */
+function updateNotes({ diff, remapped }: ImportPlan): string[] {
+  const gone = diff.gone.length - remapped.carried.length
+  const notes = [
+    `Updated in place: +${diff.added.length} new · −${gone} gone · ${diff.changed.length} changed key/BPM`,
+  ]
+  if (diff.matchedByLocation > 0) {
+    notes.push(
+      `Matched ${diff.matchedById} by Rekordbox ID, ${diff.matchedByLocation} by file or title`,
+    )
+  }
+  const { slots, marks, manualEdges: edges } = remapped.lost
+  if (slots + marks + edges > 0) {
+    notes.push(
+      `Removed with the tracks that are gone: ${slots} constellation slots, ${marks} ★/pins, ${edges} combos`,
+    )
+  }
+  if (diff.changed.length > 0) {
+    const titles = diff.changed.slice(0, 5).map((c) => c.title)
+    notes.push(`Changed: ${titles.join(', ')}${diff.changed.length > 5 ? ', …' : ''}`)
+  }
+  return notes
+}
+
+/**
+ * Update the loaded library in place from a re-imported collection: sets
+ * (ids, names, marks), manual combos, the selection and the playlist choice
+ * carry across through the plan's id map; criteria, settings and every other
+ * filter stay as they are. Cleared first and set last, like replaceLibrary,
+ * so the heavy derivations run once against the final state. Undo restarts:
+ * a snapshot from before the update would point at the old ids.
+ */
+export function updateLibrary(
+  incoming: { tracks: Track[]; name: string; playlists: Playlist[] },
+  plan: ImportPlan,
+  report: ImportReport,
+): void {
+  const { remapped } = plan
+  library.set([])
+  libraryName.set(incoming.name)
+  manualEdges.set(remapped.manualEdges)
+  sets.set(remapped.sets)
+  playlists.set(incoming.playlists)
+  filters.update((f) => ({ ...f, playlists: remapped.playlistSelection }))
+  selectedId.set(remapped.selectedId)
+  lastImportReport.set({ ...report, notes: [...(report.notes ?? []), ...updateNotes(plan)] })
+  library.set([...incoming.tracks, ...remapped.carried])
+  resetUndo()
 }
 
 /**

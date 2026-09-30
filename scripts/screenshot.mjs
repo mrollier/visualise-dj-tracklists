@@ -1554,6 +1554,13 @@ await page.screenshot({ path: `${scratch}/14-rekordbox-import.png` })
 // Rekordbox playlist TXT (UTF-16 TSV): library AND set in file order, plus
 // a playlist named after the file, toggled on (ISSUES.md #14)
 await page.locator('input[type=file]').setInputFiles('tests/fixtures/playlist-utf16.txt')
+// A file sharing few tracks with the loaded collection is a replacement, and
+// replacing a real library asks first.
+{
+  const replaceDialog = page.locator('dialog[open]', { hasText: 'Replace your library?' })
+  await replaceDialog.waitFor()
+  await replaceDialog.getByRole('button', { name: 'Replace library' }).click()
+}
 await page.locator('.status .name', { hasText: 'playlist-utf16.txt' }).waitFor()
 await page.locator('aside span.count', { hasText: '5 tracks' }).waitFor() // set = playlist order
 if (!(await page.getByRole('checkbox', { name: 'playlist-utf16' }).isChecked())) {
@@ -1564,8 +1571,13 @@ if ((await page.locator('g.node').count()) === 0) {
 }
 await page.screenshot({ path: `${scratch}/14b-txt-import.png` })
 
-// collection XML with playlists: empty wheel + hint until a playlist is on
+// collection XML with playlists: empty wheel + hint until a playlist is on.
+// It shares no track with the TXT library, so it replaces — after asking.
 await page.locator('input[type=file]').setInputFiles('tests/fixtures/rekordbox-playlists.xml')
+await page
+  .locator('dialog[open]', { hasText: 'Replace your library?' })
+  .getByRole('button', { name: 'Replace library' })
+  .click()
 await page.getByText('Nothing to show yet.').waitFor()
 // The outgoing stars fade rather than vanish, so count once they are gone.
 await page
@@ -1666,16 +1678,33 @@ if (bpmAfterToggle === '1') {
 }
 await page.locator('summary', { hasText: 'Filters' }).click()
 
-// importing a new library resets stale filters from the previous one
+// Re-importing the same collection (same TrackIDs and files) updates it in
+// place: the set and the filters carry across, and the report says so.
 await page.locator('summary', { hasText: 'Filters' }).click()
-const yearMin = page.locator('.filter-row', { hasText: 'Year' }).locator('input').first()
-await yearMin.fill('2999') // filters the current library out entirely
+const yearRow = page.locator('.filter-row', { hasText: 'Year' })
+await yearRow.locator('input').first().fill('2999') // filters the current library out entirely
+await yearRow.locator('input').first().press('Tab') // commit: the box shows the stored (clamped) range
 await page.waitForTimeout(300)
+const yearBeforeUpdate = await yearRow.locator('input').first().inputValue()
+const setBeforeUpdate = await page.locator('aside ol li.track').count()
 await page.locator('input[type=file]').setInputFiles('tests/fixtures/rekordbox.xml')
 await page.locator('.status .name', { hasText: 'rekordbox.xml' }).waitFor()
 await page.waitForTimeout(300)
+{
+  const report = await importReportText()
+  if (!report.includes('Updated in place')) {
+    errors.push(`re-importing the same collection should update in place: "${report}"`)
+  }
+  if ((await page.locator('aside ol li.track').count()) !== setBeforeUpdate) {
+    errors.push('updating the collection in place lost constellation tracks')
+  }
+  if ((await yearRow.locator('input').first().inputValue()) !== yearBeforeUpdate) {
+    errors.push('updating the collection in place reset the filters')
+  }
+}
+await clearAllFilters()
 if ((await page.locator('g.node').count()) !== 4) {
-  errors.push('importing a new library kept stale filters from the previous one')
+  errors.push('clearing the filters after the update should show all four tracks')
 }
 
 // replacing own work with the sample collection asks once, via the

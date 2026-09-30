@@ -3,13 +3,19 @@
   import { AUDIO_EXTENSIONS } from '../core/audio/formats'
   import { importCsv } from '../core/importers/csv'
   import { trackFromTags } from '../core/importers/id3'
-  import { importM3u, rematchAfterImport } from '../core/importers/m3u'
+  import { importM3u } from '../core/importers/m3u'
   import { importRekordboxXml } from '../core/importers/rekordbox'
   import { importRekordboxTxt, isRekordboxTxt } from '../core/importers/rekordboxTxt'
   import { computeGenreCoverage } from '../core/genre'
   import { mergeSidecars, sanitizeAnalysis, summariseAnalysisImport } from '../core/analysis'
   import { fileStem } from '../core/exporters/filename'
-  import { buildReport, type ImportResult } from '../core/model'
+  import {
+    buildReport,
+    type ImportReport,
+    type ImportResult,
+    type Playlist,
+    type Track,
+  } from '../core/model'
   import { parseProject, serializeProject } from '../core/persist'
   import {
     analysis,
@@ -37,9 +43,11 @@
     applyProject,
     currentProject,
     loadSampleCollection,
+    planLibraryImport,
     replaceLibrary,
     replaceNeedsConfirmation,
     sampleLoadNeedsConfirmation,
+    updateLibrary,
   } from './persistence'
   import { effectiveTheme, toggleTheme } from './theme'
   import { maybeStartTour, startTour } from './tour'
@@ -49,7 +57,50 @@
   let replaceDialog: ConfirmDialog
   let loadProjectDialog: ConfirmDialog
   let tourConfirm: ConfirmDialog
+  let importDialog: ConfirmDialog
+  let importCopy = $state({ title: '', body: '', confirmLabel: '' })
   let importError = $state('')
+
+  /**
+   * A collection import over the loaded library: an update in place when it
+   * is the same collection again (sets, marks and combos carry across), a
+   * replacement when the library is disposable or a different collection —
+   * and a confirmation first whenever work would be lost.
+   */
+  function applyImport(
+    incoming: {
+      tracks: Track[]
+      name: string
+      playlists: Playlist[]
+      set?: string[]
+      selectedPlaylists?: string[]
+    },
+    report: ImportReport,
+  ) {
+    const plan = planLibraryImport(incoming.tracks, incoming.playlists)
+    const replace = () => replaceLibrary({ ...incoming, report })
+    const update = () => updateLibrary(incoming, plan, report)
+    if (plan.decision === 'replace') return replace()
+    if (plan.decision === 'update') return update()
+    if (plan.decision === 'confirm-replace') {
+      const percent = Math.round(plan.diff.overlap * 100)
+      importCopy = {
+        title: 'Replace your library?',
+        body: `${incoming.name} shares ${percent}% of the tracks in the library that is loaded, so it looks like a different collection. Replacing starts over: your constellations, ★ marks and 🔗 combos are cleared. Save the project first if you want to keep them.`,
+        confirmLabel: 'Replace library',
+      }
+      importDialog.open(replace)
+      return
+    }
+    const { titles } = plan.remapped.lost
+    const more = titles.length > 5 ? `, and ${titles.length - 5} more` : ''
+    importCopy = {
+      title: 'Update your library?',
+      body: `${titles.length} ${titles.length === 1 ? 'track' : 'tracks'} your constellations, ★ marks or 🔗 combos use ${titles.length === 1 ? 'is' : 'are'} not in ${incoming.name}: ${titles.slice(0, 5).join(', ')}${more}. Updating removes them from your work; everything else is kept.`,
+      confirmLabel: 'Update library',
+    }
+    importDialog.open(update)
+  }
 
   async function importAudioFiles(files: File[]): Promise<ImportResult> {
     const { parseBlob } = await import('music-metadata')
@@ -127,14 +178,16 @@
           }
           const playlistName = fileStem(first.name)
           const trackIds = result.tracks.map((t) => t.id)
-          replaceLibrary({
-            tracks: result.tracks,
-            name: first.name,
-            set: trackIds,
-            playlists: [{ name: playlistName, trackIds }],
-            selectedPlaylists: [playlistName],
-            report: result.report,
-          })
+          applyImport(
+            {
+              tracks: result.tracks,
+              name: first.name,
+              set: trackIds,
+              playlists: [{ name: playlistName, trackIds }],
+              selectedPlaylists: [playlistName],
+            },
+            result.report,
+          )
           return
         }
         // A plain .txt falls through to the CSV importer below.
@@ -160,25 +213,16 @@
         lastImportReport.set(report)
         return
       }
-      // A collection import replaces the library, but a playlist imported
-      // earlier keeps its order: bare M3U tracks are re-matched against the
-      // fresh collection and pick up its metadata.
-      const rematch = rematchAfterImport(get(library), get(tracklist), tracks)
-      if (rematch.matched > 0) {
-        report.notes = [
-          ...(report.notes ?? []),
-          `${rematch.matched} playlist track${rematch.matched === 1 ? '' : 's'} matched to the imported collection`,
-        ]
-      }
       importStatus.set('Computing wheel…')
       await yieldToPaint()
-      replaceLibrary({
-        tracks: rematch.library,
-        name: files.length > 1 ? `${files.length} audio files` : first.name,
-        set: rematch.tracklist,
-        playlists: result.playlists,
+      applyImport(
+        {
+          tracks,
+          name: files.length > 1 ? `${files.length} audio files` : first.name,
+          playlists: result.playlists ?? [],
+        },
         report,
-      })
+      )
     } catch (e) {
       importError = e instanceof Error ? e.message : String(e)
     } finally {
@@ -328,14 +372,17 @@
 
     <!-- The sample's own info icon moved to the status ⓘ (v11 issue 4):
          loading raises an import report like any other import. -->
-    <button onclick={loadSample} title="Load the sample collection (all themed packs as playlists)"
-      >Load sample</button
+    <button
+      onclick={loadSample}
+      disabled={$importStatus !== null}
+      title="Load the sample collection (all themed packs as playlists)">Load sample</button
     >
     <!-- A .json here is a saved project (auto-detected in onFileChosen), not
          a fresh library import — the label says so and the button sits next
          to Save so the pair reads as one load/save unit (ISSUES.md). -->
     <button
       onclick={() => fileInput.click()}
+      disabled={$importStatus !== null}
       title="Import a library (XML/CSV/TXT/M3U/audio files), or load a previously saved project (.json)"
       >Import / load project…</button
     >
@@ -397,6 +444,13 @@
       title="Load this project?"
       body="Loading a saved project replaces your current library, constellations, filters, criteria and manual combos. Save the current project first if you want to keep it."
       confirmLabel="Load and replace"
+      danger
+    />
+    <ConfirmDialog
+      bind:this={importDialog}
+      title={importCopy.title}
+      body={importCopy.body}
+      confirmLabel={importCopy.confirmLabel}
       danger
     />
     <ConfirmDialog

@@ -1,6 +1,7 @@
 import { get } from 'svelte/store'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { EMPTY_FILTERS } from '../src/core/filter'
+import { buildReport } from '../src/core/model'
 import { freshFirstSet, type TrackSet } from '../src/core/sets'
 import { ALL_SAMPLE_PACKS, CLASSIC_PACK, SAMPLE_COLLECTION } from '../src/data/samples'
 import {
@@ -9,12 +10,16 @@ import {
   hasUserWork,
   isSampleLibrary,
   loadSampleCollection,
+  planLibraryImport,
   replaceLibrary,
   replaceNeedsConfirmation,
   resetEverything,
   sampleLoadNeedsConfirmation,
+  updateLibrary,
 } from '../src/lib/persistence'
 import {
+  activeSetId,
+  addSet,
   analysis,
   filters,
   lastImportReport,
@@ -26,7 +31,9 @@ import {
   pinnedFirst,
   pinnedLast,
   playlists,
+  renameSet,
   selectedId,
+  sets,
   tracklist,
   visibleLibrary,
 } from '../src/stores'
@@ -339,5 +346,78 @@ describe('analysis sidecar lifecycle (v33)', () => {
     applyProject({ ...currentProject(), analysis: null })
 
     expect(get(analysis)).toBeNull()
+  })
+})
+
+describe('re-importing a collection updates it in place', () => {
+  const coll = (n: number) =>
+    Array.from({ length: n }, (_, i) =>
+      track({ id: `rb-${i}`, title: `T${i}`, location: `file://localhost/m/${i}.mp3` }),
+    )
+  const playlistsOf = (ids: string[]) => [{ name: 'A', trackIds: ids }]
+
+  beforeEach(() => {
+    const tracks = coll(10)
+    replaceLibrary({ tracks, name: 'collection.xml', playlists: playlistsOf(['rb-0', 'rb-1']) })
+    filters.update((f) => ({ ...f, playlists: ['A'], genres: ['techno'] }))
+    tracklist.set(['rb-1', 'rb-2', 'rb-3'])
+    renameSet(get(activeSetId), 'Friday warmup')
+    addSet()
+    tracklist.set(['rb-4', 'rb-5'])
+    renameSet(get(activeSetId), 'Peak hour')
+    patchActiveSet({ mustInclude: ['rb-5'] })
+    manualEdges.set([{ a: 'rb-1', b: 'rb-9' }])
+  })
+
+  test('the same collection again keeps every set, mark, combo and the playlist selection', () => {
+    const active = get(activeSetId)
+    const plan = planLibraryImport(coll(10), playlistsOf(['rb-0', 'rb-1']))
+    expect(plan.decision).toBe('update')
+    updateLibrary(
+      { tracks: coll(10), name: 'collection.xml', playlists: playlistsOf(['rb-0', 'rb-1']) },
+      plan,
+      buildReport(coll(10), []),
+    )
+    expect(get(sets).map((s) => `${s.name}:${s.trackIds.join(',')}`)).toEqual([
+      'Friday warmup:rb-1,rb-2,rb-3',
+      'Peak hour:rb-4,rb-5',
+    ])
+    expect(get(activeSetId)).toBe(active)
+    expect(get(mustInclude)).toEqual(['rb-5'])
+    expect(get(manualEdges)).toEqual([{ a: 'rb-1', b: 'rb-9' }])
+    expect(get(filters).playlists).toEqual(['A'])
+    expect(get(filters).genres).toEqual(['techno'])
+    expect(get(lastImportReport)?.notes?.join(' ')).toMatch(/Updated in place/)
+  })
+
+  test('a newer export adds and drops tracks, and the report says so', () => {
+    const next = [...coll(10).filter((t) => t.id !== 'rb-2'), ...coll(12).slice(10)]
+    const plan = planLibraryImport(next, playlistsOf(['rb-0']))
+    expect(plan.decision).toBe('confirm-update') // rb-2 sat in "Friday warmup"
+    expect(plan.remapped.lost.titles).toEqual(['T2'])
+    updateLibrary(
+      { tracks: next, name: 'collection.xml', playlists: playlistsOf(['rb-0']) },
+      plan,
+      buildReport(next, []),
+    )
+    expect(get(sets)[0].trackIds).toEqual(['rb-1', 'rb-3'])
+    expect(get(library)).toHaveLength(11)
+    expect(get(lastImportReport)?.notes?.join(' ')).toMatch(/\+2 new · −1 gone/)
+  })
+
+  test('an unrelated collection is a replacement, confirmed first', () => {
+    const other = Array.from({ length: 5 }, (_, i) =>
+      track({ id: `rb-${i}`, title: `Other ${i}`, location: `file://localhost/o/${i}.mp3` }),
+    )
+    expect(planLibraryImport(other, []).decision).toBe('confirm-replace')
+  })
+
+  test('the library is cleared before the new tracks arrive', () => {
+    const seen: number[] = []
+    const stop = library.subscribe((l) => seen.push(l.length))
+    const plan = planLibraryImport(coll(10), [])
+    updateLibrary({ tracks: coll(10), name: 'c.xml', playlists: [] }, plan, buildReport([], []))
+    stop()
+    expect(seen.slice(-2)).toEqual([0, 10])
   })
 })

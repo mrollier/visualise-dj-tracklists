@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { exportM3u } from '../src/core/exporters/m3u'
-import { importM3u, rematchAfterImport } from '../src/core/importers/m3u'
-import { EMPTY_TRACK_FIELDS, type Track } from '../src/core/model'
+import { importM3u } from '../src/core/importers/m3u'
 import { track } from './helpers'
 
 const library = [
@@ -111,87 +110,6 @@ describe('importM3u', () => {
     const result = importM3u('', [])
     expect(result.tracklist).toEqual([])
     expect(result.report.errors.length).toBeGreaterThan(0)
-  })
-})
-
-describe('rematchAfterImport', () => {
-  const bare = (id: string, overrides: Partial<Track>): Track => ({
-    ...EMPTY_TRACK_FIELDS,
-    id,
-    title: id,
-    ...overrides,
-  })
-
-  test('re-points a bare m3u track matched by location basename', () => {
-    const bareTrack = bare('m3u-0-midnight drive.mp3', {
-      title: 'midnight drive',
-      location: '/old/laptop/midnight drive.mp3',
-    })
-    const result = rematchAfterImport([bareTrack], ['m3u-0-midnight drive.mp3'], [library[0]])
-    expect(result.tracklist).toEqual(['a'])
-    expect(result.library).toEqual([library[0]])
-    expect(result.matched).toBe(1)
-  })
-
-  test('re-points a bare m3u track matched by artist and title', () => {
-    const bareTrack = bare('m3u-0-x.mp3', {
-      title: 'Glasswork',
-      artist: 'aurora fields',
-      location: '/elsewhere/x.mp3',
-    })
-    const result = rematchAfterImport([bareTrack], ['m3u-0-x.mp3'], library)
-    expect(result.tracklist).toEqual(['b'])
-    expect(result.matched).toBe(1)
-  })
-
-  test('unmatched bare tracks survive in both library and tracklist', () => {
-    const bareTrack = bare('m3u-0-obscure.mp3', {
-      title: 'Obscure Dub',
-      location: '/music/obscure.mp3',
-    })
-    const result = rematchAfterImport([bareTrack], ['m3u-0-obscure.mp3'], library)
-    expect(result.tracklist).toEqual(['m3u-0-obscure.mp3'])
-    expect(result.library).toContainEqual(bareTrack)
-    expect(result.matched).toBe(0)
-  })
-
-  test('drops tracklist ids from the replaced library that are not bare m3u tracks', () => {
-    const sampleTrack = track({
-      key: '8A',
-      bpm: 128,
-      genre: 'Techno',
-      year: 2020,
-      rating: 4,
-      id: 'sample-1',
-      title: 'Old Thing',
-    })
-    const bareTrack = bare('m3u-0-midnight drive.mp3', {
-      location: '/x/midnight drive.mp3',
-    })
-    const result = rematchAfterImport(
-      [sampleTrack, bareTrack],
-      ['sample-1', 'm3u-0-midnight drive.mp3'],
-      [library[0]],
-    )
-    expect(result.tracklist).toEqual(['a'])
-    expect(result.library).toEqual([library[0]])
-  })
-
-  test('round trip: m3u import without a library, then collection import, yields a fully matched set', () => {
-    const m3u = [
-      '#EXTM3U',
-      '#EXTINF:334,Kasteel - Seven Bridges',
-      '/Users/dj/Music/seven-bridges.aiff',
-      '#EXTINF:372,Nova Pulse - Midnight Drive',
-      '/Users/dj/Music/midnight drive.mp3',
-    ].join('\n')
-    const first = importM3u(m3u, [])
-    expect(first.newTracks).toHaveLength(2)
-
-    const result = rematchAfterImport(first.newTracks, first.tracklist, library)
-    expect(result.tracklist).toEqual(['c', 'a'])
-    expect(result.library).toEqual(library)
-    expect(result.matched).toBe(2)
   })
 })
 
