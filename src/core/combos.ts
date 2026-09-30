@@ -239,7 +239,7 @@ export function demandedCount(criteria: CriteriaConfig): number {
 }
 
 /**
- * The key criterion under relaxed opts — +2 and +7-semitone moves allowed
+ * The key criterion under relaxed opts — the +2 and +7 wheel moves allowed
  * regardless of the user's toggles (vinyl mode still respected). The forced
  * picker uses this as a gentle preference when no harmonious transition is
  * left (v8 issue 16).

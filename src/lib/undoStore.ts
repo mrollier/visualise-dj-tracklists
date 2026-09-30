@@ -10,7 +10,7 @@ import {
   type UndoStack,
 } from '../core/history'
 import type { ManualEdge } from '../core/model'
-import type { AppSettings } from '../core/settings'
+import { CHROME_SETTINGS, type AppSettings } from '../core/settings'
 import type { TrackSet } from '../core/sets'
 import {
   activeSet,
@@ -54,17 +54,11 @@ let pending: UndoSnapshot | null = null
 let pendingTimer: ReturnType<typeof setTimeout> | undefined
 
 function tuningOf($settings: AppSettings, $criteria: CriteriaConfig): string {
+  // Chrome stays out: undo must not flip the theme, slam easy mode, re-open a
+  // panel, or tear down the audio graph as a side effect of a Cmd+Z pressed
+  // for something else.
   const behavioural: Partial<AppSettings> = { ...$settings }
-  delete behavioural.theme
-  delete behavioural.uiMode
-  delete behavioural.advancedOpen
-  // v28: undoing this would tear down a live AudioContext and stop the
-  // music as a side effect of a Cmd+Z pressed for something else.
-  delete behavioural.audioPreview
-  // v30: same argument for the furniture. A Cmd+Z pressed for a set edit has
-  // no business re-opening a panel the user put away.
-  delete behavioural.showLeftPanel
-  delete behavioural.showRightPanel
+  for (const key of CHROME_SETTINGS) Reflect.deleteProperty(behavioural, key)
   return JSON.stringify({ settings: behavioural, criteria: $criteria })
 }
 

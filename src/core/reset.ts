@@ -1,24 +1,24 @@
 import { DEFAULT_CRITERIA, type CriteriaConfig } from './combos'
-import { DEFAULT_SETTINGS, type AppSettings } from './settings'
+import type { LibraryFilters } from './filter'
+import { MARK_FILTERS } from './marks'
+import type { TrackSortField } from './trackSort'
+import { chromeOf, DEFAULT_SETTINGS, type AppSettings } from './settings'
 
 /**
- * "Return to default settings" (v9 issue 3): reset everything the Advanced
- * panel owns and nothing else. Filters, playlists, sets and pins are never
- * touched; the theme lives in the top bar and the section-fold memory is UI
- * chrome, so both survive. Audio preview (v28) survives too: silently
- * unlinking someone's music folder is the same class of surprise as flipping
- * their theme. So does which panels are collapsed (v30) — re-opening panels
- * someone deliberately put away is that same surprise again.
+ * "Return to default settings": reset everything the Advanced panel owns and
+ * nothing else — the chrome (theme, panels, fold memory, audio preview)
+ * survives, and so does every filter row still in use: a hidden row could
+ * not be cleared, and nothing may filter invisibly.
  */
-export function resetAdvancedSettings(current: AppSettings): AppSettings {
-  return {
-    ...structuredClone(DEFAULT_SETTINGS),
-    theme: current.theme,
-    advancedOpen: [...current.advancedOpen],
-    showLeftPanel: current.showLeftPanel,
-    showRightPanel: current.showRightPanel,
-    audioPreview: current.audioPreview,
-  }
+export function resetAdvancedSettings(current: AppSettings, filters: LibraryFilters): AppSettings {
+  const next = { ...structuredClone(DEFAULT_SETTINGS), ...chromeOf(current) }
+  const inUse = [
+    ...(Object.keys(filters.properties) as TrackSortField[]),
+    ...MARK_FILTERS.filter((m) => filters.marks[m.flag]).map((m) => m.key),
+    ...(filters.keyRings.minor && filters.keyRings.major ? [] : (['keys'] as const)),
+  ]
+  for (const key of inUse) if (!next.visibleFilters.includes(key)) next.visibleFilters.push(key)
+  return next
 }
 
 /**

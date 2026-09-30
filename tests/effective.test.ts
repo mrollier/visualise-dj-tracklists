@@ -144,6 +144,13 @@ describe('effective stores — easy mode computes with defaults', () => {
     expect(eff.showRightPanel).toBe(false)
   })
 
+  test('easy mode keeps the colour scheme, so nodes and accents stay one palette', () => {
+    // The accent follows the stored scheme (theme.ts); nodes follow the
+    // effective one. A reset scheme here painted blue nodes in violet chrome.
+    settings.set({ ...structuredClone(DEFAULT_SETTINGS), colorScheme: 'violet', uiMode: 'easy' })
+    expect(get(effectiveSettings).colorScheme).toBe('violet')
+  })
+
   test('easy never mutates the stored writables; flipping back restores them untouched', () => {
     const storedCriteria = { ...structuredClone(DEFAULT_CRITERIA), threshold: 1 }
     const storedFilters = {

@@ -133,6 +133,29 @@ export interface AppSettings {
   analysisWriteTags: boolean
 }
 
+/**
+ * The settings that shape the screen rather than what connects to what: which
+ * panels show, the theme, what the menu keeps open. Undo leaves them alone,
+ * "Return to default settings" keeps them, and easy mode never overrides them.
+ */
+export const CHROME_SETTINGS = [
+  'theme',
+  'uiMode',
+  'advancedOpen',
+  'audioPreview',
+  'showLeftPanel',
+  'showRightPanel',
+] as const satisfies readonly (keyof AppSettings)[]
+
+/** The chrome fields of `settings`, to lay over another settings object. */
+export function chromeOf(
+  settings: AppSettings,
+): Pick<AppSettings, (typeof CHROME_SETTINGS)[number]> {
+  const out: Partial<AppSettings> = {}
+  for (const key of CHROME_SETTINGS) Object.assign(out, { [key]: settings[key] })
+  return out as Pick<AppSettings, (typeof CHROME_SETTINGS)[number]>
+}
+
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: null,
   colorScheme: 'blue',

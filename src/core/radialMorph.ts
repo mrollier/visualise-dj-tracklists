@@ -1,4 +1,5 @@
-import { cubicOut } from 'svelte/easing'
+/** Ease-out cubic (the same curve as svelte/easing's cubicOut). */
+const cubicOut = (t: number): number => (t - 1) ** 3 + 1
 
 /**
  * Per-node radial morph on an axis swap (v18 #11a).

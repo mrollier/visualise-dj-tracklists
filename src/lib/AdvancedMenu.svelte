@@ -92,7 +92,7 @@
   let resetConfirm: ConfirmDialog
   let tourConfirm: ConfirmDialog
   function resetToDefaults() {
-    settings.update(resetAdvancedSettings)
+    settings.update((s) => resetAdvancedSettings(s, get(filters)))
     criteria.update(resetAdvancedCriteria)
   }
 
@@ -413,7 +413,7 @@
     </label>
     <label class="row">
       <input type="checkbox" bind:checked={$criteria.key.plusSeven} />
-      allow +7-semitone moves
+      allow +7 moves (±1 semitone)
     </label>
     <label class="row">
       <input type="checkbox" bind:checked={$criteria.key.vinylMode} />

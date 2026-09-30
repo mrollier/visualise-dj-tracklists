@@ -161,3 +161,16 @@ describe('transposeCamelot (vinyl pitch shifts)', () => {
     expect(transposeCamelot(transposeCamelot('4A', 1), 1)).toBe(transposeCamelot('4A', 2))
   })
 })
+
+describe('what the +7 move is', () => {
+  test('five wheel steps on one ring is exactly a one-semitone transposition', () => {
+    for (const key of ALL_CAMELOT_KEYS) {
+      for (const shift of [1, -1]) {
+        const moved = transposeCamelot(key, shift)
+        expect(wheelStepDistance(key, moved)).toBe(5)
+        expect(keysMatch(key, moved)).toBe(false)
+        expect(keysMatch(key, moved, { plusSeven: true })).toBe(true)
+      }
+    }
+  })
+})

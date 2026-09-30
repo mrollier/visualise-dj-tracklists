@@ -110,7 +110,7 @@ const MUST_INCLUDE_BONUS = 5
 /** A user-marked combo is a deliberate plan: rank it like a must-include. */
 const MANUAL_EDGE_BONUS = 5
 /**
- * Forced picks only: a nudge towards ±2/±7-semitone key relations, below
+ * Forced picks only: a nudge towards the +2 and +7 wheel moves, below
  * the 0.5 genre weight so it re-ranks harmonic near-ties, not styles.
  */
 const KEY_AFFINITY_BONUS = 0.3
@@ -312,7 +312,7 @@ function rankedCandidates(
 /**
  * The forced candidate pool (v8 issue 16, shared with suggestNext since
  * v11): every unused track ranked by the usual score, edge gate ignored,
- * with a gentle preference for keys a ±2/±7-semitone move away — the least
+ * with a gentle preference for keys a +2 or +7 wheel move away — the least
  * dissonant of the rule-breaking options.
  */
 function forcedCandidates(

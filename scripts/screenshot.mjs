@@ -2379,6 +2379,28 @@ await page.waitForTimeout(200)
   await page.keyboard.press('Escape')
 }
 
+// Cmd+Z undoes a slider drag even while the slider still has focus: a range
+// input has no native undo, so it must not swallow the shortcut.
+{
+  await page.getByRole('button', { name: /Advanced/ }).click()
+  await ensureSectionOpen('Display')
+  const slider = page.getByRole('slider', { name: /Edge opacity/ })
+  const before = await slider.inputValue()
+  await slider.focus()
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('ArrowRight')
+  await page.waitForTimeout(500) // past the undo debounce
+  if ((await slider.inputValue()) === before) errors.push('the edge-opacity slider did not move')
+  await page.keyboard.press('ControlOrMeta+z')
+  await page.waitForTimeout(200)
+  if ((await slider.inputValue()) !== before) {
+    errors.push(
+      `Cmd+Z with the slider focused should undo it (${before} → ${await slider.inputValue()})`,
+    )
+  }
+  await page.keyboard.press('Escape')
+}
+
 // A second tab of the same app must not overwrite the first one's autosave:
 // it opens blocked and says so, and "Use this tab" hands the save over.
 {

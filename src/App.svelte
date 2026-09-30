@@ -54,7 +54,14 @@
       return
     }
     const target = e.target instanceof HTMLElement ? e.target : null
-    const inField = target?.matches('input, textarea, select, [contenteditable="true"]') ?? false
+    // Only text entry keeps its native keys (typing, the field's own undo).
+    // A focused slider, checkbox or radio has no undo of its own, and after a
+    // slider drag focus stays on it — Cmd+Z there has to reach the app's.
+    const inField =
+      target?.matches(
+        'textarea, select, [contenteditable]:not([contenteditable="false"]), ' +
+          'input:not([type="range"], [type="checkbox"], [type="radio"], [type="button"])',
+      ) ?? false
     if (inField || document.querySelector('dialog[open]') !== null) return
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
       e.preventDefault()

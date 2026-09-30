@@ -33,7 +33,7 @@ import {
   type Track,
 } from './core/model'
 import { canAddSet, freshFirstSet, nextSetName, uniqueSetName, type TrackSet } from './core/sets'
-import { DEFAULT_SETTINGS, type AppSettings } from './core/settings'
+import { chromeOf, DEFAULT_SETTINGS, type AppSettings } from './core/settings'
 import type { TrackSort } from './core/trackSort'
 import { SAMPLE_ANALYSIS } from './data/samples'
 import { prefersReducedMotion } from './lib/motion'
@@ -343,13 +343,10 @@ export const effectiveSettings = derived([settings, easyMode], ([$s, $e]) =>
   $e
     ? {
         ...structuredClone(DEFAULT_SETTINGS),
-        theme: $s.theme,
-        uiMode: $s.uiMode,
-        advancedOpen: $s.advancedOpen,
-        // Which panels are collapsed is chrome, not computation (v30): easy
-        // mode must not quietly re-open one.
-        showLeftPanel: $s.showLeftPanel,
-        showRightPanel: $s.showRightPanel,
+        ...chromeOf($s),
+        // The palette too: the accent reads the stored scheme (theme.ts), so a
+        // reset scheme here would paint default-blue nodes in the user's chrome.
+        colorScheme: $s.colorScheme,
       }
     : $s,
 )

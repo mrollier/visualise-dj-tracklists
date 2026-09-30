@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { DEFAULT_CRITERIA, type CriteriaConfig } from '../src/core/combos'
+import { EMPTY_FILTERS } from '../src/core/filter'
 import { resetAdvancedCriteria, resetAdvancedSettings } from '../src/core/reset'
 import { DEFAULT_SETTINGS, type AppSettings } from '../src/core/settings'
 
@@ -15,7 +16,7 @@ describe('reset to defaults (v9 issue 3)', () => {
       hiddenColumns: [],
       advancedOpen: ['display', 'tracks'],
     }
-    const reset = resetAdvancedSettings(current)
+    const reset = resetAdvancedSettings(current, EMPTY_FILTERS)
     expect(reset.colorScheme).toBe(DEFAULT_SETTINGS.colorScheme)
     expect(reset.edgeOpacity).toBe(DEFAULT_SETTINGS.edgeOpacity)
     expect(reset.focusClusterEdges).toBe(false)
@@ -31,7 +32,7 @@ describe('reset to defaults (v9 issue 3)', () => {
     // Silently unlinking someone's music folder from "return to defaults" is
     // the same class of surprise as flipping their theme.
     const current: AppSettings = { ...structuredClone(DEFAULT_SETTINGS), audioPreview: true }
-    expect(resetAdvancedSettings(current).audioPreview).toBe(true)
+    expect(resetAdvancedSettings(current, EMPTY_FILTERS).audioPreview).toBe(true)
   })
 
   test('collapsed panels survive a reset, like the theme (v30)', () => {
@@ -42,7 +43,7 @@ describe('reset to defaults (v9 issue 3)', () => {
       showLeftPanel: false,
       showRightPanel: false,
     }
-    const reset = resetAdvancedSettings(current)
+    const reset = resetAdvancedSettings(current, EMPTY_FILTERS)
     expect(reset.showLeftPanel).toBe(false)
     expect(reset.showRightPanel).toBe(false)
   })
@@ -52,7 +53,7 @@ describe('reset to defaults (v9 issue 3)', () => {
       ...structuredClone(DEFAULT_SETTINGS),
       visibleFilters: ['bpm'], // starred/combos/keys hidden
     }
-    const reset = resetAdvancedSettings(current)
+    const reset = resetAdvancedSettings(current, EMPTY_FILTERS)
     expect(reset.visibleFilters).toEqual(expect.arrayContaining(['starred', 'combos', 'keys']))
   })
 
@@ -92,9 +93,25 @@ describe('reset to defaults (v9 issue 3)', () => {
     settings.colorScheme = 'aqua'
     const criteria = structuredClone(DEFAULT_CRITERIA)
     criteria.genre.k = 9
-    resetAdvancedSettings(settings)
+    resetAdvancedSettings(settings, EMPTY_FILTERS)
     resetAdvancedCriteria(criteria)
     expect(settings.colorScheme).toBe('aqua')
     expect(criteria.genre.k).toBe(9)
+  })
+})
+
+describe('reset never leaves a filter acting from a hidden row', () => {
+  test('rows still filtering stay visible after the reset', () => {
+    const current: AppSettings = {
+      ...structuredClone(DEFAULT_SETTINGS),
+      visibleFilters: ['energy'],
+    }
+    const filters = {
+      ...structuredClone(EMPTY_FILTERS),
+      properties: { energy: [5, 8] as [number, number] },
+      marks: { starredOnly: true, comboOnly: false, constellationOnly: false },
+    }
+    const reset = resetAdvancedSettings(current, filters)
+    expect(reset.visibleFilters).toEqual(expect.arrayContaining(['energy', 'starred']))
   })
 })

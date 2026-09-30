@@ -16,7 +16,7 @@
     type Playlist,
     type Track,
   } from '../core/model'
-  import { parseProject } from '../core/persist'
+  import { sanitizeProject } from '../core/persist'
   import {
     analysis,
     autosaveError,
@@ -137,13 +137,17 @@
       const first = files[0]
       importStatus.set(`Reading ${first.name}…`)
       if (first.name.toLowerCase().endsWith('.json')) {
-        const text = await first.text()
-        // An analysis sidecar is a .json too, and parseProject would throw on
-        // it — so the discriminator is checked BEFORE the project parser sees
-        // the document (v33). A sidecar ADDS a layer rather than replacing the
-        // library, so it deliberately raises no confirmation dialog: there is
-        // nothing to overwrite and nothing to lose.
-        const sidecar = sanitizeAnalysis(JSON.parse(text))
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(await first.text())
+        } catch {
+          throw new Error(`${first.name} is not a project or analysis file: it is not valid JSON`)
+        }
+        // An analysis sidecar is a .json too, and the project parser would
+        // throw on it — so the discriminator is checked first. A sidecar ADDS
+        // a layer rather than replacing the library, so it raises no
+        // confirmation: there is nothing to overwrite and nothing to lose.
+        const sidecar = sanitizeAnalysis(parsed)
         if (sidecar !== null) {
           const summary = summariseAnalysisImport(get(library), sidecar)
           // Union, not replace (v37): a playlist-scoped run must add to a
@@ -158,7 +162,7 @@
         // Loading a saved project replaces the library the same way the
         // sample collection does — it deserves the same confirmation, which
         // it never had before (silent overwrite).
-        const project = parseProject(text)
+        const project = sanitizeProject(parsed)
         const load = () => applyProject(project)
         if (replaceNeedsConfirmation()) loadProjectDialog.open(load)
         else load()

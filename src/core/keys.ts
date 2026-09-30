@@ -117,14 +117,14 @@ export function transposeCamelot(key: CamelotKey, semitones: number): CamelotKey
 interface KeyMatchOptions {
   /** Also accept the +2 (two wheel steps) same-ring move. */
   plusTwo?: boolean
-  /** Also accept the +7-semitone (five wheel steps) same-ring move. */
+  /** Also accept the ±1-semitone move: five wheel steps (+7 on the wheel), same ring. */
   plusSeven?: boolean
 }
 
 /**
  * The key combo criterion: harmonic compatibility on the Camelot wheel.
  * Matches same key, relative major/minor, and ±1 step on the same ring;
- * the 2-step and 5-step (= +7 semitones) same-ring moves gate independently.
+ * the 2-step (±2 semitones) and 5-step (±1 semitone) same-ring moves gate independently.
  */
 export function keysMatch(a: CamelotKey, b: CamelotKey, options: KeyMatchOptions = {}): boolean {
   const dist = wheelStepDistance(a, b)

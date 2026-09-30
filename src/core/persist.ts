@@ -129,7 +129,7 @@ function migrateCriteria(raw: Record<string, unknown>): CriteriaConfig {
   const defaults = structuredClone(DEFAULT_CRITERIA)
   const genre = (raw.genre ?? {}) as Partial<CriteriaConfig['genre']>
   // Saves from before the split carried a single advancedMoves toggle
-  // covering both the +2 and +7-semitone moves — fan it out to both flags.
+  // covering both the +2 and +7 wheel moves — fan it out to both flags.
   const key = (raw.key ?? {}) as Partial<CriteriaConfig['key']> & { advancedMoves?: boolean }
   // v14 (WS4): `demanded` locks a criterion as mandatory. The whitelist reads
   // it explicitly with `=== true` coercion so a non-boolean in a hand-edited
