@@ -52,6 +52,37 @@ describe('the helper is contacted only on request', () => {
     expect(get(offline.helperConnected)).toBe(false)
   })
 
+  test('one slow answer during a long run does not drop the connection', async () => {
+    vi.useFakeTimers()
+    const running = {
+      state: 'running',
+      done: 10,
+      total: 2000,
+      rate: 1,
+      etaSec: 100,
+      errors: 0,
+      startedAt: 't0',
+    }
+    let fail = false
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        fail
+          ? Promise.reject(new DOMException('slow', 'TimeoutError'))
+          : Promise.resolve(new Response(JSON.stringify({ job: running }))),
+      ),
+    )
+    const helper = await import('../src/lib/analysisHelper')
+    await helper.connectHelper()
+    fail = true
+    await vi.advanceTimersByTimeAsync(2000) // one poll times out under load
+    expect(get(helper.helperConnected)).toBe(true)
+    expect(get(helper.helperJob)).toMatchObject({ state: 'running' })
+    await vi.advanceTimersByTimeAsync(4000) // …but a helper that stays silent is gone
+    expect(get(helper.helperConnected)).toBe(false)
+    vi.useRealTimers()
+  })
+
   test('a finished job whose result failed to download is fetched again', async () => {
     const done = {
       state: 'done',

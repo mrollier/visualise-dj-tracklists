@@ -129,11 +129,26 @@ Items marked **(Wave B)** are scheduled in the v41 plan.
   header ★ toggle can hide the row of a filter that is still active.
 - Undo treats `colorScheme`, `trackColumns` and `hiddenColumns` as tuning, so
   Cmd+Z repaints the palette and reshuffles the table.
-- Opening a project `.json` never resets the undo stack unless the active set
-  id changes, so re-opening the same file lets one Cmd+Z apply pre-load state.
+- Opening a project `.json`, or taking the autosave over from another tab,
+  never resets the undo stack unless the active set id changes, so one Cmd+Z
+  can apply pre-load state (`applyProject` never calls `resetUndo`).
 - `ConfirmDialog` clears `onConfirm` only on confirm, so a cancelled load keeps
   the whole parsed project alive.
 - A non-Rekordbox `.txt` import reads the file twice (`TopBar.svelte`).
+- `diffLibraries` lets an earlier weak match beat a later strong one
+  (`src/core/libraryUpdate.ts`): with duplicate files and renumbered ids, a
+  name match can claim the track whose path matches exactly, which is then
+  reported gone. Run the path pass over all tracks before any name pass, and
+  skip names that are not unique.
+- Every autosave stringifies the whole library even when only `work` is
+  written (about 15 ms per flush at 10k tracks). **(Wave B)**
+- A quarantined unreadable save is offered only in the session that found it;
+  later startups never read the `unreadable` slot, and a second unreadable save
+  is overwritten by the next flush.
+- `restoreAutosave` has no timeout before mount, so a hung `indexedDB.open`
+  (a historical Safari bug) would leave "Loading your library…" forever.
+- The tour replay and Reset stay enabled while an import runs; an import that
+  finishes mid-tour replaces the demo, and "Return to my work" then drops it.
 
 ## The wheel
 
@@ -251,6 +266,9 @@ Items marked **(Wave B)** are scheduled in the v41 plan.
 
 ## Analysis
 
+- The helper's "already merged" marker is in memory, so after a reload and
+  Connect the last helper result merges again and can override a newer
+  imported analysis file.
 - An analysed key that `normalizeKey` rejects is dropped without a counter, so
   a spelling drift in the analyser would vanish without trace.
 - None of the four descriptor columns (arousal, valence, danceability,
@@ -271,6 +289,12 @@ Items marked **(Wave B)** are scheduled in the v41 plan.
   empty-playlist fixtures are used only by the probe.
 - `scripts/build-genre-embedding.mjs` and `scripts/render-icons.mjs` are
   untested and outside every tsconfig.
+- The service worker's cache id hashes bundle file names only
+  (`vite.config.ts`), so a change to `index.html` or a public file alone (the
+  manifest, icons) keeps the old cache.
+- `saveFile` opens the writable before building the blob, so a poster render
+  failure leaves an empty file, and ⌘S/export `void` the promise, so a write
+  error becomes an unhandled rejection with no message.
 - `index.html` uses root-absolute asset paths while the manifest and service
   worker are relative and Vite sets no `base`, so the PWA breaks under a
   subpath. Commit to root-only or go fully relative.

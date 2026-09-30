@@ -115,8 +115,10 @@ function apply(effects: readonly DeckEffect[]): void {
       // nulls whichever side is being discarded anyway.
       // Everything this module tracks per deck follows its element across the
       // swap — an in-flight load's staleness check included, or a read started
-      // for the discarded track lands on the one the user kept.
-      for (const record of [materialised, wanted, pendingSeek, busy] as Record<DeckId, unknown>[]) {
+      // for the discarded track lands on the one the user kept. `busy` stays:
+      // an in-flight togglePlay clears the flag under its own deck id, so a
+      // swapped flag would be left set on the other deck for good.
+      for (const record of [materialised, wanted, pendingSeek] as Record<DeckId, unknown>[]) {
         const held = record.a
         record.a = record.b
         record.b = held

@@ -171,6 +171,12 @@ describe('saving', () => {
     expect(db.get('unreadable')).toBe('keep me')
     expect(get(activeSetId)).toBeTruthy()
   })
+
+  test("a Reset in a tab without the lock leaves the other tab's save alone", async () => {
+    autosaveBlocked.set(true)
+    await clearAutosave()
+    expect(db.has('work') && db.has('library')).toBe(true)
+  })
 })
 
 describe('taking the autosave over from another tab', () => {
@@ -200,5 +206,27 @@ describe('taking the autosave over from another tab', () => {
     expect(reload).not.toHaveBeenCalled()
     expect(get(autosaveBlocked)).toBe(false)
     expect(get(library).map((t) => t.id)).toEqual(['rb-1', 'rb-2'])
+  })
+
+  test('the first save after taking over rewrites both records', async () => {
+    vi.stubGlobal('navigator', {
+      locks: {
+        request: (_name: string, _options: unknown, grant: (lock: object | null) => unknown) => {
+          void grant({})
+          return new Promise(() => {})
+        },
+      },
+    })
+    const { takeOverAutosave } = await import('../src/lib/autosave')
+    replaceLibrary({ tracks, name: 'other-tab.xml' })
+    await flushAutosave()
+    autosaveBlocked.set(true)
+    await takeOverAutosave()
+    // The other tab may still land a write after this tab read the save; the
+    // pair is only known to match once this tab has written both halves.
+    writes.length = 0
+    patchActiveSet({ mustInclude: ['rb-2'] })
+    await flushAutosave()
+    expect(writes).toEqual([['work', 'library']])
   })
 })

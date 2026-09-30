@@ -183,4 +183,18 @@ describe('deck bookkeeping (review fixes)', () => {
     await vi.advanceTimersByTimeAsync(0)
     expect(engineMock.loadDeck).not.toHaveBeenCalled()
   })
+
+  test('pinning a deck while its play is still loading leaves both decks playable', async () => {
+    const { stores, player } = await freshPlayer()
+    let release: (file: unknown) => void = () => {}
+    sourceMock.state.fileFor.mockReturnValue(new Promise((resolve) => (release = resolve)))
+    stores.clickedTrackId.set('t0')
+    const pending = player.togglePlay('b') // a slow drive: the read is in flight…
+    player.lockDeck() // …when the user pins it up to A
+    release({})
+    await pending
+    engineMock.play.mockClear()
+    await player.togglePlay('a')
+    expect(engineMock.play).toHaveBeenCalledWith('a')
+  })
 })

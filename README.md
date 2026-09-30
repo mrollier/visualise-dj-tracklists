@@ -23,7 +23,9 @@ Your library never leaves your machine — there is no backend, no account, no u
   selection carry across, matched by Rekordbox track ID (checked against the file or
   artist and title, since IDs repeat across databases), and the ⓘ report says what
   changed: "+12 new · −3 gone · 5 changed key/BPM". Anything that would drop work
-  asks first, and so does importing a different collection over yours. The
+  asks first, and so does importing a different collection over yours. A second
+  playlist TXT sharing tracks with the first updates the library the same way, and
+  its playlist opens as a constellation of its own. The
   **Load sample** button loads one **Sample collection**: eleven themed fictional
   crates plus the classic demo, each as a playlist, behaving exactly like an imported
   collection — including a **Genre Atlas** from jazz to gabber that gives the genre
@@ -40,15 +42,10 @@ Your library never leaves your machine — there is no backend, no account, no u
   with an advanced toggle — an unselected wheel stays a clean constellation (the set's
   walk is always visible). Tracks without a key sit in a labelled gutter at
   their value on the radius axis. Zoom to resolve detail — node disks keep their size while the
-  structure magnifies. Node **shapes** (circle, square, triangle, …) carry a class of
-  your choosing: **genre families** from the curated genre tree (the default —
-  deterministic, and never reshuffled by criterion changes), your selected
-  **playlists** (first one wins), or similarity **clusters** in the hybrid space —
-  capped by a "max symbol classes" setting (1–8); past the cap, smaller genre
-  families **merge into their umbrella** in the tree rather than dropping to
-  circles. Playlists have no umbrella to merge into, so a cap below the selected
-  playlist count drops the distinction entirely — all circles, no legend — rather
-  than showing a misleading partial set.
+  structure magnifies. Node **shapes** (circle, square, triangle, …) mark **genre
+  families** from the curated genre tree — deterministic, and never reshuffled by
+  criterion changes. Up to four families get a shape; past that, smaller families
+  **merge into their umbrella** in the tree rather than dropping to circles.
 - **Nodes that hold still**: every track's angle is a property of your _library_,
   not of the current filters — filtering and playlist toggling only make nodes
   appear or disappear, leaving gaps in the same-key fans, so nothing ever shuffles
@@ -73,13 +70,12 @@ Your library never leaves your machine — there is no backend, no account, no u
   then everything drifts home when you let go (panning stays on the background; the
   re-layout eases in slowly enough to follow). Node icons here always follow the
   **curated genre families**, with a shape legend at the bottom.
-  **One method's edge overlay draws at a time** — it follows your active criterion
-  method (drawing exactly the pairs the criterion links, k/threshold included), or
-  pick another on the chips; switching never leaves the old overlay stacked.
+  The links drawn are exactly the pairs the genre criterion matches (k included).
   **The map rests on a faint skeleton** — each genre keeps only its strongest link,
   dimming as the vocabulary grows; **hover or click a genre** to light up its full
   connections (the wheel's focus rule), and **click two genres to compare them**: a
-  docked card locks with every method's score while only the pair's own link stays
+  docked card shows their similarity, whether the criterion links them, and the
+  most specific family they share, while only the pair's own link stays
   highlighted. A "show nearby genres" toggle ghosts in related genres you don't own
   yet, each tethered to the library genre that summoned it.
 - **Browse the tracks**: the third central view is a classic sortable table of
@@ -264,9 +260,10 @@ Your library never leaves your machine — there is no backend, no account, no u
   theme. Save the whole project as JSON with **⌘S**. Where the browser has a save
   dialog (Chrome, Edge) you name the file and pick the format there; elsewhere it
   downloads under the collection's and the set's name. Everything autosaves to the
-  browser (IndexedDB, so a large library fits); a second tab of the app opens
-  read-only rather than overwriting the first, and a Reset button (with
-  confirmation) wipes the slate. The app is also a **PWA**: install it from the
+  browser (IndexedDB, so a large library fits). Only one tab autosaves at a time:
+  a second tab says so and saves nothing until you press **Use this tab**, so two
+  tabs never overwrite each other. A Reset button (with confirmation) wipes the
+  slate. The app is also a **PWA**: install it from the
   browser and it opens like a double-click application, offline included (from
   the second visit on).
 

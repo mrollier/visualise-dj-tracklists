@@ -235,11 +235,19 @@ export function startAutosave(): void {
 export async function takeOverAutosave(): Promise<void> {
   await claimLock(true)
   await loadSaved()
+  // The other tab can still land a write after the read above, so the first
+  // save from here writes both records rather than trusting they match.
+  saved = null
 }
 
-/** Forget the saved project (Reset). A quarantined save is kept. */
+/**
+ * Forget the saved project (Reset). A quarantined save is kept, and a tab
+ * without the lock leaves the save alone: it belongs to the tab that owns it,
+ * which would otherwise go on writing `work` next to a deleted `library`.
+ */
 export async function clearAutosave(): Promise<void> {
   saved = null
+  if (get(autosaveBlocked)) return
   await store.delete(['work', 'library']).catch(() => undefined)
   try {
     localStorage.removeItem(LEGACY_KEY)

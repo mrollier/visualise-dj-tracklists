@@ -17,7 +17,7 @@ import {
 } from '../core/libraryUpdate'
 import { fileStem } from '../core/exporters/filename'
 import { serializeProject, type Project } from '../core/persist'
-import { freshFirstSet, type TrackSet } from '../core/sets'
+import { canAddSet, freshFirstSet, uniqueSetName, type TrackSet } from '../core/sets'
 import { DEFAULT_SETTINGS } from '../core/settings'
 import { ALL_SAMPLE_PACKS, CLASSIC_PACK, SAMPLE_COLLECTION } from '../data/samples'
 import {
@@ -208,21 +208,55 @@ function updateNotes({ diff, remapped }: ImportPlan): string[] {
  * filter stay as they are. Cleared first and set last, like replaceLibrary,
  * so the heavy derivations run once against the final state. Undo restarts:
  * a snapshot from before the update would point at the old ids.
+ *
+ * A playlist export (TXT) is a playlist as much as a library. When it brings
+ * a playlist that was not loaded before, that playlist is shown and its order
+ * opens as a constellation of its own, as it would on a first import; the
+ * same playlist exported again just updates.
  */
 export function updateLibrary(
-  incoming: { tracks: Track[]; name: string; playlists: Playlist[] },
+  incoming: {
+    tracks: Track[]
+    name: string
+    playlists: Playlist[]
+    set?: string[]
+    selectedPlaylists?: string[]
+  },
   plan: ImportPlan,
   report: ImportReport,
 ): void {
   const { remapped } = plan
+  const known = new Set(get(playlists).map((p) => p.name))
+  const fresh = (incoming.selectedPlaylists ?? []).filter((name) => !known.has(name))
+  const selection =
+    remapped.playlistSelection === null ? null : [...remapped.playlistSelection, ...fresh]
+  let nextSets = remapped.sets
+  let activeId = get(activeSetId)
+  const notes = updateNotes(plan)
+  if (incoming.set !== undefined && fresh.length > 0) {
+    if (canAddSet(nextSets)) {
+      const set: TrackSet = {
+        ...freshFirstSet(incoming.set),
+        name: uniqueSetName(
+          fresh[0],
+          nextSets.map((s) => s.name),
+        ),
+      }
+      nextSets = [...nextSets, set]
+      activeId = set.id
+    } else {
+      notes.push(`No room for another constellation, so ${fresh[0]}'s order was not opened`)
+    }
+  }
   library.set([])
   libraryName.set(incoming.name)
   manualEdges.set(remapped.manualEdges)
-  sets.set(remapped.sets)
+  sets.set(nextSets)
+  activeSetId.set(activeId)
   playlists.set(incoming.playlists)
-  filters.update((f) => ({ ...f, playlists: remapped.playlistSelection }))
+  filters.update((f) => ({ ...f, playlists: selection }))
   selectedId.set(remapped.selectedId)
-  lastImportReport.set({ ...report, notes: [...(report.notes ?? []), ...updateNotes(plan)] })
+  lastImportReport.set({ ...report, notes: [...(report.notes ?? []), ...notes] })
   library.set([...incoming.tracks, ...remapped.carried])
   resetUndo()
 }

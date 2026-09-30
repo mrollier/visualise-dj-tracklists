@@ -34,6 +34,10 @@ export const helperConnected = writable(false)
 
 let panelOpen = false
 let timer: ReturnType<typeof setInterval> | null = null
+// A helper busy analysing can miss the 800 ms status deadline now and then;
+// only this many misses in a row mean it is gone.
+const MAX_MISSES = 3
+let misses = 0
 // One result fetch per finished job: /status keeps reporting 'done' forever.
 let fetchedFor: string | null = null
 
@@ -83,12 +87,15 @@ async function refresh(): Promise<void> {
   try {
     const res = await fetch(`${HELPER_URL}/status`, { signal: AbortSignal.timeout(800) })
     const data = (await res.json()) as { job: HelperJob | null }
+    misses = 0
     helperJob.set(data.job)
     // Marked fetched only once it merged: a failed download is retried.
     if (data.job?.state === 'done' && fetchedFor !== data.job.startedAt) {
       if (await fetchResult()) fetchedFor = data.job.startedAt
     }
   } catch {
+    if (get(helperConnected) && ++misses < MAX_MISSES) return
+    misses = 0
     helperJob.set('offline')
     helperConnected.set(false)
   }

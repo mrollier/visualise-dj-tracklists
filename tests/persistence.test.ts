@@ -413,6 +413,62 @@ describe('re-importing a collection updates it in place', () => {
     expect(planLibraryImport(other, []).decision).toBe('confirm-replace')
   })
 
+  describe('a Rekordbox playlist export (TXT) over one imported earlier', () => {
+    // TXT ids are positions in the file, so a reordered export renumbers them.
+    const gig = (name: string, order: number[]) => {
+      const tracks = order.map((n, i) =>
+        track({ id: `txt-${i}`, title: `T${n}`, location: `file://localhost/m/${n}.mp3` }),
+      )
+      const trackIds = tracks.map((t) => t.id)
+      return {
+        tracks,
+        name: `${name}.txt`,
+        set: trackIds,
+        playlists: [{ name, trackIds }],
+        selectedPlaylists: [name],
+      }
+    }
+    const importTxt = (incoming: ReturnType<typeof gig>) => {
+      const plan = planLibraryImport(incoming.tracks, incoming.playlists)
+      updateLibrary(incoming, plan, buildReport(incoming.tracks, []))
+      return plan
+    }
+
+    beforeEach(() => {
+      replaceLibrary({ ...gig('Gig A', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), report: REPORT })
+    })
+
+    test('a different gig shows its playlist and opens its order as a new constellation', () => {
+      const first = get(sets)[0]
+      const plan = importTxt(gig('Gig B', [9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 10, 11]))
+      expect(plan.decision).toBe('update')
+      expect(get(filters).playlists).toEqual(['Gig B'])
+      expect(get(visibleLibrary)).toHaveLength(12)
+      expect(get(sets)).toHaveLength(2)
+      expect(get(sets)[0].id).toBe(first.id)
+      expect(get(tracklist).map((id) => get(library).find((t) => t.id === id)?.title)).toEqual([
+        'T9',
+        'T8',
+        'T7',
+        'T6',
+        'T5',
+        'T4',
+        'T3',
+        'T2',
+        'T1',
+        'T0',
+        'T10',
+        'T11',
+      ])
+    })
+
+    test('the same gig re-exported updates in place without another constellation', () => {
+      importTxt(gig('Gig A', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]))
+      expect(get(filters).playlists).toEqual(['Gig A'])
+      expect(get(sets)).toHaveLength(1)
+    })
+  })
+
   test('the library is cleared before the new tracks arrive', () => {
     const seen: number[] = []
     const stop = library.subscribe((l) => seen.push(l.length))
