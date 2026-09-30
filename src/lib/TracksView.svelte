@@ -32,6 +32,7 @@
     comboComplete,
     effectiveManualEdges,
     filters,
+    hasAnalysis,
     analysedFieldsById,
     augmentedLibrary,
     hoveredId,
@@ -56,7 +57,13 @@
   const COLUMN_LABEL = COLUMN_LABELS
 
   // Columns = the full settings order minus the hidden set (v9 issue 12).
-  const columns = $derived(visibleColumns($settings.trackColumns, $settings.hiddenColumns))
+  // Analysis-only columns stay out until analysis reaches the library; the
+  // stored order and visibility are untouched, so they return where they were.
+  const columns = $derived(
+    visibleColumns($settings.trackColumns, $settings.hiddenColumns).filter(
+      (field) => $hasAnalysis || PROPERTY_BY_KEY.get(field)?.analysisOnly !== true,
+    ),
+  )
   // Kind and formatting come from the property registry (v11 issue 1).
   function isTextColumn(field: TrackSortField): boolean {
     const kind = PROPERTY_BY_KEY.get(field)?.kind

@@ -24,6 +24,7 @@
   import type { TrackSortField } from '../core/trackSort'
   import {
     filters,
+    hasAnalysis,
     library,
     playlistScopedLibrary,
     setMarkFilter,
@@ -487,7 +488,7 @@
     {@render filterRow(prop)}
   {/each}
 
-  {#if analysisRows.length > 0}
+  {#if $hasAnalysis && analysisRows.length > 0}
     <!-- Not a <details> any more (v35.1): a second collapsible nested inside
          the Filters one looked like a peer of Playlists/Genres/Combo criteria
          and hid rows the user had just deliberately switched on. A hairline

@@ -6,6 +6,7 @@ import { DEFAULT_SETTINGS } from '../src/core/settings'
 import { SAMPLE_TRACKS } from '../src/data/sample-tracks'
 import { track } from './helpers'
 import {
+  analysis,
   criteria,
   effectiveCriteria,
   effectiveFilters,
@@ -13,6 +14,7 @@ import {
   effectiveSettings,
   filters,
   genreMatcher,
+  hasAnalysis,
   library,
   manualEdges,
   mustInclude,
@@ -376,5 +378,34 @@ describe('genreMatcher — one vocabulary: the whole library', () => {
     filters.update((f) => ({ ...f, keyRings: { minor: true, major: false } }))
     expect(emissions).toBe(settled)
     stop()
+  })
+})
+
+describe('hasAnalysis — analysis UI shows only when analysis reaches the library', () => {
+  afterEach(() => {
+    analysis.set(null)
+    library.set([])
+  })
+
+  test('a real library without an analysis file has none', () => {
+    library.set([track({ id: 'rb-1', location: 'file://localhost/Music/a.mp3' })])
+    expect(get(hasAnalysis)).toBe(false)
+  })
+
+  test('a sidecar that matches no track does not count', () => {
+    library.set([track({ id: 'rb-1', location: 'file://localhost/Music/a.mp3' })])
+    analysis.set({ zodiacAnalysis: 1, run: null, tracks: { '/Elsewhere/z.mp3': { arousal: 5 } } })
+    expect(get(hasAnalysis)).toBe(false)
+  })
+
+  test('a sidecar entry that joins a track does', () => {
+    library.set([track({ id: 'rb-1', location: 'file://localhost/Music/a.mp3' })])
+    analysis.set({ zodiacAnalysis: 1, run: null, tracks: { '/Music/a.mp3': { arousal: 5 } } })
+    expect(get(hasAnalysis)).toBe(true)
+  })
+
+  test('a descriptor token in a comment counts, sidecar or not', () => {
+    library.set([track({ id: 'rb-1', comments: '8A - [A78V35D86H55]' })])
+    expect(get(hasAnalysis)).toBe(true)
   })
 })

@@ -4,10 +4,13 @@ import { buildReport } from '../core/model'
 import { analysis, lastImportReport, library } from '../stores'
 
 /**
- * Client for the localhost analysis helper (v38) —
- * `scripts/analyse-audio.py --serve`. The app posts a playlist's file paths,
- * polls the job, and merges the finished sidecar exactly the way a sidecar
- * import through the Import button does.
+ * Client for the localhost analysis helper — `analyse-audio.py --serve`. The
+ * app posts a playlist's file paths, polls the job, and merges the finished
+ * sidecar exactly the way a sidecar import through the Import button does.
+ *
+ * Nothing contacts localhost until the user presses Connect: most people have
+ * no helper, and a request to 127.0.0.1 can raise a browser permission prompt
+ * (Chrome's local-network access) nobody asked for.
  *
  * ponytail: the port is a const; lift it into AppSettings on the first real
  * port conflict (the script side already takes --port).
@@ -26,6 +29,8 @@ export interface HelperJob {
 
 /** 'offline' = no helper answered; null = helper up, no job yet. */
 export const helperJob = writable<HelperJob | 'offline' | null>('offline')
+/** True once a Connect found a helper, until it stops answering. */
+export const helperConnected = writable(false)
 
 let panelOpen = false
 let timer: ReturnType<typeof setInterval> | null = null
@@ -39,10 +44,19 @@ let fetchedFor: string | null = null
  */
 export function setPanelOpen(open: boolean): void {
   panelOpen = open
-  if (open) {
+  if (open && get(helperConnected)) {
     void refresh()
     ensureTimer()
   }
+}
+
+/** Ask the helper whether it is there (the Connect button). */
+export async function connectHelper(): Promise<boolean> {
+  await refresh()
+  const connected = get(helperJob) !== 'offline'
+  helperConnected.set(connected)
+  if (connected) ensureTimer()
+  return connected
 }
 
 export async function startAnalysis(paths: string[], writeTags: boolean): Promise<string | null> {
@@ -70,12 +84,13 @@ async function refresh(): Promise<void> {
     const res = await fetch(`${HELPER_URL}/status`, { signal: AbortSignal.timeout(800) })
     const data = (await res.json()) as { job: HelperJob | null }
     helperJob.set(data.job)
+    // Marked fetched only once it merged: a failed download is retried.
     if (data.job?.state === 'done' && fetchedFor !== data.job.startedAt) {
-      fetchedFor = data.job.startedAt
-      await fetchResult()
+      if (await fetchResult()) fetchedFor = data.job.startedAt
     }
   } catch {
     helperJob.set('offline')
+    helperConnected.set(false)
   }
 }
 
@@ -95,14 +110,15 @@ function ensureTimer(): void {
 
 /** The finished sidecar, through the same sanitize → summarise → merge path
  * as a sidecar chosen in the Import dialog (TopBar.svelte). */
-async function fetchResult(): Promise<void> {
+async function fetchResult(): Promise<boolean> {
   const res = await fetch(`${HELPER_URL}/result`)
-  if (!res.ok) return
+  if (!res.ok) return false
   const sidecar = sanitizeAnalysis((await res.json()) as unknown)
-  if (sidecar === null) return
+  if (sidecar === null) return false
   const summary = summariseAnalysisImport(get(library), sidecar)
   analysis.update((prev) => mergeSidecars(prev, sidecar))
   lastImportReport.set({ ...buildReport(get(library), []), notes: [summary.note] })
+  return true
 }
 
 /**

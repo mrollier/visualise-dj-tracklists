@@ -582,6 +582,20 @@ export const genreBridge = derived(merged, ($merged) => $merged.genreBridge)
 export const analysedFieldsById = derived(merged, ($merged) => $merged.analysedFields)
 
 /**
+ * Whether any analysis actually reached this library — a filled value, a
+ * descriptor token read from a comment, or a predicted genre. The analysis
+ * columns, filters and genre-source controls stay out of sight until it
+ * does: a DJ without the analyser should not meet empty descriptor columns.
+ * Join-based, so an analysis file for other tracks (or the sample's) never
+ * counts.
+ */
+export const hasAnalysis = derived(
+  merged,
+  ($merged) =>
+    $merged.analysedFields.size > 0 || $merged.tracks.some((t) => t.analysedGenre !== null),
+)
+
+/**
  * Id → track for the surfaces that DISPLAY metadata (v33).
  *
  * Deliberately separate from `trackById`, which stays raw: that one resolves

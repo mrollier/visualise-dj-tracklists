@@ -430,11 +430,11 @@ if ((await page.locator('.marks .mark-toggle').count()) !== 4) {
 await page.screenshot({ path: `${scratch}/04-selected.png` })
 
 // shorter walks (8) keep unused neighbours around for the hub step below;
-// Sentiment analysis sits LAST (v38 added it after View)
+// Audio analysis sits LAST (added after View)
 await page.getByRole('button', { name: /Advanced/ }).click()
 const lastSectionName = await page.locator('.panel details.section > summary').last().textContent()
-if (lastSectionName?.trim() !== 'Sentiment analysis') {
-  errors.push(`the last advanced section should be Sentiment analysis, got "${lastSectionName}"`)
+if (lastSectionName?.trim() !== 'Audio analysis') {
+  errors.push(`the last advanced section should be Audio analysis, got "${lastSectionName}"`)
 }
 const openAtFirst = await page
   .locator('.panel details.section')
@@ -1565,6 +1565,23 @@ await page.locator('.status .name', { hasText: 'rekordbox.xml' }).waitFor()
   }
 }
 await page.screenshot({ path: `${scratch}/14-rekordbox-import.png` })
+// A collection without any analysis shows none of the analysis surfaces.
+{
+  // Read from the DOM with the sections as they are: opening them here would
+  // be remembered and flip the later steps that toggle them.
+  await page.getByRole('button', { name: /Advanced/ }).click()
+  const offered = await page.evaluate(() => ({
+    arousal: document.querySelector('input[aria-label="Arousal column"]') !== null,
+    source: [...document.querySelectorAll('.panel label')].some((l) =>
+      l.textContent?.includes('Genre source'),
+    ),
+  }))
+  if (offered.arousal) errors.push('analysis columns are offered for a library without analysis')
+  if (offered.source) {
+    errors.push('the genre-source switch is offered for a library without analysis')
+  }
+  await page.keyboard.press('Escape')
+}
 
 // Rekordbox playlist TXT (UTF-16 TSV): library AND set in file order, plus
 // a playlist named after the file, toggled on (ISSUES.md #14)

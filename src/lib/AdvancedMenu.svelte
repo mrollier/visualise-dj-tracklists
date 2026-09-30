@@ -16,7 +16,14 @@
   import { isDescriptorKey, PROPERTY_BY_KEY } from '../core/properties'
   import type { TrackSortField } from '../core/trackSort'
   import { locationToPath } from '../core/location'
-  import { estimateMinutes, helperJob, setPanelOpen, startAnalysis } from './analysisHelper'
+  import {
+    connectHelper,
+    estimateMinutes,
+    helperConnected,
+    helperJob,
+    setPanelOpen,
+    startAnalysis,
+  } from './analysisHelper'
   import ConfirmDialog from './ConfirmDialog.svelte'
   import FolderLinkControl from './FolderLinkControl.svelte'
   import InfoTooltip from './InfoTooltip.svelte'
@@ -35,6 +42,7 @@
     filters,
     genreBridge,
     genreMatcher,
+    hasAnalysis,
     library,
     manualEdges,
     mustInclude,
@@ -144,6 +152,12 @@
     return field !== undefined && PROPERTY_BY_KEY.get(field)?.analysisOnly === true
   }
 
+  // The property rows in the user's own column order; the analysis-only ones
+  // wait until analysis reaches the library.
+  const propertyRows = $derived(
+    $settings.trackColumns.filter((field) => $hasAnalysis || !isAnalysed(field)),
+  )
+
   // Column checkboxes list the columns in the user's own order and toggle
   // only the hidden set — a re-enabled column reappears at its previous
   // position (v8 issue 15, v9 issue 12).
@@ -251,17 +265,21 @@
   // Persist SYNCHRONOUSLY on the toggle event, not via a deferred $effect:
   // a pending effect is discarded when the panel unmounts right after a
   // toggle (open section → Escape), silently forgetting the change.
-  // --- Sentiment analysis (v38) ---
-  // Tracks the section's open state into the helper client: polling runs
-  // while the section is open or a job is running; teardown on unmount stops
-  // an idle poll but never a live job's.
+  // --- Audio analysis ---
+  // Tracks the section's open state into the helper client: once connected,
+  // polling runs while the section is open or a job is running; teardown on
+  // unmount stops an idle poll but never a live job's.
   $effect(() => {
     setPanelOpen(sectionState.analysis)
     return () => setPanelOpen(false)
   })
   const analysable = $derived($playlistScopedLibrary.filter((t) => t.location !== null))
   let analysisError = $state('')
-  const HELPER_COMMAND = 'scripts/.venv/bin/python scripts/analyse-audio.py --serve'
+  let connectFailed = $state(false)
+
+  async function connect() {
+    connectFailed = !(await connectHelper())
+  }
 
   async function runAnalysis() {
     analysisError = ''
@@ -327,55 +345,55 @@
     ontoggle={(e) => persistToggle('genre', e)}
   >
     <summary>Genre matching</summary>
-    <label>
-      Genre source
-      <select bind:value={$settings.genreSource}>
-        <option value="rekordbox">Rekordbox</option>
-        <option value="analysis">Analysis (Discogs styles)</option>
-      </select>
-      <InfoTooltip label="About genre sources">
-        Analysis reads the style predicted from the audio itself — one of 400 Discogs styles — out
-        of an analysis file. That file has to be <strong>imported once</strong>: use the same button
-        you use for your collection XML and pick
-        <code>scripts/out/library.analysis.json</code>. It is then remembered with the project, and
-        importing it again after a new analysis run adds to it rather than replacing it. Your own
-        genres are never overwritten: switching back restores them, and a track with no prediction
-        keeps the genre it already had.
-      </InfoTooltip>
-    </label>
-    <SliderRow
-      label="Genre confidence"
-      bind:value={$settings.genreThreshold}
-      min={0}
-      max={0.8}
-      step={0.05}
-      display={(v) => v.toFixed(2)}
-      dimmed={$settings.genreSource !== 'analysis'}
-      title="How sure the model must be before its style replaces your own genre — in the columns and in combo matching alike. Stricter means fewer tracks change hands, so the wheel drifts back towards your own labels."
-    />
-    <p class="hint">
-      {#if $analysis === null}
-        No analysis file loaded. Import your analysis JSON with the same button as your collection —
-        nothing needs re-analysing, the results are already in the file.
-      {:else if genrePredicted === 0}
-        The loaded analysis file carries no style predictions. Re-run the analyser with
-        <code>--genre</code> and import it again.
-      {:else if $settings.genreSource === 'analysis'}
-        {genrePredicted} tracks carry a predicted style; {genreSubstituted} are showing it instead of
-        your own genre. {$genreBridge.length} of your own genres are linked to the style the model uses
-        for the same music.
-        <InfoTooltip label="About the linked genres">
-          Your words and the model's are different vocabularies: it has never heard of
-          <em>Tribe</em>, you never write <em>Tribal</em>. So each of your genres is matched against
-          the style the model most often predicts for the tracks carrying it — measured on your own
-          library, at least 3 tracks and a clear majority — and the two then count as the same genre
-          when combos are worked out. Without that, raising the confidence above would split
-          identical music into two dialects that match nothing.
+    {#if $hasAnalysis}
+      <label>
+        Genre source
+        <select bind:value={$settings.genreSource}>
+          <option value="rekordbox">Rekordbox</option>
+          <option value="analysis">Analysis (Discogs styles)</option>
+        </select>
+        <InfoTooltip label="About genre sources">
+          Analysis reads the style predicted from the audio itself — one of 400 Discogs styles — out
+          of an analysis file, imported once with the same button as your collection. It is then
+          remembered with the project, and importing it again after a new analysis run adds to it
+          rather than replacing it. Your own genres are never overwritten: switching back restores
+          them, and a track with no prediction keeps the genre it already had.
         </InfoTooltip>
-      {:else}
-        {genrePredicted} tracks carry a predicted style.
-      {/if}
-    </p>
+      </label>
+      <SliderRow
+        label="Genre confidence"
+        bind:value={$settings.genreThreshold}
+        min={0}
+        max={0.8}
+        step={0.05}
+        display={(v) => v.toFixed(2)}
+        dimmed={$settings.genreSource !== 'analysis'}
+        title="How sure the model must be before its style replaces your own genre — in the columns and in combo matching alike. Stricter means fewer tracks change hands, so the wheel drifts back towards your own labels."
+      />
+      <p class="hint">
+        {#if $analysis === null}
+          No analysis file loaded. Import your analysis JSON with the same button as your collection
+          — nothing needs re-analysing, the results are already in the file.
+        {:else if genrePredicted === 0}
+          The loaded analysis file carries no style predictions. Re-run the analyser with
+          <code>--genre</code> and import it again.
+        {:else if $settings.genreSource === 'analysis'}
+          {genrePredicted} tracks carry a predicted style; {genreSubstituted} are showing it instead of
+          your own genre. {$genreBridge.length} of your own genres are linked to the style the model uses
+          for the same music.
+          <InfoTooltip label="About the linked genres">
+            Your words and the model's are different vocabularies: it has never heard of
+            <em>Tribe</em>, you never write <em>Tribal</em>. So each of your genres is matched
+            against the style the model most often predicts for the tracks carrying it — measured on
+            your own library, at least 3 tracks and a clear majority — and the two then count as the
+            same genre when combos are worked out. Without that, raising the confidence above would
+            split identical music into two dialects that match nothing.
+          </InfoTooltip>
+        {:else}
+          {genrePredicted} tracks carry a predicted style.
+        {/if}
+      </p>
+    {/if}
     <label>
       <span class="label-with-info">
         Link each genre to its nearest
@@ -542,7 +560,7 @@
         <span>column</span>
         <span>filter</span>
       </div>
-      {#each $settings.trackColumns as field, i (field)}
+      {#each propertyRows as field, i (field)}
         <!-- The analysis band's own rules, both edges of it. Unlike the
              Starred/Constellation group below, which is last and so needs
              only a line above it, this one sits mid-list — a single rule
@@ -550,7 +568,7 @@
              from Arousal down is analysed". The band follows the user's own
              column order rather than a fixed index, so dragging a descriptor
              elsewhere moves the rules with it. -->
-        {#if isAnalysed(field) !== isAnalysed($settings.trackColumns[i - 1]) && i > 0}
+        {#if isAnalysed(field) !== isAnalysed(propertyRows[i - 1]) && i > 0}
           <div class="group-divider"></div>
         {/if}
         <div class="prop-row" class:descriptor={isDescriptorKey(field)}>
@@ -770,32 +788,33 @@
     bind:open={sectionState.analysis}
     ontoggle={(e) => persistToggle('analysis', e)}
   >
-    <summary>Sentiment analysis</summary>
+    <summary>Audio analysis</summary>
     <p class="hint">
-      Analyses the audio of the tracks in your selected playlists and estimates four descriptors,
-      each 0–100%: <strong>arousal</strong> (calm → intense), <strong>valence</strong> (dark →
-      positive), <strong>danceability</strong> and <strong>happiness</strong>. They appear as
-      columns and filters with an ~ provenance badge.
-      <InfoTooltip label="About the descriptors">
-        The analyser runs machine-listening models (essentia, MusiCNN) on your own machine — nothing
-        is uploaded. The descriptors are model estimates, not ground truth: treat them as a sorting
-        aid, not a verdict. Energy is unaffected — it still comes only from the Mixed In Key comment
-        tag.
+      A separate analyser program can listen to your files and add four mood descriptors —
+      <strong>arousal</strong>, <strong>valence</strong>, <strong>danceability</strong>,
+      <strong>happiness</strong> — and a genre predicted from the audio. Its results arrive as an
+      analysis file: import it with the same button as your collection. The columns, filters and
+      genre-source switch appear once it matches your tracks.
+      <InfoTooltip label="About audio analysis">
+        The analyser runs machine-listening models on your own machine — nothing is uploaded. The
+        descriptors are model estimates, not ground truth: treat them as a sorting aid. Results are
+        keyed by file path, so they survive re-importing your collection. Energy is unaffected — it
+        only ever comes from the Mixed In Key comment tag.
       </InfoTooltip>
     </p>
-    <p class="hint">
-      Scope: <strong>{analysable.length}</strong> tracks in the selected playlists — roughly
-      <strong>{estimateMinutes(analysable.length)} min</strong>. Results land in
-      <code>scripts/out/library.analysis.json</code>, merge into this project (autosaved), and
-      survive importing a new XML — they are keyed by file path, not by Rekordbox id.
-      <InfoTooltip label="About analysis results">
-        A run started here merges itself when it finishes. A run you started in a terminal instead
-        does not: import <code>scripts/out/library.analysis.json</code> once, with the same button you
-        use for your collection XML. Until you do, nothing analysed shows up — no descriptors, no analysed
-        genres — because the app never reads your disk on its own.
-      </InfoTooltip>
-    </p>
-    {#if typeof $helperJob === 'object' && $helperJob !== null && $helperJob.state === 'running'}
+    {#if !$helperConnected}
+      <p class="hint">
+        Running the analyser as a helper (<code>analyse-audio.py --serve</code>) lets you start runs
+        from here; their results merge by themselves.
+      </p>
+      <button class="reset-defaults" onclick={connect}>Connect to the analyser</button>
+      {#if connectFailed}
+        <p class="hint">No analyser answered on this computer.</p>
+      {/if}
+      <button class="reset-defaults" onclick={exportPathsFile} disabled={analysable.length === 0}>
+        ⤓ Export the selected playlists' file paths
+      </button>
+    {:else if typeof $helperJob === 'object' && $helperJob !== null && $helperJob.state === 'running'}
       <ProgressBar
         label="Analysing tracks"
         value={$helperJob.done}
@@ -806,29 +825,11 @@
           ? ` · ~${Math.ceil($helperJob.etaSec / 60)} min left`
           : ''}{$helperJob.errors > 0 ? ` · ${$helperJob.errors} failed` : ''}
       </p>
-    {:else if $helperJob === 'offline'}
-      <p class="hint">
-        The analyser runs outside the browser. Start the helper in a terminal, then reopen this
-        section:
-      </p>
-      <p class="cmd">
-        <code>{HELPER_COMMAND}</code>
-        <button
-          class="reset-defaults"
-          onclick={() => navigator.clipboard.writeText(HELPER_COMMAND)}
-        >
-          Copy command
-        </button>
-      </p>
-      <p class="hint">
-        Or without the helper: export the playlist's file paths and run the analyser over them with <code
-          >--paths-from playlist.paths.txt</code
-        >, then import the resulting JSON via Import.
-      </p>
-      <button class="reset-defaults" onclick={exportPathsFile} disabled={analysable.length === 0}>
-        ⤓ Export paths file
-      </button>
     {:else}
+      <p class="hint">
+        Scope: <strong>{analysable.length}</strong> tracks in the selected playlists — roughly
+        <strong>{estimateMinutes(analysable.length)} min</strong>.
+      </p>
       <label class="row">
         <input type="checkbox" bind:checked={$settings.analysisWriteTags} />
         Also write results into file comment tags
@@ -1189,15 +1190,6 @@
     font-size: 11px;
     margin: 2px 0 0;
   }
-  /* The helper command (v38): monospace, wrappable, with its copy button. */
-  .cmd {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-    margin: 2px 0 0;
-  }
-  .cmd code,
   .hint code {
     font-size: 10px;
     word-break: break-all;
