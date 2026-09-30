@@ -3,8 +3,8 @@ import { DEFAULT_CRITERIA } from '../src/core/combos'
 import { EMPTY_FILTERS } from '../src/core/filter'
 import { DEFAULT_SETTINGS } from '../src/core/settings'
 import {
+  comboPairCount,
   criteria,
-  edges,
   filters,
   focusEdges,
   iconClasses,
@@ -39,7 +39,7 @@ describe('perf gates (v37)', () => {
       track({ id: 'b', genre: 'House', bpm: 125 }),
     ])
     const seen: number[] = []
-    const unsubscribe = edges.subscribe(($edges) => seen.push($edges.length))
+    const unsubscribe = comboPairCount.subscribe(($count) => seen.push($count.count))
     // Leave any throttle window left over from other subscriptions in this
     // module (the store is a singleton across the test file).
     vi.advanceTimersByTime(2000)

@@ -1,6 +1,5 @@
 import {
-  computeEdges,
-  demandedCount,
+  buildComboGraph,
   evaluateCombo,
   keysNearlyMatch,
   makeGenreMatcher,
@@ -228,46 +227,40 @@ function pick<T>(scored: { item: T; score: number }[], randomness: number, rand:
   return scored[scored.length - 1].item
 }
 
-/** Adjacency lookup: who neighbours `id` in the combo graph. */
-type NeighboursOf = (id: string) => string[]
+/** Adjacency: who neighbours a track in the combo graph, manual pairs included. */
+interface Neighbours {
+  of(id: string): readonly string[]
+  has(id: string): boolean
+}
 
 /**
- * At threshold 0 the combo graph is complete — everyone neighbours everyone,
- * computed lazily instead of materializing n²/2 edges. Otherwise the usual
- * adjacency from computeEdges, plus the manual pairs.
+ * The lazy combo graph plus the manual pairs. At require 0 the graph is
+ * complete and already holds every manual pair.
  */
 function buildNeighbours(
   tracks: Track[],
   criteria: CriteriaConfig,
   manualEdges: readonly ManualPair[],
   genreMatch: GenreMatcher,
-): NeighboursOf {
-  if (criteria.threshold === 0 && demandedCount(criteria) === 0) {
-    // Complete graph subsumes every manual pair — but only when nothing is
-    // demanded: a locked criterion still filters every pair, so the
-    // adjacency must be computed from real edges instead.
-    const ids = tracks.map((t) => t.id)
-    return (id) => ids.filter((other) => other !== id)
-  }
-  // Sets, not arrays: an Array.includes guard per edge made this O(E·degree),
-  // tens of seconds at a low threshold on a few thousand tracks.
-  const neighbours = new Map<string, Set<string>>()
-  const connect = (x: string, y: string) => {
-    if (!neighbours.has(x)) neighbours.set(x, new Set())
-    if (!neighbours.has(y)) neighbours.set(y, new Set())
-    neighbours.get(x)!.add(y)
-    neighbours.get(y)!.add(x)
-  }
-  for (const edge of computeEdges(tracks, criteria, genreMatch)) {
-    connect(edge.sourceId, edge.targetId)
-  }
+): Neighbours {
+  const graph = buildComboGraph(tracks, criteria, genreMatch)
   // Manual pairs are roads too — only between tracks that exist.
   const known = new Set(tracks.map((t) => t.id))
+  const manual = new Map<string, string[]>()
   for (const { a, b } of manualEdges) {
-    if (a !== b && known.has(a) && known.has(b)) connect(a, b)
+    if (a === b || !known.has(a) || !known.has(b)) continue
+    manual.set(a, [...(manual.get(a) ?? []), b])
+    manual.set(b, [...(manual.get(b) ?? []), a])
   }
-  const lists = new Map([...neighbours].map(([id, set]) => [id, [...set]]))
-  return (id) => lists.get(id) ?? []
+  return {
+    of(id) {
+      const marked = manual.get(id)
+      return marked === undefined
+        ? graph.partners(id)
+        : [...new Set([...graph.partners(id), ...marked])]
+    },
+    has: (id) => manual.has(id) || graph.hasPartner(id),
+  }
 }
 
 /**
@@ -277,13 +270,16 @@ function buildNeighbours(
  */
 function randomStart(
   tracks: Track[],
-  neighbours: NeighboursOf,
+  neighbours: Neighbours,
   exclude: string | null,
   rand: () => number,
 ): string {
   const eligible = tracks.filter((t) => t.id !== exclude)
   const pool = eligible.length > 0 ? eligible : tracks
-  const connected = pool.filter((t) => neighbours(t.id).length > 0)
+  // ponytail: one early-exit scan per track — O(n²) only when most of the
+  // pool has no combo at all; a seeded probe order would bound it but change
+  // every seeded opener.
+  const connected = pool.filter((t) => neighbours.has(t.id))
   const from = connected.length > 0 ? connected : pool
   return from[Math.min(from.length - 1, Math.floor(rand() * from.length))].id
 }
@@ -291,14 +287,15 @@ function randomStart(
 /** Rank unvisited neighbours of `current` by score (descending, id tie-break). */
 function rankedCandidates(
   current: Track,
-  neighbours: NeighboursOf,
+  neighbours: Neighbours,
   byId: Map<string, Track>,
   used: ReadonlySet<string>,
   criteria: CriteriaConfig,
   genreMatch: GenreMatcher,
   scoreExtra?: (candidate: Track) => number,
 ): { item: string; score: number }[] {
-  return neighbours(current.id)
+  return neighbours
+    .of(current.id)
     .filter((id) => !used.has(id))
     .map((id) => {
       const candidate = byId.get(id)!
@@ -614,7 +611,7 @@ export function nextAnchorId(tracklist: string[], selectedId: string | null): st
  * exhausted: it always has an opener.
  */
 export function nextExhausted(
-  neighbours: ReadonlyMap<string, ReadonlySet<string>>,
+  neighbours: Pick<ReadonlyMap<string, ReadonlySet<string>>, 'get'>,
   tracklist: string[],
   selectedId: string | null,
   complete = false,
@@ -648,7 +645,7 @@ export function nextExhausted(
 type RetryState = 'retry' | 'force-retry' | 'reset-only' | 'none'
 
 export function retryState(
-  neighbours: ReadonlyMap<string, ReadonlySet<string>>,
+  neighbours: Pick<ReadonlyMap<string, ReadonlySet<string>>, 'get'>,
   tracklist: string[],
   lastPick: NextSuggestion | null,
   triedIds: readonly string[],

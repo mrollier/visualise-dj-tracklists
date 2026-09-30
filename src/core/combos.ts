@@ -1,6 +1,7 @@
 import { genreAliases, genreComponents, labelSimilarity, UMBRELLA_GENRES } from './genre'
 import { keysMatch, transposeCamelot } from './keys'
 import type { Track } from './model'
+import { mulberry32 } from './random'
 
 /**
  * The combo engine: decides which pairs of tracks get a suggested-combo edge.
@@ -91,7 +92,7 @@ export const EASY_CRITERIA: CriteriaConfig = {
 /** The metadata fields that act as pairwise combo criteria. */
 export type CriterionField = 'key' | 'bpm' | 'energy' | 'genre' | 'year'
 
-interface ComboEvaluation {
+export interface ComboEvaluation {
   /** Criteria that were enabled and had values on both sides. */
   evaluable: CriterionField[]
   /** Subset of `evaluable` that matched. */
@@ -295,63 +296,151 @@ export function evaluateCombo(
 }
 
 /**
- * The combo edges the wheel actually DRAWS (v9 issue 8): none without a
- * selection, the incident star with one, and — when asked — the edges among
- * the selection's neighbours (the cluster's interconnections). Edges leaving
- * the cluster stay hidden either way. Order-preserving, non-mutating; the
- * full edge set keeps feeding suggestions and adjacency unchanged.
+ * The combo graph, evaluated on demand. Nothing is computed up front: a
+ * track's partners are found by one scan over the library the first time they
+ * are asked for (O(n), about 3 ms at 10k tracks) and kept. Everything the app
+ * asks of the graph starts from one track — the selection's star, the hub's
+ * anchor, a walk's current tip — so a full O(n²) pass is never needed.
+ *
+ * Pairs are always evaluated in library order (earlier track first), exactly
+ * as `computeEdges` does, so the lazy graph and the full edge list agree.
+ *
+ * At require 0 with nothing demanded every pair is a combo: `complete` is set
+ * and nothing is evaluated at all. That graph includes pairs with no shared
+ * metadata, which evaluateCombo would exclude — at "require 0" nothing is
+ * required.
  */
-export function focusEdges(
-  edges: readonly ComboEdge[],
+export interface ComboGraph {
+  readonly complete: boolean
+  readonly tracks: readonly Track[]
+  readonly criteria: CriteriaConfig
+  readonly genreMatch: GenreMatcher
+  /** The combo partners of `id`, in library order; [] for an unknown id. */
+  partners(id: string): readonly string[]
+  /** Whether `id` has any partner, stopping at the first one found. */
+  hasPartner(id: string): boolean
+  /** Evaluate the pair at these library positions, earlier track first. */
+  evaluateAt(i: number, j: number): ComboEvaluation
+}
+
+export function buildComboGraph(
+  tracks: readonly Track[],
+  criteria: CriteriaConfig,
+  genreMatch: GenreMatcher = makeGenreMatcher(
+    tracks.map((t) => t.genre),
+    criteria.genre.k,
+  ),
+): ComboGraph {
+  const complete = criteria.threshold === 0 && demandedCount(criteria) === 0
+  const indexOf = new Map(tracks.map((t, i) => [t.id, i]))
+  const memo = new Map<string, string[]>()
+  const evaluateAt = (i: number, j: number) =>
+    i < j
+      ? evaluateCombo(tracks[i], tracks[j], criteria, genreMatch)
+      : evaluateCombo(tracks[j], tracks[i], criteria, genreMatch)
+  return {
+    complete,
+    tracks,
+    criteria,
+    genreMatch,
+    evaluateAt,
+    partners(id) {
+      const i = indexOf.get(id)
+      if (i === undefined) return []
+      if (complete) return tracks.filter((t) => t.id !== id).map((t) => t.id)
+      let found = memo.get(id)
+      if (found === undefined) {
+        found = []
+        for (let j = 0; j < tracks.length; j++) {
+          if (j !== i && evaluateAt(i, j).isCombo) found.push(tracks[j].id)
+        }
+        memo.set(id, found)
+      }
+      return found
+    },
+    hasPartner(id) {
+      const i = indexOf.get(id)
+      if (i === undefined) return false
+      if (complete) return tracks.length > 1
+      const known = memo.get(id)
+      if (known !== undefined) return known.length > 0
+      for (let j = 0; j < tracks.length; j++) {
+        if (j !== i && evaluateAt(i, j).isCombo) return true
+      }
+      return false
+    },
+  }
+}
+
+/**
+ * The combo edges the wheel actually draws: none without a selection, the
+ * star around it, and — when asked — the edges among its partners (the
+ * cluster's interconnections). Edges leaving the cluster stay hidden. In the
+ * full edge list's order, so the drawing never reshuffles.
+ *
+ * ponytail: the cluster costs O(partners²) evaluations — fine for the few
+ * hundred partners a real selection has; a very loose criterion set on a huge
+ * library makes it the slow path.
+ */
+export function focusEdgesFor(
+  graph: ComboGraph,
   selectedId: string | null,
   includeCluster: boolean,
 ): ComboEdge[] {
   if (selectedId === null) return []
-  if (!includeCluster) {
-    return edges.filter((e) => e.sourceId === selectedId || e.targetId === selectedId)
+  const { tracks } = graph
+  const s = tracks.findIndex((t) => t.id === selectedId)
+  if (s === -1) return []
+  const partnerIds = new Set(graph.partners(selectedId))
+  const members: number[] = []
+  for (let i = 0; i < tracks.length; i++) {
+    if (i === s || partnerIds.has(tracks[i].id)) members.push(i)
   }
-  const neighbourIds = new Set<string>()
-  for (const e of edges) {
-    if (e.sourceId === selectedId) neighbourIds.add(e.targetId)
-    else if (e.targetId === selectedId) neighbourIds.add(e.sourceId)
+  const edges: ComboEdge[] = []
+  for (let x = 0; x < members.length; x++) {
+    for (let y = x + 1; y < members.length; y++) {
+      const i = members[x]
+      const j = members[y]
+      if (!includeCluster && i !== s && j !== s) continue
+      const { matched, isCombo } = graph.evaluateAt(i, j)
+      if (isCombo) edges.push({ sourceId: tracks[i].id, targetId: tracks[j].id, matched })
+    }
   }
-  return edges.filter(
-    (e) =>
-      e.sourceId === selectedId ||
-      e.targetId === selectedId ||
-      (neighbourIds.has(e.sourceId) && neighbourIds.has(e.targetId)),
-  )
+  return edges
 }
 
 /**
- * The combo graph as the stores consume it (v11 issue 2a). At threshold 0
- * every pair is a combo — a complete graph that must NOT be materialized
- * (a real library would allocate n²/2 edge objects), so it is reported
- * symbolically: `complete: true`, no edges, an arithmetic pair count. Note
- * the symbolic graph includes pairs with no shared metadata, which
- * evaluateCombo would exclude — at "require 0" nothing is required.
+ * How many combo pairs the graph holds, for the criteria panel. Exact while
+ * the library has at most `exactLimit` pairs (about 775 tracks by default);
+ * past that, estimated from a fixed-seed sample of pairs, so the same library
+ * and criteria always show the same number.
  */
-interface ComboView {
-  edges: ComboEdge[]
-  complete: boolean
-  pairCount: number
+export function countComboPairs(
+  graph: ComboGraph,
+  { exactLimit = 300_000, samples = 200_000 } = {},
+): { count: number; approximate: boolean } {
+  const n = graph.tracks.length
+  const pairs = n < 2 ? 0 : (n * (n - 1)) / 2
+  if (graph.complete) return { count: pairs, approximate: false }
+  if (pairs <= exactLimit) {
+    let count = 0
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) if (graph.evaluateAt(i, j).isCombo) count++
+    }
+    return { count, approximate: false }
+  }
+  const rand = mulberry32(PAIR_SAMPLE_SEED)
+  let hits = 0
+  for (let k = 0; k < samples; k++) {
+    const i = Math.floor(rand() * n)
+    let j = Math.floor(rand() * (n - 1))
+    if (j >= i) j++
+    if (graph.evaluateAt(i, j).isCombo) hits++
+  }
+  return { count: Math.round((hits / samples) * pairs), approximate: true }
 }
 
-export function computeComboView(
-  tracks: Track[],
-  criteria: CriteriaConfig,
-  genreMatch?: GenreMatcher,
-): ComboView {
-  // The symbolic complete graph only holds when nothing is required AND
-  // nothing is demanded: a locked criterion still filters every pair, so
-  // those edges must be materialized, not assumed.
-  if (criteria.threshold === 0 && demandedCount(criteria) === 0) {
-    const n = tracks.length
-    return { edges: [], complete: true, pairCount: n < 2 ? 0 : (n * (n - 1)) / 2 }
-  }
-  const edges = computeEdges(tracks, criteria, genreMatch)
-  return { edges, complete: false, pairCount: edges.length }
-}
+const PAIR_SAMPLE_SEED = 0x5eed
 
 /**
  * Flip one criterion on/off, keeping the N-of-M threshold honest. Enabling a

@@ -10,10 +10,11 @@ Items marked **(Wave B)** are scheduled in the v41 plan.
 
 ## Performance ceilings (deliberate; keep the upgrade paths)
 
-- Combo computation is O(n²) on the main thread (`src/stores.ts`, ponytail
-  note). **(Wave B)** replaces the materialised edge list with a lazy graph; a
-  Web Worker plus candidate bucketing stays the next step if that is not
-  enough.
+- The combo graph is lazy (one O(n) scan per track asked about), but two
+  paths can still approach O(n²) on a huge, loosely matched library: the
+  focus cluster (O(partners²), `focusEdgesFor`) and the random opener when most
+  of the pool has no combo (`randomStart`). Both are ponytail-marked; a Web
+  Worker plus candidate bucketing is the next step if either shows up.
 - Same-slot wheel layout is O(m²) and the wheel draws one SVG node per track
   (`src/core/layout.ts`, ponytail note). **(Wave B)** guards large visible
   counts; canvas or level-of-detail rendering is a separate product decision.
@@ -63,9 +64,6 @@ Items marked **(Wave B)** are scheduled in the v41 plan.
 - The artist term is hand-summed into four `extra` builders, so each new
   per-transition preference must be copied four times. A merge must keep
   `rand()` consumption unchanged.
-- `randomStart` calls `neighbours(id)` for every track just to test its
-  length, allocating an (n−1)-element array per track on the complete graph.
-  **(Wave B)**
 - `sameArtist` re-normalises the current tip's artist once per candidate;
   once per step would do.
 - The engine defaults `avoidSameArtist` to false while the app ships true

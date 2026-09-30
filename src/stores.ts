@@ -1,10 +1,11 @@
 import { derived, get, writable, type Readable, type Writable } from 'svelte/store'
 import { mergeAnalysis, mergeSidecars, type AnalysisSidecar } from './core/analysis'
 import {
-  computeComboView,
+  buildComboGraph,
+  countComboPairs,
   DEFAULT_CRITERIA,
   EASY_CRITERIA,
-  focusEdges as computeFocusEdges,
+  focusEdgesFor,
   makeGenreMatcher,
   type CriteriaConfig,
 } from './core/combos'
@@ -425,8 +426,8 @@ function marksContextEqual(a: MarksContext | null, b: MarksContext | null): bool
  * The marks quick-filters' live context (v18 #3/#8, widened v25): `null`
  * while `starredOnly`/`comboOnly`/`constellationOnly` are all off, so
  * `visibleLibrary` stays inert to mustInclude/pin/manualEdges/tracklist
- * churn — the perf gate, since `visibleLibrary` feeds `computeComboView`,
- * which is O(n²), and would otherwise recompute on every star click (or
+ * churn — the perf gate, since `visibleLibrary` feeds the combo graph and
+ * its pair count, which would otherwise rebuild on every star click (or
  * constellation edit) even with the filters off. Wrapped in `distinct` so
  * an on-flag recompute that lands on the same id SET (not just a new
  * object) doesn't cascade either. Reads `effectiveFilters` (not raw
@@ -677,45 +678,42 @@ export const genreMatcher = derived([augmentedLibrary, genreK], ([$augmentedLibr
 )
 
 /**
- * The combo graph, possibly symbolic: at threshold 0 every pair is a combo
- * and the edge list stays empty — consumers read `complete` and `pairCount`
- * instead of materializing n²/2 edges.
+ * The combo graph over the visible library. Lazy: building it costs nothing,
+ * and each track's partners are found (and kept) the first time something
+ * asks — the selection's star, the hub, the retry ring.
  */
-// ponytail: O(n²) pairs — usable to ~3-5k visible tracks.
-const comboView = derived(
+const comboGraph = derived(
   [visibleLibrary, settledCriteria, genreMatcher],
   ([$visibleLibrary, $settledCriteria, $genreMatcher]) =>
-    computeComboView($visibleLibrary, $settledCriteria, $genreMatcher),
+    buildComboGraph($visibleLibrary, $settledCriteria, $genreMatcher),
 )
 
-export const edges = derived(comboView, ($comboView) => $comboView.edges)
-export const comboComplete = derived(comboView, ($comboView) => $comboView.complete)
-export const comboPairCount = derived(comboView, ($comboView) => $comboView.pairCount)
+/** Require 0 with nothing demanded: every visible pair is a combo. */
+export const comboComplete = derived(comboGraph, ($graph) => $graph.complete)
+
+/** The criteria panel's pair count — estimated past a few hundred thousand pairs. */
+export const comboPairCount = derived(comboGraph, ($graph) => countComboPairs($graph))
 
 /**
- * The combo edges the wheel actually draws (v9 issue 8): the star around the
- * selected track, plus the cluster's interconnections when the setting asks.
- * No selection = no edges; the full `edges` set above keeps feeding
- * suggestions, retry and adjacency. On a complete graph (threshold 0) the
- * star is synthesized around the selection — the cluster option is ignored
- * there, since "the cluster" would be every pair on the wheel.
- */
-/**
  * Primitive projection, so svelte's own dedup absorbs unrelated settings
- * churn (v37) — an edge-opacity drag no longer re-filters O(E) edges.
+ * churn — an edge-opacity drag no longer recomputes the focus edges.
  */
 const focusClusterEdges = derived(effectiveSettings, ($s) => $s.focusClusterEdges)
 
+/**
+ * The combo edges the wheel draws: the star around the selected track, plus
+ * the cluster's interconnections when the setting asks. No selection = no
+ * edges. On a complete graph the star is every other visible track, and the
+ * cluster option is ignored, since "the cluster" would be every pair.
+ */
 export const focusEdges = derived(
-  [edges, selectedId, focusClusterEdges, comboComplete, visibleLibrary],
-  ([$edges, $selectedId, $focusClusterEdges, $comboComplete, $visibleLibrary]) => {
-    if ($comboComplete) {
-      if ($selectedId === null) return []
-      return $visibleLibrary
-        .filter((t) => t.id !== $selectedId)
-        .map((t) => ({ sourceId: $selectedId, targetId: t.id, matched: [] }))
-    }
-    return computeFocusEdges($edges, $selectedId, $focusClusterEdges)
+  [comboGraph, selectedId, focusClusterEdges],
+  ([$graph, $selectedId, $focusClusterEdges]) => {
+    if (!$graph.complete) return focusEdgesFor($graph, $selectedId, $focusClusterEdges)
+    if ($selectedId === null || !$graph.tracks.some((t) => t.id === $selectedId)) return []
+    return $graph.tracks
+      .filter((t) => t.id !== $selectedId)
+      .map((t) => ({ sourceId: $selectedId, targetId: t.id, matched: [] }))
   },
 )
 
@@ -781,21 +779,33 @@ export function selectOrLink(id: string): void {
 /** Link mode: the selected track is armed; the next wheel click marks/unmarks. */
 export const linkArmed = writable(false)
 
-/** Adjacency: for each track id, the ids it shares a combo edge with —
- * manual pairs included (v12 WS9), so the hub, retry ring and focus star all
- * treat a marked combo as a road. */
+/**
+ * Adjacency: the ids a track shares a combo with, manual pairs included, so
+ * the hub, retry ring and focus star all treat a marked combo as a road.
+ * Computed per track on first ask. On a complete graph only the manual pairs
+ * are listed — every consumer checks `comboComplete` first.
+ */
 export const neighbours = derived(
-  [edges, effectiveManualEdges],
-  ([$edges, $effectiveManualEdges]) => {
-    const map = new Map<string, Set<string>>()
-    const connect = (x: string, y: string) => {
-      if (!map.has(x)) map.set(x, new Set())
-      if (!map.has(y)) map.set(y, new Set())
-      map.get(x)!.add(y)
-      map.get(y)!.add(x)
+  [comboGraph, effectiveManualEdges],
+  ([$graph, $effectiveManualEdges]) => {
+    const manual = new Map<string, string[]>()
+    for (const { a, b } of $effectiveManualEdges) {
+      manual.set(a, [...(manual.get(a) ?? []), b])
+      manual.set(b, [...(manual.get(b) ?? []), a])
     }
-    for (const e of $edges) connect(e.sourceId, e.targetId)
-    for (const e of $effectiveManualEdges) connect(e.a, e.b)
-    return map
+    const memo = new Map<string, ReadonlySet<string>>()
+    return {
+      get(id: string): ReadonlySet<string> {
+        let found = memo.get(id)
+        if (found === undefined) {
+          found = new Set([
+            ...($graph.complete ? [] : $graph.partners(id)),
+            ...(manual.get(id) ?? []),
+          ])
+          memo.set(id, found)
+        }
+        return found
+      },
+    }
   },
 )

@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import {
-  computeComboView,
+  buildComboGraph,
   computeEdges,
+  countComboPairs,
   DEFAULT_CRITERIA,
   demandedCount,
-  focusEdges,
+  focusEdgesFor,
   evaluateCombo,
   makeGenreMatcher,
   matchedGenrePairs,
@@ -13,7 +14,7 @@ import {
 } from '../src/core/combos'
 import type { ComboEdge, CriteriaConfig } from '../src/core/combos'
 import { setGenreBridge } from '../src/core/genre'
-import { track } from './helpers'
+import { randomLibrary, track } from './helpers'
 
 function config(overrides: Partial<CriteriaConfig> = {}): CriteriaConfig {
   return { ...structuredClone(DEFAULT_CRITERIA), ...overrides }
@@ -996,72 +997,6 @@ describe('threshold logic', () => {
   })
 })
 
-describe('computeComboView (v11 issue 2a: threshold 0 goes symbolic)', () => {
-  const tracks = [
-    track({
-      key: '8A',
-      bpm: 128,
-      genre: 'Techno',
-      year: 2020,
-      rating: 4,
-      id: 'a',
-    }),
-    track({
-      rating: 4,
-      id: 'b',
-      key: '3B',
-      bpm: 174,
-      genre: 'DnB',
-      year: 1998,
-    }),
-    track({
-      key: '8A',
-      genre: 'Techno',
-      year: 2020,
-      rating: 4,
-      id: 'c',
-      bpm: 126,
-    }),
-    track({
-      rating: 4,
-      id: 'd',
-      key: null,
-      bpm: null,
-      genre: null,
-      year: null,
-    }),
-  ]
-
-  test('threshold ≥ 1 materializes edges as before', () => {
-    const view = computeComboView(tracks, config({ threshold: 3 }))
-    expect(view.complete).toBe(false)
-    expect(view.edges).toEqual(computeEdges(tracks, config({ threshold: 3 })))
-    expect(view.pairCount).toBe(view.edges.length)
-  })
-
-  test('threshold 0 reports the complete graph without materializing it', () => {
-    const view = computeComboView(tracks, config({ threshold: 0 }))
-    expect(view.complete).toBe(true)
-    expect(view.edges).toEqual([])
-    expect(view.pairCount).toBe((4 * 3) / 2) // every pair, metadata or not
-  })
-
-  test('an empty library is complete-with-zero-pairs at threshold 0', () => {
-    const view = computeComboView([], config({ threshold: 0 }))
-    expect(view.pairCount).toBe(0)
-    expect(view.edges).toEqual([])
-  })
-
-  test('threshold 0 with a demanded criterion is NOT the complete graph (v14 C2)', () => {
-    // A locked criterion still filters every pair, so the symbolic shortcut
-    // must not fire — the view materializes real edges instead.
-    const cfg = config({ threshold: 0, year: { ...DEFAULT_CRITERIA.year, demanded: true } })
-    const view = computeComboView(tracks, cfg)
-    expect(view.complete).toBe(false)
-    expect(view.edges).toEqual(computeEdges(tracks, cfg))
-  })
-})
-
 describe('toggleCriterion (v14 C1: enabling ALWAYS requires the new criterion)', () => {
   test('enabling a criterion bumps a require-all threshold', () => {
     // key + bpm enabled, require 2 of 2 → enabling year reads 3 of 3.
@@ -1370,49 +1305,166 @@ describe('computeEdges', () => {
   })
 })
 
-describe('focusEdges (v9 issue 8)', () => {
-  const edge = (sourceId: string, targetId: string): ComboEdge => ({
-    sourceId,
-    targetId,
-    matched: ['key'],
+/**
+ * The focus rule over a full edge list — the reference `focusEdgesFor` must
+ * reproduce without ever building that list.
+ */
+function focusEdges(edges: ComboEdge[], selectedId: string | null, includeCluster: boolean) {
+  if (selectedId === null) return []
+  const partners = new Set<string>()
+  for (const e of edges) {
+    if (e.sourceId === selectedId) partners.add(e.targetId)
+    else if (e.targetId === selectedId) partners.add(e.sourceId)
+  }
+  return edges.filter(
+    (e) =>
+      e.sourceId === selectedId ||
+      e.targetId === selectedId ||
+      (includeCluster && partners.has(e.sourceId) && partners.has(e.targetId)),
+  )
+}
+
+describe('focusEdgesFor', () => {
+  // a's partners are b and c (same key); b–c interlink; d links only to c.
+  const tracks = [
+    track({ id: 'a', key: '8A' }),
+    track({ id: 'b', key: '8A' }),
+    track({ id: 'c', key: '8A', bpm: 120 }),
+    track({ id: 'd', key: '1B', bpm: 120 }),
+  ]
+  const cfg = config({
+    threshold: 1,
+    bpm: { ...DEFAULT_CRITERIA.bpm, enabled: true },
+    genre: { ...DEFAULT_CRITERIA.genre, enabled: false },
+    energy: { ...DEFAULT_CRITERIA.energy, enabled: false },
+    year: { ...DEFAULT_CRITERIA.year, enabled: false },
   })
-  // a's neighbours are b and c; b–c interlink; c–d leaves the cluster.
-  const edges = [edge('a', 'b'), edge('c', 'a'), edge('b', 'c'), edge('c', 'd'), edge('d', 'e')]
+  const ids = (edges: ComboEdge[]) => edges.map((e) => `${e.sourceId}-${e.targetId}`)
 
   test('no selection means no edges at all', () => {
-    expect(focusEdges(edges, null, false)).toEqual([])
-    expect(focusEdges(edges, null, true)).toEqual([])
+    expect(focusEdgesFor(buildComboGraph(tracks, cfg), null, true)).toEqual([])
   })
 
-  test('the star: edges incident to the selection, as source AND as target', () => {
-    expect(focusEdges(edges, 'a', false)).toEqual([edge('a', 'b'), edge('c', 'a')])
+  test('the star: edges incident to the selection, earlier track as source', () => {
+    expect(ids(focusEdgesFor(buildComboGraph(tracks, cfg), 'c', false))).toEqual([
+      'a-c',
+      'b-c',
+      'c-d',
+    ])
   })
 
-  test('cluster off excludes neighbour-to-neighbour edges', () => {
-    expect(focusEdges(edges, 'a', false)).not.toContainEqual(edge('b', 'c'))
-  })
-
-  test('cluster on adds neighbour interlinks but never edges leaving the cluster', () => {
-    const out = focusEdges(edges, 'a', true)
-    expect(out).toContainEqual(edge('b', 'c'))
-    expect(out).not.toContainEqual(edge('c', 'd'))
-    expect(out).not.toContainEqual(edge('d', 'e'))
-  })
-
-  test('a selection with no incident edges shows nothing, cluster or not', () => {
-    expect(focusEdges(edges, 'z', true)).toEqual([])
-  })
-
-  test('preserves input order and never mutates the input', () => {
-    const copy = edges.map((e) => ({ ...e }))
-    const out = focusEdges(edges, 'a', true)
-    expect(out.map((e) => `${e.sourceId}-${e.targetId}`)).toEqual(['a-b', 'c-a', 'b-c'])
-    expect(edges).toEqual(copy)
+  test('the cluster adds partner interlinks but never edges leaving it', () => {
+    expect(ids(focusEdgesFor(buildComboGraph(tracks, cfg), 'a', true))).toEqual([
+      'a-b',
+      'a-c',
+      'b-c',
+    ])
   })
 })
 
 describe('BPM tolerance default (v12 WS14, ISSUES.md stub)', () => {
   test('defaults to 8% — the pitch-bend range of a classic Technics', () => {
     expect(DEFAULT_CRITERIA.bpm.maxPercent).toBe(8)
+  })
+})
+
+describe('the lazy combo graph', () => {
+  const tracks = randomLibrary(160, 7)
+  const configs: [string, CriteriaConfig][] = [
+    ['the defaults', config()],
+    ['require 1', config({ threshold: 1 })],
+    ['require 3', config({ threshold: 3 })],
+    ['a demanded key', config({ key: { ...DEFAULT_CRITERIA.key, demanded: true } })],
+    [
+      'require 0 with a demanded year',
+      config({ threshold: 0, year: { ...DEFAULT_CRITERIA.year, demanded: true } }),
+    ],
+  ]
+  /** Today's reference: the adjacency the full edge list implies, in library order. */
+  const adjacency = (edges: ComboEdge[]) => {
+    const map = new Map(tracks.map((t) => [t.id, new Set<string>()]))
+    for (const e of edges) {
+      map.get(e.sourceId)!.add(e.targetId)
+      map.get(e.targetId)!.add(e.sourceId)
+    }
+    const order = new Map(tracks.map((t, i) => [t.id, i]))
+    return (id: string) => [...map.get(id)!].sort((a, b) => order.get(a)! - order.get(b)!)
+  }
+
+  test.each(configs)('partners match the full edge list, in library order (%s)', (_, cfg) => {
+    const genreMatch = makeGenreMatcher(
+      tracks.map((t) => t.genre),
+      cfg.genre.k,
+    )
+    const expected = adjacency(computeEdges(tracks, cfg, genreMatch))
+    const graph = buildComboGraph(tracks, cfg, genreMatch)
+    expect(graph.complete).toBe(false)
+    for (const t of tracks) {
+      expect(graph.partners(t.id)).toEqual(expected(t.id))
+      expect(graph.hasPartner(t.id)).toBe(expected(t.id).length > 0)
+    }
+  })
+
+  test('require 0 with nothing demanded is the complete graph', () => {
+    const graph = buildComboGraph(tracks, config({ threshold: 0 }))
+    expect(graph.complete).toBe(true)
+    expect(graph.partners('t3')).toEqual(tracks.map((t) => t.id).filter((id) => id !== 't3'))
+    expect(graph.hasPartner('t3')).toBe(true)
+  })
+
+  test('an unknown id has no partners', () => {
+    const graph = buildComboGraph(tracks, config())
+    expect(graph.partners('nope')).toEqual([])
+    expect(graph.hasPartner('nope')).toBe(false)
+  })
+
+  test.each(configs)('focus edges equal the full edge list filtered (%s)', (_, cfg) => {
+    const genreMatch = makeGenreMatcher(
+      tracks.map((t) => t.genre),
+      cfg.genre.k,
+    )
+    const edges = computeEdges(tracks, cfg, genreMatch)
+    const graph = buildComboGraph(tracks, cfg, genreMatch)
+    for (const selected of [null, 't0', 't1', 't42', 't159']) {
+      for (const cluster of [false, true]) {
+        expect(focusEdgesFor(graph, selected, cluster)).toEqual(
+          focusEdges(edges, selected, cluster),
+        )
+      }
+    }
+  })
+
+  test('the pair count is exact while the library is small enough', () => {
+    const cfg = config()
+    const genreMatch = makeGenreMatcher(
+      tracks.map((t) => t.genre),
+      cfg.genre.k,
+    )
+    expect(countComboPairs(buildComboGraph(tracks, cfg, genreMatch))).toEqual({
+      count: computeEdges(tracks, cfg, genreMatch).length,
+      approximate: false,
+    })
+  })
+
+  test('a complete graph counts every pair exactly', () => {
+    expect(countComboPairs(buildComboGraph(tracks, config({ threshold: 0 })))).toEqual({
+      count: (160 * 159) / 2,
+      approximate: false,
+    })
+  })
+
+  test('past the exact limit the count is a close, repeatable estimate', () => {
+    const big = randomLibrary(700, 3)
+    const cfg = config()
+    const genreMatch = makeGenreMatcher(
+      big.map((t) => t.genre),
+      cfg.genre.k,
+    )
+    const exact = computeEdges(big, cfg, genreMatch).length
+    const graph = buildComboGraph(big, cfg, genreMatch)
+    const estimate = countComboPairs(graph, { exactLimit: 1000, samples: 50_000 })
+    expect(estimate.approximate).toBe(true)
+    expect(Math.abs(estimate.count - exact) / exact).toBeLessThan(0.05)
+    expect(countComboPairs(graph, { exactLimit: 1000, samples: 50_000 })).toEqual(estimate)
   })
 })

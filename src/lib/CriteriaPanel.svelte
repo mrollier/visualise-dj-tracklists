@@ -29,6 +29,12 @@
 
   // Demanded (locked) criteria are mandatory and floor the threshold (v14 C2).
   const floor = $derived(demandedCount($criteria))
+  // Past a few hundred thousand pairs the count is a sample estimate: show it
+  // as one ("≈ 1.2M"), not as a precise-looking number.
+  const approxCount = new Intl.NumberFormat('en', {
+    notation: 'compact',
+    maximumSignificantDigits: 2,
+  })
 
   // Lock/unlock a criterion as mandatory. Hidden while the criterion is
   // disabled, so this only fires on an enabled row.
@@ -88,7 +94,11 @@
       <span class="label">tracks</span>
     </div>
     <div class="stat">
-      <span class="value">{$comboPairCount}</span>
+      <span class="value"
+        >{#if $comboPairCount.approximate}≈ {approxCount.format(
+            $comboPairCount.count,
+          )}{:else}{$comboPairCount.count}{/if}</span
+      >
       <span class="label">combo suggestions</span>
     </div>
   </div>
