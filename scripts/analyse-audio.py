@@ -60,10 +60,10 @@ SAMPLE_RATE = 44100
 MODEL_SAMPLE_RATE = 16000
 
 # Rekordbox's own sampler content: one-shots, FX stabs and breaks kits. They
-# have no key and no tempo by nature, and the app does NOT confidence-gate
-# energy — so without this default NOISE.wav acquires an arousal-derived
-# energy and joins the combo graph. Verified: NOISE.wav scores BPM confidence
-# 0.00 and key strength 0.25, but arousal 5.37 and danceability 0.898.
+# have no key and no tempo by nature, and the mood descriptors are not
+# confidence-gated — so without this default NOISE.wav acquires a mood.
+# Verified: NOISE.wav scores BPM confidence 0.00 and key strength 0.25, but
+# arousal 5.37 and danceability 0.898.
 DEFAULT_EXCLUDES = ("/Sampler/",)
 
 # RhythmExtractor2013's confidence is on a 0-5.32 scale, not 0-1. Essentia's

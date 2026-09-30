@@ -1,5 +1,9 @@
 # Distance measures in genre space
 
+> **Status (2026-09-30):** the app now ships only the hybrid measure (§ on retrofitting)
+> — the embedding retrofitted toward the curated tree, with mutual top-k matching. The
+> comparison of all six measures below is the record of how that choice was made.
+
 Technical choices, the evidence behind them, a plan for what comes next, and the
 blind spots where more research is needed. Sources cited as `[name]` are local
 PDFs in [`docs/articles/`](../articles/); the research reports that led to them

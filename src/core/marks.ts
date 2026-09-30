@@ -2,19 +2,17 @@ import { applyPlaylistFilter } from './filter'
 import type { ManualEdge, Playlist, Track } from './model'
 
 /**
- * The four permanent left-panel pseudo-rows (v18 #3/#8, made permanent and
- * widened to three v23, widened to four v25): quick filters that live in
+ * The four permanent left-panel pseudo-rows: quick filters that live in
  * the filter panel but aren't backed by a `TrackProperty`. ★ Starred,
  * 🔗 Combos and ☰ Constellation narrow the wheel to tracks carrying a
- * session mark — starred (any non-none star state, `pins.ts`'s
- * `StarState`), a manual-combo endpoint, or a member of the current
- * constellation (`stores.ts`'s `tracklist`). All three booleans live on
+ * mark — starred (any non-none star state, `pins.ts`'s `StarState`), a
+ * manual-combo endpoint, or a member of the current constellation
+ * (`stores.ts`'s `tracklist`). All three booleans live on
  * `LibraryFilters.marks` (filter.ts) and AND together with every other
  * filter dimension there. ♪ Keys is the odd one out: it has no marks flag
- * of its own and instead drives `filters.keyRings` directly (F5's
- * minor/major ring toggle pair). Unlike every other filter field, a
- * saved-active marks filter is never honoured on load — see filter.ts's
- * `migrateFilters` for why.
+ * of its own and instead drives `filters.keyRings` directly (the
+ * minor/major ring toggle pair). Marks are saved per constellation, so a
+ * saved-active marks filter is honoured on load like any other filter.
  */
 export interface MarksFilter {
   starredOnly: boolean

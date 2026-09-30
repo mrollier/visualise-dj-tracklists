@@ -17,12 +17,18 @@ Your library never leaves your machine — there is no backend, no account, no u
   named after the file, _and_ your set in playlist order), a CSV, tagged audio files
   (ID3/Vorbis/MP4, read in the browser), or an **M3U8 playlist** — M3U8s become your
   set, matched against the library, and entries that aren't in the library yet pick
-  up their metadata when you import the collection XML later. The **Load sample**
-  button loads one **Sample collection**: eleven themed fictional crates plus the
-  classic demo, each as a playlist, behaving exactly like an imported collection —
-  including a **Genre Atlas** from jazz to gabber that gives the genre views room
-  to shine. The **first sample load opens a five-step guided tour** (the app stays
-  interactive under it; replay it any time from the status ⓘ).
+  up their metadata when you import the collection XML later. **Re-importing your
+  collection updates it in place**: export it from Rekordbox again after adding
+  tracks and import it — every constellation, ★ mark, 🔗 combo and the playlist
+  selection carry across, matched by Rekordbox track ID (checked against the file or
+  artist and title, since IDs repeat across databases), and the ⓘ report says what
+  changed: "+12 new · −3 gone · 5 changed key/BPM". Anything that would drop work
+  asks first, and so does importing a different collection over yours. The
+  **Load sample** button loads one **Sample collection**: eleven themed fictional
+  crates plus the classic demo, each as a playlist, behaving exactly like an imported
+  collection — including a **Genre Atlas** from jazz to gabber that gives the genre
+  views room to shine. The **first sample load opens a short guided tour** (the app
+  stays interactive under it; replay it any time from the status ⓘ).
 - **Work per playlist**: any collection with playlists (XML or the sample) starts
   with an **empty wheel** and a Playlists panel on the left — toggle the playlists
   you want (plus a "Not in a playlist" bucket for the rest) instead of drowning in
@@ -33,7 +39,7 @@ Your library never leaves your machine — there is no backend, no account, no u
   its star of compatible neighbours by default, plus the cluster's own interconnections
   with an advanced toggle — an unselected wheel stays a clean constellation (the set's
   walk is always visible). Tracks without a key sit in a labelled gutter at
-  their true BPM. Zoom to resolve detail — node disks keep their size while the
+  their value on the radius axis. Zoom to resolve detail — node disks keep their size while the
   structure magnifies. Node **shapes** (circle, square, triangle, …) carry a class of
   your choosing: **genre families** from the curated genre tree (the default —
   deterministic, and never reshuffled by criterion changes), your selected
@@ -79,11 +85,12 @@ Your library never leaves your machine — there is no backend, no account, no u
 - **Browse the tracks**: the third central view is a classic sortable table of
   everything the wheel shows — playlists AND filters scope it — with every column
   sortable (keys in Camelot order, missing values last, ratings as stars), and the
-  sort survives view switches. Every track property — **28 of them, everything the
-  Rekordbox XML carries**, from Artist to Play count to file Location — has a row
-  in the advanced **"Track properties" table** with two checkboxes: **shown as a
-  column** here, and **shown as a filter** in the left panel — except its last
-  three rows (★ Starred, 🔗 Combos, 🎵 Keys), which carry a **single shared tick**
+  sort survives view switches. Every track property — **everything the Rekordbox
+  XML carries**, from Artist to Play count to file Location, plus the analysed ones
+  once an analysis file is loaded — has a row in the advanced **"Track properties"
+  table** with two checkboxes: **shown as a column** here, and **shown as a
+  filter** in the left panel — except its last four rows (★ Starred, ☰
+  Constellation, 🔗 Combos, 🎵 Keys), which carry a **single shared tick**
   governing the left-panel filter row and the Tracks-view control together.
   **Drag the headers** to reorder columns; a hidden column remembers its place.
   Clicking a row selects it everywhere and highlights its combo neighbours. Two
@@ -101,8 +108,8 @@ Your library never leaves your machine — there is no backend, no account, no u
   every metadata column** — the set panel's list, fleshed out (it disables
   while the set is empty, and the sort triangle hides while set order
   rules).
-- **Filter on anything**: BPM / year / rating ranges show by default, and now so
-  do the three mark/ring filters — ★ Starred, 🔗 Combos, 🎵 Keys — grouped below
+- **Filter on anything**: BPM / year / rating ranges show by default, and so do
+  the four mark/ring filters — ★ Starred, ☰ Constellation, 🔗 Combos, 🎵 Keys — grouped below
   them under a subtle rule; **any other property** joins them via the
   Track-properties table (hiding a filter also clears it). Each control matches
   the **nature** of its field: numeric ranges step through their values with the
@@ -132,7 +139,7 @@ Your library never leaves your machine — there is no backend, no account, no u
   selection. **Energy** (1–10) joins the filterable properties when your Comments
   carry Mixed-In-Key-style "Energy N" tags — parsed at import, and available as
   the wheel's radius and colour axis too.
-- **Tune the criteria**: key / BPM / genre / year each toggleable and ranged (the
+- **Tune the criteria**: key / BPM / energy / genre / year each toggleable and ranged (the
   parameters stay editable even while a criterion is switched off); an edge appears
   when at least _N_ of the enabled criteria match, _N_ set with a **row of boxes**
   (fill as many as you require — down to **zero**, where everything connects).
@@ -149,20 +156,20 @@ Your library never leaves your machine — there is no backend, no account, no u
   Technics fader — and goes down to **0% for exact matches**. BPM matches at every
   enabled **metric ratio**: unit time (1:1, on by default — switch it off to isolate
   the exotic combos), **half/double time** (85 ↔ 170), and **2/3 time** (128 ↔ 192,
-  triplet ↔ four-on-the-floor). The **+2** and **+7-semitone** key moves toggle
-  independently; **vinyl mode** models the physics of beatmatching on turntables —
+  triplet ↔ four-on-the-floor). The **+2** (a whole tone) and **+7** (one semitone)
+  key moves on the wheel toggle independently; **vinyl mode** models the physics of beatmatching on turntables —
   pitch shifts the key with the tempo, so keys are always compared _after_ that shift:
   same-key tracks at different tempos detune apart, and clean-semitone gaps transpose
   into new matches. Toggling it visibly rewires the graph.
-- **Match genres that aren't spelled the same**: six selectable similarity methods
-  (see below) — chosen in the advanced menu (with sourced explainers behind info
-  icons), the combo panel showing a subtle note of the active method. The criterion
-  defaults to the **hybrid** method
-  with **mutual top-k** matching — each genre links to its k nearest genres in
-  _your_ library when the closeness is mutual — which self-calibrates across dense
-  (electronic) and sparse genre regions; a classic score threshold remains available.
-  Umbrella tags ("Electronic", "Dance") never drive a match, and multi-genre fields
-  ("House / Techno") match through their best component.
+- **Match genres that aren't spelled the same**: genres are compared through a
+  similarity pack learned from real-world tagging data and anchored to a curated
+  genre tree (see below), with **mutual top-k** matching — each genre links to its
+  k nearest genres in _your_ library when the closeness is mutual, which
+  self-calibrates across dense (electronic) and sparse genre regions. One knob, k,
+  in Advanced → Genre matching. The vocabulary is your whole library, so filtering
+  never changes whether two genres match. Umbrella tags ("Electronic", "Dance")
+  never drive a match, and multi-genre fields ("House / Techno") match through
+  their best component.
 - **Or let the audio pick the genre**: with an analysis sidecar loaded, Advanced →
   Genre matching can read the style predicted from the audio (one of 400 Discogs
   styles) instead of your own label, above a confidence you set. Your genres are
@@ -181,7 +188,7 @@ Your library never leaves your machine — there is no backend, no account, no u
   warning-coloured **force retry** with a small **⟲** that restores the original
   pick, and once everything has been tried only the ⟲ remains. When no track matches
   your criteria from there, the hub itself pulses into a **force** state — a forced
-  pick gently prefers keys a **±2/±7-semitone move** away — and it greys out once
+  pick gently prefers keys a **+2 or +7 move** away on the wheel — and it greys out once
   every visible track is in the set. **Cmd+Z / Cmd+Shift+Z** undo and redo set
   edits, selection changes **and your settings/criteria tweaks** (a slider drag
   lands as one step; the theme, easy mode and fold state deliberately stay put).
@@ -202,7 +209,7 @@ Your library never leaves your machine — there is no backend, no account, no u
   BPM and genre come from Rekordbox and stay read-only here.
 - **Keep several sets — they ARE the suggestion browser**: the set panel's header
   shows the **active set's name** over up to **eight named sets** — ＋ counts
-  onward from what you have ("Third Set" after two renamed ones), ✎ renames inline
+  onward from what you have ("Third" after two renamed ones), ✎ renames inline
   (clashes auto-suffix to "Name (2)"), and a subtle ✨ badge marks a set that is
   untouched generator output. **✨ Suggest a set from the wheel** regenerates such
   a set **in place** (Cmd+Z steps back through the previous suggestions) and
@@ -215,13 +222,15 @@ Your library never leaves your machine — there is no backend, no account, no u
   persist with the project.
 - **Shape the generated order**: pick the opening/closing track and the essential
   (must-include ★) tracks in the **Tracks view** — the same pins as 📌 on the set's
-  first/last rows; with both ends set, the walk grows from both ends inward. An
+  first/last rows. They belong to the constellation you set them on: saved with
+  it, undoable, and switching sets switches them. With both ends set, the walk
+  grows from both ends inward. An
   essential track is a **hard guarantee**: the generated set _will_ contain it,
   reserving a slot so filler can't crowd it out, trying a harmonious route first
   and **forcing a criteria-breaking edge only as a last resort** — and it never
   loses its place to the adventurousness knob (if you star more essentials than
-  the set length, they all still go in). The advanced menu's **Set & suggestions**
-  section lists those choices (with ✕ to remove), and sets the **BPM progression**
+  the set length, they all still go in). The advanced menu's **Constellation &
+  suggestions** section lists those choices (with ✕ to remove), and sets the **BPM progression**
   — steady, rising, falling, or a sawtooth that builds and drops in cycles — an
   **adventurousness** setting for how much dissonance the generator embraces, and
   a **manual-combo pull** weight that dials how hard the set-builder routes
@@ -250,12 +259,16 @@ Your library never leaves your machine — there is no backend, no account, no u
   Every ⓘ in the app also **pins open on click** — links inside stay reachable —
   and positions itself to never clip at a panel edge.
 - **Take it with you**: export the set as M3U8 (Rekordbox re-imports it) or CSV —
-  or as a **set portrait**: the walk over the wheel as a standalone SVG/PNG
+  or as a **set portrait**: the walk over the wheel as a standalone PNG or SVG
   poster, numbered badges on the map and the tracklist down the side, in either
-  theme. Save the whole project as JSON — every export asks for a filename first.
-  Everything autosaves to the browser; a Reset button (with confirmation) wipes
-  the slate. The app is also a **PWA**: install it from the browser and it opens
-  like a double-click application, offline included (from the second visit on).
+  theme. Save the whole project as JSON with **⌘S**. Where the browser has a save
+  dialog (Chrome, Edge) you name the file and pick the format there; elsewhere it
+  downloads under the collection's and the set's name. Everything autosaves to the
+  browser (IndexedDB, so a large library fits); a second tab of the app opens
+  read-only rather than overwriting the first, and a Reset button (with
+  confirmation) wipes the slate. The app is also a **PWA**: install it from the
+  browser and it opens like a double-click application, offline included (from
+  the second visit on).
 
 - **Give the wheel the room**: all three panels — the player above the wheel, the
   playlists and filters on the left, the constellation on the right — collapse from
@@ -328,22 +341,19 @@ The full landscape analysis, differentiation, and brand notes live in
 ## Genre similarity
 
 "Tech House" and "Techno" are different strings but not unrelated music. The genre
-criterion supports six methods (picked in the combo panel; parameters and sourced
-explainers in advanced menu → Genre matching), implementing the
-recommendations of a literature review on genre distance measures
-([docs/designs/design-v4.md](docs/designs/design-v4.md) has the design; the research
-reports live in [docs/research/](docs/research/), and
-[docs/science/genre-distance-measures.md](docs/science/genre-distance-measures.md)
-documents the technical choices, the evidence behind them, and the open questions):
+criterion compares them with one method: a co-occurrence embedding of real-world genre
+tags, **retrofitted toward a curated genre tree** ([src/data/genre-tree.json](src/data/genre-tree.json),
+editable) — real-world data where it exists, hand-audited lineage where it does not
+(Epure et al. 2020). Labels the pack has never seen fall back to shared words ("Warehouse
+House" ~ "House"). The genre map's pair card shows, for any two genres, their similarity,
+whether the criterion links them, and the most specific family they share in the tree.
 
-| Method             | How it works                                                                                  | Data                                                              | Grounding                            |
-| ------------------ | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------ |
-| Exact              | normalized labels must be identical (aliases like DnB → Drum & Bass still unify)              | none                                                              | Schreiber 2015 (tag normalization)   |
-| Lexical            | token-set Jaccard after normalization ("melodic house" ~ "house")                             | none                                                              | —                                    |
-| Graph              | decay^(shortest path) over a curated genre-relation graph                                     | [src/data/genre-graph.json](src/data/genre-graph.json) — editable | Rada et al. 1989                     |
-| Taxonomy           | Lin similarity over a rooted genre DAG with intrinsic information content                     | [src/data/genre-tree.json](src/data/genre-tree.json) — editable   | Lin 1998; Seco et al. 2004           |
-| Embedding          | mutual-proximity-corrected similarity between tag co-occurrence embeddings                    | [src/data/genre-embedding.json](src/data/genre-embedding.json)    | Levy & Goldberg 2014; Schnitzer 2012 |
-| Hybrid _(default)_ | the embedding retrofitted toward the curated tree — data plus lineage, best subgenre coverage | same pack, `hybrid` section                                       | Epure et al. 2020 (retrofitting)     |
+Earlier versions let you pick between six methods (exact, lexical, graph distance, Lin
+taxonomy, plain embedding, and this hybrid); the hybrid won on the triplet evaluation
+(100% vs the plain embedding's 91%) and is the only one the app ships now. The
+literature review behind that choice and the comparison live in
+[docs/science/genre-distance-measures.md](docs/science/genre-distance-measures.md) and
+[docs/research/](docs/research/).
 
 The bundled pack is built from the
 [MediaEval AcousticBrainz Genre Dataset](https://mtg.github.io/acousticbrainz-genre-dataset/)
@@ -351,31 +361,26 @@ The bundled pack is built from the
 **CC BY-NC-SA 4.0** — the pack is a derived work, so it inherits the non-commercial
 share-alike terms). Pipeline: label co-occurrence → PPMI (rare-pair noise floor) →
 **truncated SVD** (d=32, chosen by sweeping dimensions against a built-in triplet eval) →
-cosine → **Mutual Proximity** (hubness fix) → per-label top-20 neighbour lists, umbrella
-tags damped. The hybrid section retrofits the embedding toward
-[genre-tree.json](src/data/genre-tree.json), which also gives tree-only club genres
-(liquid drum & bass, melodic techno, …) usable vectors — it scores 100% on the triplet
-eval vs the plain embedding's 91%. To rebuild:
+cosine → **Mutual Proximity** (hubness fix) → retrofit toward the curated tree (which
+also gives tree-only club genres — liquid drum & bass, melodic techno, … — usable
+vectors) → per-label top-24 neighbour lists, umbrella tags damped. To rebuild:
 
 ```sh
 # download the three open *-train.tsv.bz2 ground-truth files from
 # https://zenodo.org/records/2553414 into data/acousticbrainz/ and bunzip2 them
 node scripts/build-genre-embedding.mjs --from-acousticbrainz data/acousticbrainz
 node scripts/build-genre-embedding.mjs --from-acousticbrainz data/acousticbrainz --sweep  # dimension sweep
-node scripts/build-genre-embedding.mjs   # graph-diffusion starter pack instead
+node scripts/build-genre-embedding.mjs   # starter pack from scripts/genre-graph.json instead
 ```
 
-Unknown labels fall back to lexical similarity in the graph, taxonomy, embedding and
-hybrid methods.
-
-![The genre map view with method overlays and nearby-genre ghosts](docs/screenshots/genre-map.png)
+![The genre map view with nearby-genre ghosts](docs/screenshots/genre-map.png)
 
 ## Development
 
 ```sh
 npm install
 npm run dev      # start the app
-npm test         # unit tests (keys, combos, genre, filters, importers, exporters, suggest, sets, history, persistence, samples)
+npm test         # unit tests (vitest, node environment)
 npm run lint     # eslint + prettier check
 npm run check    # svelte-check + tsc
 npm run build    # production build
@@ -421,12 +426,14 @@ your collection XML — before anything analysed shows up.
 
 Roughly **two hours for 2000 tracks** on ten cores. Resumable: it skips paths already in
 `--out`, so adding tracks later costs only the new ones. Rekordbox's own sampler content
-is excluded by default (`--exclude`), because energy is not confidence-gated and a
-one-shot would otherwise acquire one.
+is excluded by default (`--exclude`): the descriptors are not confidence-gated, and a
+one-shot would otherwise acquire a mood.
 
-Since v38 the analyser can also run as the app's **localhost helper**: start it with
-`--serve` and the Advanced → Sentiment analysis section can analyse the selected
-playlists from inside the app, with live progress, merging the result automatically.
+The analyser can also run as the app's **localhost helper**: start it with `--serve`,
+press Connect in Advanced → Audio analysis, and analyse the selected playlists from
+inside the app, with live progress, merging the result automatically. (Nothing
+contacts localhost until you press Connect.) The analysis columns, filters and the
+genre-source switch appear once analysis actually matches your tracks.
 `--write-tags` (or the section's checkbox) additionally writes a `[A78V35D86H55]`
 descriptor token into each analysed file's Comment tag — Mixed In Key content is
 preserved — so the descriptors travel with the files and come back in from any
@@ -436,20 +443,17 @@ Rekordbox XML after a Reload Tags.
 scripts/.venv/bin/python scripts/analyse-audio.py --serve
 ```
 
-To check a produced sidecar against a collection without opening a browser, and
-to re-fit the energy curve if you ever have labelled tracks to fit it against:
+To check a produced sidecar against a collection without opening a browser:
 
 ```sh
 ANALYSIS_SIDECAR=scripts/out/library.analysis.json npm test -- analysis-contract
-scripts/.venv/bin/python scripts/calibrate-arousal.py \
-  --sidecar scripts/out/library.analysis.json --labels anchors.csv --scale energy
 ```
 
 **Know before you trust it.** `essentia-tensorflow` is AGPL-3.0 and the MTG models are
 CC BY-NC-SA 4.0, but neither enters the app bundle — that separation is deliberate and
 is what keeps the app's own licensing free (see [legal/README.md](legal/README.md)).
 Analysed **key and BPM are weak** and fill almost nothing. **Energy never comes from
-analysis at all** since v36 — its only source is the `Energy N` token Mixed In Key
+analysis at all** — its only source is the `Energy N` token Mixed In Key
 writes into the comment, and a track without one stays honestly empty. The descriptors
 are display-only and unvalidated against anyone's ear; the predicted genre is the one
 analysed value that has been measured against the real library (design-v39).
@@ -480,10 +484,9 @@ decisions live in [docs/designs/](docs/designs/); positioning against the wider
 DJ-tool landscape (and the naming shortlist) lives in
 [docs/POSITIONING.md](docs/POSITIONING.md).
 
-Planned next (in rough order): walk-quality metrics (the first step toward DJ
-fingerprints), weighted edges with per-criterion weight sliders, force-layout "free"
-view for _tracks_ (the genre map already ships the d3-force groundwork),
-insert-between-via-edge-drag, keyboard navigation in the Tracks view (arrows +
-Enter now that the ＋ cell exists), Rekordbox-XML playlist export, a 3D "set
-journey" tunnel view, opt-in local audio analysis (Essentia.js), and fingerprint
-analytics over imported tracklists.
+Planned next: libraries of ~10k tracks that feel instant (a combo graph computed per
+track on demand instead of for every pair, and a Tracks table that scrolls through
+every row), then **Quick find** — `/` or ⌘K to jump to any track by title or artist.
+The app deliberately does fewer things well rather than more things; the longer-term
+ideas, and what was decided against, live in [docs/IDEAS.md](docs/IDEAS.md). Walk
+metrics and DJ fingerprints from the concept paper remain the long-range direction.

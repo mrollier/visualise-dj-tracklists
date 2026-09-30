@@ -1,7 +1,7 @@
 # Design v32 — code-clean wave
 
 The second whole-repo hygiene pass, eighteen releases after
-[design-v14.1.md](design-v14.1.md) did the first. Michiel asked for a full
+[design-v14.1.md](../../designs/design-v14.1.md) did the first. Michiel asked for a full
 review driven by the code-review plugin, then the ponytail plugin, then the
 typescript skill. Two of those three do not do what their names suggest here,
 and saying so up front is part of the record.
@@ -135,7 +135,7 @@ back.
 forty-seven the review raised plus the nine the revived browser probe surfaced
 and one it caught live — recorded as thirty-eight entries; the remaining 134
 are in
-[../ISSUES.md](../ISSUES.md) under `## Open — v32 code review`, because the
+[../ISSUES.md](../../ISSUES.md) under `## Open — v32 code review`, because the
 bar for touching code in a hygiene wave is deliberately high: behaviour-
 preserving, provable or test-covered, no persisted-schema change, nothing
 visual — and when in doubt, an issue rather than a commit.
@@ -293,7 +293,7 @@ Everything on v14.1's own list still stands and is not repeated here.
 
 ## Deferred
 
-- The 134 open findings in [../ISSUES.md](../ISSUES.md) `## Open — v32 code
+- The 134 open findings in [../ISSUES.md](../../ISSUES.md) `## Open — v32 code
   review`, of which the severe ones are listed first.
 - **`src/data/genre-embedding.json` is 827 KB and statically imported at
   `core/genre.ts:3`**, so it is bundled into the eager entry chunk — the whole

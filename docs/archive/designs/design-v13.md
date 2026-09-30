@@ -42,7 +42,7 @@ v13 revealed the pin had **silently never worked**: the simulation nodes were de
 Only the tow (a d3 API call) had any effect — which is precisely the "whole graph
 follows, node lags" feel Michiel reported.
 
-The bridge is now explicit ([GenreMapView.svelte](../../src/lib/GenreMapView.svelte)):
+The bridge is now explicit ([GenreMapView.svelte](../../../src/lib/GenreMapView.svelte)):
 the tick publishes **plain snapshots** of the simulation nodes into `$state.raw`
 (fresh object identities every tick — identical identities make the keyed `{#each}`
 skip row updates, which froze the render in an intermediate attempt), while pointer
@@ -54,7 +54,7 @@ strengthened gravity and `dragOrigin` are gone.
 
 ### Skeleton + wheel-style focus (issues 2 + 3)
 
-New pure module [src/core/genreMap.ts](../../src/core/genreMap.ts):
+New pure module [src/core/genreMap.ts](../../../src/core/genreMap.ts):
 
 - `skeletonKeys` — union over nodes of each node's strongest incident edge
   (deterministic ties). The resting map draws only these, at `skeletonOpacity(n)`
@@ -91,7 +91,7 @@ keeps full energy to spread from the centre spawn).
 - Live Playwright probes per workstream: drag pin 0.00 px / no tow; resting 29 edges
   on 50 nodes; hover/select/compare/clear cycle; ghost tether bounds; toggling
   *show nearby genres* off restores the exact resting count.
-- [scripts/screenshot.mjs](../../scripts/screenshot.mjs) extended: resting-skeleton
+- [scripts/screenshot.mjs](../../../scripts/screenshot.mjs) extended: resting-skeleton
   density bound, anchor-based 1:1 drag-pin assertion (the old bbox-centre grab could
   miss the hit circle and "passed" via settle drift), ≤1 bold edge while comparing,
   ghost-tether growth bounds.

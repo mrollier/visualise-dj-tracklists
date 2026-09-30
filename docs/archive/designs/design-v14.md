@@ -4,7 +4,7 @@ A broad round: the nineteen issues Michiel raised reviewing v13, grouped into
 filters, sample data, combo criteria, the set builder, the Tracks view, easy
 mode, metadata, the selected-track panel and the wheel. Every product question
 was settled with the user before implementation (recorded in
-[../ISSUES.md](../ISSUES.md) under "Decisions"); this doc records what actually
+[../ISSUES.md](../../ISSUES.md) under "Decisions"); this doc records what actually
 **shipped**, since a handful of details deviated from the original plan and the
 design must reflect reality, not intent.
 
@@ -15,7 +15,7 @@ polish), plus this verification pass (WS8).
 
 ## The issues
 
-Nineteen, by area — full text in [../ISSUES.md](../ISSUES.md):
+Nineteen, by area — full text in [../ISSUES.md](../../ISSUES.md):
 
 - **Filters** F1 (spinner-clipped numbers), F2 (text → A–Z range), F3 (Kind →
   quality), F4 (field-nature: contains / colour chips).
@@ -269,7 +269,7 @@ could sit below the locked count.
   prefix (single-arm) and seam-fill (two-arm) both pinned; C2 veto + populated
   `matched`; the schema-v6 migration-drop cases in both filter and persist tests.
 - `npm run check` 0 errors, `npm run lint` clean.
-- [../../scripts/screenshot.mjs](../../scripts/screenshot.mjs) refreshed for the
+- [../../scripts/screenshot.mjs](../../../scripts/screenshot.mjs) refreshed for the
   v14 flows and run against `npm run dev` to a **zero-`errors[]`** finish: the
   re-homed empty-state check, alpha-range narrowing, quality tri-state hiding
   lossless, a criterion lock flooring the require row, ✨ placing a ★ essential,

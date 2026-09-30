@@ -139,3 +139,15 @@ lives in [designs/design-v12.md](designs/design-v12.md). Statuses: **done** ·
   **rejected** as stated: rekordbox has no plugin API. The real path is the
   Rekordbox-XML export round-trip (roadmap) so planned sets appear in rekordbox
   as playlists; watching Mixxx (OSS) stays an option.
+
+## Moved from the README roadmap (2026-09-30)
+
+The README listed these as "planned next"; the 2026-09-30 review narrowed the app to
+doing fewer things well (product for other DJs, libraries up to ~10k tracks), so they
+are **backlog, not planned**: walk-quality metrics, weighted edges with per-criterion
+weight sliders, a force-layout "free" view for tracks, insert-between via edge drag,
+keyboard navigation in the Tracks view, Rekordbox-XML playlist export, and a 3D "set
+journey" view. In-app audio analysis (Essentia.js) stays **rejected** (see above).
+Considered in the same review and **not chosen**: a keyboard walk over ranked next
+picks, "why not?" explanations on set transitions, transition audition in the player,
+and a set-shape sparkline.
