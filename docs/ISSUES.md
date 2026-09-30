@@ -15,9 +15,14 @@ Items marked **(Wave B)** are scheduled in the v41 plan.
   focus cluster (O(partners²), `focusEdgesFor`) and the random opener when most
   of the pool has no combo (`randomStart`). Both are ponytail-marked; a Web
   Worker plus candidate bucketing is the next step if either shows up.
-- Same-slot wheel layout is O(m²) and the wheel draws one SVG node per track
-  (`src/core/layout.ts`, ponytail note). **(Wave B)** guards large visible
-  counts; canvas or level-of-detail rendering is a separate product decision.
+- The wheel draws one SVG node per visible track, and same-slot layout is
+  O(m²) (`src/core/layout.ts`, ponytail note). Measured on a laptop with 10k
+  tracks all visible: the wheel mounts in about 0.5 s, a selection repaints in
+  about 100 ms, and the first frame of a zoom stalls about 280 ms in raster
+  (no script), then zooming runs smoothly. Glides already switch off above
+  1500 visible tracks (`src/lib/motion.ts`). Canvas-drawn stars are the fix
+  if a fully visible 10k wheel has to feel instant; playlists normally keep
+  the visible count far lower.
 - The genre pack (440 KB after v41) is imported eagerly into the entry chunk
   (`src/core/genre.ts`). Deferring it needs a readiness gate, because the
   matchers are synchronous derived stores. Measure first paint on real

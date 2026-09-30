@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import { motionMs, prefersReducedMotion } from '../src/lib/motion'
+import { LARGE_WHEEL_NODES, motionMs, prefersReducedMotion, wheelMotionMs } from '../src/lib/motion'
 
 describe('motion (v18 issue 11b)', () => {
   afterEach(() => {
@@ -41,5 +41,16 @@ describe('motion (v18 issue 11b)', () => {
   test('motionMs still passes the duration through with a window present but no preference', () => {
     vi.stubGlobal('window', { matchMedia: () => ({ matches: false }) })
     expect(motionMs(600)).toBe(600)
+  })
+})
+
+describe('wheel motion', () => {
+  test('a wheel of ordinary size glides as designed', () => {
+    expect(wheelMotionMs(600, 2)).toBe(600)
+    expect(wheelMotionMs(600, LARGE_WHEEL_NODES)).toBe(600)
+  })
+
+  test('a very large wheel lands instantly: a glide there is a stutter', () => {
+    expect(wheelMotionMs(600, LARGE_WHEEL_NODES + 1)).toBe(0)
   })
 })

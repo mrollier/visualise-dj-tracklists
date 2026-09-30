@@ -31,7 +31,7 @@
   import { createShapePathCache } from './shapeSymbols'
   import { createViewZoom } from './viewZoom'
   import { effectiveTheme } from './theme'
-  import { motionMs } from './motion'
+  import { wheelMotionMs } from './motion'
   import { decks as playerDecks, playing as playerPlaying } from './audio/playerStore'
   import { nextExhausted, retryState, suggestNext, type NextSuggestion } from '../core/suggest'
   import {
@@ -161,6 +161,13 @@
   // same instant — see the $effect below and radialMorph.ts's own doc
   // comment for why (v18 #11a fix round 1: IMPORTANT).
   const RADIAL_TWEEN_MS = RADIAL_MORPH_TOTAL_MS
+  /** Large wheels land instantly (motion.ts). Untracked: a duration is read
+   *  when a glide starts, never a reason to restart one. */
+  const animMs = (ms: number) =>
+    wheelMotionMs(
+      ms,
+      untrack(() => $visibleLibrary.length),
+    )
   // svelte-ignore state_referenced_locally
   const domainTween = new Tween<[number, number]>(targetDomain, {
     duration: RADIAL_TWEEN_MS,
@@ -181,7 +188,7 @@
     // either way (motionMs is a no-op unless reduced motion is on), so this
     // is not a behaviour change for same-axis filter-edit tweens beyond
     // also finally respecting reduced motion, which they never did before.
-    void domainTween.set(targetDomain, { duration: motionMs(RADIAL_TWEEN_MS), easing: cubicOut })
+    void domainTween.set(targetDomain, { duration: animMs(RADIAL_TWEEN_MS), easing: cubicOut })
   })
 
   // Clamped: mid-tween (and for filtered-out tracks that are placed but
@@ -493,7 +500,7 @@
       displacedChannel = 'morph'
       void displacedTween.set(1, { duration: 0 }) // park the plain clock, settled
       void morphTween.set(0, { duration: 0 })
-      void morphTween.set(1, { duration: motionMs(RADIAL_MORPH_TOTAL_MS), easing: linear })
+      void morphTween.set(1, { duration: animMs(RADIAL_MORPH_TOTAL_MS), easing: linear })
     } else {
       // Same axis: only the angle and/or gutter x moved (a filter edit, the
       // spread slider, a playlist switch reshaping same-key groups or the
@@ -503,7 +510,7 @@
       gutterXFrom = capturedGutterX
       displacedChannel = 'plain'
       void displacedTween.set(0, { duration: 0 })
-      void displacedTween.set(1, { duration: motionMs(RADIAL_TWEEN_MS), easing: cubicOut })
+      void displacedTween.set(1, { duration: animMs(RADIAL_TWEEN_MS), easing: cubicOut })
     }
   })
 
@@ -1274,7 +1281,7 @@
           class="hub-retry"
           class:force={hubRetryState === 'force-retry'}
           class:spent={hubRetryState === 'reset-only'}
-          transition:scale={{ duration: motionMs(250), start: 0.85, easing: cubicOut }}
+          transition:scale={{ duration: animMs(250), start: 0.85, easing: cubicOut }}
           role="button"
           tabindex={hubRetryState === 'reset-only' ? -1 : 0}
           aria-disabled={hubRetryState === 'reset-only'}
@@ -1326,7 +1333,7 @@
       {#each ghostNodes as node (node.track.id)}
         <g
           class="ghost-node"
-          transition:fade={{ duration: motionMs(RADIAL_TWEEN_MS), easing: cubicOut }}
+          transition:fade={{ duration: animMs(RADIAL_TWEEN_MS), easing: cubicOut }}
         >
           <circle
             cx={node.x}
@@ -1345,7 +1352,7 @@
              clobber the inner opacity ATTRIBUTE if it were on the same
              element. Two nested elements composite (multiply) instead, so a
              node fading in mid-selection still lands at the dimmed value. -->
-        <g transition:fade={{ duration: motionMs(RADIAL_TWEEN_MS), easing: cubicOut }}>
+        <g transition:fade={{ duration: animMs(RADIAL_TWEEN_MS), easing: cubicOut }}>
           <g
             class="node"
             opacity={nodeOpacity(node)}
@@ -1442,7 +1449,7 @@
                shown only while the slot actually diverges from the original -->
           <g
             class="hub-reset"
-            transition:scale={{ duration: motionMs(250), start: 0.85, easing: cubicOut }}
+            transition:scale={{ duration: animMs(250), start: 0.85, easing: cubicOut }}
             role="button"
             tabindex="0"
             aria-label="Restore the original pick"
