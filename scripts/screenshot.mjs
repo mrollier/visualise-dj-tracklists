@@ -48,6 +48,33 @@ const ensureSectionOpen = async (name) => {
 /** Wait out the walk-reveal cascade. Since v31 the hub is inert (and the ⚡
  *  force offer withheld) until the constellation stands still, so a click or
  *  an assertion that lands during the cascade sees the previous state. */
+/**
+ * The Tracks table mounts only the rows on screen. Scroll it from the top
+ * until `selector` matches something (or the list ends); return the count.
+ */
+const findInTable = async (selector) => {
+  const toTop = () =>
+    page.evaluate(() => {
+      document.querySelector('.tracks-view').scrollTop = 0
+    })
+  await toTop()
+  await page.waitForTimeout(50)
+  let found = 0
+  for (let tries = 0; tries < 400; tries++) {
+    found = await page.locator(selector).count()
+    if (found > 0) break
+    const moved = await page.evaluate(() => {
+      const view = document.querySelector('.tracks-view')
+      const before = view.scrollTop
+      view.scrollTop += view.clientHeight
+      return view.scrollTop !== before
+    })
+    if (!moved) break
+    await page.waitForTimeout(50)
+  }
+  return found
+}
+
 const settleWalk = async () => {
   await page.waitForTimeout(200)
   await page
@@ -646,7 +673,7 @@ await page.getByRole('button', { name: 'Tracks', exact: true }).click()
 await page.locator('.tracks-view table').waitFor()
 // v10 issue 13: one click-cycle star per row; the closer pinned from the set
 // row shows here as a single star in its ⏭ (closer) state.
-if ((await page.locator('.tracks-view .tag.star', { hasText: '⏭' }).count()) !== 1) {
+if ((await findInTable('.tracks-view .tag.star:has-text("⏭")')) !== 1) {
   errors.push('the 📌 closer pin is not reflected as a ⏭ star in the Tracks view')
 }
 // sorting: BPM ascending then descending, missing values at the bottom
@@ -687,20 +714,26 @@ if ((await page.locator('.tracks-view th button', { hasText: 'Length' }).count()
   errors.push('enabling the Length column did not add its header')
 }
 // selection is shared: clicking a row highlights its combo neighbours
-await page.locator('.tracks-view tbody tr').first().click()
+// (from the top of the table: an overscan row off screen would scroll the
+// window, and the rows, under the locator)
+await page.evaluate(() => {
+  document.querySelector('.tracks-view').scrollTop = 0
+})
+await page.waitForTimeout(50)
+await page.locator('.tracks-view tbody tr:not(.spacer)').first().click()
 if ((await page.locator('.tracks-view tbody tr.connected').count()) === 0) {
   errors.push('selecting a table row highlighted no connected tracks')
 }
-await page.locator('.tracks-view tbody tr').first().click() // deselect again
+await page.locator('.tracks-view tbody tr:not(.spacer)').first().click() // deselect again
 // v10 issue 13: the single star cycles none → must → first → last → none.
 // Tag a row as opener (⏮) by cycling twice (none→must→first, first is free),
 // and another as essential (★) with one click.
 const starOf = (row) => row.locator('.tag.star')
-let openerRow = page.locator('.tracks-view tbody tr').first()
+let openerRow = page.locator('.tracks-view tbody tr:not(.spacer)').first()
 const titleCell = `td:nth-child(${await columnIndex('Title')})`
 let openerTitle = await openerRow.locator(titleCell).textContent()
 if (openerTitle === lastTitle) {
-  openerRow = page.locator('.tracks-view tbody tr').nth(2)
+  openerRow = page.locator('.tracks-view tbody tr:not(.spacer)').nth(2)
   openerTitle = await openerRow.locator(titleCell).textContent()
 }
 await starOf(openerRow).click()
@@ -710,7 +743,7 @@ if ((await starOf(openerRow).textContent())?.trim() !== '⏮') {
 }
 // mark the first still-unmarked row essential (one click → ★)
 {
-  const rows = page.locator('.tracks-view tbody tr')
+  const rows = page.locator('.tracks-view tbody tr:not(.spacer)')
   const total = Math.min(await rows.count(), 8)
   let marked = false
   for (let i = 0; i < total; i++) {
@@ -771,7 +804,7 @@ if ((await starOf(openerRow).textContent())?.trim() !== '⏮') {
     errors.push('the sorted column should show its triangle before set-only mode')
   await page.locator('.pos-toggle').click()
   await page.waitForTimeout(200)
-  const setOnlyRows = await page.locator('.tracks-view tbody tr').count()
+  const setOnlyRows = await page.locator('.tracks-view tbody tr:not(.spacer)').count()
   if (setOnlyRows > setEntries || setOnlyRows === 0) {
     errors.push(
       `set-only mode should list the set's tracks (≤ ${setEntries} deduped), got ${setOnlyRows}`,
@@ -2128,10 +2161,15 @@ await page.waitForTimeout(200)
 
   await page.getByRole('button', { name: 'Tracks', exact: true }).first().click()
   await page.waitForTimeout(500)
+  await findInTable('td.analysed')
   if ((await page.locator('td.analysed').count()) === 0) {
     errors.push('v33: no analysed value is marked in the Tracks table')
   }
-  const marker = await page.locator('td.analysed').first().getAttribute('title')
+  const marker = await page
+    .locator('td.analysed')
+    .first()
+    .getAttribute('title', { timeout: 2000 })
+    .catch(() => null)
   if (!/analysed locally/i.test(marker ?? '')) {
     errors.push(`v33: the provenance marker does not explain itself — "${marker}"`)
   }

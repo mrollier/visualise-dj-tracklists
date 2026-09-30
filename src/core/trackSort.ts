@@ -82,3 +82,21 @@ export function sortTracks(tracks: readonly Track[], sort: TrackSort): Track[] {
     return sign * cmp || compareIds(a, b)
   })
 }
+
+/**
+ * The slice of a list of fixed-height rows that a scroll viewport shows, with
+ * `overscan` rows either side, and the spacer heights above and below it — so
+ * a table of any length mounts only a screenful of rows.
+ */
+export function rowWindow(
+  scrollTop: number,
+  viewportHeight: number,
+  rowHeight: number,
+  total: number,
+  overscan = 10,
+): { start: number; end: number; top: number; bottom: number } {
+  const first = Math.min(total, Math.max(0, Math.floor(scrollTop / rowHeight)))
+  const end = Math.min(total, first + Math.ceil(viewportHeight / rowHeight) + overscan)
+  const start = Math.min(end, Math.max(0, first - overscan))
+  return { start, end, top: start * rowHeight, bottom: (total - end) * rowHeight }
+}

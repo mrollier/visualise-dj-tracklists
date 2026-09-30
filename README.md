@@ -79,7 +79,8 @@ Your library never leaves your machine — there is no backend, no account, no u
   highlighted. A "show nearby genres" toggle ghosts in related genres you don't own
   yet, each tethered to the library genre that summoned it.
 - **Browse the tracks**: the third central view is a classic sortable table of
-  everything the wheel shows — playlists AND filters scope it — with every column
+  everything the wheel shows — playlists AND filters scope it, and every row
+  scrolls into reach however large the library — with every column
   sortable (keys in Camelot order, missing values last, ratings as stars), and the
   sort survives view switches. Every track property — **everything the Rekordbox
   XML carries**, from Artist to Play count to file Location, plus the analysed ones

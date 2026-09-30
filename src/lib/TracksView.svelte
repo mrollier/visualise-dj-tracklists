@@ -25,7 +25,7 @@
   import { nextStarState, PIN_FIRST_GLYPH, PIN_LAST_GLYPH, type StarState } from '../core/pins'
   import { formatPropertyValue, PROPERTY_BY_KEY, REKORDBOX_COLOURS } from '../core/properties'
   import { removeAllOccurrences } from '../core/sets'
-  import { sortTracks, type TrackSortField } from '../core/trackSort'
+  import { rowWindow, sortTracks, type TrackSortField } from '../core/trackSort'
   import { decks as playerDecks, playing as playerPlaying } from './audio/playerStore'
   import {
     addTrackToSet,
@@ -195,11 +195,6 @@
     )
   }
 
-  // Sorting always runs over the whole selection, but only the top window is
-  // mounted: thousands of rows with per-row controls take seconds to build,
-  // and the top of the sorted order is what gets scanned anyway. Narrowing
-  // the playlist selection (or flipping the sort) reaches the rest.
-  const MAX_ROWS = 500
   // The table shows what the wheel shows (v9 issue 16): the FULL filter set
   // (ranges, genres, key ring), not just the playlist scope.
   const sorted = $derived(sortTracks($visibleLibrary, $trackSort))
@@ -231,7 +226,16 @@
     }
     return out
   })
-  const rows = $derived(inSetOnly ? inSetRows : sorted.slice(0, MAX_ROWS))
+  // Only the rows on screen are mounted — thousands of rows with per-row
+  // controls take seconds to build — between two spacer rows that keep the
+  // scrollbar true to the whole list. Every body row is pinned to ROW_H
+  // (its content measures 30.9 px) so the window math holds.
+  const ROW_H = 31
+  let scrollTop = $state(0)
+  let viewportHeight = $state(0)
+  const listed = $derived(inSetOnly ? inSetRows : sorted)
+  const view = $derived(rowWindow(scrollTop, viewportHeight, ROW_H, listed.length))
+  const rows = $derived(listed.slice(view.start, view.end))
   const connectedIds = $derived.by(() => {
     if ($selectedId === null) return null
     // Threshold 0 (v11 issue 2a): complete graph, every other row connects.
@@ -432,7 +436,11 @@
   }
 </script>
 
-<section class="tracks-view">
+<section
+  class="tracks-view"
+  bind:clientHeight={viewportHeight}
+  onscroll={(e) => (scrollTop = e.currentTarget.scrollTop)}
+>
   <table class:has-selection={$selectedId !== null}>
     <!-- table-layout: fixed, driven by these widths (v24): mirrors the
          header row's column order exactly. columnWidths is computed once
@@ -627,6 +635,11 @@
           </td>
         </tr>
       {:else}
+        {#if view.top > 0}
+          <tr class="spacer" aria-hidden="true" style="height: {view.top}px">
+            <td colspan={colCount}></td>
+          </tr>
+        {/if}
         {#each rows as track (track.id)}
           {@const positions = positionsById.get(track.id)}
           {@const starState = starStateOf(track.id)}
@@ -636,6 +649,7 @@
             class:connected={connectedIds?.has(track.id) === true}
             class:set-hovered={track.id === $hoveredId}
             class:link-armed={$linkArmed}
+            style="height: {ROW_H}px"
             onclick={() => selectRow(track.id)}
           >
             {#if showStarCol}
@@ -759,15 +773,14 @@
             {/each}
           </tr>
         {/each}
+        {#if view.bottom > 0}
+          <tr class="spacer" aria-hidden="true" style="height: {view.bottom}px">
+            <td colspan={colCount}></td>
+          </tr>
+        {/if}
       {/if}
     </tbody>
   </table>
-  {#if !inSetOnly && sorted.length > MAX_ROWS}
-    <p class="capped">
-      Showing the first {MAX_ROWS} of {sorted.length} tracks — flip the sort or narrow the playlist selection
-      to reach the rest.
-    </p>
-  {/if}
 </section>
 
 <style>
@@ -914,6 +927,11 @@
     margin-left: 3px;
   }
 
+  tbody tr.spacer td {
+    padding: 0;
+    border: 0;
+  }
+
   tbody tr {
     cursor: pointer;
     /* click selects, ＋ appends — text selection would fight both */
@@ -1010,7 +1028,7 @@
 
   /* :not(.empty-row) (v18 review fix, round 2): the info row isn't
      interactive, so it shouldn't tint like a selectable data row. */
-  tbody tr:hover:not(.empty-row) {
+  tbody tr:hover:not(.empty-row, .spacer) {
     background: color-mix(in srgb, var(--ink) 5%, transparent);
   }
 
@@ -1226,11 +1244,5 @@
   .stars.off {
     color: var(--ink-muted);
     opacity: 0.45;
-  }
-
-  .capped {
-    margin: 8px 12px 12px;
-    color: var(--ink-muted);
-    font-size: 12px;
   }
 </style>

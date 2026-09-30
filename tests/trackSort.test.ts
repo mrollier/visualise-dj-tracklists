@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { sortTracks } from '../src/core/trackSort'
+import { rowWindow, sortTracks } from '../src/core/trackSort'
 import { track } from './helpers'
 
 describe('sortTracks (the Tracks table view)', () => {
@@ -398,5 +398,40 @@ describe('sortTracks (the Tracks table view)', () => {
       'b',
       'a',
     ])
+  })
+})
+
+describe('rowWindow (the Tracks table mounts only what is on screen)', () => {
+  const H = 31
+  const covers = (w: ReturnType<typeof rowWindow>, total: number) =>
+    w.top + (w.end - w.start) * H + w.bottom === total * H
+
+  test('at the top: the rows in view plus the overscan below', () => {
+    const w = rowWindow(0, 310, H, 1000, 5)
+    expect(w).toMatchObject({ start: 0, end: 15, top: 0 })
+    expect(covers(w, 1000)).toBe(true)
+  })
+
+  test('scrolled into the middle: overscan on both sides', () => {
+    const w = rowWindow(100 * H, 310, H, 1000, 5)
+    expect(w).toMatchObject({ start: 95, end: 115, top: 95 * H })
+    expect(covers(w, 1000)).toBe(true)
+  })
+
+  test('the last row is reachable', () => {
+    const w = rowWindow(990 * H, 310, H, 1000, 5)
+    expect(w.end).toBe(1000)
+    expect(covers(w, 1000)).toBe(true)
+  })
+
+  test('a stale scroll position past a shrunken list still yields a valid window', () => {
+    const w = rowWindow(5000 * H, 310, H, 40, 5)
+    expect(w.start).toBeLessThanOrEqual(w.end)
+    expect(w.end).toBe(40)
+    expect(covers(w, 40)).toBe(true)
+  })
+
+  test('an empty list is an empty window', () => {
+    expect(rowWindow(0, 310, H, 0)).toEqual({ start: 0, end: 0, top: 0, bottom: 0 })
   })
 })
