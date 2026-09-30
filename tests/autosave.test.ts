@@ -172,3 +172,33 @@ describe('saving', () => {
     expect(get(activeSetId)).toBeTruthy()
   })
 })
+
+describe('taking the autosave over from another tab', () => {
+  test('steals the lock and loads the latest save in place, without a reload', async () => {
+    const reload = vi.fn()
+    vi.stubGlobal('location', { reload })
+    const requests: unknown[] = []
+    vi.stubGlobal('navigator', {
+      locks: {
+        request: (_name: string, options: unknown, grant: (lock: object | null) => unknown) => {
+          requests.push(options)
+          void grant({})
+          return new Promise(() => {})
+        },
+      },
+    })
+    const { takeOverAutosave } = await import('../src/lib/autosave')
+    // The other tab saved a library this tab has not seen.
+    replaceLibrary({ tracks, name: 'other-tab.xml' })
+    await flushAutosave()
+    library.set([])
+    autosaveBlocked.set(true)
+
+    await takeOverAutosave()
+
+    expect(requests.at(-1)).toEqual({ steal: true })
+    expect(reload).not.toHaveBeenCalled()
+    expect(get(autosaveBlocked)).toBe(false)
+    expect(get(library).map((t) => t.id)).toEqual(['rb-1', 'rb-2'])
+  })
+})

@@ -105,6 +105,10 @@ function claimLock(steal: boolean): Promise<void> {
 /** Load the saved project, migrating a localStorage save on the way. */
 export async function restoreAutosave(): Promise<void> {
   await claimLock(false)
+  await loadSaved()
+}
+
+async function loadSaved(): Promise<void> {
   try {
     const [work, lib] = await store.getMany(['work', 'library'])
     if (typeof work === 'string') {
@@ -223,10 +227,14 @@ export function startAutosave(): void {
   }
 }
 
-/** Take the autosave over from another tab, then reload its latest save. */
+/**
+ * Take the autosave over from another tab and load its latest save here. In
+ * place, not by reloading: a reloaded page asks for the lock again and can
+ * race the old document releasing it, coming back blocked.
+ */
 export async function takeOverAutosave(): Promise<void> {
   await claimLock(true)
-  location.reload()
+  await loadSaved()
 }
 
 /** Forget the saved project (Reset). A quarantined save is kept. */

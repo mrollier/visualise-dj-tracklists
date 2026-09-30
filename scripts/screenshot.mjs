@@ -2391,11 +2391,15 @@ await page.waitForTimeout(200)
   const banner = second.getByText('Open in another tab')
   await banner.waitFor()
   await second.getByRole('button', { name: 'Use this tab' }).click()
-  await second.waitForLoadState('load')
-  await second.getByRole('button', { name: 'Save project' }).waitFor()
-  if (await second.getByText('Open in another tab').isVisible()) {
-    errors.push('"Use this tab" should hand the autosave to the second tab')
-  }
+  await second
+    .getByText('Open in another tab')
+    .waitFor({ state: 'hidden', timeout: 5000 })
+    .catch(() => errors.push('"Use this tab" should hand the autosave to the second tab'))
+  // …and the first tab, having lost it, now says so.
+  await page
+    .getByText('Open in another tab')
+    .waitFor({ timeout: 5000 })
+    .catch(() => errors.push('the tab that lost the autosave should say so'))
   await second.close()
   await page.reload()
   await page.getByRole('button', { name: 'Save project' }).waitFor()
