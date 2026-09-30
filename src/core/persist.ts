@@ -131,7 +131,7 @@ function finiteOr(
   return value < bounds.min || value > bounds.max ? fallback : value
 }
 
-/** Upgrade a raw criteria object: drop rating, add genre method/threshold. */
+/** Upgrade a raw criteria object to the current shape, dropping retired fields. */
 function migrateCriteria(raw: Record<string, unknown>): CriteriaConfig {
   const defaults = structuredClone(DEFAULT_CRITERIA)
   const genre = (raw.genre ?? {}) as Partial<CriteriaConfig['genre']>

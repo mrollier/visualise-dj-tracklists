@@ -54,3 +54,29 @@ describe.each<[string, CriteriaConfig]>([
     expect(time(() => suggestWalk(tracks, criteria, { ...options, seed: 1 }))).toBeLessThan(600)
   })
 })
+
+describe('10k tracks where many can never pair', () => {
+  // A track with no metadata, or missing a demanded field, matches nothing.
+  // The random opener asks every track whether it has a partner, so each one
+  // must answer at once rather than scan the library.
+  const sparse = randomLibrary(10_000, 12, { bare: 0.2, noGenre: 0.3 })
+
+  test('one ✨ walk with no selection, at the defaults', () => {
+    const criteria = structuredClone(DEFAULT_CRITERIA)
+    const genreMatch = makeGenreMatcher(
+      sparse.map((t) => t.genre),
+      criteria.genre.k,
+    )
+    expect(time(() => suggestWalk(sparse, criteria, { genreMatch, seed: 1 }))).toBeLessThan(600)
+  })
+
+  test('one hub press on an empty set with the genre locked', () => {
+    const criteria = structuredClone(DEFAULT_CRITERIA)
+    criteria.genre.demanded = true
+    const genreMatch = makeGenreMatcher(
+      sparse.map((t) => t.genre),
+      criteria.genre.k,
+    )
+    expect(time(() => suggestNext(sparse, criteria, [], { genreMatch, seed: 1 }))).toBeLessThan(300)
+  })
+})

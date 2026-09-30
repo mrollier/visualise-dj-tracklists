@@ -30,13 +30,20 @@ const GENRES = [
 /**
  * A seeded, realistic-looking library: every field a combo criterion reads,
  * spread over its usual range, with some gaps. Same seed, same library.
+ * `bare` is the share of tracks with no metadata at all, `noGenre` the share
+ * with no genre — a real collection has plenty of both.
  */
-export function randomLibrary(n: number, seed = 1): Track[] {
+export function randomLibrary(
+  n: number,
+  seed = 1,
+  { bare = 0, noGenre = 0 }: { bare?: number; noGenre?: number } = {},
+): Track[] {
   const rand = mulberry32(seed)
   const pick = <T>(xs: readonly T[]): T => xs[Math.floor(rand() * xs.length)]
   const maybe = <T>(value: T): T | null => (rand() < 0.08 ? null : value)
-  return Array.from({ length: n }, (_, i) =>
-    track({
+  return Array.from({ length: n }, (_, i) => {
+    if (bare > 0 && rand() < bare) return track({ id: `t${i}` })
+    const t = track({
       id: `t${i}`,
       artist: `Artist ${Math.floor(rand() * (n / 4 + 1))}`,
       key: maybe(pick(ALL_CAMELOT_KEYS)),
@@ -44,6 +51,7 @@ export function randomLibrary(n: number, seed = 1): Track[] {
       genre: pick(GENRES),
       year: maybe(1990 + Math.floor(rand() * 35)),
       energy: maybe(1 + Math.floor(rand() * 10)),
-    }),
-  )
+    })
+    return noGenre > 0 && rand() < noGenre ? { ...t, genre: null } : t
+  })
 }

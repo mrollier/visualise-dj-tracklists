@@ -22,8 +22,8 @@ export function resetAdvancedSettings(current: AppSettings, filters: LibraryFilt
 }
 
 /**
- * The criteria fields the Advanced panel controls (genre method/mode/k/
- * threshold, the key move toggles, the BPM metric ratios) go back to their
+ * The criteria fields the Advanced panel controls (the genre k, the key
+ * move toggles, the BPM metric ratios) go back to their
  * defaults; the combo panel's own knobs (enabled flags, BPM tolerance, year
  * window, N-of-M threshold) stay as they are.
  */

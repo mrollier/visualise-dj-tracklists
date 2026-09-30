@@ -1369,7 +1369,7 @@ describe('BPM tolerance default (v12 WS14, ISSUES.md stub)', () => {
 })
 
 describe('the lazy combo graph', () => {
-  const tracks = randomLibrary(160, 7)
+  const tracks = randomLibrary(160, 7, { bare: 0.15, noGenre: 0.2 })
   const configs: [string, CriteriaConfig][] = [
     ['the defaults', config()],
     ['require 1', config({ threshold: 1 })],
@@ -1443,6 +1443,7 @@ describe('the lazy combo graph', () => {
     expect(countComboPairs(buildComboGraph(tracks, cfg, genreMatch))).toEqual({
       count: computeEdges(tracks, cfg, genreMatch).length,
       approximate: false,
+      upperBound: false,
     })
   })
 
@@ -1450,6 +1451,7 @@ describe('the lazy combo graph', () => {
     expect(countComboPairs(buildComboGraph(tracks, config({ threshold: 0 })))).toEqual({
       count: (160 * 159) / 2,
       approximate: false,
+      upperBound: false,
     })
   })
 
@@ -1466,5 +1468,26 @@ describe('the lazy combo graph', () => {
     expect(estimate.approximate).toBe(true)
     expect(Math.abs(estimate.count - exact) / exact).toBeLessThan(0.05)
     expect(countComboPairs(graph, { exactLimit: 1000, samples: 50_000 })).toEqual(estimate)
+  })
+
+  test('rare combos read as an upper bound, never as "about 0"', () => {
+    const big = randomLibrary(700, 3)
+    const strict = config({
+      threshold: 5,
+      bpm: { ...DEFAULT_CRITERIA.bpm, maxPercent: 1 },
+      year: { ...DEFAULT_CRITERIA.year, maxYears: 0 },
+    })
+    const genreMatch = makeGenreMatcher(
+      big.map((t) => t.genre),
+      strict.genre.k,
+    )
+    const exact = computeEdges(big, strict, genreMatch).length
+    expect(exact).toBeGreaterThan(0)
+    const bound = countComboPairs(buildComboGraph(big, strict, genreMatch), {
+      exactLimit: 1000,
+      samples: 2000,
+    })
+    expect(bound).toMatchObject({ approximate: true, upperBound: true })
+    expect(bound.count).toBeGreaterThanOrEqual(exact)
   })
 })

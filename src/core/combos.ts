@@ -333,6 +333,15 @@ export function buildComboGraph(
   const complete = criteria.threshold === 0 && demandedCount(criteria) === 0
   const indexOf = new Map(tracks.map((t, i) => [t.id, i]))
   const memo = new Map<string, string[]>()
+  // A track with none of the enabled fields, or missing a demanded one, can
+  // never form a combo (evaluateCombo needs one evaluable field and every
+  // demanded field on both sides). Answering those at once keeps a library
+  // full of untagged tracks from costing a full scan per track.
+  const enabled = CRITERION_FIELDS.filter((f) => criteria[f].enabled)
+  const demanded = enabled.filter((f) => criteria[f].demanded)
+  const pairable = tracks.map(
+    (t) => enabled.some((f) => t[f] !== null) && demanded.every((f) => t[f] !== null),
+  )
   const evaluateAt = (i: number, j: number) =>
     i < j
       ? evaluateCombo(tracks[i], tracks[j], criteria, genreMatch)
@@ -350,8 +359,8 @@ export function buildComboGraph(
       let found = memo.get(id)
       if (found === undefined) {
         found = []
-        for (let j = 0; j < tracks.length; j++) {
-          if (j !== i && evaluateAt(i, j).isCombo) found.push(tracks[j].id)
+        for (let j = 0; pairable[i] && j < tracks.length; j++) {
+          if (j !== i && pairable[j] && evaluateAt(i, j).isCombo) found.push(tracks[j].id)
         }
         memo.set(id, found)
       }
@@ -363,8 +372,8 @@ export function buildComboGraph(
       if (complete) return tracks.length > 1
       const known = memo.get(id)
       if (known !== undefined) return known.length > 0
-      for (let j = 0; j < tracks.length; j++) {
-        if (j !== i && evaluateAt(i, j).isCombo) return true
+      for (let j = 0; pairable[i] && j < tracks.length; j++) {
+        if (j !== i && pairable[j] && evaluateAt(i, j).isCombo) return true
       }
       return false
     },
@@ -417,16 +426,16 @@ export function focusEdgesFor(
 export function countComboPairs(
   graph: ComboGraph,
   { exactLimit = 300_000, samples = 200_000 } = {},
-): { count: number; approximate: boolean } {
+): { count: number; approximate: boolean; upperBound: boolean } {
   const n = graph.tracks.length
   const pairs = n < 2 ? 0 : (n * (n - 1)) / 2
-  if (graph.complete) return { count: pairs, approximate: false }
+  if (graph.complete) return { count: pairs, approximate: false, upperBound: false }
   if (pairs <= exactLimit) {
     let count = 0
     for (let i = 0; i < n; i++) {
       for (let j = i + 1; j < n; j++) if (graph.evaluateAt(i, j).isCombo) count++
     }
-    return { count, approximate: false }
+    return { count, approximate: false, upperBound: false }
   }
   const rand = mulberry32(PAIR_SAMPLE_SEED)
   let hits = 0
@@ -436,10 +445,21 @@ export function countComboPairs(
     if (j >= i) j++
     if (graph.evaluateAt(i, j).isCombo) hits++
   }
-  return { count: Math.round((hits / samples) * pairs), approximate: true }
+  // Too few hits to estimate from: report a generous upper bound instead, so
+  // rare combos never read as "about 0". h + 2√h + 3 sits above the 95%
+  // Poisson upper limit for every h below MIN_SAMPLE_HITS (3.0 at h = 0).
+  if (hits < MIN_SAMPLE_HITS) {
+    return {
+      count: Math.ceil(((hits + 2 * Math.sqrt(hits) + 3) / samples) * pairs),
+      approximate: true,
+      upperBound: true,
+    }
+  }
+  return { count: Math.round((hits / samples) * pairs), approximate: true, upperBound: false }
 }
 
 const PAIR_SAMPLE_SEED = 0x5eed
+const MIN_SAMPLE_HITS = 10
 
 /**
  * Flip one criterion on/off, keeping the N-of-M threshold honest. Enabling a
@@ -485,9 +505,10 @@ export function toggleDemanded(
 }
 
 /**
- * All undirected combo edges for a track set, each pair reported once.
- * `genreMatch` defaults to a matcher over these tracks' own genres; the app
- * passes its library-wide one so filtering never changes what matches.
+ * All undirected combo edges for a track set, each pair reported once — the
+ * full O(n²) list the app never builds (it asks the lazy `buildComboGraph`).
+ * Kept as the reference the lazy graph is tested against. `genreMatch`
+ * defaults to a matcher over these tracks' own genres.
  */
 export function computeEdges(
   tracks: Track[],

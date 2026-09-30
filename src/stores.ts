@@ -380,7 +380,7 @@ function distinct<T>(store: Readable<T>, equal: (a: T, b: T) => boolean): Readab
  * period passes through synchronously (a checkbox toggle stays instant), then
  * at most one emission per `ms` while writes keep coming (a slider drag emits
  * ~4×/s at 250ms instead of once per pixel), and the last value is always
- * delivered. The gate in front of every O(n²)-and-worse derivation below.
+ * delivered. The gate in front of every heavy derivation below.
  *
  * `initial` covers the one cold path: the app keeps these stores permanently
  * subscribed (CriteriaPanel never unmounts), but a `get()` on a cold store
@@ -440,7 +440,8 @@ function marksContextEqual(a: MarksContext | null, b: MarksContext | null): bool
  * `effectiveFilters` before `marksContext` exists in the graph, so Svelte's
  * pending-bit diamond guard can't cover that ordering; the intermediate is
  * content-identical (flags-on with a missing context is inert by design), so
- * the cost is one extra O(n²) pass on those boundary clicks only.
+ * the cost is one extra pass of the heavy derivations on those boundary
+ * clicks only.
  */
 const marksContext: Readable<MarksContext | null> = distinct(
   derived(
@@ -476,7 +477,8 @@ const marksContext: Readable<MarksContext | null> = distinct(
  * (re-clicking the already-active "only" button, hiding an already-off row,
  * resetting an already-off flag) still writes `filters`, which cascades
  * into `marksContext`/`visibleLibrary` — the `distinct` wrapper guards the
- * O(n²) combo recompute against real churn, not this kind of no-op.
+ * heavy derivations (the combo graph's pair count, the wheel layout)
+ * against real churn, not this kind of no-op.
  *
  * Turning a flag ON also force-adds its row to `settings.visibleFilters` if
  * missing: the same "an active filter is never invisible" invariant
@@ -534,7 +536,7 @@ export function clearPanelFilter(key: PanelFilterKey): void {
 /**
  * The source preference, projected through `distinct` so unrelated
  * settings churn (an edge-opacity slider drag) never re-emits into the
- * O(n²) combo view downstream. Reads the EFFECTIVE layer: easy mode runs
+ * library-wide derivations downstream. Reads the EFFECTIVE layer: easy mode runs
  * on Rekordbox truth like every other computed default.
  */
 const sourcePrefs = distinct(
@@ -551,7 +553,8 @@ const sourced = derived([library, sourcePrefs], ([$library, $prefs]) =>
   applySourcePreference($library, $prefs),
 )
 /** The genre preference, `distinct` for the same reason as `sourcePrefs`:
- * it feeds the O(n²) combo view, so unrelated settings churn must not re-emit. */
+ * it feeds every library-wide derivation, so unrelated settings churn must
+ * not re-emit. */
 const genrePrefs = distinct(
   derived(effectiveSettings, ($s) => ({
     genreSource: $s.genreSource,
@@ -649,8 +652,8 @@ export const scopedGenres = derived(playlistScopedLibrary, ($scoped) => {
 
 /**
  * Criteria as the combo engine sees them: throttled, so a slider drag
- * or a number-input keystroke burst costs a handful of O(n²) recomputes, not
- * one per input event. Everything else (UI bindings, undo, autosave, tests)
+ * or a number-input keystroke burst rebuilds the combo graph (and recounts
+ * its pairs) a handful of times, not once per input event. Everything else (UI bindings, undo, autosave, tests)
  * keeps reading the synchronous `effectiveCriteria`.
  */
 const settledCriteria = throttled(

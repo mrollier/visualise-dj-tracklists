@@ -676,6 +676,29 @@ await page.locator('.tracks-view table').waitFor()
 if ((await findInTable('.tracks-view .tag.star:has-text("⏭")')) !== 1) {
   errors.push('the 📌 closer pin is not reflected as a ⏭ star in the Tracks view')
 }
+// Only the rows on screen are mounted, so the table states its full size and
+// every row its position for assistive technology.
+{
+  const aria = await page.evaluate(() => {
+    const table = document.querySelector('.tracks-view table')
+    const rows = [...document.querySelectorAll('.tracks-view tbody tr:not(.spacer)')]
+    return {
+      count: Number(table.getAttribute('aria-rowcount')),
+      indices: rows.map((r) => Number(r.getAttribute('aria-rowindex'))),
+    }
+  })
+  const consecutive = aria.indices.every((v, k) => k === 0 || v === aria.indices[k - 1] + 1)
+  if (!(
+    aria.count > 1 &&
+    aria.indices.length > 0 &&
+    consecutive &&
+    aria.indices.at(-1) <= aria.count
+  )) {
+    errors.push(
+      `the Tracks table does not state its size to assistive tech: ${JSON.stringify(aria)}`,
+    )
+  }
+}
 // sorting: BPM ascending then descending, missing values at the bottom
 const bpmHeader = page.locator('.tracks-view th button', { hasText: 'BPM' })
 await bpmHeader.click()

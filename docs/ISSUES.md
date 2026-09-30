@@ -10,17 +10,23 @@ Items marked **(Wave B)** are scheduled in the v41 plan.
 
 ## Performance ceilings (deliberate; keep the upgrade paths)
 
-- The combo graph is lazy (one O(n) scan per track asked about), but two
-  paths can still approach O(n²) on a huge, loosely matched library: the
-  focus cluster (O(partners²), `focusEdgesFor`) and the random opener when most
-  of the pool has no combo (`randomStart`). Both are ponytail-marked; a Web
-  Worker plus candidate bucketing is the next step if either shows up.
+- The combo graph is lazy (one O(n) scan per track asked about; a track that
+  can never pair — no metadata, or missing a demanded field — answers at
+  once). Two paths still grow faster than that: the opt-in focus cluster is
+  O(partners²) (at 10k: 246 ms per selection at the defaults, 3.3 s at
+  require 2), and the random opener scans once per track that could pair but
+  has no partner (`randomStart`). Both are ponytail-marked; a Web Worker plus
+  candidate bucketing is the next step if either shows up.
+- The graph and the `neighbours` store keep every partner list they computed
+  until the next filter or criteria change — about 0.3–0.5 MB per distinct
+  selection at require 1 on 10k tracks. Unmeasured over a long session.
 - The wheel draws one SVG node per visible track, and same-slot layout is
   O(m²) (`src/core/layout.ts`, ponytail note). Measured on a laptop with 10k
   tracks all visible: the wheel mounts in about 0.5 s, a selection repaints in
   about 100 ms, and the first frame of a zoom stalls about 280 ms in raster
-  (no script), then zooming runs smoothly. Glides already switch off above
-  1500 visible tracks (`src/lib/motion.ts`). Canvas-drawn stars are the fix
+  (no script), then zooming runs smoothly. Glides switch off above 1500
+  visible tracks (`src/lib/motion.ts`), and a glide places only the drawn
+  stars, so a playlist of a big library glides at the playlist's cost. Canvas-drawn stars are the fix
   if a fully visible 10k wheel has to feel instant; playlists normally keep
   the visible count far lower.
 - The genre pack (440 KB after v41) is imported eagerly into the entry chunk

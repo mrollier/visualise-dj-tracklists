@@ -95,7 +95,9 @@
     </div>
     <div class="stat">
       <span class="value"
-        >{#if $comboPairCount.approximate}≈ {approxCount.format(
+        >{#if $comboPairCount.upperBound}&lt; {approxCount.format(
+            $comboPairCount.count,
+          )}{:else if $comboPairCount.approximate}≈ {approxCount.format(
             $comboPairCount.count,
           )}{:else}{$comboPairCount.count}{/if}</span
       >

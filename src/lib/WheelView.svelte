@@ -593,8 +593,16 @@
   // whose key the analysis sidecar filled parked in the gutter for ever,
   // while the Tracks table showed it correctly. Every `$augmentedLibrary`
   // read in this file is load-bearing for the same reason.
+  const visibleIds = $derived(new Set($visibleLibrary.map((t) => t.id)))
+  const ghostIds = $derived(new Set(ghostWalkIds($tracklist, visibleIds)))
+
   const nodes = $derived.by(() => {
     const placed: PlacedNode[] = []
+    // Only what is drawn: the visible stars and the ghosts. Angles and gutter
+    // slots come from the whole library (slotAngleById, gutterTargetXById),
+    // so skipping the rest moves nothing — and a glide over a playlist of a
+    // large library then costs per visible star, not per track.
+    const drawn = (id: string) => visibleIds.has(id) || ghostIds.has(id)
 
     /** Settled gutter y for this track under the live axis/scale, or its
      * mid-morph lerped y while an axis swap is in flight. */
@@ -611,6 +619,7 @@
     // gutterTargetXById above; this loop just draws x glided
     // toward that target (displacedScalar) and y unchanged.
     for (const track of unkeyedSorted) {
+      if (!drawn(track.id)) continue
       const value = track[$radialAxis]
       const y = unkeyedY(track) // unchanged: still rides morph/domain tween
       const x = displacedScalar(gutterXFrom, track.id, gutterTargetXById.get(track.id) ?? GUTTER_X)
@@ -622,7 +631,7 @@
     // displacedScalar above), plus the tween-animated radius, or — mid-swap
     // — the per-node morph.
     for (const track of $augmentedLibrary) {
-      if (track.key === null) continue
+      if (track.key === null || !drawn(track.id)) continue
       const value = track[$radialAxis]
       const angle = displacedScalar(angleFrom, track.id, slotAngleById.get(track.id) ?? 0)
       const plainR = value === null ? R_FALLBACK : radialScale(value)
@@ -632,19 +641,17 @@
     return placed
   })
 
-  const visibleIds = $derived(new Set($visibleLibrary.map((t) => t.id)))
   /** Only the visible placements are ever rendered or hit-tested. */
   const visibleNodes = $derived(nodes.filter((n) => visibleIds.has(n.track.id)))
 
   const nodeById = $derived(new Map(visibleNodes.map((n) => [n.track.id, n])))
 
   // Ghost stars: walk members the active filters hide still have a
-  // placement (the full-library `nodes` pass above covers every track, not
-  // just the visible ones, and the clamped radial scale rim-pins one that's
-  // out of the domain for free) — they just aren't in visibleNodes. ids come
+  // placement (the `nodes` pass above places them alongside the visible
+  // stars, and the clamped radial scale rim-pins one that's out of the
+  // domain for free) — they just aren't in visibleNodes. ids come
   // pre-deduped/ordered from ghostWalkIds; nodeById above stays visible-only
   // and untouched, so combo/manual edges keep their both-visible behaviour.
-  const ghostIds = $derived(new Set(ghostWalkIds($tracklist, visibleIds)))
   const ghostNodes = $derived(nodes.filter((n) => ghostIds.has(n.track.id)))
   /** Walk edges alone may span a hidden endpoint, so they alone look this up
    * instead of the plain nodeById. Reduces to nodeById byte-for-byte when

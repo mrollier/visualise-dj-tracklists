@@ -121,9 +121,9 @@ export function replaceLibrary(replacement: {
   } = replacement
   // Clear the library FIRST and set the new tracks LAST: every store write in
   // between propagates synchronously through the derived graph, and any pass
-  // where a non-empty library meets not-yet-final filters runs the O(n²)
-  // combo compute for nothing — writing the tracks before the filters settle
-  // costs a 10-20s import freeze, computed twice. Against an empty library
+  // where a non-empty library meets not-yet-final filters runs the heavy
+  // derivations (genre matching, layout, the pair count) for nothing, twice
+  // over. Against an empty library
   // every intermediate recompute is trivial, and the single final set()
   // computes once, under the final filters.
   library.set([])

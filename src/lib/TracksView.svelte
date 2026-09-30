@@ -439,7 +439,9 @@
   bind:clientHeight={viewportHeight}
   onscroll={(e) => (scrollTop = e.currentTarget.scrollTop)}
 >
-  <table class:has-selection={$selectedId !== null}>
+  <!-- Only the rows on screen exist in the DOM: the row count and each
+       row's index tell assistive technology how large the table really is. -->
+  <table class:has-selection={$selectedId !== null} aria-rowcount={Math.max(listed.length, 1) + 1}>
     <!-- table-layout: fixed, driven by these widths: mirrors the
          header row's column order exactly. columnWidths is computed once
          from the full library, not the filtered view, so no filter/mark
@@ -457,7 +459,7 @@
       {/each}
     </colgroup>
     <thead>
-      <tr>
+      <tr aria-rowindex={1}>
         <!-- Tags + position lead the row; the header ★ is a quick filter
              (the old mark-all-★ action is retired). `showStarCol` hides the
              whole column, header and row ★s alike; within a shown column,
@@ -619,7 +621,7 @@
              <table> — <thead> (and the ★/🔗 filter toggles in it) must stay
              mounted so an active header filter that empties the view can
              always be turned back off. -->
-        <tr class="empty-row">
+        <tr class="empty-row" aria-rowindex={2}>
           <td colspan={colCount}>
             <div class="empty-hint">
               <strong>Nothing to list yet.</strong>
@@ -636,7 +638,7 @@
             <td colspan={colCount}></td>
           </tr>
         {/if}
-        {#each rows as track (track.id)}
+        {#each rows as track, i (track.id)}
           {@const positions = positionsById.get(track.id)}
           {@const starState = starStateOf(track.id)}
           <tr
@@ -646,6 +648,7 @@
             class:set-hovered={track.id === $hoveredId}
             class:link-armed={$linkArmed}
             style="height: {ROW_H}px"
+            aria-rowindex={view.start + i + 2}
             onclick={() => selectRow(track.id)}
           >
             {#if showStarCol}
