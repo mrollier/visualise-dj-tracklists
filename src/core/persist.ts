@@ -97,7 +97,7 @@ function isRecord(v: unknown): v is Record<string, unknown> {
  *   nearest bound (slotSpreadFactor, edgeOpacity, suggestRandomness, …).
  * - `mode: 'reject'` — only an already-in-range value survives; anything
  *   outside resets to `fallback`, never clamped (manualEdgeWeight).
- * With no bounds it is a plain finite-or-default guard (jitterSeed).
+ * With no bounds it is a plain finite-or-default guard.
  */
 function finiteOr(
   value: unknown,
@@ -144,14 +144,11 @@ function migrateCriteria(raw: Record<string, unknown>): CriteriaConfig {
       maxSteps: energy.maxSteps ?? defaults.energy.maxSteps,
       demanded: energy.demanded === true,
     },
+    // Saves from the multi-method era also carry method/mode/threshold; the
+    // app matches with the hybrid pack only, so those are dropped here.
     genre: {
       enabled: genre.enabled ?? defaults.genre.enabled,
-      method: genre.method ?? defaults.genre.method,
-      // Projects saved before mutual top-k existed keep their threshold
-      // semantics untouched; only fresh configs default to 'topk'.
-      mode: genre.mode ?? (genre.threshold !== undefined ? 'threshold' : defaults.genre.mode),
-      k: genre.k ?? defaults.genre.k,
-      threshold: genre.threshold ?? defaults.genre.threshold,
+      k: Math.round(finiteOr(genre.k, defaults.genre.k, { min: 1, max: 8, mode: 'clamp' })),
       demanded: genre.demanded === true,
     },
     year: {
@@ -381,8 +378,6 @@ export function parseProject(json: string): Project {
         ? rawSettings.colorScheme
         : DEFAULT_SETTINGS.colorScheme,
     slotSpreadFactor,
-    // Dead knob since v9 but persisted: keep any finite stored value.
-    jitterSeed: finiteOr(rawSettings.jitterSeed, DEFAULT_SETTINGS.jitterSeed),
     // Slider range 0–0.9 (AdvancedMenu.svelte).
     edgeOpacity: finiteOr(rawSettings.edgeOpacity, DEFAULT_SETTINGS.edgeOpacity, {
       min: 0,
@@ -413,20 +408,6 @@ export function parseProject(json: string): Project {
       typeof rawSettings.avoidSameArtist === 'boolean'
         ? rawSettings.avoidSameArtist
         : DEFAULT_SETTINGS.avoidSameArtist,
-    iconMode:
-      rawSettings.iconMode === 'families' ||
-      rawSettings.iconMode === 'playlists' ||
-      rawSettings.iconMode === 'clusters'
-        ? rawSettings.iconMode
-        : DEFAULT_SETTINGS.iconMode,
-    // Number input 1–8 (AdvancedMenu.svelte); a fractional entry rounds.
-    maxGenreClasses: Math.round(
-      finiteOr(rawSettings.maxGenreClasses, DEFAULT_SETTINGS.maxGenreClasses, {
-        min: 1,
-        max: 8,
-        mode: 'clamp',
-      }),
-    ),
     bpmProgression:
       rawSettings.bpmProgression === 'any' ||
       rawSettings.bpmProgression === 'steady' ||

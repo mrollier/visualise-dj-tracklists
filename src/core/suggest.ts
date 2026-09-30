@@ -189,7 +189,7 @@ function scoreCandidate(
   const matched = evaluateCombo(current, candidate, criteria, genreMatch).matched.length
   const genre =
     current.genre !== null && candidate.genre !== null
-      ? genreSimilarity(current.genre, candidate.genre, criteria.genre.method)
+      ? genreSimilarity(current.genre, candidate.genre)
       : 0
   let bpm = 0
   if (current.bpm !== null && candidate.bpm !== null) {
@@ -473,7 +473,7 @@ export function suggestWalk(
   const visited = new Set([start, end])
   const towards = (other: Track) => (candidate: Track) =>
     other.genre !== null && candidate.genre !== null
-      ? 0.3 * genreSimilarity(candidate.genre, other.genre, criteria.genre.method)
+      ? 0.3 * genreSimilarity(candidate.genre, other.genre)
       : 0
   while (startArm.length + endArm.length < targetLength) {
     const tipA = byId.get(startArm[startArm.length - 1])!

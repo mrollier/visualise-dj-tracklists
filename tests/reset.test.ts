@@ -11,7 +11,6 @@ describe('reset to defaults (v9 issue 3)', () => {
       colorScheme: 'violet',
       edgeOpacity: 0.8,
       focusClusterEdges: true,
-      maxGenreClasses: 6,
       manualEdgeWeight: 9,
       hiddenColumns: [],
       advancedOpen: ['display', 'tracks'],
@@ -20,7 +19,6 @@ describe('reset to defaults (v9 issue 3)', () => {
     expect(reset.colorScheme).toBe(DEFAULT_SETTINGS.colorScheme)
     expect(reset.edgeOpacity).toBe(DEFAULT_SETTINGS.edgeOpacity)
     expect(reset.focusClusterEdges).toBe(false)
-    expect(reset.maxGenreClasses).toBe(DEFAULT_SETTINGS.maxGenreClasses)
     expect(reset.manualEdgeWeight).toBe(DEFAULT_SETTINGS.manualEdgeWeight)
     expect(reset.hiddenColumns).toEqual(DEFAULT_SETTINGS.hiddenColumns)
     // The theme lives in the top bar and the fold memory is UI chrome —
@@ -69,7 +67,7 @@ describe('reset to defaults (v9 issue 3)', () => {
     }
     current.bpm = { ...current.bpm, maxPercent: 0, unitTime: false, halfDouble: true }
     current.energy = { ...current.energy, enabled: false, maxSteps: 9 }
-    current.genre = { ...current.genre, enabled: false, method: 'lexical', k: 15, threshold: 0.9 }
+    current.genre = { ...current.genre, enabled: false, k: 8 }
     current.threshold = 4
 
     const reset = resetAdvancedCriteria(current)
@@ -79,9 +77,7 @@ describe('reset to defaults (v9 issue 3)', () => {
     expect(reset.key.vinylMode).toBe(DEFAULT_CRITERIA.key.vinylMode)
     expect(reset.bpm.unitTime).toBe(DEFAULT_CRITERIA.bpm.unitTime)
     expect(reset.bpm.halfDouble).toBe(DEFAULT_CRITERIA.bpm.halfDouble)
-    expect(reset.genre.method).toBe(DEFAULT_CRITERIA.genre.method)
     expect(reset.genre.k).toBe(DEFAULT_CRITERIA.genre.k)
-    expect(reset.genre.threshold).toBe(DEFAULT_CRITERIA.genre.threshold)
     // …but the combo panel's own knobs are untouched. Energy has no
     // advanced-owned sub-fields (same as year), so it's untouched wholesale.
     expect(reset.key.enabled).toBe(false)

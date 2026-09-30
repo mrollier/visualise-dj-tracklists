@@ -11,7 +11,7 @@
     type SimulationNodeDatum,
   } from 'd3-force'
   import { matchedGenrePairs } from '../core/combos'
-  import { genreComponents, GENRE_METHODS, labelSimilarity, type GenreMethod } from '../core/genre'
+  import { genreComponents, labelSimilarity, sharedGenreAncestor } from '../core/genre'
   import {
     edgeTier,
     ghostAnchors,
@@ -21,7 +21,7 @@
     skeletonOpacity,
   } from '../core/genreMap'
   import { genreFamilyClasses } from '../core/iconClasses'
-  import { criteria, playlistScopedLibrary, settings, visibleLibrary } from '../stores'
+  import { criteria, genreMatcher, playlistScopedLibrary, visibleLibrary } from '../stores'
   import { createShapePathCache } from './shapeSymbols'
   import { createViewZoom } from './viewZoom'
 
@@ -35,41 +35,9 @@
     return CONTAIN_STRENGTH * Math.max(1, Math.sqrt(count / 22))
   }
 
-  // Method overlay colours: first six dark categorical slots of the palette,
-  // validated against both surfaces (dark #1a1a19, light #f7f6f2; see
-  // docs/designs/design-v4.md §F and design-v5.md §E). Taxonomy is dashed as
-  // secondary encoding for the graph↔taxonomy CVD floor pair.
-  const METHOD_COLOR: Record<GenreMethod, string> = {
-    exact: '#3987e5',
-    lexical: '#199e70',
-    graph: '#c98500',
-    taxonomy: '#008300',
-    embedding: '#9085e9',
-    hybrid: '#e66767',
-  }
-  const METHOD_DASH: Partial<Record<GenreMethod, string>> = { taxonomy: '6 4' }
-
-  /** Edges thinner than this score are noise, not links. */
-  const SCORE_FLOOR = 0.15
   const GHOSTS_PER_GENRE = 3
 
   let showNeighbours = $state(false)
-  // The map's methods: everything but 'exact' — one node per normalized
-  // label means identical labels are literally the same node, so the exact
-  // overlay can never draw an edge (v8 issue 12).
-  const MAP_METHODS: readonly GenreMethod[] = GENRE_METHODS.filter((m) => m !== 'exact')
-  // A single overlay method (v10 issue 16): the map draws one method's links
-  // at a time. It tracks the criterion method (a writable $derived), so
-  // changing the criterion replaces the overlay rather than stacking it (the
-  // v9 bug); a chip click overrides until the criterion next changes, and
-  // clicking the active chip clears the overlay.
-  let overlayMethod = $derived<GenreMethod | null>(
-    $criteria.genre.method === 'exact' ? null : $criteria.genre.method,
-  )
-
-  function selectMethod(method: GenreMethod): void {
-    overlayMethod = overlayMethod === method ? null : method
-  }
 
   interface GenreNode extends SimulationNodeDatum {
     id: string
@@ -80,7 +48,6 @@
   interface GenreEdge {
     a: string
     b: string
-    method: GenreMethod
     score: number
   }
 
@@ -113,78 +80,43 @@
 
   const labels = $derived([...genreCounts.keys(), ...ghostLabels].sort())
 
-  // The criterion's own method draws exactly the pairs the combo criterion
-  // links — mode, k and threshold included, live (issue 12). Ghost labels
-  // sit outside the library vocabulary, so their edges (and every other
-  // overlay method) keep the plain similarity view with the score floor.
+  // The map draws exactly the pairs the genre criterion links (k included,
+  // live). Ghost labels sit outside the library vocabulary: each links only
+  // to the library genre(s) that summoned it.
   const criterionPairs = $derived.by(() => {
     // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived-local
     const keys = new Set<string>()
-    for (const [a, b] of matchedGenrePairs(
-      $visibleLibrary.map((t) => t.genre),
-      $criteria,
-    )) {
-      keys.add(`${a}\u001f${b}`)
-    }
+    for (const [a, b] of matchedGenrePairs(genreCounts.keys(), $genreMatcher))
+      keys.add(pairKey(a, b))
     return keys
   })
 
   const edges = $derived.by(() => {
     const list: GenreEdge[] = []
-    for (const method of MAP_METHODS) {
-      if (overlayMethod !== method) continue
-      const isCriterion = method === $criteria.genre.method
-      for (let i = 0; i < labels.length; i++) {
-        for (let j = i + 1; j < labels.length; j++) {
-          const a = labels[i]
-          const b = labels[j]
-          const aGhost = ghostLabels.has(a)
-          const bGhost = ghostLabels.has(b)
-          if (aGhost || bGhost) {
-            // v13: a ghost tethers to its summoner(s) only — ghost↔ghost and
-            // stray ghost↔library pairs neither draw nor pull. The tether is
-            // unconditional (no score floor): it is why the ghost exists.
-            const anchorsOfGhost =
-              aGhost && !bGhost
-                ? ghostAnchorMap.get(a)
-                : bGhost && !aGhost
-                  ? ghostAnchorMap.get(b)
-                  : undefined
-            const summoner = aGhost && !bGhost ? b : a
-            if (anchorsOfGhost?.has(summoner) === true) {
-              list.push({ a, b, method, score: labelSimilarity(a, b, method) })
-            }
-            continue
+    for (let i = 0; i < labels.length; i++) {
+      for (let j = i + 1; j < labels.length; j++) {
+        const a = labels[i]
+        const b = labels[j]
+        const aGhost = ghostLabels.has(a)
+        const bGhost = ghostLabels.has(b)
+        if (aGhost || bGhost) {
+          // A ghost tethers to its summoner(s) only — ghost↔ghost and stray
+          // ghost↔library pairs neither draw nor pull.
+          if (aGhost === bGhost) continue
+          const [ghost, summoner] = aGhost ? [a, b] : [b, a]
+          if (ghostAnchorMap.get(ghost)?.has(summoner) === true) {
+            list.push({ a, b, score: labelSimilarity(a, b) })
           }
-          const score = labelSimilarity(a, b, method)
-          const linked = isCriterion ? criterionPairs.has(`${a}\u001f${b}`) : score >= SCORE_FLOOR
-          if (linked) list.push({ a, b, method, score })
+          continue
         }
+        if (criterionPairs.has(pairKey(a, b))) list.push({ a, b, score: labelSimilarity(a, b) })
       }
     }
     return list
   })
 
-  /** Strongest score per pair across enabled overlays — drives the layout. */
-  const pairStrength = $derived.by(() => {
-    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived-local
-    const best = new Map<string, number>()
-    for (const { a, b, score } of edges) {
-      const key = `${a}\u001f${b}`
-      best.set(key, Math.max(best.get(key) ?? 0, score))
-    }
-    return best
-  })
-
-  // --- genre classes: ALWAYS the curated genre families here (v9 issue 4).
-  // The icon-mode setting only steers the Wheel view — genre nodes have a
-  // family by construction, so playlists/clusters make no sense on the map.
-  const familyClasses = $derived(
-    genreFamilyClasses(
-      $playlistScopedLibrary.map((t) => t.genre),
-      $settings.maxGenreClasses,
-    ),
-  )
+  // Node shapes are the curated genre families, as on the wheel.
+  const familyClasses = $derived(genreFamilyClasses($playlistScopedLibrary.map((t) => t.genre)))
   function classIndexOf(label: string): number | null {
     return familyClasses?.classOf.get(label) ?? null
   }
@@ -249,10 +181,7 @@
         y: previous?.y ?? HEIGHT / 2 + ((i % 5) - 2) * 2,
       }
     })
-    const links: GenreLink[] = [...pairStrength.entries()].map(([key, score]) => {
-      const [a, b] = key.split('\u001f')
-      return { source: a, target: b, score }
-    })
+    const links: GenreLink[] = edges.map(({ a, b, score }) => ({ source: a, target: b, score }))
     simulation?.stop()
     simById = new Map(nodes.map((n) => [n.id, n]))
     simulation = forceSimulation(nodes)
@@ -286,11 +215,9 @@
       .force('x', forceX<GenreNode>(WIDTH / 2).strength(containStrength(nodes.length)))
       .force('y', forceY<GenreNode>(HEIGHT / 2).strength(containStrength(nodes.length)))
       // Slow cooling and strong damping: nodes drift into place organically
-      // instead of springing (issue 5, pairs with the centre spawn of issue
-      // 3). alphaDecay lowered again (v10 issue 9, v11 issue 10) so a
-      // method change eases into its new layout instead of snapping.
+      // instead of springing, and a k change eases into its new layout.
       .alphaDecay(0.002)
-      // Damping grows with the map (v13): big vocabularies drift, not churn.
+      // Damping grows with the map: big vocabularies drift, not churn.
       .velocityDecay(mapMotion(nodes.length).velocityDecay)
       .on('tick', publishPositions)
     return () => simulation?.stop()
@@ -407,9 +334,9 @@
     dragDistance = 0
   }
 
-  // --- pair inspector (v8 issue 14): click A, click B, read the scores ---------
+  // --- pair inspector: click A, click B, read why they sit together ------------
   // Hovering edges is hopeless in a dense map; selecting two NODES locks a
-  // docked card with every method's score for the pair.
+  // docked card with the pair's score, link and shared ancestor.
   let inspectA = $state<string | null>(null)
   let inspectPair = $state<[string, string] | null>(null)
 
@@ -433,41 +360,23 @@
     inspectPair = null
   }
 
-  /** Every map method's score for a pair, plus whether it currently links it. */
-  function scoresFor(
-    a: string,
-    b: string,
-  ): { method: GenreMethod; score: number; linked: boolean }[] {
-    const bothInLibrary = !ghostLabels.has(a) && !ghostLabels.has(b)
-    return MAP_METHODS.map((method) => {
-      const score = labelSimilarity(a, b, method)
-      const linked =
-        method === $criteria.genre.method && bothInLibrary
-          ? criterionPairs.has(pairKey(a, b))
-          : score >= SCORE_FLOOR
-      return { method, score, linked: linked && overlayMethod === method }
-    })
-  }
+  /** The inspected pair: its score, whether the criterion links it, and why. */
+  const inspected = $derived.by(() => {
+    if (inspectPair === null) return null
+    const [a, b] = inspectPair
+    return {
+      score: labelSimilarity(a, b),
+      linked: criterionPairs.has(pairKey(a, b)),
+      ancestor: sharedGenreAncestor(a, b),
+    }
+  })
 
-  const inspectedScores = $derived(
-    inspectPair === null ? [] : scoresFor(inspectPair[0], inspectPair[1]),
-  )
-
-  // --- hover: a pair's scores under every method -------------------------------
+  // --- hover: a pair's score ------------------------------------------------------
   let hoveredPair = $state<{ a: string; b: string } | null>(null)
   let hoveredGenre = $state<string | null>(null)
   let mouse = $state({ x: 0, y: 0 })
 
-  const hoveredScores = $derived.by(() => {
-    const pair = hoveredPair
-    if (pair === null) return []
-    return MAP_METHODS.map((method) => ({
-      method,
-      score: labelSimilarity(pair.a, pair.b, method),
-    }))
-  })
-
-  // --- v13 issue 3: wheel-style focus — the map rests on a faint skeleton
+  // --- wheel-style focus — the map rests on a faint skeleton
   // (each genre's strongest link), a hovered or selected genre lights its
   // full star, and the compare pair pops its one link. Layout still uses
   // EVERY edge; only the drawn set shrinks.
@@ -508,7 +417,7 @@
     aria-label="Genre map of the library"
   >
     <g class="zoom-layer" transform={zoomTransform} bind:this={layerEl}>
-      {#each drawnEdges as { edge, tier } (`${edge.method}→${edge.a}→${edge.b}`)}
+      {#each drawnEdges as { edge, tier } (`${edge.a}→${edge.b}`)}
         {@const a = nodeById.get(edge.a)}
         {@const b = nodeById.get(edge.b)}
         {#if a && b}
@@ -517,13 +426,11 @@
             y1={a.y}
             x2={b.x}
             y2={b.y}
-            stroke={METHOD_COLOR[edge.method]}
             stroke-width={tier === 'pair'
               ? (0.75 + 2 * edge.score) * 2
               : tier === 'star'
                 ? 0.75 + 2 * edge.score
                 : 0.75}
-            stroke-dasharray={METHOD_DASH[edge.method] ?? 'none'}
             opacity={tier === 'pair'
               ? 1
               : tier === 'star'
@@ -588,28 +495,12 @@
     </g>
   </svg>
 
-  <!-- Method overlay chips: one line, no 'exact' (identical labels are one
-       node — it has nothing to draw; v8 issues 12+13) -->
   <div class="overlays">
-    <span class="overlays-title">Link methods</span>
-    {#each MAP_METHODS as method (method)}
-      <button
-        class="method-chip"
-        class:on={overlayMethod === method}
-        style="--chip: {METHOD_COLOR[method]}"
-        onclick={() => selectMethod(method)}
-      >
-        <i class:dashed={METHOD_DASH[method] !== undefined}></i>
-        {method}
-      </button>
-    {/each}
+    <span class="overlays-title">Links: each genre's {$criteria.genre.k} nearest</span>
     <label class="ghost-toggle">
       <input type="checkbox" bind:checked={showNeighbours} />
       show nearby genres
     </label>
-    {#if $criteria.genre.method === 'exact'}
-      <span class="exact-note">exact matches are single nodes — no lines to draw</span>
-    {/if}
   </div>
 
   <!-- Zoom controls -->
@@ -640,23 +531,24 @@
     </span>
   </div>
 
-  <!-- Pair inspector (v8 issue 14): click two nodes, read every score -->
-  {#if inspectPair !== null}
+  <!-- Pair inspector: click two nodes, read why they sit where they sit -->
+  {#if inspectPair !== null && inspected !== null}
     <div class="inspector" role="status">
       <div class="inspector-head">
         <strong>{inspectPair[0]} ↔ {inspectPair[1]}</strong>
         <button class="close" aria-label="Close comparison" onclick={clearInspection}>✕</button>
       </div>
       <dl>
-        {#each inspectedScores as { method, score, linked } (method)}
-          <dt><i style="background: {METHOD_COLOR[method]}"></i>{method}</dt>
-          <dd>
-            {score.toFixed(2)}
-            {#if linked}<span class="linked" title="currently drawn on the map">●</span>{/if}
-          </dd>
-        {/each}
+        <dt>similarity</dt>
+        <dd>{inspected.score.toFixed(2)}</dd>
+        <dt>combo match</dt>
+        <dd>
+          {#if inspected.linked}<span class="linked">● yes</span>{:else}no — not in each other's
+            {$criteria.genre.k} nearest{/if}
+        </dd>
+        <dt>shared family</dt>
+        <dd>{inspected.ancestor ?? 'none in the genre tree'}</dd>
       </dl>
-      <p class="inspector-hint">● = drawn on the map at the current settings</p>
     </div>
   {:else if inspectA !== null}
     <div class="inspector slim" role="status">
@@ -667,12 +559,7 @@
   {#if hoveredPair}
     <div class="tooltip" style="left: {mouse.x + 14}px; top: {mouse.y + 12}px">
       <strong>{hoveredPair.a} ↔ {hoveredPair.b}</strong>
-      <dl>
-        {#each hoveredScores as { method, score } (method)}
-          <dt><i style="background: {METHOD_COLOR[method]}"></i>{method}</dt>
-          <dd>{score.toFixed(2)}</dd>
-        {/each}
-      </dl>
+      <span>similarity {labelSimilarity(hoveredPair.a, hoveredPair.b).toFixed(2)}</span>
     </div>
   {/if}
 </div>
@@ -691,6 +578,10 @@
   .map-wrap > svg {
     width: 100%;
     height: 100%;
+  }
+
+  .edge {
+    stroke: var(--accent);
   }
 
   .edge-hit {
@@ -750,7 +641,6 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    /* One line, always (v8 issue 13): five chips after dropping 'exact'. */
     flex-wrap: nowrap;
     white-space: nowrap;
   }
@@ -763,50 +653,12 @@
     margin-right: 4px;
   }
 
-  .method-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 12px;
-    padding: 3px 9px;
-    border-radius: 999px;
-    border: 1px solid var(--border);
-    background: var(--surface-raised);
-    color: var(--ink-muted);
-  }
-
-  .method-chip i {
-    width: 14px;
-    height: 0;
-    border-top: 2px solid var(--chip);
-    opacity: 0.35;
-  }
-
-  .method-chip i.dashed {
-    border-top-style: dashed;
-  }
-
-  .method-chip.on {
-    color: var(--ink);
-    border-color: var(--chip);
-  }
-
-  .method-chip.on i {
-    opacity: 1;
-  }
-
   .ghost-toggle {
     display: inline-flex;
     align-items: center;
     gap: 5px;
     font-size: 12px;
     color: var(--ink-secondary);
-    margin-left: 8px;
-  }
-
-  .exact-note {
-    color: var(--ink-muted);
-    font-size: 11px;
     margin-left: 8px;
   }
 
@@ -911,12 +763,6 @@
     gap: 5px;
   }
 
-  .inspector dt i {
-    width: 10px;
-    height: 2px;
-    display: inline-block;
-  }
-
   .inspector dd {
     margin: 0;
     color: var(--ink-secondary);
@@ -924,15 +770,6 @@
 
   .inspector .linked {
     color: var(--accent);
-    margin-left: 4px;
-    font-size: 9px;
-    vertical-align: 1px;
-  }
-
-  .inspector-hint {
-    margin: 6px 0 0;
-    color: var(--ink-muted);
-    font-size: 11px;
   }
 
   .tooltip {
@@ -945,31 +782,9 @@
     padding: 8px 10px;
     pointer-events: none;
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
-  }
-
-  .tooltip dl {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 1px 10px;
-    margin: 4px 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
     font-size: 12px;
-  }
-
-  .tooltip dt {
-    color: var(--ink-muted);
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-  }
-
-  .tooltip dt i {
-    width: 10px;
-    height: 2px;
-    display: inline-block;
-  }
-
-  .tooltip dd {
-    margin: 0;
-    color: var(--ink-secondary);
   }
 </style>

@@ -1,37 +1,25 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import {
   computeGenreCoverage,
-  GENRE_METHODS,
   learnGenreBridge,
   setGenreBridge,
   genreComponents,
   genreFamilyOf,
   genreSimilarity,
-  METHOD_LABEL,
-  METHOD_LABEL_LONG,
-  METHOD_PICK_ORDER,
+  sharedGenreAncestor,
   normalizeGenre,
   packNeighbours,
   UMBRELLA_GENRES,
 } from '../src/core/genre'
 
-describe('the Discogs400 widening (v39)', () => {
-  // The widened tree must not move a single curated pair. IC is computed over
-  // the curated node set alone precisely because counting 380 added leaves
-  // would grow N and lift every umbrella's information content with it —
-  // measured at the time: techno↔house 0.169 → 0.419, which would let
-  // 'electronic' drive matches it is explicitly not allowed to drive.
-  test('curated pairs score exactly as they did before the widening', () => {
-    expect(genreSimilarity('techno', 'house', 'taxonomy')).toBeCloseTo(0.169, 3)
-    expect(genreSimilarity('deep house', 'tech house', 'taxonomy')).toBeCloseTo(0.222, 3)
-    expect(genreSimilarity('jungle', 'drum & bass', 'taxonomy')).toBeCloseTo(0.943, 3)
-    expect(genreSimilarity('techno', 'jungle', 'taxonomy')).toBeCloseTo(0.095, 3)
+describe('the Discogs400 widening of the curated tree', () => {
+  test('curated pairs keep their specific shared ancestor', () => {
+    expect(sharedGenreAncestor('Deep House', 'Tech House')).toBe('house')
+    expect(sharedGenreAncestor('Jungle', 'Drum & Bass')).toBe('jungle')
   })
 
-  test('a predicted style the curated tree lacks gets a lineage, not the lexical fallback', () => {
-    // 'euro house' is Discogs-only: without the widening its only route to
-    // 'house' was spelling, which is why it scored as a string, not a genre.
-    expect(genreSimilarity('euro house', 'house', 'taxonomy')).toBeGreaterThan(0)
+  test('a predicted style the curated tree lacks still gets a lineage, but no family', () => {
+    expect(sharedGenreAncestor('Euro House', 'Deep Techno')).toBe('electronic')
     expect(genreFamilyOf('deep techno')).toBeNull()
   })
 
@@ -39,26 +27,6 @@ describe('the Discogs400 widening (v39)', () => {
     expect(normalizeGenre('Drum n Bass')).toBe('drum & bass')
     expect(normalizeGenre('Psy-Trance')).toBe('psytrance')
     expect(normalizeGenre('Synth-pop')).toBe('synthpop')
-  })
-})
-
-describe('method labels', () => {
-  test('short labels carry no parenthetical explainer (issue 9)', () => {
-    for (const method of GENRE_METHODS) {
-      expect(METHOD_LABEL[method]).not.toContain('(')
-      expect(METHOD_LABEL[method].length).toBeGreaterThan(0)
-    }
-  })
-
-  test('long labels exist for the advanced menu and extend the short ones', () => {
-    for (const method of GENRE_METHODS) {
-      expect(METHOD_LABEL_LONG[method]).toContain(METHOD_LABEL[method])
-    }
-  })
-
-  test('the pick order puts the recommended hybrid method first (issue 7)', () => {
-    expect(METHOD_PICK_ORDER[0]).toBe('hybrid')
-    expect([...METHOD_PICK_ORDER].sort()).toEqual([...GENRE_METHODS].sort())
   })
 })
 
@@ -108,10 +76,10 @@ describe('genreSimilarity: multi-genre fields', () => {
   test('takes the best component pair', () => {
     // "House / Techno" contains techno, so it must match Minimal Techno as
     // well as plain "Techno" does.
-    const compound = genreSimilarity('House / Techno', 'Minimal Techno', 'taxonomy')
-    const plain = genreSimilarity('Techno', 'Minimal Techno', 'taxonomy')
+    const compound = genreSimilarity('House / Techno', 'Minimal Techno')
+    const plain = genreSimilarity('Techno', 'Minimal Techno')
     expect(compound).toBe(plain)
-    expect(genreSimilarity('House / Techno', 'Techno', 'exact')).toBe(1)
+    expect(genreSimilarity('House / Techno', 'Techno')).toBe(1)
   })
 })
 
@@ -130,148 +98,69 @@ describe('packNeighbours', () => {
   })
 })
 
-describe('genreSimilarity: exact', () => {
-  test('1 for equal after normalization, 0 otherwise', () => {
-    expect(genreSimilarity('Techno', 'techno', 'exact')).toBe(1)
-    expect(genreSimilarity('DnB', 'Drum & Bass', 'exact')).toBe(1)
-    expect(genreSimilarity('Techno', 'Tech House', 'exact')).toBe(0)
-  })
-})
-
-describe('genreSimilarity: lexical', () => {
-  test('token overlap gives partial similarity', () => {
-    const s = genreSimilarity('Tech House', 'Deep House', 'lexical')
-    expect(s).toBeGreaterThan(0)
-    expect(s).toBeLessThan(1)
+describe('the curated tree: shared ancestors', () => {
+  test('a parent–child pair shares the parent; cousins share their grandparent', () => {
+    expect(sharedGenreAncestor('House', 'Deep House')).toBe('house')
+    expect(sharedGenreAncestor('Liquid Drum & Bass', 'Neurofunk')).toBe('drum & bass')
   })
 
-  test('identical labels score 1, disjoint labels 0', () => {
-    expect(genreSimilarity('Deep House', 'deep-house', 'lexical')).toBe(1)
-    expect(genreSimilarity('Techno', 'Jazz', 'lexical')).toBe(0)
+  test('multi-parent genres sit under every parent (DAG, not strict tree)', () => {
+    expect(sharedGenreAncestor('Tech House', 'Techno')).toBe('techno')
+    expect(sharedGenreAncestor('Tech House', 'House')).toBe('house')
   })
 
   test('is symmetric', () => {
-    expect(genreSimilarity('Tech House', 'House', 'lexical')).toBe(
-      genreSimilarity('House', 'Tech House', 'lexical'),
+    expect(sharedGenreAncestor('Dub', 'Dubstep')).toBe(sharedGenreAncestor('Dubstep', 'Dub'))
+    expect(sharedGenreAncestor('Gabber', 'Deep House')).toBe(
+      sharedGenreAncestor('Deep House', 'Gabber'),
     )
   })
 })
 
-describe('genreSimilarity: graph', () => {
-  test('direct neighbours beat two-step relations, which beat far genres', () => {
-    const parent = genreSimilarity('House', 'Deep House', 'graph')
-    const sibling = genreSimilarity('Techno', 'Tech House', 'graph')
-    const far = genreSimilarity('Techno', 'Jazz', 'graph')
-    expect(parent).toBeGreaterThan(sibling)
-    expect(sibling).toBeGreaterThan(far)
-  })
-
-  test('same genre is 1; aliases resolve before lookup', () => {
-    expect(genreSimilarity('Drum and Bass', 'DnB', 'graph')).toBe(1)
-  })
-
-  test('labels not in the graph fall back to lexical similarity', () => {
-    // "Hard House" is not a graph node but shares a token with "House".
-    expect(genreSimilarity('Hard House', 'House', 'graph')).toBeGreaterThan(0)
-    expect(genreSimilarity('Zydeco', 'Techno', 'graph')).toBe(0)
-  })
-
-  test('is symmetric', () => {
-    expect(genreSimilarity('Dub', 'Dubstep', 'graph')).toBe(
-      genreSimilarity('Dubstep', 'Dub', 'graph'),
-    )
-  })
-})
-
-describe('genreSimilarity: taxonomy (Lin over the rooted genre tree)', () => {
-  test('parent–child beats cousins, which beat unrelated families', () => {
-    const parentChild = genreSimilarity('House', 'Deep House', 'taxonomy')
-    const cousins = genreSimilarity('Deep House', 'Tech House', 'taxonomy')
-    const far = genreSimilarity('Techno', 'Jazz', 'taxonomy')
-    expect(parentChild).toBeGreaterThan(cousins)
-    expect(cousins).toBeGreaterThan(far)
-    expect(far).toBe(0)
-  })
-
-  test('deep specific ancestors count more than shallow generic ones', () => {
-    // Siblings under drum & bass (deep LCA) vs pairs relating only through
-    // the electronic umbrella (shallow LCA).
-    const deepLca = genreSimilarity('Liquid Drum & Bass', 'Neurofunk', 'taxonomy')
-    const shallowLca = genreSimilarity('Deep House', 'Gabber', 'taxonomy')
-    expect(deepLca).toBeGreaterThan(shallowLca)
-  })
-
-  test('umbrella ancestors score low against their descendants (low IC)', () => {
-    const viaUmbrella = genreSimilarity('Electronic', 'Techno', 'taxonomy')
-    const withinFamily = genreSimilarity('Techno', 'Minimal Techno', 'taxonomy')
-    expect(withinFamily).toBeGreaterThan(viaUmbrella)
-  })
-
-  test('multi-parent genres sit close to every parent (DAG, not strict tree)', () => {
-    // Tech house derives from both house and techno: each parent must score
-    // clearly above an unrelated electronic family (trance).
-    const toTrance = genreSimilarity('Tech House', 'Trance', 'taxonomy')
-    expect(genreSimilarity('Tech House', 'Techno', 'taxonomy')).toBeGreaterThan(toTrance + 0.2)
-    expect(genreSimilarity('Tech House', 'House', 'taxonomy')).toBeGreaterThan(toTrance + 0.2)
-  })
-
-  test('is symmetric and 1 for identical labels', () => {
-    expect(genreSimilarity('Jungle', 'jungle', 'taxonomy')).toBe(1)
-    expect(genreSimilarity('Dub', 'Dubstep', 'taxonomy')).toBe(
-      genreSimilarity('Dubstep', 'Dub', 'taxonomy'),
-    )
-  })
-
-  test('labels outside the tree fall back to lexical similarity', () => {
-    expect(genreSimilarity('Warehouse House', 'House', 'taxonomy')).toBeGreaterThan(0)
-    expect(genreSimilarity('Zydeco', 'Techno', 'taxonomy')).toBe(0)
-  })
-})
-
-describe('genreSimilarity: hybrid (embedding retrofitted toward the curated tree)', () => {
+describe('genreSimilarity (embedding retrofitted toward the curated tree)', () => {
   test('covers curated club genres the tagging data never saw', () => {
     // Neither label exists in the AcousticBrainz vocabulary; the retrofit
     // gives them vectors from their tree neighbourhood (drum & bass).
-    expect(genreSimilarity('Liquid Drum & Bass', 'Neurofunk', 'hybrid')).toBeGreaterThan(0.3)
-    expect(genreSimilarity('Melodic Techno', 'Techno', 'hybrid')).toBeGreaterThan(0.3)
+    expect(genreSimilarity('Liquid Drum & Bass', 'Neurofunk')).toBeGreaterThan(0.3)
+    expect(genreSimilarity('Melodic Techno', 'Techno')).toBeGreaterThan(0.3)
   })
 
   test('keeps the embedding’s real-world associations', () => {
-    expect(genreSimilarity('Techno', 'Tech House', 'hybrid')).toBeGreaterThan(0.5)
-    expect(genreSimilarity('Disco', 'Funk', 'hybrid')).toBeGreaterThan(
-      genreSimilarity('Disco', 'Death Metal', 'hybrid'),
+    expect(genreSimilarity('Techno', 'Tech House')).toBeGreaterThan(0.5)
+    expect(genreSimilarity('Disco', 'Funk')).toBeGreaterThan(
+      genreSimilarity('Disco', 'Death Metal'),
     )
   })
 
   test('labels unknown to pack and tree fall back to lexical', () => {
-    expect(genreSimilarity('Warehouse House', 'House', 'hybrid')).toBeGreaterThan(0)
-    expect(genreSimilarity('Zydeco', 'Techno', 'hybrid')).toBe(0)
+    expect(genreSimilarity('Warehouse House', 'House')).toBeGreaterThan(0)
+    expect(genreSimilarity('Zydeco', 'Techno')).toBe(0)
   })
 })
 
-describe('genreSimilarity: embedding', () => {
+describe('genreSimilarity: the pack', () => {
   test('near neighbours in the pack score higher than distant genres', () => {
-    const near = genreSimilarity('House', 'Deep House', 'embedding')
-    const far = genreSimilarity('House', 'Gabber', 'embedding')
+    const near = genreSimilarity('House', 'Deep House')
+    const far = genreSimilarity('House', 'Gabber')
     expect(near).toBeGreaterThan(far)
   })
 
   test('same genre is 1 and unknown labels fall back to lexical', () => {
-    expect(genreSimilarity('Techno', 'techno', 'embedding')).toBe(1)
+    expect(genreSimilarity('Techno', 'techno')).toBe(1)
     // "warehouse house" is no real pack label; token overlap carries it.
-    expect(genreSimilarity('Warehouse House', 'House', 'embedding')).toBeGreaterThan(0)
+    expect(genreSimilarity('Warehouse House', 'House')).toBeGreaterThan(0)
   })
 
   test('known labels that are not neighbours score 0, not lexical', () => {
     // Both are pack labels sharing the token "hard", but unrelated music:
     // the pack must answer 0 instead of falling back to word overlap.
-    expect(genreSimilarity('Hard Rock', 'Hard Trance', 'embedding')).toBe(0)
+    expect(genreSimilarity('Hard Rock', 'Hard Trance')).toBe(0)
   })
 
   test('umbrella labels are damped and cannot act as hubs', () => {
-    const umbrella = genreSimilarity('House', 'Electronic', 'embedding')
+    const umbrella = genreSimilarity('House', 'Electronic')
     expect(umbrella).toBeLessThanOrEqual(0.5)
-    expect(genreSimilarity('House', 'Deep House', 'embedding')).toBeGreaterThan(umbrella)
+    expect(genreSimilarity('House', 'Deep House')).toBeGreaterThan(umbrella)
   })
 
   test('stays within [0, 1]', () => {
@@ -280,36 +169,36 @@ describe('genreSimilarity: embedding', () => {
       ['Trance', 'Jazz'],
       ['Dubstep', 'Riddim'],
     ] as const) {
-      const s = genreSimilarity(pair[0], pair[1], 'embedding')
+      const s = genreSimilarity(pair[0], pair[1])
       expect(s).toBeGreaterThanOrEqual(0)
       expect(s).toBeLessThanOrEqual(1)
     }
   })
 
   test('the real AcousticBrainz pack orders relatedness sensibly', () => {
-    const techHouse = genreSimilarity('Techno', 'Tech House', 'embedding')
-    const house = genreSimilarity('Techno', 'House', 'embedding')
-    const folk = genreSimilarity('Techno', 'Folk', 'embedding')
+    const techHouse = genreSimilarity('Techno', 'Tech House')
+    const house = genreSimilarity('Techno', 'House')
+    const folk = genreSimilarity('Techno', 'Folk')
     expect(techHouse).toBeGreaterThan(house)
     expect(house).toBeGreaterThan(folk)
-    expect(genreSimilarity('Trance', 'Progressive Trance', 'embedding')).toBeGreaterThan(0.5)
-    expect(genreSimilarity('Disco', 'Funk', 'embedding')).toBeGreaterThan(
-      genreSimilarity('Disco', 'Death Metal', 'embedding'),
+    expect(genreSimilarity('Trance', 'Progressive Trance')).toBeGreaterThan(0.5)
+    expect(genreSimilarity('Disco', 'Funk')).toBeGreaterThan(
+      genreSimilarity('Disco', 'Death Metal'),
     )
   })
 
   test('umbrella labels are damped in the hybrid too', () => {
-    expect(genreSimilarity('House', 'Electronic', 'hybrid')).toBeLessThanOrEqual(0.5)
+    expect(genreSimilarity('House', 'Electronic')).toBeLessThanOrEqual(0.5)
   })
 
   test('space-collapsed pack labels are found from spaced app labels', () => {
     // The dataset spells some labels without spaces ("eurodance"); a spaced
     // user label must still hit the same vector, not the lexical fallback.
-    expect(genreSimilarity('Euro Dance', 'Eurodance', 'embedding')).toBe(1)
+    expect(genreSimilarity('Euro Dance', 'Eurodance')).toBe(1)
   })
 })
 
-describe('normalization fixes (v12 WS5, science doc §6.4)', () => {
+describe('normalization fixes (science doc §6.4)', () => {
   test('periods strip: U.K. Garage reaches uk garage', () => {
     expect(normalizeGenre('U.K. Garage')).toBe('uk garage')
   })
@@ -339,36 +228,40 @@ describe('normalization fixes (v12 WS5, science doc §6.4)', () => {
   })
 })
 
-describe('curated-tree additions (v12 WS5)', () => {
-  test('the free-party cluster is taxonomy-similar to techno', () => {
-    expect(genreSimilarity('tribe', 'tekno', 'taxonomy')).toBeGreaterThan(0.5)
-    expect(genreSimilarity('acidcore', 'acid techno', 'taxonomy')).toBeGreaterThan(0.3)
-    expect(genreSimilarity('raggatek', 'jungle', 'taxonomy')).toBeGreaterThan(0.2)
-    expect(genreSimilarity('tekno', 'techno', 'taxonomy')).toBeGreaterThan(0.2)
+/** Two genres meet below the electronic/music umbrellas in the curated tree. */
+function expectSpecificAncestor(a: string, b: string): void {
+  const ancestor = sharedGenreAncestor(a, b)
+  expect(ancestor, `${a} ~ ${b}`).not.toBeNull()
+  expect(['electronic', 'music']).not.toContain(ancestor)
+}
+
+describe('curated-tree additions', () => {
+  test('the free-party cluster hangs under techno', () => {
+    expectSpecificAncestor('tribe', 'tekno')
+    expectSpecificAncestor('acidcore', 'acid techno')
+    expectSpecificAncestor('raggatek', 'jungle')
+    expectSpecificAncestor('tekno', 'techno')
   })
 
   test('regional funk joins the funk family', () => {
-    expect(genreSimilarity('turkish funk', 'funk', 'taxonomy')).toBeGreaterThan(0.2)
-    // Sibling leaves score lower than parent-child under intrinsic-IC Lin;
-    // what matters is that they beat an unrelated pairing clearly.
-    const siblings = genreSimilarity('turkish funk', 'persian funk', 'taxonomy')
-    expect(siblings).toBeGreaterThan(0.1)
-    expect(siblings).toBeGreaterThan(genreSimilarity('turkish funk', 'trance', 'taxonomy'))
+    expectSpecificAncestor('turkish funk', 'funk')
+    expectSpecificAncestor('turkish funk', 'persian funk')
+    expect(sharedGenreAncestor('turkish funk', 'trance')).toBeNull()
   })
 
   test('the plain gaps have lineage now', () => {
-    expect(genreSimilarity('acid trance', 'trance', 'taxonomy')).toBeGreaterThan(0.3)
-    expect(genreSimilarity('future garage', 'uk garage', 'taxonomy')).toBeGreaterThan(0.3)
-    expect(genreSimilarity('minimal house', 'house', 'taxonomy')).toBeGreaterThan(0.3)
-    expect(genreSimilarity('new beat', 'acid house', 'taxonomy')).toBeGreaterThan(0.2)
-    expect(genreSimilarity('jumpstyle', 'hardstyle', 'taxonomy')).toBeGreaterThan(0.3)
-    expect(genreSimilarity('electro swing', 'electronica', 'taxonomy')).toBeGreaterThan(0.2)
-    expect(genreSimilarity('uk hardcore', 'happy hardcore', 'taxonomy')).toBeGreaterThan(0.3)
-    expect(genreSimilarity('juke', 'footwork', 'taxonomy')).toBeGreaterThan(0.2)
+    expectSpecificAncestor('acid trance', 'trance')
+    expectSpecificAncestor('future garage', 'uk garage')
+    expectSpecificAncestor('minimal house', 'house')
+    expectSpecificAncestor('new beat', 'acid house')
+    expectSpecificAncestor('jumpstyle', 'hardstyle')
+    expectSpecificAncestor('electro swing', 'electronica')
+    expectSpecificAncestor('uk hardcore', 'happy hardcore')
+    expectSpecificAncestor('juke', 'footwork')
   })
 })
 
-describe('computeGenreCoverage (v12 WS6 — P1 productised)', () => {
+describe('computeGenreCoverage', () => {
   const t = (genre: string | null) => ({ genre })
 
   test('classifies blank, covered, fallback and invisible tracks', () => {
@@ -392,7 +285,7 @@ describe('computeGenreCoverage (v12 WS6 — P1 productised)', () => {
     expect(cov.outside).toBe(0)
   })
 
-  test('v12 tree additions count as covered now', () => {
+  test('tree additions count as covered', () => {
     const cov = computeGenreCoverage([t('Tribe'), t('Turkish Funk')])
     expect(cov.outside).toBe(0)
   })
@@ -408,7 +301,7 @@ describe('computeGenreCoverage (v12 WS6 — P1 productised)', () => {
   })
 })
 
-describe('mined aliases from the real-library dry run (v12 WS7)', () => {
+describe('mined aliases from the real-library dry run', () => {
   test('personal descriptors map to their nearest genre', () => {
     expect(normalizeGenre('Techno Melancholic')).toBe('melodic techno')
     expect(normalizeGenre('Techno Melodieus')).toBe('melodic techno')
@@ -427,10 +320,10 @@ describe('mined aliases from the real-library dry run (v12 WS7)', () => {
   })
 
   test('mined tree nodes have lineage', () => {
-    expect(genreSimilarity('balkan', 'folk', 'taxonomy')).toBeGreaterThan(0.15)
-    expect(genreSimilarity('thai funk', 'turkish funk', 'taxonomy')).toBeGreaterThan(0.1)
-    expect(genreSimilarity('jackin house', 'chicago house', 'taxonomy')).toBeGreaterThan(0.2)
-    expect(genreSimilarity('halftime', 'drum & bass', 'taxonomy')).toBeGreaterThan(0.2)
+    expectSpecificAncestor('balkan', 'folk')
+    expectSpecificAncestor('thai funk', 'turkish funk')
+    expectSpecificAncestor('jackin house', 'chicago house')
+    expectSpecificAncestor('halftime', 'drum & bass')
   })
 
   test('noise labels stay unmapped — the reject class is silence', () => {
@@ -441,7 +334,7 @@ describe('mined aliases from the real-library dry run (v12 WS7)', () => {
   })
 })
 
-describe('the learned vocabulary bridge (v39.1)', () => {
+describe('the learned vocabulary bridge', () => {
   afterEach(() => setGenreBridge())
 
   // Each pair is one track: the genre the DJ wrote, and the style the
@@ -476,22 +369,40 @@ describe('the learned vocabulary bridge (v39.1)', () => {
     ).toEqual([])
   })
 
-  test('an installed alias links two words that link in no method', () => {
-    for (const method of GENRE_METHODS)
-      expect(genreSimilarity('tribe', 'tribal', method)).toBeLessThan(0.2)
+  test('an installed alias links two words the pack does not link', () => {
+    expect(genreSimilarity('tribe', 'tribal')).toBeLessThan(0.2)
     setGenreBridge([{ own: 'tribe', style: 'tribal', weight: 0.64 }])
-    expect(genreSimilarity('tribe', 'tribal', 'hybrid')).toBeCloseTo(0.64)
-    expect(genreSimilarity('tribal', 'tribe', 'hybrid')).toBeCloseTo(0.64)
-    // Exact means literally the same word; a learned alias must not widen it.
-    expect(genreSimilarity('tribe', 'tribal', 'exact')).toBe(0)
+    expect(genreSimilarity('tribe', 'tribal')).toBeCloseTo(0.64)
+    expect(genreSimilarity('tribal', 'tribe')).toBeCloseTo(0.64)
     // And it never lowers a similarity the methods already found.
-    expect(genreSimilarity('deep house', 'house', 'hybrid')).toBeGreaterThan(0.64)
+    expect(genreSimilarity('deep house', 'house')).toBeGreaterThan(0.64)
   })
 
   test('clearing restores the curated numbers exactly', () => {
-    const before = genreSimilarity('tribe', 'tribal', 'hybrid')
+    const before = genreSimilarity('tribe', 'tribal')
     setGenreBridge([{ own: 'tribe', style: 'tribal', weight: 0.64 }])
     setGenreBridge()
-    expect(genreSimilarity('tribe', 'tribal', 'hybrid')).toBe(before)
+    expect(genreSimilarity('tribe', 'tribal')).toBe(before)
+  })
+})
+
+describe('sharedGenreAncestor (the pair card on the genre map)', () => {
+  test('names the most specific ancestor two genres share in the curated tree', () => {
+    expect(sharedGenreAncestor('Deep House', 'Tech House')).toBe('house')
+    expect(sharedGenreAncestor('Liquid Drum & Bass', 'Neurofunk')).toBe('drum & bass')
+    expect(sharedGenreAncestor('Tribe', 'Acidcore')).toBe('tekno')
+  })
+
+  test('a genre and its own ancestor share that ancestor', () => {
+    expect(sharedGenreAncestor('Tech House', 'Techno')).toBe('techno')
+  })
+
+  test('only the root in common, or a label the tree lacks, gives null', () => {
+    expect(sharedGenreAncestor('Techno', 'Jazz')).toBeNull()
+    expect(sharedGenreAncestor('Zydeco', 'Techno')).toBeNull()
+  })
+
+  test('multi-genre fields answer through their best component', () => {
+    expect(sharedGenreAncestor('Jazz / Deep House', 'Tech House')).toBe('house')
   })
 })

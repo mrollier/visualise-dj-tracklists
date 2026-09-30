@@ -520,10 +520,20 @@ describe('project persistence (v3)', () => {
     expect(visibleColumns(settings.trackColumns, settings.hiddenColumns)).not.toContain('location')
   })
 
-  test('saves from before icon modes default to genre families (v8 issues 4+5)', () => {
+  test('retired settings (iconMode, maxGenreClasses, jitterSeed) are dropped on load', () => {
     const raw = JSON.parse(serializeProject(project)) as Record<string, unknown>
-    Reflect.deleteProperty(raw.settings as Record<string, unknown>, 'iconMode')
-    expect(parseProject(JSON.stringify(raw)).settings.iconMode).toBe('families')
+    Object.assign(raw.settings as Record<string, unknown>, {
+      iconMode: 'clusters',
+      maxGenreClasses: 8,
+      jitterSeed: 3,
+    })
+    const settings = parseProject(JSON.stringify(raw)).settings as unknown as Record<
+      string,
+      unknown
+    >
+    expect('iconMode' in settings).toBe(false)
+    expect('maxGenreClasses' in settings).toBe(false)
+    expect('jitterSeed' in settings).toBe(false)
   })
 
   test('saves from before the key-ring filter default to both rings (v8 issue 10 / F5)', () => {
@@ -552,11 +562,9 @@ describe('project persistence (v3)', () => {
   test('migrates the old slotSpreadDeg (degrees) into slotSpreadFactor', () => {
     const old = JSON.parse(serializeProject(project)) as { settings: Record<string, unknown> }
     delete old.settings.slotSpreadFactor
-    delete old.settings.jitterSeed
     old.settings.slotSpreadDeg = 3.75 // half of the 7.5° window
     const parsed = parseProject(JSON.stringify(old))
     expect(parsed.settings.slotSpreadFactor).toBe(0.5)
-    expect(parsed.settings.jitterSeed).toBe(0)
     expect('slotSpreadDeg' in parsed.settings).toBe(false)
   })
 
@@ -578,7 +586,7 @@ describe('project persistence (v3)', () => {
     delete legacy.settings.slotSpreadFactor
     legacy.settings.slotSpreadDeg = 7.5
     expect(parseProject(JSON.stringify(legacy)).settings.slotSpreadFactor).toBe(1)
-    // A non-number value (typeof guard, matching jitterSeed/manualEdgeWeight)
+    // A non-number value (typeof guard, matching manualEdgeWeight)
     // falls back to the default of 1 rather than clamping garbage through.
     const garbage = JSON.parse(serializeProject(project)) as { settings: Record<string, unknown> }
     garbage.settings.slotSpreadFactor = 'nope'
@@ -624,16 +632,7 @@ describe('project persistence (v3)', () => {
     expect(migrated.filters).toEqual(EMPTY_FILTERS)
     expect(migrated.settings).toEqual(DEFAULT_SETTINGS)
     expect(migrated.colorAxis).toBe('auto')
-    // v1 stored no genre method/threshold, so the modern defaults apply
-    // (hybrid + mutual top-k — design-v6 §F).
-    expect(migrated.criteria.genre).toEqual({
-      enabled: true,
-      method: 'hybrid',
-      mode: 'topk',
-      k: 5,
-      threshold: 0.2,
-      demanded: false,
-    })
+    expect(migrated.criteria.genre).toEqual({ enabled: true, k: 5, demanded: false })
     // v1's single advancedMoves toggle fans out to both split flags.
     expect(migrated.criteria.key).toEqual({
       enabled: true,
@@ -713,22 +712,29 @@ describe('project persistence (v3)', () => {
     })
   })
 
-  test('projects saved with a genre threshold keep threshold semantics', () => {
+  test('saves from the multi-method era load as hybrid top-k, keeping k', () => {
     const saved = JSON.stringify({
-      version: 2,
-      libraryName: 'Pre-top-k save',
+      version: 9,
+      libraryName: 'Multi-method save',
       tracks: SAMPLE_TRACKS,
       criteria: {
         ...DEFAULT_CRITERIA,
-        genre: { enabled: true, method: 'graph', threshold: 0.36 },
+        genre: { enabled: false, method: 'graph', mode: 'threshold', threshold: 0.36, k: 3 },
       },
       tracklist: [],
       radialAxis: 'bpm',
     })
-    const migrated = parseProject(saved)
-    expect(migrated.criteria.genre.mode).toBe('threshold')
-    expect(migrated.criteria.genre.threshold).toBe(0.36)
-    expect(migrated.criteria.genre.k).toBe(DEFAULT_CRITERIA.genre.k)
+    expect(parseProject(saved).criteria.genre).toEqual({ enabled: false, k: 3, demanded: false })
+  })
+
+  test('a stored k is rounded and clamped to 1–8', () => {
+    const raw = JSON.parse(serializeProject(project)) as { criteria: { genre: object } }
+    raw.criteria.genre = { enabled: true, k: 12.4, demanded: false }
+    expect(parseProject(JSON.stringify(raw)).criteria.genre.k).toBe(8)
+    raw.criteria.genre = { enabled: true, k: 0, demanded: false }
+    expect(parseProject(JSON.stringify(raw)).criteria.genre.k).toBe(1)
+    raw.criteria.genre = { enabled: true, k: 'five', demanded: false }
+    expect(parseProject(JSON.stringify(raw)).criteria.genre.k).toBe(DEFAULT_CRITERIA.genre.k)
   })
 })
 
@@ -777,26 +783,6 @@ describe('demanded criteria flags (v14 WS4)', () => {
     ;(raw.criteria.genre as Record<string, unknown>).demanded = true
     raw.criteria.threshold = 1
     expect(parseProject(JSON.stringify(raw)).criteria.threshold).toBe(2)
-  })
-})
-
-describe('genre method persistence (design-v6 §F)', () => {
-  test("a save that stored 'lexical' explicitly keeps it — no forced upgrade", () => {
-    const saved = serializeProject({
-      ...project,
-      criteria: {
-        ...structuredClone(DEFAULT_CRITERIA),
-        genre: {
-          enabled: true,
-          method: 'lexical',
-          mode: 'topk',
-          k: 5,
-          threshold: 0.2,
-          demanded: false,
-        },
-      },
-    })
-    expect(parseProject(saved).criteria.genre.method).toBe('lexical')
   })
 })
 
@@ -1051,13 +1037,10 @@ describe('WS6 sanitize round-trip pins (v14.1)', () => {
     theme: 'dark',
     colorScheme: 'violet',
     slotSpreadFactor: 1.7,
-    jitterSeed: 3,
     edgeOpacity: 0.9,
     focusClusterEdges: true,
     suggestLength: 99,
     suggestRandomness: 0.8,
-    iconMode: 'clusters',
-    maxGenreClasses: 8,
     bpmProgression: 'sawtooth',
     manualEdgeWeight: 7.5,
     advancedOpen: ['genres', 'display'],
@@ -1074,13 +1057,10 @@ describe('WS6 sanitize round-trip pins (v14.1)', () => {
     theme: 'light',
     colorScheme: 'aqua',
     slotSpreadFactor: 0.5,
-    jitterSeed: 0,
     edgeOpacity: 0.1,
     focusClusterEdges: false,
     suggestLength: 2,
     suggestRandomness: 0,
-    iconMode: 'playlists',
-    maxGenreClasses: 1,
     bpmProgression: 'rising',
     manualEdgeWeight: 0,
     visibleFilters: ['bpm', 'year'],

@@ -28,11 +28,6 @@ export interface AppSettings {
    * seeded fan.
    */
   slotSpreadFactor: number
-  /**
-   * Dead since v9 (issues 1 + 17): placement is deterministic, so there is
-   * nothing to re-jitter. The field stays to spare a save migration.
-   */
-  jitterSeed: number
   /** Base opacity of suggestion edges. */
   edgeOpacity: number
   /**
@@ -50,18 +45,6 @@ export interface AppSettings {
    * same-artist step when nothing else fits, and says so under the set.
    */
   avoidSameArtist: boolean
-  /**
-   * What the node shapes encode (v8 issues 4+5): curated genre FAMILIES
-   * (deterministic, the default), the selected PLAYLISTS (first one wins),
-   * or similarity CLUSTERS — always computed in the hybrid space, never
-   * following the combo criterion's method.
-   */
-  iconMode: 'families' | 'playlists' | 'clusters'
-  /**
-   * Up to this many symbol classes get distinct node shapes
-   * (circle/square/triangle/…), whichever icon mode provides them.
-   */
-  maxGenreClasses: number
   /** Preferred BPM trajectory for generated sets. */
   bpmProgression: BpmProgression
   /**
@@ -154,14 +137,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   theme: null,
   colorScheme: 'blue',
   slotSpreadFactor: 1,
-  jitterSeed: 0,
   edgeOpacity: 0.35,
   focusClusterEdges: false,
   suggestLength: 15,
   suggestRandomness: 0.25,
   avoidSameArtist: true,
-  iconMode: 'families',
-  maxGenreClasses: 4,
   bpmProgression: 'any',
   manualEdgeWeight: 5,
   trackColumns: [...ALL_TRACK_COLUMNS],

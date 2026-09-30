@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { genreFamilyOf, umbrellaFor } from '../src/core/genre'
-import { classIndexOfTrack, genreFamilyClasses, playlistClasses } from '../src/core/iconClasses'
-import type { Playlist } from '../src/core/model'
+import { classIndexOfTrack, genreFamilyClasses, MAX_ICON_CLASSES } from '../src/core/iconClasses'
 import { track } from './helpers'
 
 describe('genreFamilyOf (v8 issues 4+5)', () => {
@@ -38,7 +37,6 @@ describe('genreFamilyClasses', () => {
   test('classes are families, largest first, labels keyed by primary genre', () => {
     const result = genreFamilyClasses(genres, 4)
     expect(result).not.toBeNull()
-    expect(result!.keyedBy).toBe('genre')
     expect(result!.classes.map((c) => c.label)).toEqual(['house', 'jazz', 'techno', 'trance'])
     expect(result!.classes[0].size).toBe(2)
     expect(result!.classOf.get('deep house')).toBe(0)
@@ -74,6 +72,12 @@ describe('genreFamilyClasses', () => {
     expect(a!.classes).toEqual(b!.classes)
   })
 
+  test('the app shows at most MAX_ICON_CLASSES (4) shapes by default', () => {
+    expect(MAX_ICON_CLASSES).toBe(4)
+    const five = ['Deep House', 'Melodic Techno', 'Psytrance', 'Jazz', 'Reggae']
+    expect(genreFamilyClasses(five)!.classes).toHaveLength(4)
+  })
+
   test('fewer than two families means nothing to distinguish', () => {
     expect(genreFamilyClasses(['Deep House', 'Tech House'], 4)).toBeNull()
     expect(genreFamilyClasses([], 4)).toBeNull()
@@ -93,61 +97,8 @@ describe('umbrellaFor (v10 issue 10)', () => {
   })
 })
 
-describe('playlistClasses', () => {
-  const tracks = ['t1', 't2', 't3', 't4', 't5'].map((id) =>
-    track({
-      key: '8A',
-      bpm: 128,
-      genre: 'Techno',
-      year: 2020,
-      rating: 4,
-      id,
-    }),
-  )
-  const playlistA: Playlist = { name: 'Warm-up', trackIds: ['t1', 't2', 't3'] }
-  const playlistB: Playlist = { name: 'Peak', trackIds: ['t3', 't4', 'ghost'] }
-
-  test('first selected playlist wins; classes ordered by member count', () => {
-    const result = playlistClasses(tracks, [playlistA, playlistB], 6)
-    expect(result).not.toBeNull()
-    expect(result!.keyedBy).toBe('track')
-    expect(result!.classes.map((c) => c.label)).toEqual(['Warm-up', 'Peak'])
-    expect(result!.classes.map((c) => c.size)).toEqual([3, 1]) // t3 counted once, for A
-    expect(result!.classOf.get('t3')).toBe(0)
-    expect(result!.classOf.get('t4')).toBe(1)
-    expect(result!.classOf.get('t5')).toBeUndefined()
-  })
-
-  test('a cap below the playlist count drops ALL distinction (v11 issue 7)', () => {
-    // Two symbols for three playlists would read as "two playlists" — a
-    // partial legend misleads, so below the cap everything is a circle.
-    const c: Playlist = { name: 'Extra', trackIds: ['t5'] }
-    expect(playlistClasses(tracks, [c, playlistA, playlistB], 2)).toBeNull()
-  })
-
-  test('a cap equal to the populated playlist count keeps every symbol', () => {
-    const c: Playlist = { name: 'Extra', trackIds: ['t5'] }
-    const result = playlistClasses(tracks, [c, playlistA, playlistB], 3)
-    expect(result).not.toBeNull()
-    expect(result!.classes).toHaveLength(3)
-  })
-
-  test('empty selected playlists do not count against the cap', () => {
-    const empty: Playlist = { name: 'Empty', trackIds: ['ghost-only'] }
-    const result = playlistClasses(tracks, [empty, playlistA, playlistB], 2)
-    // Only Warm-up and Peak hold visible tracks — two classes fit a cap of 2.
-    expect(result).not.toBeNull()
-    expect(result!.classes.map((c2) => c2.label)).toEqual(['Warm-up', 'Peak'])
-  })
-
-  test('fewer than two selected playlists means nothing to distinguish', () => {
-    expect(playlistClasses(tracks, [playlistA], 6)).toBeNull()
-    expect(playlistClasses(tracks, [], 6)).toBeNull()
-  })
-})
-
 describe('classIndexOfTrack', () => {
-  test('resolves through the genre key or the track key, null-safe', () => {
+  test('resolves through the primary genre, null-safe', () => {
     const byGenre = genreFamilyClasses(['Deep House', 'Jazz'], 4)
     expect(
       classIndexOfTrack(
@@ -175,44 +126,6 @@ describe('classIndexOfTrack', () => {
         }),
       ),
     ).toBeNull()
-    const byTrack = playlistClasses(
-      [
-        track({
-          key: '8A',
-          bpm: 128,
-          genre: 'Techno',
-          year: 2020,
-          rating: 4,
-          id: 'p1',
-        }),
-        track({
-          key: '8A',
-          bpm: 128,
-          genre: 'Techno',
-          year: 2020,
-          rating: 4,
-          id: 'p2',
-        }),
-      ],
-      [
-        { name: 'A', trackIds: ['p1'] },
-        { name: 'B', trackIds: ['p2'] },
-      ],
-      6,
-    )
-    expect(
-      classIndexOfTrack(
-        byTrack,
-        track({
-          key: '8A',
-          bpm: 128,
-          genre: 'Techno',
-          year: 2020,
-          rating: 4,
-          id: 'p2',
-        }),
-      ),
-    ).toBe(1)
     expect(
       classIndexOfTrack(
         null,

@@ -43,12 +43,6 @@ export function resetAdvancedCriteria(current: CriteriaConfig): CriteriaConfig {
       halfDouble: defaults.bpm.halfDouble,
       twoThirds: defaults.bpm.twoThirds,
     },
-    genre: {
-      ...current.genre,
-      method: defaults.genre.method,
-      mode: defaults.genre.mode,
-      k: defaults.genre.k,
-      threshold: defaults.genre.threshold,
-    },
+    genre: { ...current.genre, k: defaults.genre.k },
   }
 }

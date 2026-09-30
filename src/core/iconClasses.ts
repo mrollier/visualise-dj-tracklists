@@ -1,23 +1,23 @@
 import { genreComponents, genreFamilyOf, umbrellaFor } from './genre'
-import type { Playlist, Track } from './model'
+import type { Track } from './model'
+
+/** How many distinct node shapes the wheel and the genre map use. */
+export const MAX_ICON_CLASSES = 4
 
 /**
- * The node-shape classification for one icon mode (v8 issues 4+5). `classOf`
- * is keyed by normalized primary genre label (genre-derived modes) or by
- * track id (playlist mode) — resolve through classIndexOfTrack so the views
- * never care. Class 0 is always the largest class (it keeps the circle).
+ * Node shapes by curated genre family. `classOf` is keyed by normalized
+ * primary genre label — resolve through classIndexOfTrack. Class 0 is always
+ * the largest class (it keeps the circle).
  */
 interface IconClassification {
   classOf: Map<string, number>
   /** Per class: a display label and its track count. */
   classes: { label: string; size: number }[]
-  keyedBy: 'genre' | 'track'
 }
 
 /**
  * Fit families into at most `maxClasses` (floor 1) by merging the smallest
- * into their genre-tree umbrella rather than dropping them to circles (v10
- * issue 10). Each step collapses a cluster of families that share an umbrella
+ * into their genre-tree umbrella rather than dropping them to circles. Each step collapses a cluster of families that share an umbrella
  * (reducing the count), or promotes the smallest lone family one level up
  * until such a cluster forms. Deterministic (size then label); terminates
  * because every family's lineage ends at the root. Returns the surviving
@@ -89,16 +89,16 @@ function capFamilies(
  */
 export function genreFamilyClasses(
   rawGenres: (string | null)[],
-  maxClasses: number,
+  maxClasses = MAX_ICON_CLASSES,
 ): IconClassification | null {
-  const familyOfLabel = new Map<string, string>()
+  const familyOfLabel = new Map<string, string | null>()
   const familySizes = new Map<string, number>()
   for (const raw of rawGenres) {
     if (raw === null) continue
     const primary = genreComponents(raw)[0]
-    const family = familyOfLabel.get(primary) ?? genreFamilyOf(primary)
-    if (family === null) continue
-    familyOfLabel.set(primary, family)
+    if (!familyOfLabel.has(primary)) familyOfLabel.set(primary, genreFamilyOf(primary))
+    const family = familyOfLabel.get(primary)
+    if (family === null || family === undefined) continue
     familySizes.set(family, (familySizes.get(family) ?? 0) + 1)
   }
   if (familySizes.size < 2) return null
@@ -106,61 +106,19 @@ export function genreFamilyClasses(
   const indexOfFamily = new Map(classes.map((cls, index) => [cls.label, index]))
   const classOf = new Map<string, number>()
   for (const [label, family] of familyOfLabel) {
+    if (family === null) continue
     const finalLabel = labelOf.get(family)
     const index = finalLabel === undefined ? undefined : indexOfFamily.get(finalLabel)
     if (index !== undefined) classOf.set(label, index)
   }
-  return { classOf, classes, keyedBy: 'genre' }
+  return { classOf, classes }
 }
 
-/**
- * Icons from playlist membership: a track's class is the FIRST selected
- * playlist (panel order) containing it. Tracks in none of the selected
- * playlists stay unclassed; a single selected playlist distinguishes
- * nothing and yields null. Playlists have no umbrella tree to merge into,
- * so a cap BELOW the populated-playlist count yields null too (v11 issue
- * 7): two symbols for three playlists would read as "two playlists" —
- * distinction is all or nothing.
- */
-export function playlistClasses(
-  tracks: Track[],
-  selectedPlaylists: Playlist[],
-  maxClasses: number,
-): IconClassification | null {
-  if (selectedPlaylists.length < 2) return null
-  const present = new Set(tracks.map((t) => t.id))
-  const playlistOfTrack = new Map<string, string>()
-  const sizes = new Map<string, number>(selectedPlaylists.map((p) => [p.name, 0]))
-  for (const playlist of selectedPlaylists) {
-    for (const id of playlist.trackIds) {
-      if (!present.has(id) || playlistOfTrack.has(id)) continue
-      playlistOfTrack.set(id, playlist.name)
-      sizes.set(playlist.name, (sizes.get(playlist.name) ?? 0) + 1)
-    }
-  }
-  // Size decides, panel order breaks ties — the user's own playlist
-  // ordering is more meaningful here than the alphabet.
-  const classes = [...sizes]
-    .filter(([, size]) => size > 0)
-    .sort((a, b) => b[1] - a[1])
-    .map(([label, size]) => ({ label, size }))
-  if (classes.length < 2 || classes.length > Math.max(1, maxClasses)) return null
-  const indexOfPlaylist = new Map(classes.map((cls, index) => [cls.label, index]))
-  const classOf = new Map<string, number>()
-  for (const [id, name] of playlistOfTrack) {
-    const index = indexOfPlaylist.get(name)
-    if (index !== undefined) classOf.set(id, index)
-  }
-  return { classOf, classes, keyedBy: 'track' }
-}
-
-/** A track's class index under either keying, null-safe. */
+/** A track's class index by its primary genre, null-safe. */
 export function classIndexOfTrack(
   classification: IconClassification | null,
   track: Track,
 ): number | null {
-  if (classification === null) return null
-  if (classification.keyedBy === 'track') return classification.classOf.get(track.id) ?? null
-  if (track.genre === null) return null
+  if (classification === null || track.genre === null) return null
   return classification.classOf.get(genreComponents(track.genre)[0]) ?? null
 }

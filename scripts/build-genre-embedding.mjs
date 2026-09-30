@@ -1,5 +1,7 @@
-// Builds src/data/genre-embedding.json for the 'embedding' (and, once
-// retrofitted, 'hybrid') genre-similarity methods.
+// Builds src/data/genre-embedding.json: the 'hybrid' neighbour lists the app
+// matches genres with — a co-occurrence embedding retrofitted toward the
+// curated genre tree. The plain embedding is still computed (it is the
+// retrofit's input, and the triplet eval reports both) but not shipped.
 //
 // Pipeline (docs/design-v4.md §A, following the genre-distance research
 // report in docs/): label co-occurrence → PPMI → truncated SVD
@@ -9,7 +11,7 @@
 //
 // Modes:
 //   node scripts/build-genre-embedding.mjs
-//     Starter pack: symmetrized diffusion over the curated genre graph fed
+//     Starter pack: symmetrized diffusion over scripts/genre-graph.json fed
 //     through the same pipeline. Placeholder so everything works without
 //     the AcousticBrainz download.
 //
@@ -162,7 +164,7 @@ function writePack(source, sections, dims) {
         _readme:
           `Genre neighbour pack (source: ${source}). Per-label top-${TOP_K} neighbours with ` +
           `mutual-proximity similarity scores in [0,1] (PPMI → truncated SVD d=${dims} → ` +
-          `cosine → Mutual Proximity; umbrella labels damped ×0.5). 'hybrid' is the same ` +
+          `cosine → Mutual Proximity; umbrella labels damped ×0.5). 'hybrid' is that ` +
           `embedding retrofitted toward src/data/genre-tree.json (tree-only labels gain ` +
           `vectors from their neighbourhood). Pairs absent from both lists score 0. ` +
           `Regenerate with scripts/build-genre-embedding.mjs.`,
@@ -170,18 +172,14 @@ function writePack(source, sections, dims) {
         dims,
         k: TOP_K,
         umbrella: UMBRELLA,
-        embedding: roundLists(sections.embedding),
         hybrid: roundLists(sections.hybrid),
       },
       null,
       1,
     ) + '\n',
   )
-  const nE = Object.keys(sections.embedding).length
   const nH = Object.keys(sections.hybrid).length
-  console.log(
-    `Wrote ${OUT}: ${nE} embedding / ${nH} hybrid genres, top-${TOP_K} (d=${dims}, ${source})`,
-  )
+  console.log(`Wrote ${OUT}: ${nH} hybrid genres, top-${TOP_K} (d=${dims}, ${source})`)
 }
 
 // Mirror of src/core/genre.ts normalizeGenre's separator cleanup, so pack
@@ -209,7 +207,7 @@ const SPELLINGS = {
 }
 
 function buildFromGraph(dims) {
-  const graph = JSON.parse(readFileSync('src/data/genre-graph.json', 'utf-8'))
+  const graph = JSON.parse(readFileSync('scripts/genre-graph.json', 'utf-8'))
   const genres = [...new Set(graph.edges.flat())].sort()
   const index = new Map(genres.map((g, i) => [g, i]))
   const n = genres.length
@@ -315,7 +313,7 @@ async function readAcousticBrainz(dir) {
   // label with enough data. The dataset spans all of music, so a plain
   // top-400 squeezes out exactly the club genres this app is about.
   const curated = new Set(
-    JSON.parse(readFileSync('src/data/genre-graph.json', 'utf-8')).edges.flat(),
+    JSON.parse(readFileSync('scripts/genre-graph.json', 'utf-8')).edges.flat(),
   )
   const genres = [
     ...new Set([

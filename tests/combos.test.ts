@@ -336,9 +336,12 @@ describe('individual criteria', () => {
     ).toContain('key')
   })
 
-  test('genre defaults to the hybrid method (design-v6 §F), case-insensitively', () => {
+  test('genre matching has one knob: k mutual nearest genres, default 5', () => {
+    expect(DEFAULT_CRITERIA.genre).toEqual({ enabled: true, k: 5, demanded: false })
+  })
+
+  test('genre matches through the hybrid pack, case-insensitively', () => {
     const cfg = config()
-    expect(DEFAULT_CRITERIA.genre.method).toBe('hybrid')
     expect(
       evaluateCombo(
         base,
@@ -385,43 +388,7 @@ describe('individual criteria', () => {
     ).not.toContain('genre')
   })
 
-  test('genre criterion can use a similarity method with a threshold', () => {
-    const cfg = config()
-    cfg.genre = { ...cfg.genre, method: 'graph', mode: 'threshold', threshold: 0.3 }
-    // techno ↔ tech house are two steps apart in the curated graph (0.36 ≥ 0.3)
-    expect(
-      evaluateCombo(
-        base,
-        track({
-          key: '8A',
-          bpm: 128,
-          year: 2020,
-          rating: 4,
-          id: 'b',
-          genre: 'Tech House',
-        }),
-        cfg,
-      ).matched,
-    ).toContain('genre')
-    // raising the threshold excludes them again
-    cfg.genre.threshold = 0.5
-    expect(
-      evaluateCombo(
-        base,
-        track({
-          key: '8A',
-          bpm: 128,
-          year: 2020,
-          rating: 4,
-          id: 'c',
-          genre: 'Tech House',
-        }),
-        cfg,
-      ).matched,
-    ).not.toContain('genre')
-  })
-
-  test('alias spellings count as the same genre even in exact mode', () => {
+  test('alias spellings count as the same genre', () => {
     const cfg = config()
     const a = track({
       key: '8A',
@@ -443,97 +410,68 @@ describe('individual criteria', () => {
   })
 
   describe('mutual top-k genre matching', () => {
-    const topkConfig = (genre: Partial<CriteriaConfig['genre']> = {}): CriteriaConfig => {
+    const topkConfig = (k = 1): CriteriaConfig => {
       const cfg = config()
-      cfg.genre = { ...cfg.genre, mode: 'topk', k: 1, threshold: 0.1, ...genre }
+      cfg.genre = { ...cfg.genre, k }
       return cfg
     }
+    // Hybrid scores used below: techno–tech house 0.95, house–tech house
+    // 0.84, house–techno 0.81, deep house–techno 0 (not neighbours at all).
+    const trio = ['House', 'Techno', 'Tech House']
 
     test('accepts pairs that are mutually each other’s nearest genres', () => {
-      const cfg = topkConfig({ method: 'lexical' })
-      const matcher = makeGenreMatcher(['Deep House', 'Tech House', 'Jazz'], cfg)
-      expect(matcher('Deep House', 'Tech House')).toBe(true)
-      expect(matcher('Deep House', 'Jazz')).toBe(false)
+      const matcher = makeGenreMatcher(trio, topkConfig(1))
+      expect(matcher('Techno', 'Tech House')).toBe(true)
+      expect(matcher('House', 'Techno')).toBe(false)
     })
 
     test('identical genres always match', () => {
-      const cfg = topkConfig({ method: 'embedding' })
-      const matcher = makeGenreMatcher(['Electronic', 'Techno'], cfg)
+      const matcher = makeGenreMatcher(['Electronic', 'Techno'], topkConfig(1))
       expect(matcher('Electronic', 'Electronic')).toBe(true)
     })
 
     test('umbrella labels never rank as neighbours', () => {
-      const cfg = topkConfig({ method: 'embedding', k: 3 })
-      const matcher = makeGenreMatcher(['Electronic', 'Techno', 'Tech House'], cfg)
+      const matcher = makeGenreMatcher(['Electronic', 'Techno', 'Tech House'], topkConfig(3))
       expect(matcher('Techno', 'Tech House')).toBe(true)
       expect(matcher('Electronic', 'Techno')).toBe(false)
     })
 
-    test('the threshold acts as a secondary score floor', () => {
-      const strict = makeGenreMatcher(
-        ['Deep House', 'Tech House'],
-        topkConfig({ method: 'lexical', threshold: 0.9 }),
-      )
-      expect(strict('Deep House', 'Tech House')).toBe(false) // sim ⅓ < 0.9
-      const loose = makeGenreMatcher(
-        ['Deep House', 'Tech House'],
-        topkConfig({ method: 'lexical', threshold: 0.3 }),
-      )
-      expect(loose('Deep House', 'Tech House')).toBe(true)
+    test('genres the pack calls unrelated never link, however wide k is', () => {
+      const matcher = makeGenreMatcher(['Deep House', 'Techno'], topkConfig(8))
+      expect(matcher('Deep House', 'Techno')).toBe(false)
     })
 
     test('k widens the neighbourhood', () => {
-      // With graph decay: house–deep house 0.6, house–techno 0.6,
-      // deep house–techno 0.36 (two steps).
-      const genres = ['House', 'Deep House', 'Techno']
-      const k1 = makeGenreMatcher(genres, topkConfig({ method: 'graph', k: 1 }))
-      // deep house's single nearest is house, techno's single nearest is house
-      // (alphabetical tie-break) — deep house ↔ techno only appears at k=2.
-      expect(k1('Deep House', 'Techno')).toBe(false)
-      const k2 = makeGenreMatcher(genres, topkConfig({ method: 'graph', k: 2 }))
-      expect(k2('Deep House', 'Techno')).toBe(true)
+      expect(makeGenreMatcher(trio, topkConfig(1))('House', 'Techno')).toBe(false)
+      expect(makeGenreMatcher(trio, topkConfig(2))('House', 'Techno')).toBe(true)
     })
 
     test('multi-genre fields match through any component', () => {
-      const cfg = topkConfig({ method: 'lexical' })
-      const matcher = makeGenreMatcher(['House / Techno', 'Minimal Techno', 'Jazz'], cfg)
-      expect(matcher('House / Techno', 'Minimal Techno')).toBe(true)
-      expect(matcher('Jazz', 'Minimal Techno')).toBe(false)
+      const matcher = makeGenreMatcher(['House / Jazz', 'Deep House', 'Trance'], topkConfig(1))
+      expect(matcher('House / Jazz', 'Deep House')).toBe(true)
+      expect(matcher('Trance', 'Deep House')).toBe(false)
     })
 
-    test('matchedGenrePairs counts distinct matching label pairs, k-sensitive', () => {
-      // Graph decay: house–deep house 0.6, house–techno 0.6, deep
-      // house–techno 0.36. k=1 leaves only the mutual nearest pair; k=2
-      // opens all three — the live count must reflect the sliders (issue 12).
-      const genres = ['House', 'Deep House', 'Techno']
-      expect(matchedGenrePairs(genres, topkConfig({ method: 'graph', k: 1 }))).toEqual([
-        ['deep house', 'house'],
+    test('matchedGenrePairs lists distinct matching label pairs from a matcher, k-sensitive', () => {
+      expect(matchedGenrePairs(trio, makeGenreMatcher(trio, topkConfig(1)))).toEqual([
+        ['tech house', 'techno'],
       ])
-      expect(matchedGenrePairs(genres, topkConfig({ method: 'graph', k: 2 }))).toEqual([
-        ['deep house', 'house'],
-        ['deep house', 'techno'],
+      expect(matchedGenrePairs(trio, makeGenreMatcher(trio, topkConfig(2)))).toEqual([
+        ['house', 'tech house'],
         ['house', 'techno'],
+        ['tech house', 'techno'],
       ])
     })
 
-    test('matchedGenrePairs respects threshold mode and never pairs a label with itself', () => {
-      const cfg = config()
-      cfg.genre = { ...cfg.genre, method: 'lexical', mode: 'threshold', threshold: 0.3 }
-      expect(matchedGenrePairs(['Deep House', 'Tech House', 'Jazz', 'Jazz'], cfg)).toEqual([
-        ['deep house', 'tech house'],
+    test('matchedGenrePairs never pairs a label with itself and keeps umbrellas out', () => {
+      const labels = ['Electronic', 'Techno', 'Tech House', 'Techno']
+      expect(matchedGenrePairs(labels, makeGenreMatcher(labels, topkConfig(3)))).toEqual([
+        ['tech house', 'techno'],
       ])
-      cfg.genre = { ...cfg.genre, threshold: 0.9 }
-      expect(matchedGenrePairs(['Deep House', 'Tech House', 'Jazz'], cfg)).toEqual([])
-    })
-
-    test('matchedGenrePairs keeps umbrella labels out of top-k pairs', () => {
-      const cfg = topkConfig({ method: 'embedding', k: 3 })
-      const pairs = matchedGenrePairs(['Electronic', 'Techno', 'Tech House'], cfg)
-      expect(pairs).toEqual([['tech house', 'techno']])
     })
 
     test('computeEdges links mutual top-k genres and nothing else', () => {
-      const cfg = topkConfig({ method: 'lexical' })
+      const cfg = topkConfig(1)
       cfg.key.enabled = false
       cfg.bpm.enabled = false
       cfg.year.enabled = false
@@ -920,10 +858,10 @@ describe('individual criteria', () => {
   })
 })
 
-describe('the learned vocabulary bridge in matching (v39.1)', () => {
+describe('the learned vocabulary bridge in matching', () => {
   // The threshold shows the predicted style on some tracks and the
   // collection's own label on others. "Tribe" (his word) and "Tribal" (the
-  // model's) describe the same music and link to each other in no method, so
+  // model's) describe the same music but share no pack similarity, so
   // until the bridge is installed the pair silently stops matching.
   const genreOnly = (): CriteriaConfig => {
     const cfg = config({ threshold: 1 })
@@ -946,11 +884,9 @@ describe('the learned vocabulary bridge in matching (v39.1)', () => {
     expect(edges[0].matched).toEqual(['genre'])
   })
 
-  test('an alias below the criterion floor still cannot link', () => {
-    setGenreBridge([{ own: 'tribe', style: 'tribal', weight: 0.64 }])
-    const cfg = genreOnly()
-    cfg.genre.threshold = 0.7
-    expect(computeEdges([a, b], cfg)).toHaveLength(0)
+  test('an alias below the score floor still cannot link', () => {
+    setGenreBridge([{ own: 'tribe', style: 'tribal', weight: 0.1 }])
+    expect(computeEdges([a, b], genreOnly())).toHaveLength(0)
   })
 })
 

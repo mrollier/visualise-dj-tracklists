@@ -6,7 +6,6 @@
     toggleDemanded,
     type CriterionField,
   } from '../core/combos'
-  import { METHOD_LABEL } from '../core/genre'
   import FiltersSection from './FiltersSection.svelte'
   import GenresSection from './GenresSection.svelte'
   import InfoTooltip from './InfoTooltip.svelte'
@@ -218,15 +217,8 @@
             Genre
           </label>
           <InfoTooltip label="How genre matching works">
-            Method: {METHOD_LABEL[$criteria.genre.method]} —
-            {#if $criteria.genre.method === 'exact'}
-              only exactly the same genre combos.
-            {:else if $criteria.genre.mode === 'topk'}
-              each genre links to its top {$criteria.genre.k} mutual neighbours.
-            {:else}
-              genres combo when their similarity is ≥ {$criteria.genre.threshold.toFixed(2)}.
-            {/if}
-            Change the method and cutoff in advanced settings → Genre distance.
+            Two genres combo when each is among the other's {$criteria.genre.k} nearest genres in your
+            library. Change how many in advanced settings → Genre matching.
           </InfoTooltip>
           {#if $criteria.genre.enabled}
             <button

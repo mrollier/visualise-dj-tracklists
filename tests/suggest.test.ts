@@ -237,18 +237,11 @@ describe('suggestWalk', () => {
   })
 
   test('prefers the candidate whose genre is more similar, all else equal', () => {
-    // Both candidates match a on key/bpm/year; genre matches neither at the
-    // 0.5 graph threshold — but tech house (0.36) beats folk (~0), so the
+    // Both candidates match a on key/bpm/year and the genre criterion is off
+    // — but tech house is far closer to techno than folk is, so the
     // continuous similarity should break the tie despite the id order.
     const cfg = config()
-    cfg.genre = {
-      enabled: true,
-      method: 'graph',
-      mode: 'threshold',
-      k: 5,
-      threshold: 0.5,
-      demanded: false,
-    }
+    cfg.genre = { ...cfg.genre, enabled: false }
     const trio = [
       track({
         key: '8A',

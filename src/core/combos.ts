@@ -1,11 +1,4 @@
-import {
-  genreAliases,
-  genreComponents,
-  genreSimilarity,
-  labelSimilarity,
-  UMBRELLA_GENRES,
-  type GenreMethod,
-} from './genre'
+import { genreAliases, genreComponents, labelSimilarity, UMBRELLA_GENRES } from './genre'
 import { keysMatch, transposeCamelot } from './keys'
 import type { Track } from './model'
 
@@ -43,20 +36,12 @@ export interface CriteriaConfig {
   }
   /** Mixed-In-Key-style energy (1–10); "within" is an absolute step count. */
   energy: { enabled: boolean; maxSteps: number; demanded: boolean }
-  genre: {
-    enabled: boolean
-    method: GenreMethod
-    /**
-     * 'topk': each genre links to its k nearest genres in the library when
-     * the closeness is mutual (self-calibrating across dense and sparse
-     * genre regions — the research report's recommendation); the threshold
-     * stays on as a secondary score floor. 'threshold': plain sim ≥ t.
-     */
-    mode: 'topk' | 'threshold'
-    k: number
-    threshold: number
-    demanded: boolean
-  }
+  /**
+   * Each genre links to its k nearest genres in the library when the
+   * closeness is mutual — self-calibrating across dense (electronic) and
+   * sparse genre regions, the research report's recommendation.
+   */
+  genre: { enabled: boolean; k: number; demanded: boolean }
   year: { enabled: boolean; maxYears: number; demanded: boolean }
   /**
    * Minimum number of matching criteria for an edge (clamped to #evaluable).
@@ -82,7 +67,7 @@ export const DEFAULT_CRITERIA: CriteriaConfig = {
   },
   // ±2 energy steps mirrors BPM's fairly tight default tolerance.
   energy: { enabled: true, maxSteps: 2, demanded: false },
-  genre: { enabled: true, method: 'hybrid', mode: 'topk', k: 5, threshold: 0.2, demanded: false },
+  genre: { enabled: true, k: 5, demanded: false },
   year: { enabled: true, maxYears: 5, demanded: false },
   threshold: 3,
 }
@@ -125,20 +110,25 @@ type Predicate = (a: Track, b: Track, criteria: CriteriaConfig) => boolean
 export type GenreMatcher = (rawA: string, rawB: string) => boolean
 
 /**
- * Build the genre predicate for a pairing universe. In 'topk' mode each
- * distinct genre (multi-genre fields split into components) ranks the others
- * by the configured similarity method; a pair matches when each is in the
- * other's top k (and clears the threshold floor). Umbrella labels
- * ("electronic", …) never rank as neighbours, so they cannot become hubs.
+ * Below this a pack score is noise, not a neighbour: it keeps a sparse genre
+ * region from linking its k "nearest" genres when none of them is actually
+ * near.
+ */
+const GENRE_SCORE_FLOOR = 0.2
+
+/**
+ * Build the genre predicate for a pairing universe. Each distinct genre
+ * (multi-genre fields split into components) ranks the others by pack
+ * similarity; a pair matches when each is in the other's top k and the score
+ * clears GENRE_SCORE_FLOOR. Umbrella labels ("electronic", …) never rank as
+ * neighbours, so they cannot become hubs.
  */
 export function makeGenreMatcher(
   genres: Iterable<string | null>,
   criteria: CriteriaConfig,
 ): GenreMatcher {
-  const { method, mode, k, threshold } = criteria.genre
-  if (mode === 'threshold') {
-    return (rawA, rawB) => genreSimilarity(rawA, rawB, method) >= threshold
-  }
+  const { k } = criteria.genre
+  const threshold = GENRE_SCORE_FLOOR
   const vocabulary = new Set<string>()
   for (const raw of genres) {
     if (raw === null) continue
@@ -150,14 +140,14 @@ export function makeGenreMatcher(
   for (const label of labels) {
     const ranked = labels
       .filter((other) => other !== label && !umbrella.has(other))
-      .map((other) => ({ other, sim: labelSimilarity(label, other, method) }))
+      .map((other) => ({ other, sim: labelSimilarity(label, other) }))
       .filter(({ sim }) => sim > 0 && sim >= threshold)
       .sort((x, y) => y.sim - x.sim || (x.other < y.other ? -1 : 1))
       .slice(0, k)
     topOf.set(label, new Set(ranked.map(({ other }) => other)))
   }
-  // Learned aliases (v39.1) skip the ranking but not the score floor; `?.add`
-  // ignores a label this pairing universe never mentions.
+  // Learned aliases skip the ranking but not the score floor; `?.add` ignores
+  // a label this pairing universe never mentions.
   for (const { own, style, weight } of genreAliases()) {
     if (weight < threshold) continue
     topOf.get(own)?.add(style)
@@ -175,14 +165,14 @@ export function makeGenreMatcher(
 }
 
 /**
- * Every distinct pair of genre components (sorted, deduplicated) that the
- * configured matcher links. Shared by the genre map's criterion overlay and
- * the advanced menu's live pair count (issue 12), so the two can never
- * disagree about what "matches" means.
+ * Every distinct pair of genre components (sorted, deduplicated) among
+ * `genres` that `matches` links. Shared by the genre map and the advanced
+ * menu's live pair count, so the two can never disagree about what "matches"
+ * means.
  */
 export function matchedGenrePairs(
   genres: Iterable<string | null>,
-  criteria: CriteriaConfig,
+  matches: GenreMatcher,
 ): [string, string][] {
   const vocabulary = new Set<string>()
   for (const raw of genres) {
@@ -190,7 +180,6 @@ export function matchedGenrePairs(
     for (const component of genreComponents(raw)) vocabulary.add(component)
   }
   const labels = [...vocabulary].sort()
-  const matches = makeGenreMatcher(labels, criteria)
   const pairs: [string, string][] = []
   for (let i = 0; i < labels.length; i++) {
     for (let j = i + 1; j < labels.length; j++) {

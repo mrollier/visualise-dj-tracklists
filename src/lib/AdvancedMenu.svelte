@@ -2,7 +2,6 @@
   import { get } from 'svelte/store'
   import { matchedGenrePairs } from '../core/combos'
   import { NOT_IN_PLAYLIST } from '../core/filter'
-  import { METHOD_LABEL_LONG, METHOD_PICK_ORDER, type GenreMethod } from '../core/genre'
   import {
     bulkScopeIds,
     clearCombosInScope,
@@ -35,6 +34,7 @@
     criteria,
     filters,
     genreBridge,
+    genreMatcher,
     library,
     manualEdges,
     mustInclude,
@@ -211,75 +211,18 @@
     manualEdges.set(comboClear.edges)
   }
 
-  // Live feedback for the k/threshold sliders (issue 12): on the wheel the
-  // genre criterion is often masked by the other criteria, so show directly
-  // how many genre pairs the current settings link.
+  // Live feedback for k: on the wheel the genre criterion is often masked by
+  // the other criteria, so show directly how many genre pairs it links.
   const genrePairCount = $derived(
     matchedGenrePairs(
       $visibleLibrary.map((t) => t.genre),
-      $criteria,
+      $genreMatcher,
     ).length,
   )
 
   const mustIncludeTracks = $derived(
     $mustInclude.map((id) => $trackById.get(id)).filter((t): t is Track => t !== undefined),
   )
-
-  interface MethodInfo {
-    text: string
-    sources: { label: string; href: string }[]
-  }
-
-  const METHOD_EXPLAINER: Record<GenreMethod, MethodInfo> = {
-    exact: {
-      text: 'Only identical genres match, after alias normalization (DnB = Drum & Bass). Strict but blind to relatedness.',
-      sources: [
-        {
-          label: 'Schreiber 2015',
-          href: 'https://archives.ismir.net/ismir2015/paper/000102.pdf',
-        },
-      ],
-    },
-    lexical: {
-      text: 'Word overlap (token Jaccard): Melodic House ~ House, but not Techno ~ Tech House. No data pack, no opinions.',
-      sources: [
-        {
-          label: 'Tversky 1977',
-          href: 'https://doi.org/10.1037/0033-295X.84.4.327',
-        },
-      ],
-    },
-    graph: {
-      text: 'Shortest path through a curated genre-relation graph (editable JSON in the repo), decaying per step: Techno ~ Tech House. Treats every link as equally long — its known weakness.',
-      sources: [{ label: 'Rada et al. 1989', href: 'https://doi.org/10.1109/21.24528' }],
-    },
-    taxonomy: {
-      text: 'Lin similarity over a rooted genre tree: pairs sharing a deep, specific ancestor (Liquid DnB & Neurofunk) score high; pairs relating only through umbrella nodes (Electronic) score low.',
-      sources: [
-        {
-          label: 'Lin 1998',
-          href: 'https://dl.acm.org/doi/10.5555/645527.657297',
-        },
-      ],
-    },
-    embedding: {
-      text: 'Statistical relatedness learned from ~2M real-world tag co-occurrences (AcousticBrainz), via PPMI + truncated SVD, with mutual-proximity hub correction.',
-      sources: [
-        {
-          label: 'Levy & Goldberg 2014',
-          href: 'https://papers.nips.cc/paper_files/paper/2014/hash/feab05aa91085b7a8012516bc3533958-Abstract.html',
-        },
-        {
-          label: 'Schnitzer et al. 2012',
-          href: 'https://jmlr.org/papers/v13/schnitzer12a.html',
-        },
-      ],
-    },
-    hybrid: {
-      text: 'The embedding retrofitted toward the curated tree: real-world data where it exists, hand-audited lineage where it doesn’t. Best coverage of club subgenres — the recommended method.',
-      sources: [{ label: 'Epure et al. 2020', href: 'https://arxiv.org/abs/2009.07755' }],
-    },
-  }
 
   function close() {
     rightPanel.set('set')
@@ -437,76 +380,27 @@
     </p>
     <label>
       <span class="label-with-info">
-        Method
-        <InfoTooltip label="About this method">
-          {METHOD_EXPLAINER[$criteria.genre.method].text}
-          {#each METHOD_EXPLAINER[$criteria.genre.method].sources as source (source.href)}
-            <a href={source.href} target="_blank" rel="noreferrer">[{source.label}]</a>
-          {/each}
-        </InfoTooltip>
-      </span>
-      <select bind:value={$criteria.genre.method}>
-        {#each METHOD_PICK_ORDER as method (method)}
-          <option value={method}>{METHOD_LABEL_LONG[method]}</option>
-        {/each}
-      </select>
-    </label>
-    {#if $criteria.genre.method !== 'exact'}
-      <div class="mode-row">
-        <label class="row">
-          <input type="radio" value="topk" bind:group={$criteria.genre.mode} />
-          k nearest (mutual)
-        </label>
-        <label class="row">
-          <input type="radio" value="threshold" bind:group={$criteria.genre.mode} />
-          score threshold
-        </label>
-      </div>
-      {#if $criteria.genre.mode === 'topk'}
-        <label>
-          Link each genre to its nearest
-          <input
-            class="classes-input"
-            type="number"
-            min="1"
-            max="8"
-            bind:value={$criteria.genre.k}
-          />
-        </label>
-        <SliderRow
-          label="Minimum score"
-          bind:value={$criteria.genre.threshold}
-          min={0}
-          max={1}
-          step={0.05}
-          display={(v) => v.toFixed(2)}
-        />
-        <p class="hint">
-          Genres link when each is in the other's top-k — self-calibrating where genre space is
-          dense (electronic) or sparse; umbrella tags never count as neighbours.
+        Link each genre to its nearest
+        <InfoTooltip label="About genre matching">
+          Genres are compared through a similarity pack learned from about two million real-world
+          tag co-occurrences (AcousticBrainz), retrofitted toward a curated genre tree: real-world
+          data where it exists, hand-audited lineage where it doesn't. Two genres match when each is
+          among the other's nearest genres in your library, so dense regions (electronic) and sparse
+          ones calibrate themselves. Umbrella tags like "Electronic" never count as neighbours.
+          <a href="https://arxiv.org/abs/2009.07755" target="_blank" rel="noreferrer"
+            >[Epure et al. 2020]</a
+          >
           <a href="https://jmlr.org/papers/v11/radovanovic10a.html" target="_blank" rel="noreferrer"
             >[Radovanović et al. 2010]</a
           >
-        </p>
-      {:else}
-        <SliderRow
-          label="Similarity ≥"
-          bind:value={$criteria.genre.threshold}
-          min={0}
-          max={1}
-          step={0.05}
-          display={(v) => v.toFixed(2)}
-        />
-        <p class="hint">
-          Lower = looser matching. With the graph method, 0.6 accepts direct relatives, 0.36 two
-          steps apart.
-        </p>
-      {/if}
-      <p class="hint pair-count">
-        <strong>{genrePairCount}</strong>
-        genre {genrePairCount === 1 ? 'pair' : 'pairs'} in your library match at these settings.
-      </p>
-    {/if}
+        </InfoTooltip>
+      </span>
+      <input class="classes-input" type="number" min="1" max="8" bind:value={$criteria.genre.k} />
+    </label>
+    <p class="hint pair-count">
+      <strong>{genrePairCount}</strong>
+      genre {genrePairCount === 1 ? 'pair' : 'pairs'} in your library match at this setting.
+    </p>
   </details>
 
   <details
@@ -626,35 +520,6 @@
         Edges only appear around the selected track: its own connections by default; this also draws
         how those neighbours link amongst themselves.
       </InfoTooltip>
-    </label>
-    <label class:off-view={$viewMode !== 'wheel'} title="Only affects the Wheel view">
-      Node icons (Wheel view)
-      <select bind:value={$settings.iconMode}>
-        <option value="families">Genre families (curated tree)</option>
-        <option value="playlists">Playlists (first one wins)</option>
-        <option value="clusters">Genre clusters (hybrid space)</option>
-      </select>
-    </label>
-    <label
-      class:off-view={$viewMode === 'tracks'}
-      title="Affects the Wheel and Genres views' symbols"
-    >
-      <span class="label-with-info">
-        Max symbol classes
-        <InfoTooltip label="About symbol classes">
-          Distinct node shapes (circle, square, triangle, …) mark up to this many classes: curated
-          genre families, the selected playlists, or similarity clusters. The largest classes keep a
-          symbol; smaller families merge into a broader umbrella when they exceed the cap. The genre
-          map always shows genre families, whatever the icon mode.
-        </InfoTooltip>
-      </span>
-      <input
-        class="classes-input"
-        type="number"
-        min="1"
-        max="8"
-        bind:value={$settings.maxGenreClasses}
-      />
     </label>
   </details>
 
@@ -1316,21 +1181,6 @@
     padding: 3px 8px;
   }
 
-  /* Two radio choices; each label keeps its circle and text on one line
-     (issue 11: the old single-label layout wrapped mid-choice). The row
-     itself may wrap BETWEEN the choices when the panel is narrow. */
-  .mode-row {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 2px 16px;
-  }
-
-  .mode-row label {
-    flex-wrap: nowrap;
-    white-space: nowrap;
-  }
-
   input[type='number'] {
     width: 64px;
     padding: 2px 6px;
@@ -1353,11 +1203,5 @@
   .hint code {
     font-size: 10px;
     word-break: break-all;
-  }
-
-  .hint a {
-    color: var(--ink-secondary);
-    margin-left: 4px;
-    text-decoration: underline dotted;
   }
 </style>

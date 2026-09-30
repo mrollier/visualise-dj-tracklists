@@ -1,67 +1,14 @@
-import genreGraph from '../data/genre-graph.json'
 import genreTree from '../data/genre-tree.json'
 import discogsGenres from '../data/discogs-genres.json'
 import embeddingPack from '../data/genre-embedding.json'
 
 /**
- * Genre similarity (concept paper's "linking unidentical genres").
- *
- * All methods return a similarity in [0, 1]; the genre combo criterion passes
- * when similarity >= the configured threshold. Methods, roughly in order of
- * sophistication (see README for the literature background):
- * - exact:     normalized labels must be identical (v1 behaviour).
- * - lexical:   token overlap after normalization ("tech house" ~ "deep house").
- * - graph:     decay^(shortest path) over the curated genre-relation graph.
- * - embedding: cosine similarity between vectors from the bundled data pack.
- * Graph and embedding fall back to lexical when a label is unknown to them.
+ * Genre similarity in [0, 1] (the concept paper's "linking unidentical
+ * genres"). One method: the co-occurrence embedding retrofitted toward the
+ * curated genre tree ("hybrid", see README). Labels the pack does not know
+ * fall back to word overlap. The curated tree itself drives genre families,
+ * umbrella handling, the coverage diagnosis and the genre map's pair card.
  */
-export type GenreMethod = 'exact' | 'lexical' | 'graph' | 'taxonomy' | 'embedding' | 'hybrid'
-
-export const GENRE_METHODS: readonly GenreMethod[] = [
-  'exact',
-  'lexical',
-  'graph',
-  'taxonomy',
-  'embedding',
-  'hybrid',
-]
-
-/**
- * Dropdown order for method pickers: the recommended hybrid first, then by
- * decreasing sophistication. GENRE_METHODS keeps the simple→rich order the
- * genre map's chips and colours are keyed on.
- */
-export const METHOD_PICK_ORDER: readonly GenreMethod[] = [
-  'hybrid',
-  'embedding',
-  'taxonomy',
-  'graph',
-  'lexical',
-  'exact',
-]
-
-/** Short UI labels for the criteria panel (the advanced menu holds the detail). */
-export const METHOD_LABEL: Record<GenreMethod, string> = {
-  exact: 'Exact match',
-  lexical: 'Lexical',
-  graph: 'Genre graph',
-  taxonomy: 'Taxonomy',
-  embedding: 'Embedding',
-  hybrid: 'Hybrid',
-}
-
-/** Long labels with the parenthetical explainer, for the advanced menu. */
-export const METHOD_LABEL_LONG: Record<GenreMethod, string> = {
-  exact: 'Exact match',
-  lexical: 'Lexical (word overlap)',
-  graph: 'Genre graph (curated relations)',
-  taxonomy: 'Taxonomy (Lin, rooted tree)',
-  embedding: 'Embedding (co-occurrence pack)',
-  hybrid: 'Hybrid (embedding + tree)',
-}
-
-/** Decay per graph step: neighbours score 0.6, two steps 0.36, ... */
-const GRAPH_DECAY = 0.6
 
 // Keys are matched AFTER cleanupGenre, so a key only earns its place if
 // cleanupGenre leaves it alone. Hyphenated, "and"-spelled and period-bearing
@@ -86,14 +33,14 @@ const ALIASES: Record<string, string> = {
   // (a Beatport category, not two genres) arrives with its slash spaced out.
   'organic house downtempo': 'organic house',
   'two step': '2 step',
-  // v12 WS5: a bare "Garage" in a club library means the UK lineage, not
+  // A bare "Garage" in a club library means the UK lineage, not
   // garage rock — the pack knows uk garage / garage house, never "garage".
   garage: 'uk garage',
   // Discogs ships one compound umbrella label; keep it whole (the comma stays
   // through cleanup, so the key carries it) instead of shredding a stray
   // "& country" component off it.
   'folk, world, & country': 'folk',
-  // v12 WS7 — mined from a real 2080-track library (tests/mine-genre-
+  // Mined from a real 2080-track library (tests/mine-genre-
   // aliases.dev.test.ts): personal descriptors, shorthand and foreign
   // spellings mapped to their nearest known genre. Non-genres ("Nieuw!!!",
   // "90s", site watermarks) are deliberately NOT mapped — the reject class is
@@ -117,7 +64,7 @@ const ALIASES: Record<string, string> = {
   'funk thai': 'thai funk',
   // In a club crate "psychedelic" points at the psy lineage, not psych rock.
   psychedelic: 'psytrance',
-  // v39: the one Discogs400 spelling the table did not already answer
+  // The one Discogs400 spelling the table did not already answer
   // (dnb and psy-trance arrive covered).
   'synth pop': 'synthpop',
 }
@@ -126,7 +73,7 @@ function cleanupGenre(label: string): string {
   let s = label
     .trim()
     .toLowerCase()
-    // v12 WS5 (science doc §6.4): periods vanish ("U.K. Garage" → uk garage)
+    // Periods vanish (science doc §6.4) ("U.K. Garage" → uk garage)
     // and en/em dashes separate like hyphens ("Pop – Synthpop").
     .replace(/\./g, '')
     .replace(/[-_/–—]+/g, ' ')
@@ -164,7 +111,7 @@ export function genreComponents(raw: string): string[] {
 }
 
 function splitGenreComponents(raw: string): string[] {
-  // En/em dashes separate too (v12 WS5) — hyphens never do ("hip-hop").
+  // En/em dashes separate too — hyphens never do ("hip-hop").
   if (/[/,;–—]/.test(raw) && !Object.hasOwn(ALIASES, cleanupGenre(raw))) {
     const parts = [
       ...new Set(
@@ -193,51 +140,17 @@ function lexicalSimilarity(a: string, b: string): number {
   return union === 0 ? 0 : shared / union
 }
 
-// --- graph method -----------------------------------------------------------
-const adjacency = new Map<string, string[]>()
-for (const [a, b] of genreGraph.edges as [string, string][]) {
-  if (!adjacency.has(a)) adjacency.set(a, [])
-  if (!adjacency.has(b)) adjacency.set(b, [])
-  adjacency.get(a)!.push(b)
-  adjacency.get(b)!.push(a)
-}
-
-/** BFS shortest path between two known graph nodes; Infinity if disconnected. */
-function graphDistance(a: string, b: string): number {
-  if (a === b) return 0
-  const visited = new Set([a])
-  let frontier = [a]
-  let depth = 0
-  while (frontier.length > 0) {
-    depth++
-    const next: string[] = []
-    for (const node of frontier) {
-      for (const neighbour of adjacency.get(node) ?? []) {
-        if (neighbour === b) return depth
-        if (!visited.has(neighbour)) {
-          visited.add(neighbour)
-          next.push(neighbour)
-        }
-      }
-    }
-    frontier = next
-  }
-  return Infinity
-}
-
-// --- taxonomy method (Lin over the rooted genre DAG) --------------------------
-// Lin (1998): sim = 2·IC(LCA) / (IC(a) + IC(b)), with intrinsic information
-// content IC(n) = 1 − log(descendants(n)+1)/log(N) (Seco et al. 2004). Deep,
-// specific common ancestors score high; umbrella nodes near the root have
-// IC ≈ 0 and cannot produce strong matches.
+// --- the curated tree ----------------------------------------------------------
+// Intrinsic information content IC(n) = 1 − log(descendants(n)+1)/log(N)
+// (Seco et al. 2004): deep, specific nodes score near 1, umbrellas near the
+// root near 0. It ranks ancestors by specificity — the umbrella one level up
+// from a family, and the most specific ancestor two genres share.
 /**
  * The curated tree, widened with the Discogs400 styles the analysed-genre
- * layer can predict (v39, src/data/discogs-genres.json). Curated entries win
- * every collision — the spread order is what guarantees it — so a label
- * Michiel placed himself keeps his lineage, and a predicted style that would
- * otherwise fall through to lexical similarity gets a real one. Keys go
- * through `normalizeGenre` here so the generated file can keep the model's
- * own spelling.
+ * layer can predict (src/data/discogs-genres.json). Curated entries win every
+ * collision — the spread order guarantees it — so a hand-placed label keeps
+ * its lineage. Keys go through `normalizeGenre` so the generated file can
+ * keep the model's own spelling.
  */
 const treeParents: Record<string, string[]> = {
   ...Object.fromEntries(
@@ -266,10 +179,8 @@ const treeIC = new Map<string, number>()
 {
   // Over the CURATED tree alone. Every Discogs-added node is a leaf, so its
   // own IC is 1 under either node set — but counting them would grow N and
-  // lift every umbrella's IC with it (measured: 'electronic' 0.04 → 0.18,
-  // techno↔house 0.17 → 0.42), destroying the "umbrellas near the root cannot
-  // produce strong matches" property this measure is chosen for. Curated
-  // pairs therefore score exactly as they did before the widening.
+  // lift every umbrella's IC with it (measured: 'electronic' 0.04 → 0.18),
+  // so umbrellas would start to look specific.
   const nodes = new Set<string>([genreTree.root, ...Object.keys(genreTree.parents)])
   const descendants = new Map<string, number>()
   for (const node of nodes) {
@@ -281,24 +192,38 @@ const treeIC = new Map<string, number>()
   for (const node of nodes) {
     treeIC.set(node, 1 - Math.log((descendants.get(node) ?? 0) + 1) / logN)
   }
-  // The widened-only styles: leaves, so IC 1 — and having an IC at all is what
-  // routes them through Lin instead of the lexical fallback.
+  // The widened-only styles are leaves: IC 1.
   for (const node of Object.keys(treeParents)) if (!treeIC.has(node)) treeIC.set(node, 1)
 }
 
-function linSimilarity(a: string, b: string): number {
-  const icA = treeIC.get(a)!
-  const icB = treeIC.get(b)!
-  if (icA + icB === 0) return 0
-  let lcaIC = 0
-  const ancestorsB = ancestorsOf(b)
-  for (const ancestor of ancestorsOf(a)) {
-    if (ancestorsB.has(ancestor)) lcaIC = Math.max(lcaIC, treeIC.get(ancestor)!)
+/**
+ * The most specific ancestor two genres share in the curated tree (a genre
+ * counts as its own ancestor), best over their components; null when they
+ * share only the root, or the tree does not know them. The genre map's pair
+ * card uses it to say why two genres sit together.
+ */
+export function sharedGenreAncestor(rawA: string, rawB: string): string | null {
+  let best: string | null = null
+  let bestIC = -1
+  for (const a of genreComponents(rawA)) {
+    if (!treeIC.has(a)) continue
+    for (const b of genreComponents(rawB)) {
+      if (!treeIC.has(b)) continue
+      const ancestorsB = ancestorsOf(b)
+      for (const ancestor of ancestorsOf(a)) {
+        if (ancestor === genreTree.root || !ancestorsB.has(ancestor)) continue
+        const ic = treeIC.get(ancestor) ?? 0
+        if (ic > bestIC || (ic === bestIC && best !== null && ancestor < best)) {
+          best = ancestor
+          bestIC = ic
+        }
+      }
+    }
   }
-  return (2 * lcaIC) / (icA + icB)
+  return best
 }
 
-// --- genre families (v8 issues 4+5) --------------------------------------------
+// --- genre families -------------------------------------------------------------
 // The icon-friendly level of the taxonomy: the root's children are too coarse
 // for a club library ("electronic" would swallow everything), so 'electronic'
 // is replaced by ITS children — house, techno, trance, breakbeat, … — while
@@ -344,7 +269,7 @@ export function genreFamilyOf(rawLabel: string): string | null {
  * curated tree (lowest information content — nearest the root). house/techno
  * → 'electronic'; a root child like 'jazz' → the root 'music'. Null for the
  * root itself and for labels the tree does not know. Used to collapse families
- * into fewer classes when the symbol cap is tight (v10 issue 10).
+ * into fewer classes when the symbol cap is tight.
  */
 export function umbrellaFor(label: string): string | null {
   const norm = normalizeGenre(label)
@@ -363,88 +288,64 @@ export function umbrellaFor(label: string): string | null {
   return best
 }
 
-// --- embedding & hybrid methods -----------------------------------------------
-// Pack v2 (see scripts/build-genre-embedding.mjs): per-label top-k neighbour
-// lists with mutual-proximity scores in [0,1]. Pairs absent from both lists
-// are genuinely dissimilar and score 0; umbrella labels arrive pre-damped.
-// 'hybrid' is the same embedding retrofitted toward the curated genre tree.
+// --- the similarity pack ---------------------------------------------------------
+// Built by scripts/build-genre-embedding.mjs: per-label top-k neighbour lists
+// with mutual-proximity scores in [0,1], from an embedding retrofitted toward
+// the curated tree. Pairs absent from both lists are genuinely dissimilar and
+// score 0; umbrella labels arrive pre-damped.
 type NeighbourLists = Record<string, [string, number][]>
+
+const pack = embeddingPack.hybrid as unknown as NeighbourLists
 
 /** Umbrella tags ("electronic", …) that must never drive a genre match. */
 export const UMBRELLA_GENRES: readonly string[] = embeddingPack.umbrella
 
-class PackSection {
-  private lists: NeighbourLists
-  // Space/&-collapsed spelling → canonical pack label ("eurodance" → the
-  // pack's own key), so "Euro Dance" and "Eurodance" hit the same entry.
-  private squashed = new Map<string, string>()
+// Space/&-collapsed spelling → canonical pack label, so "Euro Dance" and
+// "Eurodance" hit the same entry.
+const squashedPackLabels = new Map(
+  Object.keys(pack).map((label) => [label.replace(/[\s&']+/g, ''), label]),
+)
 
-  constructor(lists: NeighbourLists) {
-    this.lists = lists
-    for (const label of Object.keys(lists)) {
-      this.squashed.set(label.replace(/[\s&']+/g, ''), label)
-    }
-  }
-
-  // The pack is a plain JSON object, so a genre literally named "constructor"
-  // or "toString" would otherwise resolve to an inherited function. Every read
-  // of `lists` goes through here.
-  private own(label: string): [string, number][] | undefined {
-    return Object.hasOwn(this.lists, label) ? this.lists[label] : undefined
-  }
-
-  /** Canonical pack label: exact match, else the space-collapsed spelling. */
-  label(label: string): string | undefined {
-    if (Object.hasOwn(this.lists, label)) return label
-    return this.squashed.get(label.replace(/[\s&']+/g, ''))
-  }
-
-  /** The stored neighbour list of a canonical label (best first). */
-  neighbours(label: string): [string, number][] {
-    return this.own(label) ?? []
-  }
-
-  /** Score between two canonical labels; either side's list may hold it. */
-  score(a: string, b: string): number {
-    const hit =
-      this.own(a)?.find(([label]) => label === b) ?? this.own(b)?.find(([label]) => label === a)
-    return hit === undefined ? 0 : hit[1]
-  }
-
-  similarity(a: string, b: string): number {
-    const pa = this.label(a)
-    const pb = this.label(b)
-    if (pa === undefined || pb === undefined) return lexicalSimilarity(a, b)
-    if (pa === pb) return 1
-    return this.score(pa, pb)
-  }
+// The pack is a plain JSON object: a genre literally named "constructor"
+// must not resolve to an inherited function, so every read goes through here.
+function packList(label: string): [string, number][] | undefined {
+  return Object.hasOwn(pack, label) ? pack[label] : undefined
 }
 
-const embeddingSection = new PackSection(embeddingPack.embedding as unknown as NeighbourLists)
-const hybridSection = new PackSection(embeddingPack.hybrid as unknown as NeighbourLists)
+/** Canonical pack label: exact match, else the space-collapsed spelling. */
+function packLabel(label: string): string | undefined {
+  if (Object.hasOwn(pack, label)) return label
+  return squashedPackLabels.get(label.replace(/[\s&']+/g, ''))
+}
+
+function packSimilarity(a: string, b: string): number {
+  const pa = packLabel(a)
+  const pb = packLabel(b)
+  if (pa === undefined || pb === undefined) return lexicalSimilarity(a, b)
+  if (pa === pb) return 1
+  const hit = packList(pa)?.find(([l]) => l === pb) ?? packList(pb)?.find(([l]) => l === pa)
+  return hit === undefined ? 0 : hit[1]
+}
 
 /**
- * A genre's nearest pack neighbours (hybrid section) — used by the genre map
+ * A genre's nearest pack neighbours — used by the genre map
  * to suggest nearby genres you don't own. Umbrella tags are skipped.
  */
 export function packNeighbours(rawLabel: string, limit: number): [string, number][] {
-  const canonical = hybridSection.label(normalizeGenre(rawLabel))
+  const canonical = packLabel(normalizeGenre(rawLabel))
   if (canonical === undefined) return []
   const umbrella = new Set(UMBRELLA_GENRES)
-  return hybridSection
-    .neighbours(canonical)
-    .filter(([label]) => !umbrella.has(label))
-    .slice(0, limit)
+  return (packList(canonical) ?? []).filter(([label]) => !umbrella.has(label)).slice(0, limit)
 }
 
 /**
  * A learned alias between one of the collection's own labels and the style
- * the analyser uses for the same music (v39.1).
+ * the analyser uses for the same music.
  *
  * The Discogs head predicts a style for every track, so the tracks already
  * carrying one of the DJ's labels vote on what that label means in the
  * model's words: 53 "Tribe" tracks are called "Tribal" 64% of the time. The
- * two words link in NO similarity method — different tokens, and the personal
+ * two words have no pack similarity — different tokens, and the personal
  * label is in no public taxonomy — so without the alias, a confidence
  * threshold that swaps one track of a pair and not the other splits identical
  * music across two dialects and the pair stops matching.
@@ -456,7 +357,7 @@ export interface GenreBridgeEdge {
   weight: number
 }
 
-/** Below these the vote is noise. Measured on a 2081-track library (v39.1). */
+/** Below these the vote is noise (measured on a 2081-track library). */
 const BRIDGE_MIN_TRACKS = 3
 const BRIDGE_MIN_PURITY = 0.5
 
@@ -530,48 +431,26 @@ export function genreAliases(): readonly GenreBridgeEdge[] {
 }
 
 /** Similarity between two already-normalized single genre labels. */
-export function labelSimilarity(a: string, b: string, method: GenreMethod): number {
+export function labelSimilarity(a: string, b: string): number {
   if (a === b) return 1
-  const base = baseSimilarity(a, b, method)
-  // 'Exact' promises literal identity, so a learned alias must not widen it.
-  if (bridgeWeights.size === 0 || method === 'exact') return base
+  const base = packSimilarity(a, b)
+  if (bridgeWeights.size === 0) return base
   return Math.max(base, bridgeWeights.get(bridgeKey(a, b)) ?? 0)
 }
 
-function baseSimilarity(a: string, b: string, method: GenreMethod): number {
-  switch (method) {
-    case 'exact':
-      return 0
-    case 'lexical':
-      return lexicalSimilarity(a, b)
-    case 'graph': {
-      if (!adjacency.has(a) || !adjacency.has(b)) return lexicalSimilarity(a, b)
-      const d = graphDistance(a, b)
-      return d === Infinity ? 0 : GRAPH_DECAY ** d
-    }
-    case 'taxonomy': {
-      if (!treeIC.has(a) || !treeIC.has(b)) return lexicalSimilarity(a, b)
-      return linSimilarity(a, b)
-    }
-    case 'embedding':
-      return embeddingSection.similarity(a, b)
-    case 'hybrid':
-      return hybridSection.similarity(a, b)
-  }
-}
-
-export function genreSimilarity(rawA: string, rawB: string, method: GenreMethod): number {
+/** Similarity between two raw genre fields: the best component pair. */
+export function genreSimilarity(rawA: string, rawB: string): number {
   let best = 0
   for (const a of genreComponents(rawA)) {
     for (const b of genreComponents(rawB)) {
-      best = Math.max(best, labelSimilarity(a, b, method))
+      best = Math.max(best, labelSimilarity(a, b))
       if (best === 1) return 1
     }
   }
   return best
 }
 
-// --- coverage diagnostics (v12 WS6 — science doc P1, productised) --------------
+// --- coverage diagnostics (science doc P1) --------------
 // How much of a library the similarity data actually reaches, mirroring the
 // runtime resolution chain: normalize → aliases → components → pack squashed
 // lookup / tree membership, best component per track (max aggregation).
@@ -594,7 +473,7 @@ let vocabTokens: Set<string> | null = null
 function knownVocabularyTokens(): Set<string> {
   if (vocabTokens === null) {
     vocabTokens = new Set<string>()
-    for (const label of Object.keys(embeddingPack.hybrid)) {
+    for (const label of Object.keys(pack)) {
       for (const token of tokens(label)) vocabTokens.add(token)
     }
     for (const label of treeIC.keys()) {
@@ -619,7 +498,7 @@ export function computeGenreCoverage(tracks: readonly { genre: string | null }[]
     let bestRank = 0 // 0 = invisible, 1 = lexical overlap, 2 = pack/tree
     const uncoveredHere: string[] = []
     for (const component of genreComponents(raw)) {
-      const covered = hybridSection.label(component) !== undefined || treeIC.has(component)
+      const covered = packLabel(component) !== undefined || treeIC.has(component)
       if (covered) {
         bestRank = 2
         continue
