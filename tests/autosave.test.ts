@@ -137,6 +137,17 @@ describe('saving', () => {
     expect(writes).toEqual([['work']])
   })
 
+  test('a set edit does not even serialise the library', async () => {
+    const stringify = vi.spyOn(JSON, 'stringify')
+    patchActiveSet({ mustInclude: ['rb-1'] })
+    await flushAutosave()
+    const serialisedTracks = stringify.mock.calls.some(
+      ([value]) => typeof value === 'object' && value !== null && 'tracks' in value,
+    )
+    stringify.mockRestore()
+    expect(serialisedTracks).toBe(false)
+  })
+
   test('nothing is written while the tour runs; its end is saved', async () => {
     tourStep.set(0)
     patchActiveSet({ mustInclude: ['rb-2'] })

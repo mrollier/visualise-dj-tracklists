@@ -90,11 +90,18 @@ export function serializeProject(project: Project): string {
  * rewrites the small `work` record and leaves the big `library` one (tracks,
  * playlists, analysis — megabytes on a large collection) alone.
  */
-export function serializeProjectParts(project: Project): { work: string; library: string } {
+export function serializeProjectParts(project: Project): {
+  work: string
+  readonly library: string
+} {
   const { tracks, playlists, analysis, ...work } = project
   return {
     work: JSON.stringify(work),
-    library: JSON.stringify({ tracks, playlists, analysis }, withoutDerived),
+    // Built only when read: most saves write `work` alone, and serialising a
+    // 10k-track library costs about 15 ms.
+    get library() {
+      return JSON.stringify({ tracks, playlists, analysis }, withoutDerived)
+    },
   }
 }
 

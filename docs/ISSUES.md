@@ -143,8 +143,6 @@ Items marked **(Wave B)** are scheduled in the v41 plan.
   name match can claim the track whose path matches exactly, which is then
   reported gone. Run the path pass over all tracks before any name pass, and
   skip names that are not unique.
-- Every autosave stringifies the whole library even when only `work` is
-  written (about 15 ms per flush at 10k tracks). **(Wave B)**
 - A quarantined unreadable save is offered only in the session that found it;
   later startups never read the `unreadable` slot, and a second unreadable save
   is overwritten by the next flush.
