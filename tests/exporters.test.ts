@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { exportTracklistCsv } from '../src/core/exporters/csv'
-import { ensureExtension } from '../src/core/exporters/filename'
+import { ensureExtension, fileStem } from '../src/core/exporters/filename'
 import { exportM3u } from '../src/core/exporters/m3u'
 import { importCsv } from '../src/core/importers/csv'
 import type { Track } from '../src/core/model'
@@ -115,5 +115,14 @@ describe('ensureExtension', () => {
 
   test('a different extension is treated as part of the name', () => {
     expect(ensureExtension('set.v2', '.csv')).toBe('set.v2.csv')
+  })
+})
+
+describe('fileStem', () => {
+  test('drops the last extension only', () => {
+    expect(fileStem('collection.xml')).toBe('collection')
+    expect(fileStem('Friday set.m3u8')).toBe('Friday set')
+    expect(fileStem('01 - Track.v2.mp3')).toBe('01 - Track.v2')
+    expect(fileStem('no-extension')).toBe('no-extension')
   })
 })

@@ -25,7 +25,6 @@ export const COLOR_SCHEMES: Record<ThemeName, Record<ColorScheme, string[]>> = {
   },
 }
 
-// Mirrors the --missing token per theme in src/app.css — keep in sync.
 export const MISSING_COLORS: Record<ThemeName, string> = {
   dark: '#565550',
   light: '#a3a199',

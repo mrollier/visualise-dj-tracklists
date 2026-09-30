@@ -21,7 +21,6 @@
 
   /* Mirrored by MISSING_COLORS in src/core/scales.ts (SVG fills are computed
      in TS) — keep the two in sync. */
-  --missing: #565550;
   --edge: #52514e;
   /* Thin outline separating node marks from the surface and each other. */
   --node-ring: rgba(255, 255, 255, 0.25);
@@ -81,7 +80,6 @@
   --baseline: #c6c4bb;
   --border: rgba(0, 0, 0, 0.13);
 
-  --missing: #a3a199;
   --edge: #b2b0a7;
   --node-ring: rgba(0, 0, 0, 0.22);
   --sector-minor: rgba(70, 100, 220, 0.06);

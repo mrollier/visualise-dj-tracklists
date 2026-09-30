@@ -1030,7 +1030,7 @@ if ((await page.locator('g.hub.warning').count()) !== 1) {
 await page.locator('aside').first().getByRole('button', { name: 'All' }).first().click()
 await page.waitForTimeout(400)
 
-// genre map view: overlays, all-method edge tooltip data, nearby ghosts,
+// genre map view: the link overlay, the pair card, nearby ghosts,
 // and containment — no node may drift out of the frame (ISSUES.md #12)
 await page.getByRole('button', { name: 'Genres', exact: true }).click()
 await page.waitForTimeout(1200)
@@ -1041,18 +1041,13 @@ if ((await page.locator('header select:disabled').count()) !== 0) {
 if ((await page.locator('header label.off-view').count()) !== 2) {
   errors.push('Radius/Colour labels should carry the off-view dim in the Genres view')
 }
-// v8 issues 12+13: no 'exact' chip (it can never draw an edge), and the five
-// remaining chips sit on ONE line
-const chipCount = await page.locator('.method-chip').count()
-if (chipCount !== 5) errors.push(`expected 5 method chips (no exact), got ${chipCount}`)
-if ((await page.locator('.method-chip', { hasText: 'exact' }).count()) !== 0) {
-  errors.push("the 'exact' overlay chip should be gone")
+// One link set (the genre criterion's own pairs): no method chips, and the
+// overlay row says what the lines mean.
+if ((await page.locator('.method-chip').count()) !== 0) {
+  errors.push('the genre map should no longer offer per-method chips')
 }
-const chipTops = await page.$$eval('.method-chip', (chips) =>
-  chips.map((c) => c.getBoundingClientRect().top),
-)
-if (new Set(chipTops.map((t) => Math.round(t))).size !== 1) {
-  errors.push(`method chips wrap onto multiple lines (tops: ${chipTops})`)
+if (!(await page.locator('.overlays-title').textContent())?.includes('nearest')) {
+  errors.push('the genre map overlay title should say which genres link')
 }
 // v13 issue 3: the map rests on a faint skeleton, not the full hairball
 {
@@ -1095,8 +1090,8 @@ const nodeAnchor = (index) =>
   await page.mouse.up()
 }
 await page.waitForTimeout(600)
-// v8 issue 14: the pair inspector — click two genres, read every method's
-// score in a locked card; ✕ clears
+// The pair inspector — click two genres, read their similarity, whether the
+// criterion links them and their shared family in a locked card; ✕ clears
 await page.waitForTimeout(300)
 await page.locator('.genre-node').nth(0).dispatchEvent('click')
 if ((await page.locator('.inspector.slim').count()) !== 1) {
@@ -1104,8 +1099,8 @@ if ((await page.locator('.inspector.slim').count()) !== 1) {
 }
 await page.locator('.genre-node').nth(1).dispatchEvent('click')
 const inspectorRows = await page.locator('.inspector dt').count()
-if (inspectorRows !== 5) {
-  errors.push(`the pair inspector should list 5 method scores, got ${inspectorRows}`)
+if (inspectorRows !== 3) {
+  errors.push(`the pair inspector should list similarity, match and family, got ${inspectorRows}`)
 }
 // v13 issue 3: comparing shows at most the pair's own link at full opacity
 {
@@ -1120,8 +1115,6 @@ await page.locator('.inspector .close').click()
 if ((await page.locator('.inspector').count()) !== 0) {
   errors.push('✕ did not close the pair inspector')
 }
-await page.getByRole('button', { name: 'hybrid' }).click()
-await page.getByRole('button', { name: 'taxonomy' }).click()
 const edgesPreGhost = await page.locator('line.edge').count()
 await page.getByRole('checkbox', { name: 'show nearby genres' }).check()
 // The cooling is deliberately slow (v10 issue 9, v11 issue 10) and the
@@ -1185,14 +1178,13 @@ if ((await page.locator('.shape-chip').count()) !== chipsAll) {
   errors.push('restoring the genres did not restore the legend classes')
 }
 
-// v10 issue 2: the genre method is chosen in the advanced menu now; the combo
-// panel shows only a subtle note of the active method.
+// The combo panel's genre ⓘ says how genres match (k lives in Advanced).
 await page.locator('.criterion button', { hasText: 'ⓘ' }).first().waitFor()
 await page.getByRole('button', { name: 'How genre matching works' }).hover()
 await page.waitForTimeout(200)
 const methodNote = await page.locator('.criterion .tooltip').first().textContent()
-if (!methodNote?.includes('Method:')) {
-  errors.push(`the criteria-panel method note is missing, got "${methodNote}"`)
+if (!methodNote?.includes('nearest genres')) {
+  errors.push(`the criteria-panel genre note is missing, got "${methodNote}"`)
 }
 await page.locator('h1').hover()
 
@@ -1203,18 +1195,13 @@ if ((await page.locator('aside.panel').count()) === 0) {
   errors.push('advanced settings did not open in the right aside')
 }
 await ensureSectionOpen('Genre matching')
-await page
-  .locator('.panel details.section', { hasText: 'Genre matching' })
-  .locator('label:has-text("Method") select')
-  .selectOption('hybrid')
-if ((await page.locator('.panel .hint a').count()) === 0) {
-  errors.push('method explainer carries no source links')
-}
-await page.getByText('Link each genre to its').waitFor() // top-k mode controls
+await page.locator('.panel label', { hasText: 'Link each genre to its' }).waitFor()
 // the live pair count reacts to k (ISSUES.md v7 #12)
 const pairCountText = () => page.locator('.pair-count strong').textContent().then(Number)
 // v10 issue 17: k is a 1–8 number stepper now, not a slider
-const kInput = page.getByText('Link each genre to its').locator('input[type=number]')
+const kInput = page
+  .locator('.panel label', { hasText: 'Link each genre to its' })
+  .locator('input[type=number]')
 await kInput.fill('8')
 await page.waitForTimeout(200)
 const pairsWide = await pairCountText()
@@ -1225,9 +1212,6 @@ if (!(pairsNarrow < pairsWide)) {
   errors.push(`k=1 should match fewer genre pairs than k=8 (${pairsNarrow} vs ${pairsWide})`)
 }
 await kInput.fill('5')
-await page.getByRole('radio').nth(1).check() // switch to threshold mode…
-await page.getByText('Similarity ≥').waitFor()
-await page.getByRole('radio').first().check() // …and back to mutual top-k
 await ensureSectionOpen('Key')
 await page.getByRole('checkbox', { name: 'allow +2 moves', exact: false }).check()
 await page.getByRole('checkbox', { name: 'allow +2 moves', exact: false }).uncheck()
@@ -1434,37 +1418,14 @@ if ((await page.locator('aside.panel').count()) !== 0) {
   errors.push('Escape did not close the advanced aside')
 }
 
-// icon modes (v8 issues 4+5): changing the combo criterion's method no
-// longer reshuffles the node shapes, and the playlists mode swaps the
-// legend over to playlist names
-const shapeFingerprint = () =>
-  page.$$eval('g.node path', (ps) =>
-    ps
-      .slice(0, 80)
-      .map((p) => p.getAttribute('d'))
-      .join('|'),
-  )
-const shapesHybrid = await shapeFingerprint()
-// v10 issue 2: the genre method lives in the advanced menu now. Changing it
-// must NOT reshuffle the wheel's node shapes (v8 issue 4).
 await page.getByRole('button', { name: /Advanced/ }).click()
 await ensureSectionOpen('Genre matching')
-const advMethodSelect = page
-  .locator('.panel details.section', { hasText: 'Genre matching' })
-  .locator('label:has-text("Method") select')
-await advMethodSelect.selectOption('graph')
-await page.waitForTimeout(500)
-if ((await shapeFingerprint()) !== shapesHybrid) {
-  errors.push('changing the genre method still reshuffles node shapes (v8 issue 4)')
-}
-await advMethodSelect.selectOption('hybrid')
-await page.waitForTimeout(300)
-// v11 issue 6: the method explainer's ⓘ pins open on click, so its citation
-// links are reachable; an outside click dismisses it.
+// The genre explainer's ⓘ pins open on click, so its citation links are
+// reachable; an outside click dismisses it.
 {
   const methodInfo = page
     .locator('.panel details.section', { hasText: 'Genre matching' })
-    .locator('label:has-text("Method") .info')
+    .locator('label:has-text("Link each genre") .info')
   await methodInfo.click()
   await page.locator('h1').hover() // move the pointer well away
   await page.waitForTimeout(200)
@@ -1472,7 +1433,7 @@ await page.waitForTimeout(300)
     errors.push('a clicked ⓘ should stay pinned open after the pointer leaves')
   }
   if ((await page.locator('.info-wrap .tooltip a').count()) === 0) {
-    errors.push('the pinned method explainer should expose its citation links')
+    errors.push('the pinned genre explainer should expose its citation links')
   }
   await page.locator('.panel .head h2').click()
   await page.waitForTimeout(200)
@@ -1480,36 +1441,6 @@ await page.waitForTimeout(300)
     errors.push('an outside click should dismiss the pinned tooltip')
   }
 }
-await ensureSectionOpen('Display')
-await page
-  .locator('.panel label', { hasText: 'Node icons' })
-  .locator('select')
-  .selectOption('playlists')
-await page.waitForTimeout(500)
-// v11 issue 7: ALL sample playlists are selected here — more than the class
-// cap — so the playlists mode must drop distinction entirely (no chips)…
-if ((await page.locator('.shape-chip').count()) !== 0) {
-  errors.push('a class cap below the playlist count should drop every shape chip (v11 issue 7)')
-}
-// …until the selection narrows to within the cap.
-await page.locator('aside').first().getByRole('button', { name: 'None' }).first().click()
-for (const name of ['Classic demo', 'Peak-Time Techno', 'Trance Journey']) {
-  await page.getByRole('checkbox', { name }).check()
-}
-await page.waitForTimeout(600)
-const chipLabels = await page.$$eval('.shape-chip', (chips) => chips.map((c) => c.textContent))
-if (!chipLabels.some((label) => label?.includes('Classic demo'))) {
-  errors.push(`playlists icon mode should list playlist names within the cap (${chipLabels})`)
-}
-await page.screenshot({ path: `${scratch}/08b-playlist-icons.png` })
-await page.locator('aside').first().getByRole('button', { name: 'All' }).first().click()
-await page.waitForTimeout(400)
-await page
-  .locator('.panel label', { hasText: 'Node icons' })
-  .locator('select')
-  .selectOption('families')
-await page.waitForTimeout(300)
-await ensureSectionOpen('Display')
 await page.keyboard.press('Escape')
 
 // minor/major key filter (v8 issue 10; the switch moved to Filters in v9

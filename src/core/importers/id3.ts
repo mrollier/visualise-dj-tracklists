@@ -1,3 +1,4 @@
+import { fileStem } from '../exporters/filename'
 import { normalizeKey } from '../keys'
 import { EMPTY_TRACK_FIELDS, type Track } from '../model'
 
@@ -19,11 +20,10 @@ interface FlatTags {
  * the browser-side file reading lives in the UI layer.
  */
 export function trackFromTags(id: string, fileName: string, tags: FlatTags): Track {
-  const stem = fileName.replace(/\.[a-z0-9]+$/i, '')
   return {
     ...EMPTY_TRACK_FIELDS,
     id,
-    title: tags.title?.trim() || stem,
+    title: tags.title?.trim() || fileStem(fileName),
     artist: tags.artist?.trim() || null,
     key: normalizeKey(tags.key ?? null),
     bpm: tags.bpm !== undefined && tags.bpm > 0 ? tags.bpm : null,

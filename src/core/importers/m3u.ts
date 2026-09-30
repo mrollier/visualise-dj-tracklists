@@ -1,3 +1,4 @@
+import { fileStem } from '../exporters/filename'
 import { basenameOf as basename, locationToPath } from '../location'
 import { buildReport, EMPTY_TRACK_FIELDS, type ImportReport, type Track } from '../model'
 
@@ -16,10 +17,6 @@ interface M3uImportResult {
   /** Minimal tracks created for unmatched entries; add these to the library. */
   newTracks: Track[]
   report: ImportReport
-}
-
-function stem(fileName: string): string {
-  return fileName.replace(/\.[a-z0-9]+$/i, '')
 }
 
 const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
@@ -85,7 +82,7 @@ export function importM3u(m3u: string, library: Track[]): M3uImportResult {
       const dash = name?.indexOf(' - ') ?? -1
       const artist = name !== null && dash > 0 ? name.slice(0, dash).trim() : null
       const title =
-        name !== null && dash > 0 ? name.slice(dash + 3).trim() : (name ?? stem(basename(path)))
+        name !== null && dash > 0 ? name.slice(dash + 3).trim() : (name ?? fileStem(basename(path)))
       const track: Track = {
         ...EMPTY_TRACK_FIELDS,
         id: `m3u-${newTracks.length}-${basename(path)}`,

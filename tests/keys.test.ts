@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import {
   ALL_CAMELOT_KEYS,
-  camelotAngleDeg,
   camelotNumber,
   camelotRing,
   keysMatch,
@@ -82,15 +81,6 @@ describe('wheel geometry', () => {
     expect(camelotRing('8A')).toBe('A')
     expect(camelotNumber('12B')).toBe(12)
     expect(camelotRing('12B')).toBe('B')
-  })
-
-  test('angle: 12 at top (0°), increasing clockwise by 30° per step', () => {
-    expect(camelotAngleDeg('12A')).toBe(0)
-    expect(camelotAngleDeg('12B')).toBe(0) // ring, not angle, separates A/B
-    expect(camelotAngleDeg('1A')).toBe(30)
-    expect(camelotAngleDeg('3B')).toBe(90)
-    expect(camelotAngleDeg('6A')).toBe(180)
-    expect(camelotAngleDeg('11B')).toBe(330)
   })
 
   test('slot angles follow the zigzag ordering so every compatible key is adjacent', () => {

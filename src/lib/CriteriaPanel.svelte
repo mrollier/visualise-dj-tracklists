@@ -275,7 +275,6 @@
           max={Math.max(enabledCount, 1)}
           floor={Math.min(floor, Math.max(enabledCount, 1))}
           onchange={(v) => criteria.update((c) => ({ ...c, threshold: v }))}
-          label="Required matches"
         />
       </div>
     </details>

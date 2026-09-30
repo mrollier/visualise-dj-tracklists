@@ -8,6 +8,7 @@
   import { importRekordboxTxt, isRekordboxTxt } from '../core/importers/rekordboxTxt'
   import { computeGenreCoverage } from '../core/genre'
   import { mergeSidecars, sanitizeAnalysis, summariseAnalysisImport } from '../core/analysis'
+  import { fileStem } from '../core/exporters/filename'
   import { buildReport, type ImportResult } from '../core/model'
   import { parseProject, serializeProject } from '../core/persist'
   import {
@@ -124,7 +125,7 @@
             lastImportReport.set(result.report)
             return
           }
-          const playlistName = first.name.replace(/\.[^.]+$/, '')
+          const playlistName = fileStem(first.name)
           const trackIds = result.tracks.map((t) => t.id)
           replaceLibrary({
             tracks: result.tracks,

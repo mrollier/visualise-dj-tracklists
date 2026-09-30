@@ -84,11 +84,6 @@ export function camelotRing(key: CamelotKey): CamelotRing {
   return key.endsWith('A') ? 'A' : 'B'
 }
 
-/** Angle in degrees, clockwise from 12 o'clock; number 12 sits at the top. */
-export function camelotAngleDeg(key: CamelotKey): number {
-  return (camelotNumber(key) % 12) * 30
-}
-
 /**
  * Angle (degrees clockwise from 12 o'clock) of a key's own slot on the wheel.
  *

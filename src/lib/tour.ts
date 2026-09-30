@@ -87,7 +87,7 @@ export function maybeStartTour(): void {
   tourStep.set(0)
 }
 
-export function markTourSeen(): void {
+function markTourSeen(): void {
   try {
     localStorage.setItem(TOUR_SEEN_KEY, '1')
   } catch {

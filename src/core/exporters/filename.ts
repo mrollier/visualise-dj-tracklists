@@ -7,3 +7,8 @@ export function ensureExtension(name: string, ext: string): string {
   const trimmed = name.trim()
   return trimmed.toLowerCase().endsWith(ext.toLowerCase()) ? trimmed : `${trimmed}${ext}`
 }
+
+/** A file name without its last extension ("Friday set.m3u8" → "Friday set"). */
+export function fileStem(fileName: string): string {
+  return fileName.replace(/\.[a-z0-9]+$/i, '')
+}

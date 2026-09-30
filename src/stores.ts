@@ -187,7 +187,7 @@ export function setGeneratedTracklist(ids: string[]): void {
  * the Tracks table (issue 7). The same track may appear twice in a set, just
  * not back-to-back.
  */
-export function appendToSet(id: string): void {
+function appendToSet(id: string): void {
   tracklist.update((ids) => (ids[ids.length - 1] === id ? ids : [...ids, id]))
 }
 

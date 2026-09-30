@@ -209,7 +209,7 @@ export async function reconnect(): Promise<void> {
   }
 }
 
-export async function forgetFolder(): Promise<void> {
+async function forgetFolder(): Promise<void> {
   source = null
   pendingHandle = null
   resolutions = new Map()

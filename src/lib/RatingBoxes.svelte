@@ -8,7 +8,6 @@
     value: number
     max: number
     onchange: (value: number) => void
-    label?: string
     /**
      * Boxes at or below `floor` are locked ON — mandatory (demanded) criteria
      * pin the count there (v14 C2). The step-down never drops below the floor,
@@ -16,7 +15,7 @@
      */
     floor?: number
   }
-  let { value, max, onchange, label = 'Required matches', floor = 0 }: Props = $props()
+  let { value, max, onchange, floor = 0 }: Props = $props()
 
   function pick(k: number): void {
     if (k <= floor) return // locked: mandatory, cannot be declined
@@ -24,7 +23,7 @@
   }
 </script>
 
-<div class="boxes" role="group" aria-label={label}>
+<div class="boxes" role="group" aria-label="Required matches">
   {#each [...Array(Math.max(1, max)).keys()] as i (i)}
     {@const k = i + 1}
     {@const locked = k <= floor}

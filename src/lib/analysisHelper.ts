@@ -12,7 +12,7 @@ import { analysis, lastImportReport, library } from '../stores'
  * ponytail: the port is a const; lift it into AppSettings on the first real
  * port conflict (the script side already takes --port).
  */
-export const HELPER_URL = 'http://127.0.0.1:8765'
+const HELPER_URL = 'http://127.0.0.1:8765'
 
 export interface HelperJob {
   state: 'running' | 'done' | 'failed'

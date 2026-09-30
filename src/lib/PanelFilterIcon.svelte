@@ -114,14 +114,12 @@
 
   interface Props {
     key: PanelFilterKey | DescriptorKey
-    /** Rendered size in px; the icon fills it edge to edge. */
-    size?: number
   }
-  const { key, size = 14 }: Props = $props()
+  const { key }: Props = $props()
   const spec = $derived(ICONS[key])
 </script>
 
-<svg viewBox={spec.viewBox} width={size} height={size} aria-hidden="true">
+<svg viewBox={spec.viewBox} width="14" height="14" aria-hidden="true">
   {#each spec.paths as path (path.d)}
     <path
       d={path.d}

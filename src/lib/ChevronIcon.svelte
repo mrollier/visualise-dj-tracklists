@@ -5,14 +5,13 @@
   // the box centre, guarantees that.
   interface Props {
     direction: 'left' | 'right' | 'up' | 'down'
-    size?: number
   }
-  const { direction, size = 12 }: Props = $props()
+  const { direction }: Props = $props()
 
   const ANGLE: Record<Props['direction'], number> = { left: 0, up: 90, right: 180, down: 270 }
 </script>
 
-<svg viewBox="0 0 16 16" width={size} height={size} aria-hidden="true">
+<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
   <path
     d="M11 1.6 4.4 8l6.6 6.4"
     fill="none"

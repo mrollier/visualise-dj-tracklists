@@ -1,6 +1,7 @@
 <script lang="ts">
   import { evaluateCombo, type CriterionField } from '../core/combos'
   import { exportTracklistCsv } from '../core/exporters/csv'
+  import { fileStem } from '../core/exporters/filename'
   import { exportM3u } from '../core/exporters/m3u'
   import type { Track } from '../core/model'
   import { buildSetPortrait } from '../core/exporters/portrait'
@@ -195,7 +196,7 @@
     }
   }
 
-  const exportBase = $derived(($libraryName || 'tracklist').replace(/\.[a-z0-9]+$/i, ''))
+  const exportBase = $derived(fileStem($libraryName || 'tracklist'))
 
   // The sets ARE the suggestion browser (v8 issue 18): the dropdown
   // navigates the (≤ 8) named sets. ✨ regenerates IN PLACE while the active
