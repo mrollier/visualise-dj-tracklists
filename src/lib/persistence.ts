@@ -16,14 +16,13 @@ import {
   type RemappedWork,
 } from '../core/libraryUpdate'
 import { fileStem } from '../core/exporters/filename'
-import { parseProject, serializeProject, type Project } from '../core/persist'
+import { serializeProject, type Project } from '../core/persist'
 import { freshFirstSet, type TrackSet } from '../core/sets'
 import { DEFAULT_SETTINGS } from '../core/settings'
-import { ALL_SAMPLE_PACKS, CLASSIC_PACK, SAMPLE_ANALYSIS, SAMPLE_COLLECTION } from '../data/samples'
+import { ALL_SAMPLE_PACKS, CLASSIC_PACK, SAMPLE_COLLECTION } from '../data/samples'
 import {
   activeSetId,
   analysis,
-  autosaveError,
   colorAxis,
   criteria,
   filters,
@@ -39,10 +38,6 @@ import {
 } from '../stores'
 import { saveFile } from './saveFile'
 import { resetUndo } from './undoStore'
-
-// ":v1" names the storage slot, not the project schema (parseProject
-// migrates whatever schema version it finds in the slot).
-const STORAGE_KEY = 'visualise-dj-tracklists:project:v1'
 
 export function currentProject(): Project {
   return {
@@ -240,12 +235,6 @@ export function loadSampleCollection(): void {
   // "Sample collection" shows its counts (v11 issue 4).
   const report = buildReport(SAMPLE_COLLECTION.tracks, [])
   report.notes = [`${SAMPLE_COLLECTION.playlists.length} themed playlists`]
-  // Its generated sidecar comes with it (v35.1), so the descriptor columns
-  // and filters have values to act on. Set BEFORE replaceLibrary: the merge
-  // is a derived store over both, and setting it after would leave one frame
-  // in which the new library is on screen with the previous library's
-  // sidecar still joined to it.
-  analysis.set(SAMPLE_ANALYSIS)
   replaceLibrary({
     tracks: SAMPLE_COLLECTION.tracks,
     name: SAMPLE_COLLECTION.name,
@@ -298,76 +287,8 @@ export function sampleLoadNeedsConfirmation(): boolean {
   )
 }
 
-/** Restore the autosaved project, if any. Returns whether something loaded. */
-export function restoreAutosave(): boolean {
-  let saved: string | null
-  try {
-    // The accessor itself throws where site data is blocked (Safari private
-    // mode, a hardened profile), so this cannot be folded into the block
-    // below — tour.ts:76 guards its own read the same way.
-    saved = localStorage.getItem(STORAGE_KEY)
-  } catch {
-    return false
-  }
-  if (saved === null) return false
-  try {
-    applyProject(parseProject(saved))
-    return true
-  } catch {
-    // Deliberately NOT removed. A save this build cannot read (a rolled-back
-    // bundle meeting a newer schema) may still be readable by the next one;
-    // deleting it here would make that unrecoverable.
-    return false
-  }
-}
-
-/** Persist every meaningful state change to localStorage, debounced. */
-export function startAutosave(): void {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const save = () => {
-    clearTimeout(timer)
-    timer = setTimeout(() => {
-      if (get(library).length === 0) return // nothing worth saving yet
-      try {
-        // COMPACT, unlike the .json download: `serializeProject` indents for
-        // hand-editing, which costs ~1.2 MB on a 2080-track library and is
-        // pure waste in a 5 MB localStorage budget an analysis sidecar can
-        // otherwise push us past. `parseProject` does not care about
-        // whitespace, so the saved document is identical in every way that
-        // matters (v33).
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(currentProject()))
-        autosaveError.set(null)
-      } catch {
-        // Storage full or unavailable. Autosave is still best-effort, but it
-        // must not fail SILENTLY: before v33 a quota breach stopped the whole
-        // project autosaving — sets, filters, criteria — with nothing on
-        // screen to connect the loss to, and the analysis sidecar is what
-        // makes a breach plausible.
-        autosaveError.set('Autosave failed — this browser is out of storage. Save to a file.')
-      }
-    }, 400)
-  }
-  for (const store of [
-    library,
-    libraryName,
-    criteria,
-    filters,
-    settings,
-    sets, // every tracklist edit flows through here
-    activeSetId,
-    manualEdges,
-    playlists,
-    radialAxis,
-    colorAxis,
-    analysis,
-  ]) {
-    store.subscribe(save)
-  }
-}
-
-/** Wipe everything: stores back to defaults and the autosave cleared. */
+/** Wipe the working state back to defaults (Reset clears the autosave too). */
 export function resetEverything(): void {
-  localStorage.removeItem(STORAGE_KEY)
   library.set([])
   libraryName.set('')
   playlists.set([])

@@ -19,7 +19,7 @@ import { sanitizeAnalysis, type AnalysisSidecar } from './analysis'
 
 /**
  * A saved project: the whole app state as one JSON document. Used both for
- * explicit save/load (a .json file the user keeps) and localStorage autosave.
+ * explicit save/load (a .json file the user keeps) and the autosave.
  * Version history: v1 (no filters/settings, criteria had a rating criterion),
  * v2 (filters + settings + colour axis; rating became a filter),
  * v3 (multiple named sets replace the single tracklist — issue 18),
@@ -71,17 +71,31 @@ export interface Project {
   analysis: AnalysisSidecar | null
 }
 
+/**
+ * The analysed genre is DERIVED — it lives on the merged layer and is null on
+ * every raw track — so it never enters a save (two dead keys per track). The
+ * parse side restores them as null, so the round-trip stays exact.
+ */
+function withoutDerived(key: string, value: unknown): unknown {
+  return key === 'analysedGenre' || key === 'analysedGenreScore' ? undefined : value
+}
+
+/** The project as the file the user keeps: indented, so it hand-edits. */
 export function serializeProject(project: Project): string {
-  // v39: the analysed genre is DERIVED — it lives on the merged layer and is
-  // null on every raw track — so it never enters a save. Two dead keys per
-  // track is ~90 KB on a 2000-track library, against a 5 MB localStorage cap.
-  // The parse side restores them as null, so the round-trip stays exact.
-  return JSON.stringify(
-    project,
-    (key: string, value: unknown): unknown =>
-      key === 'analysedGenre' || key === 'analysedGenreScore' ? undefined : value,
-    2,
-  )
+  return JSON.stringify(project, withoutDerived, 2)
+}
+
+/**
+ * The project as the autosave stores it: two compact records, so a set edit
+ * rewrites the small `work` record and leaves the big `library` one (tracks,
+ * playlists, analysis — megabytes on a large collection) alone.
+ */
+export function serializeProjectParts(project: Project): { work: string; library: string } {
+  const { tracks, playlists, analysis, ...work } = project
+  return {
+    work: JSON.stringify(work),
+    library: JSON.stringify({ tracks, playlists, analysis }, withoutDerived),
+  }
 }
 
 /** A non-null, non-array object — the shape every hand-edited sub-record must have. */
@@ -273,6 +287,11 @@ export function parseProject(json: string): Project {
   } catch {
     throw new Error('Not a valid project file: could not parse JSON')
   }
+  return sanitizeProject(raw)
+}
+
+/** Rebuild a project from untrusted parsed JSON; throws when it is not one. */
+export function sanitizeProject(raw: unknown): Project {
   if (!isRecord(raw)) {
     throw new Error('Not a valid project file: the document is not an object')
   }
@@ -567,11 +586,9 @@ export function parseProject(json: string): Project {
       p.colorAxis === 'energy'
         ? p.colorAxis
         : 'auto',
-    // v33: additive, no version bump — same shape as audioPreview (v28),
-    // showLeftPanel/showRightPanel (v30) and avoidSameArtist (v31). An old
-    // save has no key, gets null, and behaves exactly as it does today.
+    // Additive, no version bump: an old save has no key and gets null.
     // Bumping would be actively worse: parseProject throws on an unknown
-    // version while restoreAutosave deliberately preserves a save it cannot
+    // version while the autosave deliberately preserves a save it cannot
     // read, so a bundle rollback would brick autosave restore entirely —
     // library, sets and filters included — over one optional field.
     analysis: sanitizeAnalysis(p.analysis),

@@ -34,6 +34,8 @@
     viewMode,
   } from '../stores'
   import { yieldToPaint } from './audio/sourceStore'
+  import { autosaveBlocked, takeOverAutosave, unreadableAutosave } from './autosave'
+  import { downloadBlob } from './saveFile'
   import ConfirmDialog from './ConfirmDialog.svelte'
   import InfoTooltip from './InfoTooltip.svelte'
   import ProgressBar from './ProgressBar.svelte'
@@ -462,11 +464,27 @@
     {#if importError}
       <span class="error">{importError}</span>
     {/if}
-    <!-- Autosave is best-effort, but it must not fail SILENTLY (v33): a quota
-         breach stops the WHOLE project saving, and the loss only shows up on
-         the next reload, long after the cause. -->
-    {#if $autosaveError}
-      <span class="error" role="status">{$autosaveError}</span>
+    <!-- Autosave must never fail silently: the loss would only show on the
+         next reload, long after the cause. -->
+    {#if $autosaveBlocked}
+      <span class="error" role="status">
+        Open in another tab — changes here are not saved.
+        <button class="inline" onclick={() => void takeOverAutosave()}>Use this tab</button>
+      </span>
+    {:else if $autosaveError}
+      <span class="error" role="status">
+        {$autosaveError}
+        {#if $unreadableAutosave !== null}
+          <button
+            class="inline"
+            onclick={() =>
+              downloadBlob(
+                new Blob([$unreadableAutosave ?? ''], { type: 'application/json' }),
+                'Unreadable autosave.json',
+              )}>Download it</button
+          >
+        {/if}
+      </span>
     {/if}
     {#if $libraryName}
       <span class="name">{$libraryName}</span>
@@ -609,6 +627,12 @@
 
   .status .error {
     color: var(--walk-bright);
+  }
+
+  .status .error .inline {
+    margin-left: 6px;
+    padding: 1px 8px;
+    font-size: 11px;
   }
 
   .status .busy {

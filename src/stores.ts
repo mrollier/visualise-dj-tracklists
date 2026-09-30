@@ -1,5 +1,5 @@
 import { derived, get, writable, type Readable, type Writable } from 'svelte/store'
-import { mergeAnalysis, type AnalysisSidecar } from './core/analysis'
+import { mergeAnalysis, mergeSidecars, type AnalysisSidecar } from './core/analysis'
 import {
   computeComboView,
   DEFAULT_CRITERIA,
@@ -35,6 +35,7 @@ import {
 import { canAddSet, freshFirstSet, nextSetName, uniqueSetName, type TrackSet } from './core/sets'
 import { DEFAULT_SETTINGS, type AppSettings } from './core/settings'
 import type { TrackSort } from './core/trackSort'
+import { SAMPLE_ANALYSIS } from './data/samples'
 import { prefersReducedMotion } from './lib/motion'
 
 export type RadialAxis = 'bpm' | 'rating' | 'year' | 'energy'
@@ -561,7 +562,11 @@ const genrePrefs = distinct(
   (a, b) => a.genreSource === b.genreSource && a.genreThreshold === b.genreThreshold,
 )
 const merged = derived([sourced, analysis, genrePrefs], ([$sourced, $analysis, $genrePrefs]) => {
-  const result = mergeAnalysis($sourced, $analysis, $genrePrefs)
+  // The sample collection's own analysis joins alongside the user's sidecar
+  // rather than replacing it: its fictional paths never match a real track,
+  // and a multi-hour analysis run must survive a look at the sample.
+  const sidecar = $analysis === null ? SAMPLE_ANALYSIS : mergeSidecars(SAMPLE_ANALYSIS, $analysis)
+  const result = mergeAnalysis($sourced, sidecar, $genrePrefs)
   // The own-label ↔ predicted-style aliases are module state in genre.ts
   // (v39.1): every matcher — wheel, genre map, set panel, suggestions — must
   // read the same table, and this is the one place a new merge is seen before

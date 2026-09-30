@@ -2379,6 +2379,28 @@ await page.waitForTimeout(200)
   await page.keyboard.press('Escape')
 }
 
+// A second tab of the same app must not overwrite the first one's autosave:
+// it opens blocked and says so, and "Use this tab" hands the save over.
+{
+  // A popup shares the page's browser context (and so its storage), which a
+  // fresh context would not.
+  const [second] = await Promise.all([
+    page.waitForEvent('popup'),
+    page.evaluate(() => void window.open('http://localhost:5173')),
+  ])
+  const banner = second.getByText('Open in another tab')
+  await banner.waitFor()
+  await second.getByRole('button', { name: 'Use this tab' }).click()
+  await second.waitForLoadState('load')
+  await second.getByRole('button', { name: 'Save project' }).waitFor()
+  if (await second.getByText('Open in another tab').isVisible()) {
+    errors.push('"Use this tab" should hand the autosave to the second tab')
+  }
+  await second.close()
+  await page.reload()
+  await page.getByRole('button', { name: 'Save project' }).waitFor()
+}
+
 // reset with confirmation dialog
 await page.getByRole('button', { name: 'Reset', exact: true }).click()
 await page.getByText('Reset everything?').waitFor()

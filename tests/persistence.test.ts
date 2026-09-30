@@ -21,6 +21,7 @@ import {
   activeSetId,
   addSet,
   analysis,
+  augmentedLibrary,
   filters,
   lastImportReport,
   library,
@@ -419,5 +420,25 @@ describe('re-importing a collection updates it in place', () => {
     updateLibrary({ tracks: coll(10), name: 'c.xml', playlists: [] }, plan, buildReport([], []))
     stop()
     expect(seen.slice(-2)).toEqual([0, 10])
+  })
+})
+
+describe('the sample collection and a real analysis sidecar', () => {
+  const userSidecar = {
+    zodiacAnalysis: 1 as const,
+    run: null,
+    tracks: { '/Users/dj/a.mp3': { bpm: 174 } },
+  }
+
+  test('loading the sample leaves an imported sidecar alone', () => {
+    analysis.set(userSidecar)
+    loadSampleCollection()
+    expect(get(analysis)).toEqual(userSidecar)
+  })
+
+  test('the sample still shows its own analysed descriptors', () => {
+    analysis.set(null)
+    loadSampleCollection()
+    expect(get(augmentedLibrary).some((t) => t.arousal !== null)).toBe(true)
   })
 })

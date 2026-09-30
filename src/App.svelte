@@ -4,7 +4,8 @@
   import GenreMapView from './lib/GenreMapView.svelte'
   import { startPlayer } from './lib/audio/playerStore'
   import PanelToggle from './lib/PanelToggle.svelte'
-  import { restoreAutosave, saveProject, startAutosave } from './lib/persistence'
+  import { startAutosave } from './lib/autosave'
+  import { saveProject } from './lib/persistence'
   import PlayerBar from './lib/PlayerBar.svelte'
   import SelectedTrackCard from './lib/SelectedTrackCard.svelte'
   import { startTheme } from './lib/theme'
@@ -37,7 +38,6 @@
   const rightOpen = $derived($rightPanel === 'advanced' || $settings.showRightPanel)
   const rightTogglable = $derived($rightPanel !== 'advanced' && $library.length > 0)
 
-  restoreAutosave()
   startTheme()
   startAutosave()
   startUndo()

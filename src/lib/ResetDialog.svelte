@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { clearAutosave } from './autosave'
   import { resetEverything } from './persistence'
 
   let dialogEl: HTMLDialogElement
@@ -9,6 +10,7 @@
 
   function confirmReset() {
     resetEverything()
+    void clearAutosave()
     dialogEl.close()
   }
 </script>

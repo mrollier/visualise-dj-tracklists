@@ -4,7 +4,13 @@ import { DEFAULT_CRITERIA } from '../src/core/combos'
 import { EMPTY_FILTERS } from '../src/core/filter'
 import { freshFirstSet } from '../src/core/sets'
 import type { Track } from '../src/core/model'
-import { parseProject, serializeProject, type Project } from '../src/core/persist'
+import {
+  parseProject,
+  sanitizeProject,
+  serializeProject,
+  serializeProjectParts,
+  type Project,
+} from '../src/core/persist'
 import { DEFAULT_SETTINGS, type AppSettings } from '../src/core/settings'
 import { SAMPLE_TRACKS } from '../src/data/sample-tracks'
 
@@ -1470,5 +1476,25 @@ describe('per-constellation marks (v11)', () => {
     const raw = JSON.parse(serializeProject(project)) as { version: number }
     raw.version = 12
     expect(() => parseProject(JSON.stringify(raw))).toThrow(/version/i)
+  })
+})
+
+describe('the autosave parts', () => {
+  test('work + library recombine into the same project', () => {
+    const { work, library } = serializeProjectParts(project)
+    const recombined = sanitizeProject({ ...JSON.parse(work), ...JSON.parse(library) })
+    expect(serializeProject(recombined)).toBe(
+      serializeProject(parseProject(serializeProject(project))),
+    )
+  })
+
+  test('the work record carries no tracks, the library record nothing else', () => {
+    const { work, library } = serializeProjectParts(project)
+    expect(Object.keys(JSON.parse(work) as object)).not.toContain('tracks')
+    expect(Object.keys(JSON.parse(library) as object).sort()).toEqual([
+      'analysis',
+      'playlists',
+      'tracks',
+    ])
   })
 })
