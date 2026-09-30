@@ -42,6 +42,7 @@
     effectiveManualEdges,
     effectiveSettings,
     focusEdges,
+    genreMatcher,
     hoveredId,
     iconClasses,
     augmentedLibrary,
@@ -865,6 +866,7 @@
       force: hubExhausted,
       manualEdges: $effectiveManualEdges,
       manualEdgeWeight: $effectiveSettings.manualEdgeWeight,
+      genreMatch: $genreMatcher,
     })
     if (suggestion === null) return
     tracklist.update((ids) => ids.toSpliced(suggestion.insertIndex, 0, suggestion.trackId))
@@ -895,6 +897,7 @@
       excludeIds: exclude,
       manualEdges: $effectiveManualEdges,
       manualEdgeWeight: $effectiveSettings.manualEdgeWeight,
+      genreMatch: $genreMatcher,
     })
     if (suggestion === null || suggestion.insertIndex !== pick.insertIndex) {
       lastHubPick = null

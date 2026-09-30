@@ -62,6 +62,12 @@ interface SuggestOptions {
    */
   manualEdgeWeight?: number
   /**
+   * The genre predicate to match with. Defaults to one built over `tracks`;
+   * the app passes its library-wide matcher so the suggestions agree with the
+   * wheel's edges whatever the filters hide.
+   */
+  genreMatch?: GenreMatcher
+  /**
    * Steer away from two tracks by the same artist back to back (v31 #1).
    * A soft penalty, not a ban: a same-artist candidate loses to any
    * reasonable alternative but still wins when nothing else is left, so the
@@ -226,36 +232,42 @@ function pick<T>(scored: { item: T; score: number }[], randomness: number, rand:
 type NeighboursOf = (id: string) => string[]
 
 /**
- * At threshold 0 the combo graph is complete (v11 issue 2a) — everyone
- * neighbours everyone, computed lazily instead of materializing n²/2 edges.
- * Otherwise the usual adjacency map from computeEdges.
+ * At threshold 0 the combo graph is complete — everyone neighbours everyone,
+ * computed lazily instead of materializing n²/2 edges. Otherwise the usual
+ * adjacency from computeEdges, plus the manual pairs.
  */
 function buildNeighbours(
   tracks: Track[],
   criteria: CriteriaConfig,
-  manualEdges: readonly ManualPair[] = [],
+  manualEdges: readonly ManualPair[],
+  genreMatch: GenreMatcher,
 ): NeighboursOf {
   if (criteria.threshold === 0 && demandedCount(criteria) === 0) {
     // Complete graph subsumes every manual pair — but only when nothing is
-    // demanded (v14 C2): a locked criterion still filters every pair, so the
+    // demanded: a locked criterion still filters every pair, so the
     // adjacency must be computed from real edges instead.
     const ids = tracks.map((t) => t.id)
     return (id) => ids.filter((other) => other !== id)
   }
-  const neighbours = new Map<string, string[]>()
+  // Sets, not arrays: an Array.includes guard per edge made this O(E·degree),
+  // tens of seconds at a low threshold on a few thousand tracks.
+  const neighbours = new Map<string, Set<string>>()
   const connect = (x: string, y: string) => {
-    if (!neighbours.has(x)) neighbours.set(x, [])
-    if (!neighbours.has(y)) neighbours.set(y, [])
-    if (!neighbours.get(x)!.includes(y)) neighbours.get(x)!.push(y)
-    if (!neighbours.get(y)!.includes(x)) neighbours.get(y)!.push(x)
+    if (!neighbours.has(x)) neighbours.set(x, new Set())
+    if (!neighbours.has(y)) neighbours.set(y, new Set())
+    neighbours.get(x)!.add(y)
+    neighbours.get(y)!.add(x)
   }
-  for (const edge of computeEdges(tracks, criteria)) connect(edge.sourceId, edge.targetId)
-  // Manual pairs are roads too (v12 WS9) — only between tracks that exist.
+  for (const edge of computeEdges(tracks, criteria, genreMatch)) {
+    connect(edge.sourceId, edge.targetId)
+  }
+  // Manual pairs are roads too — only between tracks that exist.
   const known = new Set(tracks.map((t) => t.id))
   for (const { a, b } of manualEdges) {
     if (a !== b && known.has(a) && known.has(b)) connect(a, b)
   }
-  return (id) => neighbours.get(id) ?? []
+  const lists = new Map([...neighbours].map(([id, set]) => [id, [...set]]))
+  return (id) => lists.get(id) ?? []
 }
 
 /**
@@ -340,11 +352,15 @@ export function suggestWalk(
     manualEdges = [],
     manualEdgeWeight = MANUAL_EDGE_BONUS,
     avoidSameArtist = false,
+    genreMatch = makeGenreMatcher(
+      tracks.map((t) => t.genre),
+      criteria.genre.k,
+    ),
   } = options
   if (tracks.length === 0) return { ids: [], forced: 0, sameArtist: 0 }
 
   const byId = new Map(tracks.map((t) => [t.id, t]))
-  const neighbours = buildNeighbours(tracks, criteria, manualEdges)
+  const neighbours = buildNeighbours(tracks, criteria, manualEdges, genreMatch)
   const manualSet = new Set(manualEdges.map(({ a, b }) => pairKey(a, b)))
   const manualTerm = (current: Track) => (candidate: Track) =>
     manualSet.has(pairKey(current.id, candidate.id)) ? manualEdgeWeight : 0
@@ -353,10 +369,6 @@ export function suggestWalk(
   // consume the PRNG) identically for the ⚡ continue-in-place rule below.
   const artistTerm = (current: Track) => (candidate: Track) =>
     avoidSameArtist && sameArtist(current, candidate) ? -SAME_ARTIST_PENALTY : 0
-  const genreMatch = makeGenreMatcher(
-    tracks.map((t) => t.genre),
-    criteria,
-  )
   const rand = mulberry32(seed)
 
   const pinnedEnd = endId !== null && byId.has(endId) ? endId : null
@@ -694,16 +706,16 @@ export function suggestNext(
     manualEdges = [],
     manualEdgeWeight = MANUAL_EDGE_BONUS,
     avoidSameArtist = false,
+    genreMatch = makeGenreMatcher(
+      tracks.map((t) => t.genre),
+      criteria.genre.k,
+    ),
   } = options
   if (tracks.length === 0) return null
 
   const byId = new Map(tracks.map((t) => [t.id, t]))
-  const neighbours = buildNeighbours(tracks, criteria, manualEdges)
+  const neighbours = buildNeighbours(tracks, criteria, manualEdges, genreMatch)
   const manualSet = new Set(manualEdges.map(({ a, b }) => pairKey(a, b)))
-  const genreMatch = makeGenreMatcher(
-    tracks.map((t) => t.genre),
-    criteria,
-  )
   const excluded = new Set(excludeIds)
 
   if (tracklist.length === 0) {

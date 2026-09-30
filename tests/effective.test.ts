@@ -4,6 +4,7 @@ import { DEFAULT_CRITERIA, EASY_CRITERIA } from '../src/core/combos'
 import { EMPTY_FILTERS } from '../src/core/filter'
 import { DEFAULT_SETTINGS } from '../src/core/settings'
 import { SAMPLE_TRACKS } from '../src/data/sample-tracks'
+import { track } from './helpers'
 import {
   criteria,
   effectiveCriteria,
@@ -11,6 +12,7 @@ import {
   effectiveManualEdges,
   effectiveSettings,
   filters,
+  genreMatcher,
   library,
   manualEdges,
   mustInclude,
@@ -323,5 +325,49 @@ describe('marksContext — perf gate (v18 #3/#8)', () => {
 
     expect(emits).toBe(afterSubscribe)
     unsubscribe()
+  })
+})
+
+describe('genreMatcher — one vocabulary: the whole library', () => {
+  const g = (id: string, genre: string) => track({ id, genre })
+  // Hybrid scores: techno–tech house 0.95, house–tech house 0.84,
+  // house–techno 0.81. At k=1 only techno↔tech house is mutual.
+  const lib = [g('a', 'House'), g('b', 'Techno'), g('c', 'Tech House'), g('d', 'Jazz')]
+
+  beforeEach(() => {
+    criteria.set({
+      ...structuredClone(DEFAULT_CRITERIA),
+      genre: { enabled: true, k: 1, demanded: false },
+    })
+    filters.set(structuredClone(EMPTY_FILTERS))
+    settings.set(structuredClone(DEFAULT_SETTINGS))
+    library.set(lib)
+  })
+  afterEach(() => {
+    criteria.set(structuredClone(DEFAULT_CRITERIA))
+    filters.set(structuredClone(EMPTY_FILTERS))
+    library.set([])
+  })
+
+  test('a genre filter never changes whether two genres match', () => {
+    const before = get(genreMatcher)
+    expect(before('Techno', 'Tech House')).toBe(true)
+    expect(before('House', 'Techno')).toBe(false)
+    // Hiding tech house shrank the old visible vocabulary to house+techno,
+    // which made them each other's nearest — and techno↔tech house vanished.
+    filters.update((f) => ({ ...f, genres: ['house', 'techno', 'jazz'] }))
+    const after = get(genreMatcher)
+    expect(after('House', 'Techno')).toBe(false)
+    expect(after('Techno', 'Tech House')).toBe(true)
+  })
+
+  test('filter writes do not rebuild the matcher', () => {
+    let emissions = 0
+    const stop = genreMatcher.subscribe(() => emissions++)
+    const settled = emissions
+    filters.update((f) => ({ ...f, genres: ['house'] }))
+    filters.update((f) => ({ ...f, keyRings: { minor: true, major: false } }))
+    expect(emissions).toBe(settled)
+    stop()
   })
 })

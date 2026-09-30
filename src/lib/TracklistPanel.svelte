@@ -305,6 +305,7 @@
       const walk = suggestWalk($visibleLibrary, $effectiveCriteria, {
         ...shortSnapshot,
         force: true,
+        genreMatch: $genreMatcher,
       })
       // S4: only the newly-forced tail animates in — the already-drawn prefix
       // (and, for a pinned-end walk, suffix) stays put instead of redrawing.
@@ -334,7 +335,11 @@
       manualEdgeWeight: $effectiveSettings.manualEdgeWeight,
       avoidSameArtist: $effectiveSettings.avoidSameArtist,
     }
-    const walk = suggestWalk($visibleLibrary, $effectiveCriteria, { ...snapshot, force })
+    const walk = suggestWalk($visibleLibrary, $effectiveCriteria, {
+      ...snapshot,
+      force,
+      genreMatch: $genreMatcher,
+    })
     setGeneratedTracklist(walk.ids)
     walkRevealRange.set(null) // S4: a fresh ✨ always animates the whole walk
     bumpWalkReveal(walkRevealPlan(walk.ids).totalMs)

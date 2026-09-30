@@ -612,17 +612,34 @@ const settledCriteria = throttled(
   structuredClone(DEFAULT_CRITERIA),
 )
 
+/** The genre criterion's k on its own: a primitive, so only a k change rebuilds the matcher. */
+const genreK = derived(settledCriteria, ($c) => $c.genre.k)
+
+/**
+ * THE genre predicate — the wheel's edges, the set panel's transition chips,
+ * the genre map and the suggestions all match with it. Its vocabulary is the
+ * whole library, not the visible part: mutual top-k ranks genres against each
+ * other, so a vocabulary that followed the filters would let hiding one genre
+ * change whether two others match. Downstream of `merged`, which installs the
+ * learned genre bridge first.
+ */
+export const genreMatcher = derived([augmentedLibrary, genreK], ([$augmentedLibrary, $k]) =>
+  makeGenreMatcher(
+    $augmentedLibrary.map((t) => t.genre),
+    $k,
+  ),
+)
+
 /**
  * The combo graph, possibly symbolic: at threshold 0 every pair is a combo
- * and the edge list stays empty (v11 issue 2a) — consumers read `complete`
- * and `pairCount` instead of materializing n²/2 edges.
+ * and the edge list stays empty — consumers read `complete` and `pairCount`
+ * instead of materializing n²/2 edges.
  */
-// ponytail: O(n²) pairs — usable to ~3-5k visible tracks. computeComboView is
-// a pure (tracks, criteria) function, so a Web Worker behind derived's
-// (values, set) async form + candidate bucketing is the drop-in beyond that.
+// ponytail: O(n²) pairs — usable to ~3-5k visible tracks.
 const comboView = derived(
-  [visibleLibrary, settledCriteria],
-  ([$visibleLibrary, $settledCriteria]) => computeComboView($visibleLibrary, $settledCriteria),
+  [visibleLibrary, settledCriteria, genreMatcher],
+  ([$visibleLibrary, $settledCriteria, $genreMatcher]) =>
+    computeComboView($visibleLibrary, $settledCriteria, $genreMatcher),
 )
 
 export const edges = derived(comboView, ($comboView) => $comboView.edges)
@@ -654,16 +671,6 @@ export const focusEdges = derived(
     }
     return computeFocusEdges($edges, $selectedId, $focusClusterEdges)
   },
-)
-
-/** Library-wide genre matcher, so pairwise UI (set transitions) agrees with the wheel's edges. */
-export const genreMatcher = derived(
-  [visibleLibrary, settledCriteria],
-  ([$visibleLibrary, $settledCriteria]) =>
-    makeGenreMatcher(
-      $visibleLibrary.map((t) => t.genre),
-      $settledCriteria,
-    ),
 )
 
 /**

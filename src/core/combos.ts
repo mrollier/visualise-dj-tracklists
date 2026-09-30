@@ -123,11 +123,7 @@ const GENRE_SCORE_FLOOR = 0.2
  * clears GENRE_SCORE_FLOOR. Umbrella labels ("electronic", …) never rank as
  * neighbours, so they cannot become hubs.
  */
-export function makeGenreMatcher(
-  genres: Iterable<string | null>,
-  criteria: CriteriaConfig,
-): GenreMatcher {
-  const { k } = criteria.genre
+export function makeGenreMatcher(genres: Iterable<string | null>, k: number): GenreMatcher {
   const threshold = GENRE_SCORE_FLOOR
   const vocabulary = new Set<string>()
   for (const raw of genres) {
@@ -285,7 +281,7 @@ export function evaluateCombo(
     evaluable.push(field)
     let fieldMatched: boolean
     if (field === 'genre') {
-      genreMatch ??= makeGenreMatcher([a.genre, b.genre], criteria)
+      genreMatch ??= makeGenreMatcher([a.genre, b.genre], criteria.genre.k)
       fieldMatched = genreMatch(a.genre!, b.genre!)
     } else {
       fieldMatched = PREDICATES[field](a, b, criteria)
@@ -341,15 +337,19 @@ interface ComboView {
   pairCount: number
 }
 
-export function computeComboView(tracks: Track[], criteria: CriteriaConfig): ComboView {
+export function computeComboView(
+  tracks: Track[],
+  criteria: CriteriaConfig,
+  genreMatch?: GenreMatcher,
+): ComboView {
   // The symbolic complete graph only holds when nothing is required AND
-  // nothing is demanded (v14 C2): a locked criterion still filters every pair,
-  // so those edges must be materialized, not assumed.
+  // nothing is demanded: a locked criterion still filters every pair, so
+  // those edges must be materialized, not assumed.
   if (criteria.threshold === 0 && demandedCount(criteria) === 0) {
     const n = tracks.length
     return { edges: [], complete: true, pairCount: n < 2 ? 0 : (n * (n - 1)) / 2 }
   }
-  const edges = computeEdges(tracks, criteria)
+  const edges = computeEdges(tracks, criteria, genreMatch)
   return { edges, complete: false, pairCount: edges.length }
 }
 
@@ -396,12 +396,19 @@ export function toggleDemanded(
   return { ...next, threshold: Math.max(next.threshold, demandedCount(next)) }
 }
 
-/** All undirected combo edges for a track set, each pair reported once. */
-export function computeEdges(tracks: Track[], criteria: CriteriaConfig): ComboEdge[] {
-  const genreMatch = makeGenreMatcher(
+/**
+ * All undirected combo edges for a track set, each pair reported once.
+ * `genreMatch` defaults to a matcher over these tracks' own genres; the app
+ * passes its library-wide one so filtering never changes what matches.
+ */
+export function computeEdges(
+  tracks: Track[],
+  criteria: CriteriaConfig,
+  genreMatch: GenreMatcher = makeGenreMatcher(
     tracks.map((t) => t.genre),
-    criteria,
-  )
+    criteria.genre.k,
+  ),
+): ComboEdge[] {
   const edges: ComboEdge[] = []
   for (let i = 0; i < tracks.length; i++) {
     for (let j = i + 1; j < tracks.length; j++) {

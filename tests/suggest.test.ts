@@ -1327,3 +1327,29 @@ describe('same-artist avoidance (v31 #1)', () => {
     expect(next!.insertIndex).toBe(1)
   })
 })
+
+describe('the caller-supplied genre matcher', () => {
+  // Genre is the only criterion: an edge exists iff the matcher says so.
+  const genreOnly = (): CriteriaConfig => {
+    const cfg = config({ threshold: 1 })
+    for (const field of ['key', 'bpm', 'energy', 'year'] as const) cfg[field].enabled = false
+    return cfg
+  }
+  const lib = [track({ id: 'a', genre: 'Techno' }), track({ id: 'b', genre: 'Jazz' })]
+  const everything = () => true
+
+  test('suggestNext links through the matcher it is given', () => {
+    expect(suggestNext(lib, genreOnly(), ['a'])).toBeNull()
+    expect(suggestNext(lib, genreOnly(), ['a'], { genreMatch: everything })).toEqual({
+      trackId: 'b',
+      insertIndex: 1,
+    })
+  })
+
+  test('suggestWalk walks through the matcher it is given', () => {
+    expect(suggestWalk(lib, genreOnly(), { seedId: 'a', length: 2 }).ids).toEqual(['a'])
+    expect(
+      suggestWalk(lib, genreOnly(), { seedId: 'a', length: 2, genreMatch: everything }).ids,
+    ).toEqual(['a', 'b'])
+  })
+})

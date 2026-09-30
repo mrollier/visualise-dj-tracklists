@@ -420,43 +420,41 @@ describe('individual criteria', () => {
     const trio = ['House', 'Techno', 'Tech House']
 
     test('accepts pairs that are mutually each other’s nearest genres', () => {
-      const matcher = makeGenreMatcher(trio, topkConfig(1))
+      const matcher = makeGenreMatcher(trio, 1)
       expect(matcher('Techno', 'Tech House')).toBe(true)
       expect(matcher('House', 'Techno')).toBe(false)
     })
 
     test('identical genres always match', () => {
-      const matcher = makeGenreMatcher(['Electronic', 'Techno'], topkConfig(1))
+      const matcher = makeGenreMatcher(['Electronic', 'Techno'], 1)
       expect(matcher('Electronic', 'Electronic')).toBe(true)
     })
 
     test('umbrella labels never rank as neighbours', () => {
-      const matcher = makeGenreMatcher(['Electronic', 'Techno', 'Tech House'], topkConfig(3))
+      const matcher = makeGenreMatcher(['Electronic', 'Techno', 'Tech House'], 3)
       expect(matcher('Techno', 'Tech House')).toBe(true)
       expect(matcher('Electronic', 'Techno')).toBe(false)
     })
 
     test('genres the pack calls unrelated never link, however wide k is', () => {
-      const matcher = makeGenreMatcher(['Deep House', 'Techno'], topkConfig(8))
+      const matcher = makeGenreMatcher(['Deep House', 'Techno'], 8)
       expect(matcher('Deep House', 'Techno')).toBe(false)
     })
 
     test('k widens the neighbourhood', () => {
-      expect(makeGenreMatcher(trio, topkConfig(1))('House', 'Techno')).toBe(false)
-      expect(makeGenreMatcher(trio, topkConfig(2))('House', 'Techno')).toBe(true)
+      expect(makeGenreMatcher(trio, 1)('House', 'Techno')).toBe(false)
+      expect(makeGenreMatcher(trio, 2)('House', 'Techno')).toBe(true)
     })
 
     test('multi-genre fields match through any component', () => {
-      const matcher = makeGenreMatcher(['House / Jazz', 'Deep House', 'Trance'], topkConfig(1))
+      const matcher = makeGenreMatcher(['House / Jazz', 'Deep House', 'Trance'], 1)
       expect(matcher('House / Jazz', 'Deep House')).toBe(true)
       expect(matcher('Trance', 'Deep House')).toBe(false)
     })
 
     test('matchedGenrePairs lists distinct matching label pairs from a matcher, k-sensitive', () => {
-      expect(matchedGenrePairs(trio, makeGenreMatcher(trio, topkConfig(1)))).toEqual([
-        ['tech house', 'techno'],
-      ])
-      expect(matchedGenrePairs(trio, makeGenreMatcher(trio, topkConfig(2)))).toEqual([
+      expect(matchedGenrePairs(trio, makeGenreMatcher(trio, 1))).toEqual([['tech house', 'techno']])
+      expect(matchedGenrePairs(trio, makeGenreMatcher(trio, 2))).toEqual([
         ['house', 'tech house'],
         ['house', 'techno'],
         ['tech house', 'techno'],
@@ -465,7 +463,7 @@ describe('individual criteria', () => {
 
     test('matchedGenrePairs never pairs a label with itself and keeps umbrellas out', () => {
       const labels = ['Electronic', 'Techno', 'Tech House', 'Techno']
-      expect(matchedGenrePairs(labels, makeGenreMatcher(labels, topkConfig(3)))).toEqual([
+      expect(matchedGenrePairs(labels, makeGenreMatcher(labels, 3))).toEqual([
         ['tech house', 'techno'],
       ])
     })
