@@ -183,6 +183,38 @@ export function setGeneratedTracklist(ids: string[]): void {
 }
 
 /**
+ * Write fields of the active set in ONE update — one store notification,
+ * so one undo step however many fields change. Leaves `generated` alone:
+ * marking a track is not editing the walk.
+ */
+export function patchActiveSet(patch: Partial<Omit<TrackSet, 'id'>>): void {
+  sets.update(($sets) => {
+    const current = activeSetOf($sets, get(activeSetId))
+    return $sets.map((s) => (s.id === current.id ? { ...s, ...patch } : s))
+  })
+}
+
+/**
+ * One mark field of the active set as a plain Writable, so readers keep the
+ * store API while the value lives on the set. `distinct` by identity: the
+ * active set is a new object on every tracklist edit, and an unchanged mark
+ * list must not re-emit into the filters and the undo watcher.
+ */
+function activeSetField<K extends 'mustInclude' | 'pinnedFirst' | 'pinnedLast'>(
+  key: K,
+): Writable<TrackSet[K]> {
+  const store = distinct(
+    derived(activeSet, ($active) => $active[key]),
+    (a, b) => a === b,
+  )
+  return {
+    subscribe: store.subscribe,
+    set: (value) => patchActiveSet({ [key]: value }),
+    update: (fn) => patchActiveSet({ [key]: fn(get(store)) }),
+  }
+}
+
+/**
  * Append a track to the active set — shared by the wheel's double-click and
  * the Tracks table (issue 7). The same track may appear twice in a set, just
  * not back-to-back.
@@ -215,12 +247,16 @@ export function addTrackToSet(newId: string, anchorId: string | null = get(selec
 /**
  * Create and activate an empty set with the next free ordinal name. Refuses
  * silently at the cap — the ＋ and ✨ buttons disable themselves first.
+ * `inheritMarks` copies the active set's ★ and pins: ✨ forking a new set
+ * from a hand-edited one must still honour the marks the user just set.
  */
-export function addSet(): void {
+export function addSet(inheritMarks = false): void {
   if (!canAddSet(get(sets))) return
+  const { mustInclude, pinnedFirst, pinnedLast } = get(activeSet)
   const set: TrackSet = {
     ...freshFirstSet(),
     name: nextSetName(get(sets).map((s) => s.name)),
+    ...(inheritMarks ? { mustInclude: [...mustInclude], pinnedFirst, pinnedLast } : {}),
   }
   sets.update(($sets) => [...$sets, set])
   activeSetId.set(set.id)
@@ -254,33 +290,27 @@ export function deleteSet(id: string): void {
   const index = $sets.findIndex((s) => s.id === id)
   if (index === -1) return
   const remaining = $sets.toSpliced(index, 1)
-  sets.set(remaining)
+  // Activate the neighbour BEFORE the list shrinks: the other order briefly
+  // resolves a stale activeSetId to sets[0], flashing another set's marks
+  // through the filters and the undo stack.
   if (get(activeSetId) === id) {
     activeSetId.set(remaining[Math.max(0, index - 1)].id)
   }
+  sets.set(remaining)
 }
 
 /**
- * Pinned opener/closer for generated sets (session-only): DJs often fix the
- * first and last track and regenerate the middle. Cleared when the pinned
- * track leaves the set or the library is replaced.
+ * The active set's pinned opener/closer: DJs often fix the first and last
+ * track and regenerate the middle.
  */
-export const pinnedFirst = writable<string | null>(null)
-export const pinnedLast = writable<string | null>(null)
+export const pinnedFirst = activeSetField('pinnedFirst')
+export const pinnedLast = activeSetField('pinnedLast')
 
 /**
- * Tracks the user marked "must include" for generated sets (session-only,
- * like the pins): a hard guarantee since v14 S1 — the suggester reserves
- * slots and forces edges if needed so every marked track lands in the walk.
+ * The active set's ★ essentials: a hard guarantee — the suggester reserves
+ * slots and forces edges if needed so every one lands in the walk.
  */
-export const mustInclude = writable<string[]>([])
-
-/** Clear the pins and marks — call whenever the library is replaced. */
-export function resetSuggestions(): void {
-  pinnedFirst.set(null)
-  pinnedLast.set(null)
-  mustInclude.set([])
-}
+export const mustInclude = activeSetField('mustInclude')
 
 /**
  * Manual edges (v12 WS9): user-marked "these mix well" pairs — planning

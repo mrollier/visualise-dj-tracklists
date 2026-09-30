@@ -1,13 +1,18 @@
 /**
- * Multiple named sets (issue 18): a project holds several tracklists, one
- * active. Default names count upward in ordinal words; `generated` marks a
- * set that is untouched generator output (any manual edit clears it).
+ * Multiple named sets: a project holds several tracklists, one active.
+ * Default names count upward in ordinal words; `generated` marks a set that
+ * is untouched generator output (any manual edit to its tracks clears it).
  */
 export interface TrackSet {
   id: string
   name: string
   trackIds: string[]
   generated: boolean
+  /** ★ essentials: tracks a generated walk for this set must include. */
+  mustInclude: string[]
+  /** ⏮ / ⏭: the opener and closer a generated walk for this set keeps. */
+  pinnedFirst: string | null
+  pinnedLast: string | null
 }
 
 const ORDINALS = [
@@ -110,5 +115,13 @@ export function moveItem<T>(items: readonly T[], from: number, insertAt: number)
 
 /** A fresh un-generated "First" constellation, optionally seeded with tracks. */
 export function freshFirstSet(trackIds: string[] = []): TrackSet {
-  return { id: newSetId(), name: ordinalSetName(0), trackIds: [...trackIds], generated: false }
+  return {
+    id: newSetId(),
+    name: ordinalSetName(0),
+    trackIds: [...trackIds],
+    generated: false,
+    mustInclude: [],
+    pinnedFirst: null,
+    pinnedLast: null,
+  }
 }

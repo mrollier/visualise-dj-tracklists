@@ -88,11 +88,10 @@ export interface LibraryFilters {
    */
   keyRings: { minor: boolean; major: boolean }
   /**
-   * The starred-only / combo-only quick-filters (v18 #3/#8, `marks.ts`).
-   * Both false = inert. Filtering by these needs a `MarksContext` passed
+   * The starred / combo / constellation quick-filters (`marks.ts`). All
+   * false = inert. Filtering by these needs a `MarksContext` passed
    * separately to `applyFilters` — see that function and `marks.ts` for why
-   * the live id sets don't live on this object. A saved-active value here is
-   * never honoured on load (`migrateFilters` below always resets it).
+   * the live id sets don't live on this object.
    */
   marks: MarksFilter
 }
@@ -171,13 +170,18 @@ function sanitizeRange(prop: TrackProperty, entry: unknown): PropertyRange | nul
 }
 
 /**
- * Normalize saved filters, whatever their vintage (v11 issue 1): the v4
- * per-property map is sanitized entry by entry (unknown properties and
- * kind-mismatched tuples dropped, key ranges clamped into 1–12); v3-and-older
- * saves carried top-level bpm/year/rating/dateAdded ranges, which lift into
- * the map. The bespoke fields (genres, playlists, keyRing) carry over.
+ * Normalize saved filters, whatever their vintage: the per-property map is
+ * sanitized entry by entry (unknown properties and kind-mismatched tuples
+ * dropped, key ranges clamped into 1–12); v3-and-older saves carried
+ * top-level bpm/year/rating/dateAdded ranges, which lift into the map. The
+ * bespoke fields (genres, playlists, keyRing) carry over.
+ *
+ * The marks quick-filters are read only with `keepMarks` (schema 11+, where
+ * the marks they filter by are saved too). Older saves kept the marks in
+ * session memory, so an active flag from one would filter by marks that no
+ * longer exist and blank the wheel.
  */
-export function migrateFilters(raw: unknown): LibraryFilters {
+export function migrateFilters(raw: unknown, keepMarks = false): LibraryFilters {
   const out = structuredClone(EMPTY_FILTERS)
   if (typeof raw !== 'object' || raw === null) return out
   const p = raw as Record<string, unknown>
@@ -206,12 +210,14 @@ export function migrateFilters(raw: unknown): LibraryFilters {
     const range = sanitizeRange(prop, rawProperties[prop.key])
     if (range !== null) out.properties[prop.key] = range
   }
-  // v18 (#3/#8): `p.marks` is deliberately never read. The marks quick-filters
-  // check membership in mustInclude/pinnedFirst/pinnedLast, which are
-  // session-only stores that always start empty — a persisted-active marks
-  // filter would blank the wheel on every reload. `out` is already the
-  // EMPTY_FILTERS clone from above (both flags false), so simply not copying
-  // `p.marks` onto it IS the reset; there is nothing else to do here.
+  if (keepMarks && typeof p.marks === 'object' && p.marks !== null) {
+    const m = p.marks as Record<string, unknown>
+    out.marks = {
+      starredOnly: m.starredOnly === true,
+      comboOnly: m.comboOnly === true,
+      constellationOnly: m.constellationOnly === true,
+    }
+  }
   return out
 }
 

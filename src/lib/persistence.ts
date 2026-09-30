@@ -23,12 +23,8 @@ import {
   library,
   libraryName,
   manualEdges,
-  mustInclude,
-  pinnedFirst,
-  pinnedLast,
   playlists,
   radialAxis,
-  resetSuggestions,
   selectedId,
   sets,
   settings,
@@ -40,7 +36,7 @@ const STORAGE_KEY = 'visualise-dj-tracklists:project:v1'
 
 export function currentProject(): Project {
   return {
-    version: 10,
+    version: 11,
     libraryName: get(libraryName),
     manualEdges: get(manualEdges),
     tracks: get(library),
@@ -65,21 +61,7 @@ export function applyProject(project: Project): void {
   analysis.set(project.analysis)
   manualEdges.set(project.manualEdges)
   criteria.set(project.criteria)
-  // v18 #3/#8 review fix (B5): marks are session-only state describing
-  // mustInclude/pins (wiped below by resetSuggestions()), so an active
-  // marks flag can't survive this restore intact — a project loaded via
-  // parseProject already carries both-off (migrateFilters' "always loads
-  // off" rule), but applyProject has a second, unmigrated caller: the
-  // guided tour's "return to my work" snapshots the LIVE project object via
-  // currentProject() (no serialize/parse round-trip) before swapping in the
-  // sample, then restores it here — if a header ★/🔗 toggle was on at that
-  // moment, filters.set(project.filters) would restore it active over the
-  // now-empty stars/combos resetSuggestions() is about to produce, filtering
-  // the whole library out from under the user the moment they return.
-  filters.set({
-    ...project.filters,
-    marks: { starredOnly: false, comboOnly: false, constellationOnly: false },
-  })
+  filters.set(project.filters)
   settings.set(project.settings)
   sets.set(project.sets)
   activeSetId.set(project.activeSetId)
@@ -88,7 +70,6 @@ export function applyProject(project: Project): void {
   colorAxis.set(project.colorAxis)
   selectedId.set(null)
   lastImportReport.set(null)
-  resetSuggestions()
 }
 
 /**
@@ -142,7 +123,6 @@ export function replaceLibrary(replacement: {
   })
   lastImportReport.set(report)
   selectedId.set(null)
-  resetSuggestions()
   library.set(tracks)
 }
 
@@ -193,37 +173,26 @@ export function replaceNeedsConfirmation(): boolean {
 
 /**
  * Whether the given state holds anything a user would mind losing: a track
- * in any set, a manual edge, or a session-only mark (★ must-include, or a
- * pinned opener/closer). Untouched sets over an empty or sample library
- * don't count — there's nothing there to grieve (v18 #1).
+ * or a mark (★ essential, ⏮/⏭ pin) in any set, or a manual edge. Untouched
+ * sets over an empty or sample library don't count — nothing to grieve.
  */
-export function hasUserWork(state: {
-  sets: TrackSet[]
-  manualEdges: ManualEdge[]
-  mustInclude: string[]
-  pinnedFirst: string | null
-  pinnedLast: string | null
-}): boolean {
+export function hasUserWork(state: { sets: TrackSet[]; manualEdges: ManualEdge[] }): boolean {
   return (
-    state.sets.some((set) => set.trackIds.length > 0) ||
     state.manualEdges.length > 0 ||
-    state.mustInclude.length > 0 ||
-    state.pinnedFirst !== null ||
-    state.pinnedLast !== null
+    state.sets.some(
+      (set) =>
+        set.trackIds.length > 0 ||
+        set.mustInclude.length > 0 ||
+        set.pinnedFirst !== null ||
+        set.pinnedLast !== null,
+    )
   )
 }
 
-/** Load-sample / tour guard: real-library warning (unchanged) OR user work over any library. */
+/** Load-sample / tour guard: real-library warning OR user work over any library. */
 export function sampleLoadNeedsConfirmation(): boolean {
   return (
-    replaceNeedsConfirmation() ||
-    hasUserWork({
-      sets: get(sets),
-      manualEdges: get(manualEdges),
-      mustInclude: get(mustInclude),
-      pinnedFirst: get(pinnedFirst),
-      pinnedLast: get(pinnedLast),
-    })
+    replaceNeedsConfirmation() || hasUserWork({ sets: get(sets), manualEdges: get(manualEdges) })
   )
 }
 
@@ -312,5 +281,4 @@ export function resetEverything(): void {
   colorAxis.set('auto')
   selectedId.set(null)
   lastImportReport.set(null)
-  resetSuggestions()
 }

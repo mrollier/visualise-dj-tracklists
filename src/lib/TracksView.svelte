@@ -39,6 +39,7 @@
     manualEdges,
     mustInclude,
     neighbours,
+    patchActiveSet,
     pinnedFirst,
     pinnedLast,
     selectedId,
@@ -385,17 +386,14 @@
       $pinnedFirst !== null && $pinnedFirst !== id,
       $pinnedLast !== null && $pinnedLast !== id,
     )
-    // v18 #3/#8 review fix (C4): one mustInclude.update, not remove-then-
-    // conditionally-add — each write is a full marksContext/visibleLibrary
-    // recompute once starredOnly is on (the O(n²) combo graph rides along).
-    mustInclude.update((ids) => {
-      const without = ids.filter((x) => x !== id)
-      return next === 'must' ? [...without, id] : without
+    // One write for all three fields: one undo step, and one recompute of
+    // the marks-filtered library rather than up to four.
+    const without = $mustInclude.filter((x) => x !== id)
+    patchActiveSet({
+      mustInclude: next === 'must' ? [...without, id] : without,
+      pinnedFirst: next === 'first' ? id : $pinnedFirst === id ? null : $pinnedFirst,
+      pinnedLast: next === 'last' ? id : $pinnedLast === id ? null : $pinnedLast,
     })
-    if ($pinnedFirst === id) pinnedFirst.set(null)
-    if ($pinnedLast === id) pinnedLast.set(null)
-    if (next === 'first') pinnedFirst.set(id)
-    else if (next === 'last') pinnedLast.set(id)
   }
 
   // --- ＋/position column (v8 issue 15): 1-based slots in the ACTIVE set ---

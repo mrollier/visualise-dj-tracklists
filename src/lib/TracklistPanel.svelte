@@ -28,7 +28,6 @@
     deleteSet,
     genreMatcher,
     libraryName,
-    manualEdges,
     mustInclude,
     pinnedFirst,
     pinnedLast,
@@ -294,7 +293,7 @@
   function suggest(force = false) {
     if (suggestDisabled) return
     burst()
-    if (!canRegenerateInPlace) addSet() // a fresh set, activated
+    if (!canRegenerateInPlace) addSet(true) // a fresh set, activated, keeping the marks
     // ⚡ continues the short walk (v14 S2): replay the exact snapshot with
     // force, so the forced walk continues the short one in place — a strict
     // extension for a single-arm walk, arm-stable seam-fill for a pinned-end
@@ -360,19 +359,6 @@
     if (tick === lastSuggestHotkey) return
     lastSuggestHotkey = tick
     suggest(forceOffer)
-  })
-
-  // Pins and must-include marks are library-scoped (design-v6 §C): they
-  // survive set edits — the Set order pickers set them before a set even
-  // exists — and clear only when their track leaves the library.
-  $effect(() => {
-    if ($pinnedFirst !== null && !$trackById.has($pinnedFirst)) pinnedFirst.set(null)
-    if ($pinnedLast !== null && !$trackById.has($pinnedLast)) pinnedLast.set(null)
-    if ($mustInclude.some((id) => !$trackById.has(id)))
-      mustInclude.update((ids) => ids.filter((id) => $trackById.has(id)))
-    // Manual combos too (v12 WS9): a mark dies with either of its tracks.
-    if ($manualEdges.some((e) => !$trackById.has(e.a) || !$trackById.has(e.b)))
-      manualEdges.update((edges) => edges.filter((e) => $trackById.has(e.a) && $trackById.has(e.b)))
   })
 
   function togglePin(store: typeof pinnedFirst, id: string, pinned: boolean) {
@@ -448,7 +434,7 @@
             ? 'Start a new constellation'
             : `${MAX_SETS} constellations at most`}
           aria-label="New constellation"
-          onclick={addSet}
+          onclick={() => addSet()}
           disabled={!canAddSet($sets)}>＋</button
         >
         <button

@@ -1,7 +1,7 @@
 import { get } from 'svelte/store'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { EMPTY_FILTERS } from '../src/core/filter'
-import { freshFirstSet } from '../src/core/sets'
+import { freshFirstSet, type TrackSet } from '../src/core/sets'
 import { ALL_SAMPLE_PACKS, CLASSIC_PACK, SAMPLE_COLLECTION } from '../src/data/samples'
 import {
   applyProject,
@@ -22,6 +22,7 @@ import {
   libraryName,
   manualEdges,
   mustInclude,
+  patchActiveSet,
   pinnedFirst,
   pinnedLast,
   playlists,
@@ -149,88 +150,36 @@ describe('replaceNeedsConfirmation', () => {
   })
 })
 
-describe('hasUserWork (v18 #1)', () => {
-  test('fresh state — one empty set, no marks/edges/pins — is no user work', () => {
-    expect(
-      hasUserWork({
-        sets: [freshFirstSet()],
-        manualEdges: [],
-        mustInclude: [],
-        pinnedFirst: null,
-        pinnedLast: null,
-      }),
-    ).toBe(false)
+describe('hasUserWork', () => {
+  const marked = (patch: Partial<TrackSet>): TrackSet => ({ ...freshFirstSet(), ...patch })
+
+  test('fresh state — one empty set, no marks or edges — is no user work', () => {
+    expect(hasUserWork({ sets: [freshFirstSet()], manualEdges: [] })).toBe(false)
   })
 
   test('any set holding tracks is user work', () => {
-    expect(
-      hasUserWork({
-        sets: [freshFirstSet(['rb-1'])],
-        manualEdges: [],
-        mustInclude: [],
-        pinnedFirst: null,
-        pinnedLast: null,
-      }),
-    ).toBe(true)
+    expect(hasUserWork({ sets: [freshFirstSet(['rb-1'])], manualEdges: [] })).toBe(true)
   })
 
   test('a manual edge is user work', () => {
-    expect(
-      hasUserWork({
-        sets: [freshFirstSet()],
-        manualEdges: [{ a: 'rb-1', b: 'rb-2' }],
-        mustInclude: [],
-        pinnedFirst: null,
-        pinnedLast: null,
-      }),
-    ).toBe(true)
+    expect(hasUserWork({ sets: [freshFirstSet()], manualEdges: [{ a: 'rb-1', b: 'rb-2' }] })).toBe(
+      true,
+    )
   })
 
-  test('a must-include mark is user work', () => {
-    expect(
-      hasUserWork({
-        sets: [freshFirstSet()],
-        manualEdges: [],
-        mustInclude: ['rb-1'],
-        pinnedFirst: null,
-        pinnedLast: null,
-      }),
-    ).toBe(true)
-  })
-
-  test('a pinned opener is user work', () => {
-    expect(
-      hasUserWork({
-        sets: [freshFirstSet()],
-        manualEdges: [],
-        mustInclude: [],
-        pinnedFirst: 'rb-1',
-        pinnedLast: null,
-      }),
-    ).toBe(true)
-  })
-
-  test('a pinned closer is user work', () => {
-    expect(
-      hasUserWork({
-        sets: [freshFirstSet()],
-        manualEdges: [],
-        mustInclude: [],
-        pinnedFirst: null,
-        pinnedLast: 'rb-2',
-      }),
-    ).toBe(true)
+  test('a ★ or a pin on ANY set is user work, not just the active one', () => {
+    for (const patch of [
+      { mustInclude: ['rb-1'] },
+      { pinnedFirst: 'rb-1' },
+      { pinnedLast: 'rb-2' },
+    ]) {
+      expect(hasUserWork({ sets: [freshFirstSet(), marked(patch)], manualEdges: [] })).toBe(true)
+    }
   })
 
   test('several empty sets are still no user work', () => {
     expect(
-      hasUserWork({
-        sets: [freshFirstSet(), freshFirstSet(), freshFirstSet()],
-        manualEdges: [],
-        mustInclude: [],
-        pinnedFirst: null,
-        pinnedLast: null,
-      }),
+      hasUserWork({ sets: [freshFirstSet(), freshFirstSet(), freshFirstSet()], manualEdges: [] }),
     ).toBe(false)
   })
 })
@@ -320,31 +269,23 @@ describe('replaceLibrary with selectedPlaylists', () => {
   })
 })
 
-describe('applyProject resets marks on restore (v18 #3/#8 review fix, B5)', () => {
-  test('an active marks flag in the snapshot always comes back both-off', () => {
-    // Mirrors tour.ts's snapshot/restore, the vulnerable path: currentProject()
-    // captures the LIVE filters store verbatim (no migrateFilters pass, unlike
-    // a save/load round-trip) before the tour swaps in the sample; restoring
-    // that snapshot later must not resurrect an active starredOnly/comboOnly
-    // over the stars/combos applyProject's resetSuggestions() just emptied —
-    // that would filter the whole library out from under the returning user.
-    filters.update((f) => ({
-      ...f,
-      marks: { starredOnly: true, comboOnly: true, constellationOnly: true },
-    }))
+describe('applyProject restores the marks with their flags', () => {
+  test('the tour snapshot brings back each set’s marks and the active quick-filters', () => {
+    patchActiveSet({ mustInclude: ['rb-1'], pinnedFirst: 'rb-2' })
+    filters.update((f) => ({ ...f, marks: { ...f.marks, starredOnly: true } }))
     const snapshot = currentProject()
+    patchActiveSet({ mustInclude: [], pinnedFirst: null })
+    filters.update((f) => ({ ...f, marks: { ...f.marks, starredOnly: false } }))
 
     applyProject(snapshot)
 
-    expect(get(filters).marks).toEqual({
-      starredOnly: false,
-      comboOnly: false,
-      constellationOnly: false,
-    })
+    expect(get(mustInclude)).toEqual(['rb-1'])
+    expect(get(pinnedFirst)).toBe('rb-2')
+    expect(get(filters).marks.starredOnly).toBe(true)
   })
 
   test('the rest of the snapshot restores untouched', () => {
-    filters.update((f) => ({ ...f, genres: ['techno'], marks: { ...f.marks, starredOnly: true } }))
+    filters.update((f) => ({ ...f, genres: ['techno'] }))
     const snapshot = currentProject()
 
     applyProject(snapshot)

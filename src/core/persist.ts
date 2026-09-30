@@ -2,7 +2,7 @@ import { migrateColumns } from './columns'
 import { DEFAULT_CRITERIA, demandedCount, type CriteriaConfig } from './combos'
 import { migrateFilters, type LibraryFilters } from './filter'
 import { normalizeKey } from './keys'
-import { PANEL_FILTER_KEYS, PANEL_FILTERS } from './marks'
+import { MARK_FILTERS, PANEL_FILTER_KEYS, PANEL_FILTERS } from './marks'
 import { energyFromComments, type ManualEdge, type Playlist, type Track } from './model'
 import { TRACK_PROPERTIES } from './properties'
 import {
@@ -42,12 +42,12 @@ import { sanitizeAnalysis, type AnalysisSidecar } from './analysis'
  *  the default 2-step tolerance rather than failing to evaluate it),
  * v10 (v25: ☰ Constellation joins ★ Starred/🔗 Combos/♪ Keys as a fourth
  *  permanent left-panel pseudo-row — a save older than v10 back-fills it
- *  into `settings.visibleFilters` on load, same as v8's three-row
- *  back-fill; `filters.marks.constellationOnly` needs no migration since
- *  marks are always reset to both/all-off on load regardless of version).
+ *  into `settings.visibleFilters` on load, same as v8's three-row back-fill),
+ * v11 (★ essentials and ⏮/⏭ pins are saved per set; the marks quick-filters
+ *  are saved too — older saves load with empty marks and the flags off).
  */
 export interface Project {
-  version: 10
+  version: 11
   libraryName: string
   tracks: Track[]
   criteria: CriteriaConfig
@@ -230,21 +230,24 @@ function sanitizeTrack(raw: unknown): Track | null {
 
 /**
  * Guard one stored set the same way tracks are guarded: wrong-typed entries
- * are dropped or defaulted, unknown track ids pruned per set.
+ * are dropped or defaulted, unknown track ids pruned per set — marks
+ * included, so a pin can never point at a track the library lacks.
  */
 function sanitizeSet(raw: unknown, knownIds: Set<string>, index: number): TrackSet | null {
   if (!isRecord(raw)) return null
   const entry = raw
-  const trackIds = Array.isArray(entry.trackIds)
-    ? (entry.trackIds as unknown[]).filter(
-        (id): id is string => typeof id === 'string' && knownIds.has(id),
-      )
-    : []
+  const known = (id: unknown): id is string => typeof id === 'string' && knownIds.has(id)
+  const trackIds = Array.isArray(entry.trackIds) ? entry.trackIds.filter(known) : []
   return {
     id: typeof entry.id === 'string' && entry.id !== '' ? entry.id : newSetId(),
     name: typeof entry.name === 'string' && entry.name !== '' ? entry.name : ordinalSetName(index),
     trackIds,
     generated: entry.generated === true,
+    mustInclude: Array.isArray(entry.mustInclude)
+      ? [...new Set(entry.mustInclude.filter(known))]
+      : [],
+    pinnedFirst: known(entry.pinnedFirst) ? entry.pinnedFirst : null,
+    pinnedLast: known(entry.pinnedLast) ? entry.pinnedLast : null,
   }
 }
 
@@ -274,24 +277,10 @@ export function parseProject(json: string): Project {
     throw new Error('Not a valid project file: the document is not an object')
   }
   const p = raw as Record<string, unknown> & { version?: number; tracklist?: unknown }
-  if (
-    p.version !== 1 &&
-    p.version !== 2 &&
-    p.version !== 3 &&
-    p.version !== 4 &&
-    p.version !== 5 &&
-    p.version !== 6 &&
-    p.version !== 7 &&
-    p.version !== 8 &&
-    p.version !== 9 &&
-    p.version !== 10
-  ) {
+  const version = p.version
+  if (typeof version !== 'number' || !Number.isInteger(version) || version < 1 || version > 11) {
     throw new Error(`Unsupported project version: ${String(p.version)}`)
   }
-  // v23: threaded through to the visibleFilters back-fill below, gating it
-  // so a save already at schema 8+ is trusted verbatim — re-reading `raw`
-  // there would work too, but this is the value already validated above.
-  const version = Number(p.version)
   const hasSetShape = Array.isArray(p.sets) || Array.isArray(p.tracklist)
   if (!Array.isArray(p.tracks) || !hasSetShape || !isRecord(p.criteria)) {
     throw new Error('Not a valid project file: missing tracks, sets or criteria')
@@ -483,21 +472,15 @@ export function parseProject(json: string): Project {
         ? rawSettings.analysisWriteTags
         : DEFAULT_SETTINGS.analysisWriteTags,
   }
-  // v11 (issue 1): filters normalize into the per-property map, whatever
-  // their vintage; migrateFilters lifts v3 top-level ranges and drops
-  // garbage entries.
-  const filters = migrateFilters(p.filters)
-  // visibleFilters (v10 issue 4b, widened in v11 to every property): saved
-  // arrays keep their valid keys; older saves back-fill to the default.
-  // [] is a valid "hide every property filter" choice. Either way, an
-  // actively filtering property is forced visible — the hide-clears-filter
-  // invariant means nothing may filter invisibly.
-  // v18 (#3/#8), widened v23 and again v25: the four permanent panel
-  // pseudo-keys join the same whitelist — only whether their ROW shows in
-  // the panel. Filters
-  // carry transient `marks` quick-filters too (LibraryFilters.marks), but
-  // that boolean state is always reset on load (see migrateFilters), so it
-  // never reaches the force-visible loop below, which stays property-only.
+  // Filters normalize into the per-property map, whatever their vintage;
+  // migrateFilters lifts v3 top-level ranges and drops garbage entries. The
+  // marks quick-filters survive only from saves that also carry the marks.
+  const filters = migrateFilters(p.filters, version >= 11)
+  // visibleFilters: saved arrays keep their valid keys; older saves back-fill
+  // to the default. [] is a valid "hide every property filter" choice. The
+  // four permanent panel pseudo-keys join the same whitelist. Either way, an
+  // actively filtering property or marks flag is forced visible — nothing
+  // may filter invisibly.
   const validFilterKeys = new Set<string>([
     ...TRACK_PROPERTIES.filter((prop) => prop.filterable).map((prop) => prop.key),
     ...PANEL_FILTER_KEYS,
@@ -536,6 +519,11 @@ export function parseProject(json: string): Project {
   if (version < 10 && !settings.visibleFilters.includes('constellation')) {
     settings.visibleFilters.push('constellation')
   }
+  for (const m of MARK_FILTERS) {
+    if (filters.marks[m.flag] && !settings.visibleFilters.includes(m.key)) {
+      settings.visibleFilters.push(m.key)
+    }
+  }
   // Manual edges (v12 WS9): unordered unique pairs between known tracks.
   const manualEdges: ManualEdge[] = []
   {
@@ -556,7 +544,7 @@ export function parseProject(json: string): Project {
   }
 
   return {
-    version: 10,
+    version: 11,
     manualEdges,
     libraryName: typeof p.libraryName === 'string' ? p.libraryName : '',
     tracks,

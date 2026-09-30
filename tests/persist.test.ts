@@ -2,13 +2,14 @@ import { describe, expect, test } from 'vitest'
 import { ALL_TRACK_COLUMNS, visibleColumns } from '../src/core/columns'
 import { DEFAULT_CRITERIA } from '../src/core/combos'
 import { EMPTY_FILTERS } from '../src/core/filter'
+import { freshFirstSet } from '../src/core/sets'
 import type { Track } from '../src/core/model'
 import { parseProject, serializeProject, type Project } from '../src/core/persist'
 import { DEFAULT_SETTINGS, type AppSettings } from '../src/core/settings'
 import { SAMPLE_TRACKS } from '../src/data/sample-tracks'
 
 const project: Project = {
-  version: 10,
+  version: 11,
   manualEdges: [],
   libraryName: 'My crate',
   tracks: SAMPLE_TRACKS,
@@ -25,8 +26,19 @@ const project: Project = {
       name: 'First Set',
       trackIds: [SAMPLE_TRACKS[0].id, SAMPLE_TRACKS[2].id],
       generated: false,
+      mustInclude: [SAMPLE_TRACKS[2].id],
+      pinnedFirst: SAMPLE_TRACKS[0].id,
+      pinnedLast: null,
     },
-    { id: 'set-2', name: 'Peak time', trackIds: [SAMPLE_TRACKS[1].id], generated: true },
+    {
+      id: 'set-2',
+      name: 'Peak time',
+      trackIds: [SAMPLE_TRACKS[1].id],
+      generated: true,
+      mustInclude: [],
+      pinnedFirst: null,
+      pinnedLast: SAMPLE_TRACKS[1].id,
+    },
   ],
   activeSetId: 'set-2',
   playlists: [{ name: 'Openers', trackIds: [SAMPLE_TRACKS[0].id] }],
@@ -53,10 +65,9 @@ describe('project persistence (v3)', () => {
 
   test('loading a project with more than eight sets keeps the first eight (v8 issue 18)', () => {
     const many = Array.from({ length: 11 }, (_, i) => ({
+      ...freshFirstSet(),
       id: `s${i}`,
       name: `Set ${i + 1}`,
-      trackIds: [],
-      generated: false,
     }))
     const parsed = parseProject(serializeProject({ ...project, sets: many, activeSetId: 's10' }))
     expect(parsed.sets).toHaveLength(8)
@@ -68,9 +79,7 @@ describe('project persistence (v3)', () => {
   test('drops set entries that reference unknown tracks, per set', () => {
     const withGhost = serializeProject({
       ...project,
-      sets: [
-        { id: 's', name: 'First Set', trackIds: ['nope', SAMPLE_TRACKS[0].id], generated: false },
-      ],
+      sets: [{ ...freshFirstSet(['nope', SAMPLE_TRACKS[0].id]), id: 's', name: 'First Set' }],
       activeSetId: 's',
     })
     expect(parseProject(withGhost).sets[0].trackIds).toEqual([SAMPLE_TRACKS[0].id])
@@ -90,7 +99,7 @@ describe('project persistence (v3)', () => {
       colorAxis: 'auto',
     })
     const parsed = parseProject(v2)
-    expect(parsed.version).toBe(10)
+    expect(parsed.version).toBe(11)
     expect(parsed.sets).toHaveLength(1)
     expect(parsed.sets[0]).toMatchObject({
       name: 'First',
@@ -105,9 +114,9 @@ describe('project persistence (v3)', () => {
     const withDupes = {
       ...project,
       sets: [
-        { id: 's1', name: 'Peak', trackIds: [], generated: false },
-        { id: 's2', name: 'Peak', trackIds: [], generated: false },
-        { id: 's3', name: 'Peak', trackIds: [], generated: false },
+        { ...freshFirstSet(), id: 's1', name: 'Peak' },
+        { ...freshFirstSet(), id: 's2', name: 'Peak' },
+        { ...freshFirstSet(), id: 's3', name: 'Peak' },
       ],
       activeSetId: 's1',
     }
@@ -439,7 +448,7 @@ describe('project persistence (v3)', () => {
     expect(parsed.filters.playlists).toEqual(['Openers'])
     // F5: the old string keyRing migrates to the new toggle pair.
     expect(parsed.filters.keyRings).toEqual({ minor: true, major: false })
-    expect(parsed.version).toBe(10)
+    expect(parsed.version).toBe(11)
   })
 
   test('garbage property filters are dropped or clamped (v14 WS2 kinds)', () => {
@@ -628,7 +637,7 @@ describe('project persistence (v3)', () => {
       radialAxis: 'bpm',
     })
     const migrated = parseProject(v1)
-    expect(migrated.version).toBe(10)
+    expect(migrated.version).toBe(11)
     expect(migrated.filters).toEqual(EMPTY_FILTERS)
     expect(migrated.settings).toEqual(DEFAULT_SETTINGS)
     expect(migrated.colorAxis).toBe('auto')
@@ -673,7 +682,7 @@ describe('project persistence (v3)', () => {
       radialAxis: 'bpm',
     })
     const migrated = parseProject(v8)
-    expect(migrated.version).toBe(10)
+    expect(migrated.version).toBe(11)
     expect(migrated.criteria.energy).toEqual({ enabled: true, maxSteps: 2, demanded: false })
   })
 
@@ -1008,7 +1017,7 @@ describe('WS6 sanitize round-trip pins (v14.1)', () => {
     }),
   ]
   const buildValid = (settings: AppSettings): Project => ({
-    version: 10,
+    version: 11,
     manualEdges: [{ a: 't1', b: 't2', tag: 'mashup' }],
     libraryName: 'Pin crate',
     tracks: pinTracks,
@@ -1020,8 +1029,24 @@ describe('WS6 sanitize round-trip pins (v14.1)', () => {
     },
     settings,
     sets: [
-      { id: 'set-1', name: 'First Set', trackIds: ['t1', 't3'], generated: false },
-      { id: 'set-2', name: 'Peak time', trackIds: ['t2'], generated: true },
+      {
+        id: 'set-1',
+        name: 'First Set',
+        trackIds: ['t1', 't3'],
+        generated: false,
+        mustInclude: ['t3'],
+        pinnedFirst: 't1',
+        pinnedLast: null,
+      },
+      {
+        id: 'set-2',
+        name: 'Peak time',
+        trackIds: ['t2'],
+        generated: true,
+        mustInclude: [],
+        pinnedFirst: null,
+        pinnedLast: 't2',
+      },
     ],
     activeSetId: 'set-2',
     playlists: [{ name: 'Openers', trackIds: ['t1'] }],
@@ -1136,9 +1161,13 @@ describe('vinyl flag removed (v14 WS1)', () => {
 // see filter.ts's migrateFilters for why. Widened v23: 'starred'/'combos'/
 // 'keys' are now permanent panel rows, back-filled into any save older than
 // schema 8 — see the "permanent panel filters persistence" describe below.
-describe('marks quick-filters persistence (v18 #3/#8)', () => {
-  test('a saved active marks filter always parses back to all-off', () => {
-    const raw = JSON.parse(serializeProject(project)) as { filters: Record<string, unknown> }
+describe('marks quick-filters from saves without saved marks', () => {
+  test('a pre-v11 active marks filter parses back to all-off', () => {
+    const raw = JSON.parse(serializeProject(project)) as {
+      version: number
+      filters: Record<string, unknown>
+    }
+    raw.version = 10
     raw.filters.marks = { starredOnly: true, comboOnly: true, constellationOnly: true }
     expect(parseProject(JSON.stringify(raw)).filters.marks).toEqual({
       starredOnly: false,
@@ -1197,7 +1226,7 @@ describe('permanent panel filters persistence (v23, widened v25)', () => {
       settings: Record<string, unknown>
       filters: Record<string, unknown>
     }
-    expect(raw.version).toBe(10) // project already serializes at the current schema
+    expect(raw.version).toBe(11) // project already serializes at the current schema
     raw.filters.properties = {}
     raw.settings.visibleFilters = ['bpm']
     expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual(['bpm'])
@@ -1244,7 +1273,7 @@ describe('permanent panel filters persistence (v23, widened v25)', () => {
       settings: Record<string, unknown>
       filters: Record<string, unknown>
     }
-    expect(raw.version).toBe(10) // project already serializes at the current schema
+    expect(raw.version).toBe(11) // project already serializes at the current schema
     raw.filters.properties = {}
     raw.settings.visibleFilters = ['bpm']
     expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual(['bpm'])
@@ -1270,7 +1299,7 @@ describe('permanent panel filters persistence (v23, widened v25)', () => {
       settings: Record<string, unknown>
       filters: Record<string, unknown>
     }
-    expect(raw.version).toBe(10) // project already serializes at the current schema
+    expect(raw.version).toBe(11) // project already serializes at the current schema
     raw.filters.properties = {}
     Reflect.deleteProperty(raw.settings, 'visibleFilters')
     expect(parseProject(JSON.stringify(raw)).settings.visibleFilters).toEqual([
@@ -1304,7 +1333,7 @@ describe('descriptor persistence (v35)', () => {
 
     expect(parsed.tracks[0].arousal).toBeNull()
     expect(parsed.tracks[0].happiness).toBeNull()
-    expect(parsed.version).toBe(10)
+    expect(parsed.version).toBe(11)
   })
 
   test('a garbage descriptor is refused rather than carried through', () => {
@@ -1353,7 +1382,7 @@ describe('analysis sidecar persistence (v33)', () => {
     // bundle rollback brick autosave restore, since parseProject throws on an
     // unknown version while restoreAutosave deliberately keeps what it cannot
     // read.
-    expect(parsed.version).toBe(10)
+    expect(parsed.version).toBe(11)
   })
 
   test('a garbage sidecar resolves to null rather than loading', () => {
@@ -1382,5 +1411,64 @@ describe('analysis sidecar persistence (v33)', () => {
 
     expect(serializeProject(parseProject(canonical))).toBe(canonical)
     expect(parseProject(canonical).analysis?.tracks['/Users/dj/a.mp3'].bpm).toBe(128.02)
+  })
+})
+
+describe('per-constellation marks (v11)', () => {
+  const [t0, t1, t2] = SAMPLE_TRACKS.map((t) => t.id)
+  const flagged: Project = {
+    ...project,
+    filters: {
+      ...project.filters,
+      marks: { starredOnly: true, comboOnly: false, constellationOnly: true },
+    },
+  }
+
+  test('marks and the marks quick-filters round-trip byte-identically', () => {
+    const saved = serializeProject(parseProject(serializeProject(flagged)))
+    const parsed = parseProject(saved)
+    expect(parsed.sets[0]).toMatchObject({ mustInclude: [t2], pinnedFirst: t0, pinnedLast: null })
+    expect(parsed.filters.marks).toEqual({
+      starredOnly: true,
+      comboOnly: false,
+      constellationOnly: true,
+    })
+    expect(serializeProject(parsed)).toBe(saved)
+  })
+
+  test('a v10 save loads with empty marks on every set and the flags off', () => {
+    const raw = JSON.parse(serializeProject(flagged)) as {
+      version: number
+      sets: Record<string, unknown>[]
+    }
+    raw.version = 10
+    for (const set of raw.sets) {
+      delete set.mustInclude
+      delete set.pinnedFirst
+      delete set.pinnedLast
+    }
+    const parsed = parseProject(JSON.stringify(raw))
+    expect(parsed.version).toBe(11)
+    for (const set of parsed.sets) {
+      expect(set).toMatchObject({ mustInclude: [], pinnedFirst: null, pinnedLast: null })
+    }
+    expect(parsed.filters.marks).toEqual(EMPTY_FILTERS.marks)
+  })
+
+  test('hand-edited marks are sanitised against the library', () => {
+    const raw = JSON.parse(serializeProject(project)) as { sets: Record<string, unknown>[] }
+    raw.sets[0].mustInclude = [t1, 'no-such-track', 7, t1]
+    raw.sets[0].pinnedFirst = 'no-such-track'
+    raw.sets[0].pinnedLast = 42
+    const set = parseProject(JSON.stringify(raw)).sets[0]
+    expect(set.mustInclude).toEqual([t1])
+    expect(set.pinnedFirst).toBeNull()
+    expect(set.pinnedLast).toBeNull()
+  })
+
+  test('a save from a newer schema is refused', () => {
+    const raw = JSON.parse(serializeProject(project)) as { version: number }
+    raw.version = 12
+    expect(() => parseProject(JSON.stringify(raw))).toThrow(/version/i)
   })
 })

@@ -25,7 +25,6 @@
   import { sampleLoadNeedsConfirmation } from './persistence'
   import SliderRow from './SliderRow.svelte'
   import { startTour } from './tour'
-  import { withOneUndoStep } from './undoStore'
   import {
     analysedFieldsById,
     analysis,
@@ -38,6 +37,7 @@
     library,
     manualEdges,
     mustInclude,
+    patchActiveSet,
     pinnedFirst,
     pinnedLast,
     playlists,
@@ -187,7 +187,7 @@
       : `in the selected playlists (${scopeNames.join(', ')})`,
   )
   const clearStarsBody = $derived(
-    `Removes the ★ mark from ${starClear.cleared} track${starClear.cleared === 1 ? '' : 's'} ${scopeCopy}. Cmd+Z undoes it.`,
+    `Removes the ★ mark from ${starClear.cleared} track${starClear.cleared === 1 ? '' : 's'} ${scopeCopy}, in this constellation. Cmd+Z undoes it.`,
   )
   const clearCombosBody = $derived(
     `Removes ${comboClear.cleared} manual combo${comboClear.cleared === 1 ? '' : 's'} ${scopeCopy}. Cmd+Z undoes it.`,
@@ -196,15 +196,12 @@
   let clearStarsConfirm: ConfirmDialog
   let clearCombosConfirm: ConfirmDialog
 
-  // Three stores (mustInclude + both pins) still land as ONE undo step —
-  // see undoStore.ts's withOneUndoStep for why that needs help (Svelte's
-  // classic stores notify per store, synchronously, so three sequential
-  // top-level .set() calls would otherwise record three).
+  // The marks live on the active set: one patch, one undo step.
   function clearStars() {
-    withOneUndoStep(() => {
-      mustInclude.set(starClear.mustInclude)
-      pinnedFirst.set(starClear.pinnedFirst)
-      pinnedLast.set(starClear.pinnedLast)
+    patchActiveSet({
+      mustInclude: starClear.mustInclude,
+      pinnedFirst: starClear.pinnedFirst,
+      pinnedLast: starClear.pinnedLast,
     })
   }
   function clearCombos() {
