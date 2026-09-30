@@ -2,7 +2,7 @@ import type { Track } from './model'
 import type { TrackSortField } from './trackSort'
 
 /**
- * The one registry of track properties (v11 issue 1). Every non-id `Track`
+ * The one registry of track properties. Every non-id `Track`
  * field appears exactly once, carrying everything the UI needs to show it as
  * a Tracks-table column or a left-panel filter: label, value kind, and cell
  * formatting. `columns.ts` derives its order/labels from here; the filter
@@ -31,7 +31,7 @@ export interface TrackProperty {
   key: TrackSortField
   label: string
   /**
-   * Filter-rail label, when the full one cannot fit (v35.1). The rail is
+   * Filter-rail label, when the full one cannot fit. The rail is
    * 250px and its label column is 52px — "Danceability" needs 85px, and
    * widening the column for it is what knocked the descriptor rows' number
    * boxes and ↺ out of line with BPM/Year/Rating. A one-letter label plus
@@ -47,12 +47,12 @@ export interface TrackProperty {
   /** Cell-text override for the Tracks table (duration m:ss, size MB). */
   format?: (value: string | number) => string
   /**
-   * What the number means and where it comes from (v35): an InfoTooltip in
+   * What the number means and where it comes from: an InfoTooltip in
    * the filter row, and the column header's native title.
    */
   hint?: string
   /**
-   * Every non-null value comes from the analysis sidecar (v35): no DJ library
+   * Every non-null value comes from the analysis sidecar: no DJ library
    * supplies it. Groups the filter row under the Analysis caption so the
    * caveat these share is stated once. Deliberately does NOT suppress the
    * per-cell provenance underline — a column where every filled cell is
@@ -99,7 +99,7 @@ export function isDescriptorKey(key: TrackSortField): key is DescriptorKey {
 }
 
 /**
- * The v35 descriptors' shared caveat, shown once on the Analysis filter group
+ * The descriptors' shared caveat, shown once on the Analysis filter group
  * rather than repeated in all four hints.
  */
 export const ANALYSIS_GROUP_HINT =
@@ -205,9 +205,8 @@ export const PROPERTY_BY_KEY: ReadonlyMap<TrackSortField, TrackProperty> = new M
 )
 
 /**
- * The property filters shown in the left panel by default (v11 issue 1 —
- * reverting the v10 Date-added default). The rest are opt-in via the
- * advanced "Track properties" table.
+ * The property filters shown in the left panel by default. The rest are
+ * opt-in via the advanced "Track properties" table.
  */
 export const DEFAULT_VISIBLE_FILTERS: readonly TrackSortField[] = ['bpm', 'year', 'rating']
 

@@ -3,7 +3,7 @@
   import { filters, library, playlists } from '../stores'
 
   // `fill`: grow to claim the sidebar's free height and scroll internally,
-  // used in easy mode where Playlists is the only section (ISSUES.md #5).
+  // used in easy mode where Playlists is the only section.
   interface Props {
     fill?: boolean
   }
@@ -39,7 +39,7 @@
   }
 
   // Just the selection scope ("2/9"); the track total lives in the Filters
-  // summary, where it reads as the filter's denominator (v8 issue 1).
+  // summary, where it reads as the filter's denominator.
   const summary = $derived.by(() => {
     const chosen = $filters.playlists
     return chosen === null || chosen.length >= allNames.length
@@ -143,7 +143,7 @@
     font-size: 13px;
     /* Clicking the row toggles the box (the whole label is the target); the
        name is a label, not selectable text — so dragging to read never
-       accidentally highlights it (ISSUES.md #1). */
+       accidentally highlights it. */
     -webkit-user-select: none;
     user-select: none;
   }

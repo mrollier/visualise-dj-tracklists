@@ -27,9 +27,9 @@
 
   const WIDTH = 900
   const HEIGHT = 820
-  /** Gentle centre gravity: contains disconnected components (issue 12). */
+  /** Gentle centre gravity: contains disconnected components. */
   const CONTAIN_STRENGTH = 0.05
-  /** Gravity per node count: 0.05 at ≤22 nodes, √-scaled above (v12) — the
+  /** Gravity per node count: 0.05 at ≤22 nodes, √-scaled above — the
    * genre-atlas-sized map needs the stronger pull to stay framed. */
   function containStrength(count: number): number {
     return CONTAIN_STRENGTH * Math.max(1, Math.sqrt(count / 22))
@@ -70,7 +70,7 @@
     return counts
   })
 
-  // Ghosts remember who summoned them (v13): a nearby genre only ever links
+  // Ghosts remember who summoned them: a nearby genre only ever links
   // to the library genre(s) whose neighbour lists brought it in.
   const ghostAnchorMap = $derived.by(() => {
     if (!showNeighbours) return new Map<string, Set<string>>()
@@ -147,9 +147,9 @@
 
   // --- force layout ------------------------------------------------------------
   // `positioned` holds per-tick SNAPSHOTS of the simulation nodes, never the
-  // live objects (v13 issue 1). The live objects must stay unproxied so
-  // fx/fy writes reach d3 (deep $state swallowed them — the v11 drag-pin
-  // silently did nothing), and the snapshots must be fresh objects so the
+  // live objects. The live objects must stay unproxied so
+  // fx/fy writes reach d3 — a deep $state proxy would swallow those writes,
+  // silently breaking the drag-pin — and the snapshots must be fresh objects so the
   // keyed each re-renders (identical identities skip row updates). Handlers
   // reach the live nodes through `simById`.
   let positioned = $state.raw<GenreNode[]>([])
@@ -173,7 +173,7 @@
         ghost: ghostLabels.has(id),
         // keep previous positions so toggles reheat instead of restart;
         // brand-new nodes spawn at the centre and organise outward under
-        // the physics (issue 3 — undefined coords would get d3's spiral
+        // the physics (undefined coords would get d3's spiral
         // near the origin, drifting in from the top left). The tiny
         // deterministic offset keeps coincident nodes separable without
         // relying on d3's random jiggle.
@@ -185,7 +185,7 @@
     simulation?.stop()
     simById = new Map(nodes.map((n) => [n.id, n]))
     simulation = forceSimulation(nodes)
-      // Reheats glide, cold starts stay hot (v13): when most nodes carry a
+      // Reheats glide, cold starts stay hot: when most nodes carry a
       // previous position this is a toggle, not a fresh layout — no need to
       // churn the whole field at full energy again.
       .alpha(carried > nodes.length / 2 ? 0.3 : 1)
@@ -207,9 +207,9 @@
       )
       // Weak positional gravity instead of forceCenter: forceCenter only
       // recentres the mean, so disconnected components drift apart under
-      // the charge with nothing pulling them back (ISSUES.md #12). The
+      // the charge with nothing pulling them back. The
       // pull must stay gentle or connected layouts visibly compress — but
-      // it must also GROW with the node count (v12): summed charge scales
+      // it must also GROW with the node count: summed charge scales
       // with n, so a genre-atlas-sized vocabulary would push the fringe out
       // of frame under a fixed 0.05.
       .force('x', forceX<GenreNode>(WIDTH / 2).strength(containStrength(nodes.length)))
@@ -243,7 +243,7 @@
     onZoom: (transform) => {
       zoomTransform = transform.toString()
     },
-    // Why a filter (v9 issue 5): d3-zoom binds a NATIVE mousedown listener on
+    // Why a filter: d3-zoom binds a NATIVE mousedown listener on
     // the <svg>, while Svelte 5 delegates the nodes' handlers to the app
     // root — their stopPropagation runs long after d3 already started a pan,
     // so node drags always lost. Rejecting drag-starts that originate on a
@@ -269,12 +269,11 @@
     viewZoom.zoomReset()
   }
 
-  // --- node dragging (v8 issue 11, reworked v13 issue 1): grab ONE node --------
+  // --- node dragging: grab ONE node --------
   // The grabbed node pins exactly under the pointer (fx/fy for the physics,
   // x/y written immediately so the render never waits for a tick); the rest
-  // of the graph reacts only through its own links. v11's whole-graph towing
-  // is gone — moving the view is the background drag's job (d3-zoom pan).
-  // Nothing is remembered on release.
+  // of the graph reacts only through its own links. Moving the view is the
+  // background drag's job (d3-zoom pan). Nothing is remembered on release.
   let layerEl: SVGGElement
   let draggingId = $state<string | null>(null)
 
@@ -384,7 +383,7 @@
   const restingKeys = $derived.by(() => {
     const keys = skeletonKeys(edges.filter((e) => !ghostLabels.has(e.a) && !ghostLabels.has(e.b)))
     // Ghost tethers rest visible — they are the point of "show nearby
-    // genres" (since v13 every ghost edge IS an anchor tether).
+    // genres" (every ghost edge is an anchor tether).
     for (const e of edges) {
       if (ghostLabels.has(e.a) || ghostLabels.has(e.b)) keys.add(pairKey(e.a, e.b))
     }
@@ -479,10 +478,10 @@
             if (e.key === 'Enter') nodeClick(node)
           }}
         >
-          <!-- Transparent hit-shape (v10 issue 8): the symbol path only
-               fills its own outline, so a press in a concavity fell through
-               to d3-zoom and panned the canvas. This circle is the node's
-               one grab handle (the label is a caption — v11 issue 9b). -->
+          <!-- Transparent hit-shape: the symbol path only fills its own
+               outline, so without it a press in a concavity would fall
+               through to d3-zoom and pan the canvas. This circle is the
+               node's one grab handle (the label is a caption, not a handle). -->
           <circle class="node-hit" r={nodeRadius(node) + 5} />
           <path
             d={shapePath(node.ghost ? null : classIndexOf(node.id), nodeRadius(node))}
@@ -512,7 +511,7 @@
   </div>
 
   <div class="legend">
-    <!-- Shape legend (v9 issue 4): the curated families behind the node
+    <!-- Shape legend: the curated families behind the node
          icons — only when the symbols actually distinguish something. -->
     {#if legendClasses.length > 1}
       <span class="legend-shapes">
@@ -629,8 +628,8 @@
   .genre-label {
     fill: var(--ink-secondary);
     font-size: 11px;
-    /* A caption, not a grab handle (v11 issue 9b): SVG text hit-tests only
-       the glyph strokes, so "grab the label" mostly missed and started a
+    /* A caption, not a grab handle: SVG text hit-tests only
+       the glyph strokes, so "grab the label" would mostly miss and start a
        pan instead — the node's hit-circle is the one honest handle. */
     pointer-events: none;
   }
@@ -692,8 +691,7 @@
 
   .legend-shapes {
     display: flex;
-    /* Single scrolling row rather than piling into stacks now the pane floors
-       (ISSUES.md #13). */
+    /* Single scrolling row rather than piling into stacks now the pane floors. */
     flex-wrap: nowrap;
     overflow-x: auto;
     max-width: 640px;

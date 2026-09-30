@@ -12,7 +12,7 @@ export interface PackExtras {
 
 const SEED = 0x11feed
 
-// --- v14 WS3: generic pools for the fields that have no per-pack story ---
+// --- Generic pools for the fields that have no per-pack story ---
 const COMPOSERS = [
   'A. Nightingale',
   'M. Voss',
@@ -109,11 +109,10 @@ function addDays(date: string, days: number): string {
 }
 
 /**
- * Deterministic sample-data enrichment (v9 issue 11, extended v14 WS3):
- * albums come from a curated per-pack map, everything else is hashed from the
- * track id — with deliberate gaps so the demo library stays realistic and
- * every filterable property has something to show. Same track in, same
- * track out, across every reload.
+ * Deterministic sample-data enrichment: albums come from a curated per-pack
+ * map, everything else is hashed from the track id — with deliberate gaps
+ * so the demo library stays realistic and every filterable property has
+ * something to show. Same track in, same track out, across every reload.
  */
 export function enrichTrack(track: Track, extras: PackExtras): Track {
   const u = (salt: string): number => hashUnit(`${track.id}#${salt}`, SEED)

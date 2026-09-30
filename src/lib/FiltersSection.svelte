@@ -34,26 +34,26 @@
 
   type RangeSide = 'min' | 'max'
 
-  // Alpha buckets A…Z then '#' (v14 WS2): options for the min/max selects.
+  // Alpha buckets A…Z then '#': options for the min/max selects.
   const ALPHA_OPTIONS = Array.from({ length: ALPHA_CATCH_ALL + 1 }, (_, i) => ({
     value: i,
     label: alphaBucketLabel(i),
   }))
 
   // The rows on show: the user's visibleFilters selection (advanced "Track
-  // properties" table), resolved through the registry (v11 issue 1). Since
-  // v18 (#3/#8) visibleFilters can also carry the starred/combos/keys panel
-  // pseudo-keys, filtered out here — those three render as their own gated
-  // group below the property {#each} (panelRows, from the PANEL_FILTERS
-  // registry, in registry order — v23), bound to filters.marks/keyRings
-  // directly rather than a per-property range.
+  // properties" table), resolved through the registry. visibleFilters can
+  // also carry the starred/combos/keys panel pseudo-keys, filtered out here
+  // — those three render as their own gated group below the property
+  // {#each} (panelRows, from the PANEL_FILTERS registry, in registry
+  // order), bound to filters.marks/keyRings directly rather than a
+  // per-property range.
   const rows = $derived(
     $settings.visibleFilters
       .filter((key): key is TrackSortField => !isPanelFilterKey(key))
       .map((key) => PROPERTY_BY_KEY.get(key))
       .filter((p): p is TrackProperty => p !== undefined && p.filterable),
   )
-  // The analysis-derived rows (v35) sit in their own collapsed group, so the
+  // The analysis-derived rows sit in their own collapsed group, so the
   // caveat they share — one offline run, no validation against the ear — is
   // stated once on the group rather than four times.
   const plainRows = $derived(rows.filter((p) => p.analysisOnly !== true))
@@ -242,10 +242,10 @@
       if (reflect) inputs[prop.key] = { min: String(range[0]), max: String(range[1]) }
       writeProperty(prop.key, range)
     } else if (prop.kind === 'date') {
-      // Clamped like every other range (v40, Codex bug 6): an inverted pair
-      // used to be stored raw, and it hides every track — dated ones match
-      // nothing, undated ones are excluded by the date rule itself. ISO
-      // YYYY-MM-DD compares lexically, which is clampRange's string mode.
+      // Clamped like every other range: an inverted pair, stored raw, would
+      // hide every track — dated ones match nothing, undated ones are
+      // excluded by the date rule itself. ISO YYYY-MM-DD compares lexically,
+      // which is clampRange's string mode.
       const range = clampRange(
         [min === '' ? DATE_OPEN_MIN : min, max === '' ? DATE_OPEN_MAX : max],
         edited,
@@ -261,7 +261,7 @@
     // alpha/contains/colour/quality use their own handlers, never setBox/commit.
   }
 
-  // --- alpha (v14 WS2): two bucket selects; the full A…# span writes null. ---
+  // --- alpha: two bucket selects; the full A…# span writes null. ---
   function setAlpha(prop: TrackProperty, side: RangeSide, value: string): void {
     const next = { ...boxes(prop.key), [side]: value }
     const [min, max] = clampRange([Number(next.min), Number(next.max)], side)
@@ -269,14 +269,14 @@
     writeProperty(prop.key, min === 0 && max === ALPHA_CATCH_ALL ? null : [min, max])
   }
 
-  // --- contains (v14 WS2): one text box; blank writes null. ---
+  // --- contains: one text box; blank writes null. ---
   function setContains(prop: TrackProperty, value: string): void {
     inputs[prop.key] = { min: value, max: '' }
     const text = value.trim()
     writeProperty(prop.key, text === '' ? null : { contains: text })
   }
 
-  // --- colour (v14 WS2): chip toggles; empty selection writes null. ---
+  // --- colour: chip toggles; empty selection writes null. ---
   const scopedColours = $derived([
     ...new Set($playlistScopedLibrary.map((t) => t.colour).filter((c): c is string => c !== null)),
   ])
@@ -295,7 +295,7 @@
     return colour.startsWith('0x') ? `#${colour.slice(2)}` : colour
   }
 
-  // --- quality (F5): independent lossy/lossless toggles. Both-on writes null
+  // --- quality: independent lossy/lossless toggles. Both-on writes null
   // (no filter); otherwise the allow-list — which may be empty (both-off →
   // only unknown-format tracks show, per the missing-passes rule). ---
   const QUALITY_TOGGLES: QualityChoice[] = ['lossy', 'lossless']
@@ -329,8 +329,8 @@
     }
   }
 
-  // The minor/major ring toggles (F5): semantically always a filter (v8 issue
-  // 10) — two independent on/off buttons. Both-off shows only keyless tracks.
+  // The minor/major ring toggles: semantically always a filter — two
+  // independent on/off buttons. Both-off shows only keyless tracks.
   const RING_TOGGLES = [
     { key: 'minor', label: 'minor' },
     { key: 'major', label: 'major' },
@@ -343,7 +343,7 @@
 <details>
   <summary class="micro-label">
     Filters
-    <!-- Visible over the SELECTED PLAYLISTS' total (issue 8): the filter's
+    <!-- Visible over the SELECTED PLAYLISTS' total: the filter's
          effect is judged against what the playlists put on the table. -->
     <span class="summary-count"
       >{$visibleLibrary.length} of {$playlistScopedLibrary.length} tracks</span
@@ -355,7 +355,7 @@
       {#if prop.analysisOnly === true && isDescriptorKey(prop.key)}
         {@const key = prop.key}
         <!-- The whole label — icon and letter together — is the tooltip
-             trigger (v35.1). A separate ⓘ would have to come out of the same
+             trigger. A separate ⓘ would have to come out of the same
              52px the label column gives every row, and a dotted underline
              under a one-character label reads as a stray mark. -->
         <span class="filter-label descriptor">
@@ -489,11 +489,11 @@
   {/each}
 
   {#if $hasAnalysis && analysisRows.length > 0}
-    <!-- Not a <details> any more (v35.1): a second collapsible nested inside
-         the Filters one looked like a peer of Playlists/Genres/Combo criteria
-         and hid rows the user had just deliberately switched on. A hairline
-         and a caption say "these four are different" without hiding them —
-         the same break Starred/Constellation get below. -->
+    <!-- Not a <details>: a second collapsible nested inside
+         the Filters one would look like a peer of Playlists/Genres/Combo
+         criteria and hide rows the user had just deliberately switched on. A
+         hairline and a caption say "these four are different" without
+         hiding them — the same break Starred/Constellation get below. -->
     {#if plainRows.length > 0}
       <div class="group-divider"></div>
     {/if}
@@ -511,11 +511,11 @@
   {/if}
 
   {#if panelRows.length > 0 && rows.length > 0}
-    <!-- A divider of its own, not a border on the first row below it (v27):
-         a border sits inside that row's box, so the row was 1px taller than
-         its three siblings and the space under the line could only be bought
-         with padding, which made it taller still. Standalone, its equal
-         margins put the same 12px above and below the line. -->
+    <!-- A divider of its own, not a border on the first row below it: a
+         border sits inside that row's box, making the row 1px taller than
+         its three siblings — the space under the line could only be bought
+         with padding, which would make it taller still. Standalone, its
+         equal margins put the same 12px above and below the line. -->
     <div class="group-divider"></div>
   {/if}
   {#each panelRows as m (m.key)}
@@ -526,8 +526,8 @@
       {#if m.flag !== undefined}
         {@const flag = m.flag}
         <!-- Two-button segmented switch, exactly like the Keys row below —
-             not a single morphing button (v18 #3/#8 review fix, B3): a
-             single button showing "all" while pressed=false announces
+             not a single morphing button: a single button showing "all"
+             while pressed=false announces
              nothing useful, and its width jumps between the two labels. No
              ↺ reset either: clicking "all" IS the reset. -->
         <div class="ring-switch" role="group" aria-label="{m.aria} filter">
@@ -596,9 +596,9 @@
     padding: 2px 6px;
   }
 
-  /* F1/#10: number boxes are wide enough for a 4-digit year plus the hover
+  /* Number boxes are wide enough for a 4-digit year plus the hover
      spinner (macOS Chrome + Safari) without clipping. grow:0 stops them
-     ballooning to fill the row (which read as too wide); the reset button
+     ballooning to fill the row (which reads as too wide); the reset button
      right-aligns so it still hugs the row's edge. Shared by every numeric
      filter row (BPM, Rating, Energy, Year, …), not Year-specific, so all
      number boxes stay a uniform width. */
@@ -650,7 +650,7 @@
     color: var(--ink);
   }
 
-  /* v14.1 WS7: still selected (hence .on too) but no longer in the scoped
+  /* Still selected (hence .on too) but no longer in the scoped
      playlists — dimmed + dashed so it reads as removable, not just active. */
   .colour-chip.out-of-scope {
     border-style: dashed;
@@ -705,13 +705,13 @@
     color: var(--ink);
   }
 
-  /* v23: the pseudo rows are wider-labelled than BPM/Year/Rating and carry no
+  /* The pseudo rows are wider-labelled than BPM/Year/Rating and carry no
      ↺, so they opt out of the 52px label column rather than widening it for
      everyone — at 250px the panel has ~12px of slack and the number boxes are
      already at their 52px min-width. The switch takes .range-reset's
      margin-left:auto instead, so all three right-align on the row's edge. */
   /* flex, not the inline flow the property rows use: the icon and the word
-     are then two flex items with one exact `gap` between them (v27), instead
+     are then two flex items with one exact `gap` between them, instead
      of an inline box whose trailing space is whatever the glyph's advance
      width happened to leave over. align-items centres the icon against the
      text without any vertical-align/line-height tuning. */
@@ -749,7 +749,7 @@
     margin-left: auto;
   }
 
-  /* v35.1: the descriptor labels keep the SAME 52px column as every other
+  /* The descriptor labels keep the SAME 52px column as every other
      row — that shared left edge for the number boxes and the ↺ is the whole
      point of shortening "Danceability" to "D". Icon (14) + gap (5) + letter
      (~9) = 28px, so the column is no longer the binding constraint it was
@@ -768,10 +768,10 @@
      below. --baseline is the intra-section divider token, shared by every
      sub-divider inside the left panel's dropdowns (a bit darker than
      --grid, which divides the dropdowns themselves); suppressed when
-     nothing is above it. Equal margins (v27): with the rows' own 4px
-     padding that reads as 12px of air on each side of the line — the same
-     12px the Genres divider below the group already has above it, so the
-     group sits symmetrically between the two. */
+     nothing is above it. Equal margins: with the rows' own 4px padding that
+     reads as 12px of air on each side of the line — the same 12px the
+     Genres divider below the group already has above it, so the group sits
+     symmetrically between the two. */
   .group-divider {
     border-top: 1px solid var(--baseline);
     margin: 8px 0;

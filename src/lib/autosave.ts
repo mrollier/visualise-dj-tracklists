@@ -30,9 +30,9 @@ import { applyProject, currentProject, isSampleLibrary } from './persistence'
  *
  * Nothing is saved while the guided tour runs (it swaps the demo in and would
  * otherwise overwrite the real library), nor from a tab that does not hold
- * the autosave lock: two open tabs used to overwrite each other silently.
- * A save this build cannot read is quarantined, never deleted — a rolled-back
- * bundle meeting a newer schema must not destroy the only copy.
+ * the autosave lock — without it, two open tabs would overwrite each other
+ * silently. A save this build cannot read is quarantined, never deleted — a
+ * rolled-back bundle meeting a newer schema must not destroy the only copy.
  */
 const store = openStore('visualise-dj-tracklists:project', 'autosave')
 const LEGACY_KEY = 'visualise-dj-tracklists:project:v1'

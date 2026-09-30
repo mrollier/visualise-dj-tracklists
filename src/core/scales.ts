@@ -31,12 +31,12 @@ export const MISSING_COLORS: Record<ThemeName, string> = {
 }
 
 /**
- * App-wide accent family per colour scheme (issue 13): the scheme no longer
- * recolours only the nodes — theme.ts stamps these tokens on <html> so the
- * whole chrome (active buttons, focus rings, set path, genre-map nodes)
- * follows. The BLUE column must equal the defaults in src/app.css (the unit
- * test enforces this sync contract); surfaces stay neutral in every scheme.
- * All accent/on-accent pairs are WCAG-AA checked in tests/scales.test.ts.
+ * App-wide accent family per colour scheme: the scheme recolours more than
+ * the nodes — theme.ts stamps these tokens on <html> so the whole chrome
+ * (active buttons, focus rings, set path, genre-map nodes) follows. The
+ * BLUE column must equal the defaults in src/app.css (the unit test
+ * enforces this sync contract); surfaces stay neutral in every scheme. All
+ * accent/on-accent pairs are WCAG-AA checked in tests/scales.test.ts.
  */
 export const ACCENT_TOKENS: Record<ThemeName, Record<ColorScheme, Record<string, string>>> = {
   dark: {
@@ -84,8 +84,8 @@ export const ACCENT_TOKENS: Record<ThemeName, Record<ColorScheme, Record<string,
 /**
  * Domain of the wheel's radial scale: the active filter range for the radial
  * metric when the user set one, else the current selection's extent (the
- * radial axis rescales with the filter — design-v6 §A; everything else on
- * the wheel stays put). Degenerate domains widen by ±1 so ticks behave.
+ * radial axis rescales with the filter; everything else on the wheel stays
+ * put). Degenerate domains widen by ±1 so ticks behave.
  */
 export function radialDomain(
   filterRange: [number, number] | null,
@@ -97,10 +97,10 @@ export function radialDomain(
 
 /**
  * Opacity of the selection's own star edges, derived from the user's base
- * edge opacity so the setting keeps working in focus mode (issue 15). The
- * factor is calibrated so the default base (0.35) gives the pre-v7 in-focus
- * contrast (0.6); cluster edges draw at the plain base. Since v9 (issue 8)
- * edges outside focus aren't dimmed — they simply aren't drawn.
+ * edge opacity so the setting keeps working in focus mode. The factor is
+ * calibrated so the default base (0.35) gives an in-focus contrast of 0.6;
+ * cluster edges draw at the plain base. Edges outside focus aren't dimmed —
+ * they simply aren't drawn.
  */
 export function focusEdgeOpacity(base: number): number {
   return Math.min(0.95, base * 1.7)

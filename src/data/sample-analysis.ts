@@ -3,7 +3,7 @@ import type { Track } from '../core/model'
 import { hashUnit } from '../core/random'
 
 /**
- * A generated analysis sidecar for the sample collection (v35.1), so the four
+ * A generated analysis sidecar for the sample collection, so the four
  * descriptor filters and columns have something to act on before anyone owns a
  * real sidecar.
  *
@@ -25,7 +25,7 @@ const SEED = 0x5eed35
  * Genre → the mean percentage the real models return, as
  * `[genre, arousal, valence, danceability, happiness]`.
  *
- * MEASURED, not estimated: every unmarked row is the mean over the v34 run of
+ * MEASURED, not estimated: every unmarked row is the mean over a real run of
  * the real 2040-track collection (`essentia-tensorflow 2.1b6.dev1438`, the same
  * four models), joined to that collection's own Rekordbox genre tags, using
  * only genres with at least 8 tracks. Published literature on these dimensions

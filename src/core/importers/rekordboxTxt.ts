@@ -6,7 +6,7 @@ import { buildReport, EMPTY_TRACK_FIELDS, type ImportResult, type Track } from '
  * columns the playlist view shows, encoded UTF-16 LE with a BOM. Rows carry
  * full metadata (artist, title, genre, BPM, star rating as asterisks, time
  * as M:SS, Camelot key), in playlist order — so an import yields both a
- * library and a ready-made set (design-v5 §D).
+ * library and a ready-made set.
  */
 
 /**

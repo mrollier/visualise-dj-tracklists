@@ -69,7 +69,7 @@ function emit(slot: 0 | 1, kind: DeckEventKind) {
  */
 export function ensureContext(): void {
   if (context === null) {
-    // `latencyHint: 'playback'` asks for a LARGE render buffer (v29 #5). The
+    // `latencyHint: 'playback'` asks for a LARGE render buffer. The
     // default 'interactive' asks for the smallest one the device will give,
     // which is right for an instrument and wrong here: nothing in this app
     // responds to input in real time, and the main thread is busy painting a
@@ -126,10 +126,10 @@ export function onDeckEvent(listener: Listener): () => void {
  * Move one slot's gain to `value` over `ms`, from wherever the parameter
  * actually is right now.
  *
- * cancel + setValueAtTime + linearRamp, NOT a bare `setTargetAtTime` (v29 #5):
- * an exponential approach never arrives, and every fader `oninput` used to
- * stack another one on top of the last, so the level chased a moving target it
- * never reached.
+ * cancel + setValueAtTime + linearRamp, NOT a bare `setTargetAtTime`: an
+ * exponential approach never arrives, and every fader `oninput` would stack
+ * another one on top of the last, so the level would chase a moving target
+ * it never reaches.
  */
 function rampTo(slot: 0 | 1, value: number, ms: number): void {
   if (context === null || gains === null) return
@@ -145,7 +145,7 @@ function rampTo(slot: 0 | 1, value: number, ms: number): void {
  *
  * Pausing, seeking and swapping `src` all stop the waveform dead at whatever
  * sample it was on. That step discontinuity is the click Michiel hears on
- * play / pause / track change (v29 #5); a few milliseconds of fade on either
+ * play / pause / track change; a few milliseconds of fade on either
  * side removes it entirely.
  *
  * A PAUSED element cannot click, so it is acted on synchronously — which also
@@ -182,10 +182,10 @@ export function loadDeck(deck: DeckId, file: File): Promise<void> {
     element.preload = 'auto'
     const next = URL.createObjectURL(file)
     const previous = urls[slot]
-    // Assigning `src` already runs the resource-selection algorithm; the
-    // explicit `load()` that used to follow ran it a SECOND time, tearing the
-    // media pipeline down and rebuilding it under whatever the other deck was
-    // playing (v29 #5).
+    // Assigning `src` already runs the resource-selection algorithm; an
+    // explicit `load()` after it would run it a SECOND time, tearing the
+    // media pipeline down and rebuilding it under whatever the other deck is
+    // playing.
     element.src = next
     urls[slot] = next
     // Revoke only after the new src has landed, so the element is never pointed
@@ -279,10 +279,10 @@ function commandGain(slot: 0 | 1, value: number): void {
  *
  * `listeners` deliberately survives: the set belongs to the STORE's lifetime,
  * not the graph's — playerStore registers its deck-event listener exactly once
- * at app start, so clearing it here left the rebuilt graph emitting
- * loadedmetadata/timeupdate to nobody after the feature was toggled back on.
- * The symptom (v28.2): duration missing and the seek line dead, while
- * play/pause still worked because togglePlay writes the playing store itself.
+ * at app start, so clearing it here would leave the rebuilt graph emitting
+ * loadedmetadata/timeupdate to nobody after the feature is toggled back on:
+ * duration missing and the seek line dead, while play/pause still works
+ * because togglePlay writes the playing store itself.
  *
  * The clears are the synchronous ones: a deferred de-click fade would land
  * after the context is closed and the nodes are gone.

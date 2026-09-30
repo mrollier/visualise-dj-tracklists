@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Generic in-app confirmation, styled like ResetDialog (issue 6): the
+  // Generic in-app confirmation, styled like ResetDialog: the
   // caller passes the pending action to open() and it runs on confirm.
   interface Props {
     title: string

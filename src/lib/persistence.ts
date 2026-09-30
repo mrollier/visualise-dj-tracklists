@@ -106,7 +106,7 @@ export function replaceLibrary(replacement: {
   playlists?: Playlist[]
   /**
    * Playlists to start toggled ON (a single-playlist TXT import shows its
-   * wheel immediately — design-v6 §E). Default: none selected.
+   * wheel immediately). Default: none selected.
    */
   selectedPlaylists?: string[]
   report?: ImportReport | null
@@ -122,22 +122,22 @@ export function replaceLibrary(replacement: {
   // Clear the library FIRST and set the new tracks LAST: every store write in
   // between propagates synchronously through the derived graph, and any pass
   // where a non-empty library meets not-yet-final filters runs the O(n²)
-  // combo compute for nothing (the pre-v37 order did exactly that — the
-  // 10-20s import freeze was mostly this waste, computed twice). Against an
-  // empty library every intermediate recompute is trivial, and the single
-  // final set() computes once, under the final filters.
+  // combo compute for nothing — writing the tracks before the filters settle
+  // costs a 10-20s import freeze, computed twice. Against an empty library
+  // every intermediate recompute is trivial, and the single final set()
+  // computes once, under the final filters.
   library.set([])
   libraryName.set(name)
-  // A fresh library's ids share nothing with the old marks (v12 WS9).
+  // A fresh library's ids share nothing with the old marks.
   manualEdges.set([])
-  // A fresh library starts over with a single First Set (issue 18).
+  // A fresh library starts over with a single First Set.
   const first = freshFirstSet(set)
   sets.set([first])
   activeSetId.set(first.id)
   playlists.set(imported)
   // A collection carrying playlists starts with only `selectedPlaylists`
-  // toggled on — by default none, i.e. an empty wheel until the user picks
-  // (design-v5 §D); without playlists the filter is inactive.
+  // toggled on — by default none, i.e. an empty wheel until the user picks;
+  // without playlists the filter is inactive.
   filters.set({
     ...structuredClone(EMPTY_FILTERS),
     playlists: imported.length > 0 ? selectedPlaylists : null,
@@ -263,14 +263,14 @@ export function updateLibrary(
 
 /**
  * Load the sample collection: every pack as a playlist in one library, which
- * then behaves exactly like an imported collection XML (design-v6 §D) —
- * except the demo starts with the Classic pack already toggled on (v14 WS3
- * D2), so the wheel isn't empty the moment someone loads the sample. A user's
- * own import still starts at an empty wheel (unchanged, recorded decision).
+ * then behaves exactly like an imported collection XML — except the demo
+ * starts with the Classic pack already toggled on, so the wheel isn't empty
+ * the moment someone loads the sample. A user's own import still starts at
+ * an empty wheel (a deliberate decision).
  */
 export function loadSampleCollection(): void {
   // The sample raises a report like any import, so the status ⓘ next to
-  // "Sample collection" shows its counts (v11 issue 4).
+  // "Sample collection" shows its counts.
   const report = buildReport(SAMPLE_COLLECTION.tracks, [])
   report.notes = [`${SAMPLE_COLLECTION.playlists.length} themed playlists`]
   replaceLibrary({
@@ -293,7 +293,7 @@ export function isSampleLibrary(tracks: Track[]): boolean {
 /**
  * Whether replacing the library would destroy user work (samples and an
  * empty library are disposable). The caller shows the in-app ConfirmDialog
- * when this is true (issue 6: no more native confirm()).
+ * when this is true, never a native confirm().
  */
 export function replaceNeedsConfirmation(): boolean {
   const current = get(library)

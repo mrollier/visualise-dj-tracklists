@@ -2,7 +2,7 @@ import type { Action } from 'svelte/action'
 import { prefersReducedMotion } from './motion'
 
 /**
- * Cycle text that does not fit (v28.2): when the element's content overflows
+ * Cycle text that does not fit: when the element's content overflows
  * its box, glide slowly to the far end, hold, and glide back, forever — stare
  * at the deck label for a moment and the whole title passes by.
  *

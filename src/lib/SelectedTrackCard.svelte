@@ -1,9 +1,8 @@
 <script lang="ts">
-  // The selected track's card: details + the suggestion marks (design-v6
-  // §C). Since v9 (issue 19) it docks under the right panel — the bottom
-  // right of the whole app. Since v11 (issue 15) the three marks are one
-  // compact icon row (★ ⏮ ⏭) with an ⓘ explaining them, reclaiming the
-  // vertical space the labelled buttons ate.
+  // The selected track's card: details + the suggestion marks. It docks
+  // under the right panel — the bottom right of the whole app. The three
+  // marks are one compact icon row (★ ⏮ ⏭) with an ⓘ explaining them, which
+  // keeps the vertical space labelled buttons would eat.
   import {
     linkArmed,
     manualEdges,
@@ -19,7 +18,7 @@
   import type { Writable } from 'svelte/store'
   import InfoTooltip from './InfoTooltip.svelte'
 
-  // Reads the AUGMENTED map (v33): this is a display surface, so a value the
+  // Reads the AUGMENTED map: this is a display surface, so a value the
   // analysis sidecar filled should appear here — marked as analysed. The raw
   // `trackById` stays behind the exports, which must carry Rekordbox truth.
   const selectedTrack = $derived(
@@ -31,8 +30,8 @@
     $selectedId === null ? undefined : $analysedFieldsById.get($selectedId),
   )
 
-  // Manual combos (v12 WS9): 🔗 arms link mode — the next wheel click marks
-  // (or unmarks) the pair; the selection stays put so several partners can be
+  // Manual combos: 🔗 arms link mode — the next wheel click marks (or
+  // unmarks) the pair; the selection stays put so several partners can be
   // marked in a row. Changing the selection or Escape disarms.
   const linkedCount = $derived(
     $selectedId === null
@@ -83,7 +82,7 @@
       <dt>Genre</dt>
       <dd>{selectedTrack.genre ?? 'missing'}</dd>
     </dl>
-    <!-- Easy mode hides the suggestion marks entirely (v14 WS6): easy runs on
+    <!-- Easy mode hides the suggestion marks entirely: easy runs on
          defaults, so ★/pins/🔗 are both out of sight and inert. -->
     {#if $settings.uiMode !== 'easy'}
       <div class="marks">
@@ -158,7 +157,7 @@
     border-top: 1px solid var(--border);
     padding: 8px 14px 10px;
     font-size: 12px;
-    /* v14 R1: never let the card's contents widen the fixed right rail. */
+    /* Never let the card's contents widen the fixed right rail. */
     min-width: 0;
   }
 
@@ -189,7 +188,7 @@
     color: var(--ink-secondary);
   }
 
-  /* Analysed rather than measured by Rekordbox (v33) — same marker the Tracks
+  /* Analysed rather than measured by Rekordbox — same marker the Tracks
      table uses, so the two surfaces read as one convention. */
   .selected-card dd.analysed {
     text-decoration: underline dotted;
@@ -219,8 +218,7 @@
     margin: 6px 0 0;
     color: var(--accent);
     font-size: 11.5px;
-    /* v14 R1: the longer two-line copy wraps within the rail, never stretches
-       it. */
+    /* The longer two-line copy wraps within the rail, never stretches it. */
     overflow-wrap: break-word;
   }
 </style>

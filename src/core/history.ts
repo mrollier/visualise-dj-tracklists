@@ -1,6 +1,6 @@
 /**
- * Undo/redo for set edits, the selection, and — since v12 (WS14, ISSUES.md
- * stub) — the behavioural settings and criteria. Pure and immutable: the
+ * Undo/redo for set edits, the selection, and the behavioural settings and
+ * criteria. Pure and immutable: the
  * store wiring in src/lib/undoStore.ts snapshots the active set's tracks
  * (with its generated flag, so undoing a generator overwrite restores both),
  * the selected track, and a serialised `tuning` string (settings sans the
@@ -15,9 +15,9 @@ export interface UndoSnapshot {
   selectedId: string | null
   /** JSON of the behavioural settings + criteria; see undoStore.tuningOf. */
   tuning: string
-  /** JSON of the manual edges (v12 WS9) — a mark toggle is a work edit. */
+  /** JSON of the manual edges — a mark toggle is a work edit. */
   marks: string
-  /** JSON of the ★ / ⏮ / ⏭ marks (v17) — a star is a work edit, not tuning. */
+  /** JSON of the ★ / ⏮ / ⏭ marks — a star is a work edit, not tuning. */
   pins: string
 }
 

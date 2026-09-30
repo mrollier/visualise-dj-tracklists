@@ -31,7 +31,7 @@ const ORDINALS = [
 ]
 
 /** "First", "Second", …, "13". Kept short: the set dropdown is 190px wide and
- * ellipsis-cut anything longer (v17 #7). */
+ * ellipsis-cut anything longer. */
 export function ordinalSetName(index: number): string {
   return index < ORDINALS.length ? ORDINALS[index] : String(index + 1)
 }
@@ -40,7 +40,7 @@ const LEGACY_ORDINAL_NAME = new RegExp(`^(${ORDINALS.join('|')}) Constellation$`
 const LEGACY_NUMBERED_NAME = /^Constellation (\d+)$/
 
 /**
- * Pre-v17 saves stored the default names with the noun attached ("First
+ * Old saves stored the default names with the noun attached ("First
  * Constellation"). Strip it on load so existing work sheds the ellipsis too.
  * Only EXACT old defaults match — a name the user chose is never touched.
  */
@@ -51,7 +51,7 @@ export function shortenLegacySetName(name: string): string {
 /**
  * The default name for a NEW set: count the existing sets — renamed ones
  * included — so two custom-named sets are followed by "Third Set", not
- * "First Set" again (v9 issue 18), scanning past any taken ordinals.
+ * "First Set" again, scanning past any taken ordinals.
  */
 export function nextSetName(existing: readonly string[]): string {
   const taken = new Set(existing)
@@ -62,7 +62,7 @@ export function nextSetName(existing: readonly string[]): string {
 }
 
 /**
- * Force a unique set name, file-manager style (v9 issue 18): a clash gains
+ * Force a unique set name, file-manager style: a clash gains
  * " (2)", " (3)", … — applied on rename, on create, and when loading saves
  * that already carry duplicates.
  */
@@ -76,8 +76,8 @@ export function uniqueSetName(name: string, taken: readonly string[]): string {
 }
 
 /**
- * At most this many sets: the sets ARE the suggestion browser (v8 issue 18)
- * — a short, browsable shelf, not an archive.
+ * At most this many sets: the sets ARE the suggestion browser — a short,
+ * browsable shelf, not an archive.
  */
 export const MAX_SETS = 8
 
@@ -90,8 +90,8 @@ export function newSetId(): string {
 }
 
 /**
- * Drop EVERY slot holding the given track (v9 issue 14): the Tracks-view
- * position cell removes a track from the active set wholesale, later
+ * Drop EVERY slot holding the given track: the Tracks-view position cell
+ * removes a track from the active set wholesale, later
  * occurrences included, and the remaining order renumbers itself.
  */
 export function removeAllOccurrences(ids: readonly string[], id: string): string[] {

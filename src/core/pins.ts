@@ -1,15 +1,15 @@
 /**
- * The four states of a track's single star control in the Tracks view (v10
- * issue 13): unmarked, must-include, forced-first, forced-last. One click
- * cycles to the next; only one track can be first and one last, so the cycle
- * skips a pin stage already held by another track.
+ * The four states of a track's single star control in the Tracks view:
+ * unmarked, must-include, forced-first, forced-last. One click cycles to the
+ * next; only one track can be first and one last, so the cycle skips a pin
+ * stage already held by another track.
  */
 export type StarState = 'none' | 'must' | 'first' | 'last'
 
 /**
- * The one pair of glyphs for "opens the set" / "closes the set" (v31 #5).
- * Shared by the Tracks-view star, the selected-track card's mark toggles and
- * the set list's pin, which used to draw a 📌 pushpin for the same idea.
+ * The one pair of glyphs for "opens the set" / "closes the set". Shared by
+ * the Tracks-view star, the selected-track card's mark toggles and the set
+ * list's pin.
  */
 export const PIN_FIRST_GLYPH = '⏮'
 export const PIN_LAST_GLYPH = '⏭'

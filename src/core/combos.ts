@@ -6,8 +6,8 @@ import { mulberry32 } from './random'
 /**
  * The combo engine: decides which pairs of tracks get a suggested-combo edge.
  *
- * V1 uses threshold ("N of M") mode, matching the concept paper's Figure 1:
- * an edge exists when at least `threshold` of the enabled criteria match.
+ * Uses threshold ("N of M") mode, matching the concept paper's Figure 1: an
+ * edge exists when at least `threshold` of the enabled criteria match.
  * Missing data shrinks the denominator: a criterion that cannot be evaluated
  * for a pair (a value missing on either side) neither passes nor fails —
  * the effective threshold for the pair is min(threshold, #evaluable).
@@ -47,7 +47,7 @@ export interface CriteriaConfig {
   /**
    * Minimum number of matching criteria for an edge (clamped to #evaluable).
    * A `demanded` (locked) criterion is mandatory regardless of this bar and
-   * floors it: threshold ≥ demandedCount (v14 C2).
+   * floors it: threshold ≥ demandedCount.
    */
   threshold: number
 }
@@ -74,7 +74,7 @@ export const DEFAULT_CRITERIA: CriteriaConfig = {
 }
 
 /**
- * Easy mode's fixed criteria (v15): key + BPM only, both required — genre
+ * Easy mode's fixed criteria: key + BPM only, both required — genre
  * and year matching are too loose for a hands-off default. Not editable in
  * easy mode (the Combo criteria section is hidden there); switching to
  * advanced control is the only way to change it. Missing data still shrinks
@@ -209,7 +209,7 @@ const PREDICATES: Record<CriterionField, Predicate> = {
   key: (a, b, criteria) => {
     const opts = { plusTwo: criteria.key.plusTwo, plusSeven: criteria.key.plusSeven }
     // Vinyl mode: beatmatching by pitch shifts the key along with the tempo,
-    // so keys are compared *after* that shift (design-v5 §B). The plain
+    // so keys are compared *after* that shift. The plain
     // comparison only applies without vinyl mode or when a tempo is unknown.
     if (!criteria.key.vinylMode || a.bpm === null || b.bpm === null) {
       return keysMatch(a.key!, b.key!, opts)
@@ -231,7 +231,7 @@ const PREDICATES: Record<CriterionField, Predicate> = {
 export const CRITERION_FIELDS = Object.keys(PREDICATES) as CriterionField[]
 
 /**
- * How many criteria are locked as mandatory (v14 C2): enabled AND demanded.
+ * How many criteria are locked as mandatory: enabled AND demanded.
  * A demanded criterion must match on both sides for any edge, and floors the
  * N-of-M threshold (threshold ≥ demandedCount).
  */
@@ -243,7 +243,7 @@ export function demandedCount(criteria: CriteriaConfig): number {
  * The key criterion under relaxed opts — the +2 and +7 wheel moves allowed
  * regardless of the user's toggles (vinyl mode still respected). The forced
  * picker uses this as a gentle preference when no harmonious transition is
- * left (v8 issue 16).
+ * left.
  */
 export function keysNearlyMatch(a: Track, b: Track, criteria: CriteriaConfig): boolean {
   if (a.key === null || b.key === null) return false
@@ -256,9 +256,8 @@ export function keysNearlyMatch(a: Track, b: Track, criteria: CriteriaConfig): b
 
 /**
  * Evaluate one pair. `genreMatch` should be the matcher built over the whole
- * pairing universe (computeEdges and the suggesters do this); without it, a
- * pair-local matcher is built — identical semantics for 'threshold' mode,
- * and a two-genre universe for 'topk'.
+ * pairing universe (the combo graph and the suggesters pass one); without it,
+ * a pair-local matcher ranks just the two genres against each other.
  */
 export function evaluateCombo(
   a: Track,
@@ -269,7 +268,7 @@ export function evaluateCombo(
   const evaluable: CriterionField[] = []
   const matched: CriterionField[] = []
   // A demanded (locked) criterion is mandatory: missing on either side, or a
-  // failing predicate, vetoes the edge (v14 C2). We record the veto in a flag
+  // failing predicate, vetoes the edge. We record the veto in a flag
   // rather than returning early, so `matched` stays fully populated — the
   // forced picker scores pairs off it even when they never form an edge.
   let demandedFailed = false
@@ -444,10 +443,10 @@ const PAIR_SAMPLE_SEED = 0x5eed
 
 /**
  * Flip one criterion on/off, keeping the N-of-M threshold honest. Enabling a
- * criterion ALWAYS requires it (v14 C1): threshold rises by one, capped at the
+ * criterion ALWAYS requires it: threshold rises by one, capped at the
  * enabled count — including up from a previous deliberate zero. Disabling
  * clamps to the remaining count. A demanded (locked) criterion floors the
- * threshold at all times (v14 C2): threshold ≥ demandedCount.
+ * threshold at all times: threshold ≥ demandedCount.
  */
 export function toggleCriterion(
   criteria: CriteriaConfig,
@@ -463,16 +462,16 @@ export function toggleCriterion(
   const next: CriteriaConfig = { ...criteria, [field]: { ...criteria[field], enabled, demanded } }
   const after = enabledCount(next)
   let threshold = criteria.threshold
-  // v14 C1: enabling ALWAYS requires the newly-enabled criterion — including up
-  // from a previous deliberate 0 (design change per ISSUES.md C1).
+  // Enabling ALWAYS requires the newly-enabled criterion — including up from
+  // a previous deliberate 0.
   if (enabled && !criteria[field].enabled) threshold = Math.min(threshold + 1, after)
   if (after > 0 && threshold > after) threshold = after
-  threshold = Math.max(threshold, demandedCount(next)) // v14 C2 floor
+  threshold = Math.max(threshold, demandedCount(next)) // the demanded-count floor
   return { ...next, threshold }
 }
 
 /**
- * Lock or unlock a criterion as mandatory (v14 C2). A locked criterion floors
+ * Lock or unlock a criterion as mandatory. A locked criterion floors
  * the threshold at the demanded count; unlocking leaves the threshold where it
  * is (the desired bar is unaffected by removing a floor).
  */

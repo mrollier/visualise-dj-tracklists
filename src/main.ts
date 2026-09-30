@@ -12,7 +12,7 @@ void restoreAutosave().finally(() => {
   mount(App, { target })
 })
 
-// PWA (v12 WS11): production builds register the offline-shell worker; dev
+// PWA: production builds register the offline-shell worker; dev
 // stays worker-free so Vite's module graph is never cached in the way.
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {

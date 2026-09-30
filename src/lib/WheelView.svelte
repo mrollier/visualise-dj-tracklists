@@ -128,7 +128,7 @@
 
   // The radial axis is the one part of the frame that rescales: its domain
   // follows the active filter for the radial metric, falling back to the
-  // playlist selection's extent (design-v6 §A). Everything else — angles,
+  // playlist selection's extent. Everything else — angles,
   // symbols, colour domain — stays put. The domain is niced up front and its
   // endpoints tweened, so rings, ticks and nodes glide instead of jumping.
   const radialValues = $derived(
@@ -136,7 +136,7 @@
   )
 
   // The radial axes are all number-kind properties; narrow the stored range
-  // (v11 issue 1: filters carry a per-property map) for the domain maths.
+  // (filters carry a per-property map) for the domain maths.
   const radialFilterRange = $derived.by((): [number, number] | null => {
     const range = $effectiveFilters.properties[$radialAxis]
     return Array.isArray(range) && typeof range[0] === 'number' && typeof range[1] === 'number'
@@ -154,12 +154,11 @@
   })
 
   // Deliberately seeds the tween with the initial domain (no mount
-  // animation); the $effect below keeps it tracking changes.
-  // 600ms reads noticeably calmer than the original 350 (issue 5). Aliased
-  // from radialMorph.ts's own constant (not a second independent 600)
+  // animation); the $effect below keeps it tracking changes. Aliased
+  // from radialMorph.ts's own constant (not a second independent duration)
   // because the per-node morph and this domain tween must settle in the
   // same instant — see the $effect below and radialMorph.ts's own doc
-  // comment for why (v18 #11a fix round 1: IMPORTANT).
+  // comment for why.
   const RADIAL_TWEEN_MS = RADIAL_MORPH_TOTAL_MS
   /** Large wheels land instantly (motion.ts). Untracked: a duration is read
    *  when a glide starts, never a reason to restart one. */
@@ -174,20 +173,19 @@
     easing: cubicOut,
   })
   $effect(() => {
-    // motionMs-wrapped (v18 #11a fix round 1: CRITICAL), not the plain
-    // `domainTween.target = targetDomain` setter this used to be — that
-    // setter always animates over the constructor's fixed duration, with no
-    // way to override it per call. Under reduced motion this MUST snap in
-    // the same flush as morphTween's own instant landing (below): if this
-    // tween kept animating over a real 600ms while morphTween (and the
-    // landing $effect that watches it) snapped instantly, nodes would fall
-    // back to radialScale(newAxisValue) against a domain still sliding from
-    // the OLD axis's range the moment the morph state clears — the exact
-    // rim-pinning mismatch this whole feature exists to fix, reproduced
-    // specifically when the user asked for LESS motion. Same duration
-    // either way (motionMs is a no-op unless reduced motion is on), so this
-    // is not a behaviour change for same-axis filter-edit tweens beyond
-    // also finally respecting reduced motion, which they never did before.
+    // motionMs-wrapped, not the plain `domainTween.target = targetDomain`
+    // setter: that setter always animates over the constructor's fixed
+    // duration, with no way to override it per call. Under reduced motion
+    // this MUST snap in the same flush as morphTween's own instant landing
+    // (below): if this tween kept animating over a real 600ms while
+    // morphTween (and the landing $effect that watches it) snapped
+    // instantly, nodes would fall back to radialScale(newAxisValue) against
+    // a domain still sliding from the OLD axis's range the moment the morph
+    // state clears — the exact rim-pinning mismatch this whole feature
+    // exists to fix, reproduced specifically when the user asked for LESS
+    // motion. Same duration either way (motionMs is a no-op unless reduced
+    // motion is on), so this is not a behaviour change for same-axis
+    // filter-edit tweens beyond also respecting reduced motion.
     void domainTween.set(targetDomain, { duration: animMs(RADIAL_TWEEN_MS), easing: cubicOut })
   })
 
@@ -198,7 +196,7 @@
   )
 
   // Ratings and years are inherently whole — a ring at "4.6 stars" means
-  // nothing, so fractional ticks are dropped for those axes (remark 14).
+  // nothing, so fractional ticks are dropped for those axes.
   // Tick values come from the settled target domain (labels don't churn
   // mid-animation); their positions ride the animated scale.
   const gridTicks = $derived.by(() => {
@@ -214,8 +212,8 @@
   const gutterTop = $derived(CY - (R_MAX - R_MIN) / 2)
   const gutterBottom = $derived(CY + (R_MAX - R_MIN) / 2)
 
-  // Same-key tracks repel each other along their slot's arc instead of the
-  // old seeded fan (issue 17): each node keeps its exact radius, offsets stay
+  // Same-key tracks repel each other along their slot's arc rather than
+  // scattering with a seeded fan: each node keeps its exact radius, offsets stay
   // inside ±(7.5° × spread). Angles are computed against the SETTLED target
   // domain, so the relaxation runs once per real change while the radii ride
   // the tween. The drawn node radius is 5 world units at reference zoom.
@@ -231,12 +229,11 @@
       bySlot.get(track.key)!.push(track)
     }
     const targetScale = scaleLinear().domain(targetDomain).range([R_MIN, R_MAX]).clamp(true)
-    // Fan-out half-window (v14 W4): factor 0→0°, 1→±4° (the historic look),
-    // up to 2→ the ±7.5° wedge edge minus the node's angular radius. The
-    // group's MINIMUM radius is the most constraining (largest angular
-    // radius), so one deterministic half-window keeps relaxSlotAngles
-    // single-valued per group.
-    // Sliced + throttled in stores.ts (v37): unrelated settings writes never
+    // Fan-out half-window: factor 0→0°, 1→±4°, up to 2→ the ±7.5° wedge
+    // edge minus the node's angular radius. The group's MINIMUM radius is
+    // the most constraining (largest angular radius), so one deterministic
+    // half-window keeps relaxSlotAngles single-valued per group.
+    // Sliced + throttled in stores.ts: unrelated settings writes never
     // reach this O(m²)-per-slot relaxation, and a spread drag coalesces.
     const factor = $slotSpreadFactor
     for (const [key, group] of bySlot) {
@@ -253,19 +250,19 @@
     return angles
   })
 
-  // --- v18 #11a: per-node radial morph on an axis swap ---
+  // --- per-node radial morph on an axis swap ---
   // An axis swap (BPM→Rating etc.) changes every track's radial VALUE
   // instantly, while the domain tween above is still sliding from the old
   // axis's numeric range to the new one — reading radialScale(newValue)
-  // against that mid-flight, wrong-units domain is exactly what pinned
-  // nodes to the rim until the tween caught up (the bug this task fixes).
-  // Fix: while a swap is in flight, node placement never touches
+  // against that mid-flight, wrong-units domain would pin
+  // nodes to the rim until the tween caught up. To avoid that, while a swap
+  // is in flight, node placement never touches
   // radialScale/domainTween at all — each node glides its own settled
   // scalar (radius if keyed, gutter y if not) from where it stood to where
   // the new axis puts it, on its own eased 0..1 timeline
   // (radialMorphProgress), staggered clockwise from 12 o'clock
-  // (radialMorphDelays). domainTween keeps animating the rings/ticks
-  // exactly as before — same duration, so the two settle together — and
+  // (radialMorphDelays). domainTween keeps animating the rings/ticks on its
+  // own — same duration, so the two settle together — and
   // stays the whole mechanism for same-axis (filter) domain changes; this
   // block only ever affects node placement.
 
@@ -295,14 +292,14 @@
     return (b[$radialAxis] ?? -1) - (a[$radialAxis] ?? -1) || a.id.localeCompare(b.id)
   }
 
-  /** The gutter population, sorted once per library/axis change (v37) — the
+  /** The gutter population, sorted once per library/axis change — the
    * `nodes` derived reruns EVERY FRAME during a tween, and this filter+sort
    * was O(n log n) inside it. Consumers only iterate; nobody mutates it. */
   const unkeyedSorted = $derived(
     $augmentedLibrary.filter((t) => t.key === null).sort(compareGutterTracks),
   )
 
-  /** Gutter analogue of slotAngleById (v20 #3): settled x-slot per unkeyed
+  /** Gutter analogue of slotAngleById: settled x-slot per unkeyed
    * track, banded on each track's SETTLED gutter y — never the animated one
    * `nodes` renders each frame. The old per-frame version banded on
    * animated y, so band membership (and each member's fan index within it)
@@ -328,7 +325,7 @@
   // The axis the active morph is heading TOWARD — morphedScalar (used for
   // rendering) recomputes each node's destination LIVE against this axis
   // and the CURRENT targetDomain every time it's called, rather than
-  // reading a value frozen at swap-start (v18 #11a fix round 1: MINOR).
+  // reading a value frozen at swap-start.
   // Otherwise a filter edit mid-morph would retarget domainTween (and the
   // rings) immediately while nodes kept gliding toward the stale
   // pre-edit target, then jumped to the correct spot the instant the morph
@@ -346,7 +343,7 @@
   let morphTo: Map<string, number> | null = $state(null)
   let morphDelays: Map<string, number> | null = $state(null)
 
-  // --- v20 #2: the "displaced scalar" mechanism (src/core/displaced.ts) ---
+  // --- the "displaced scalar" mechanism (src/core/displaced.ts) ---
   // The slot ANGLE above rode straight off slotAngleById every frame — fine
   // once settled, but a hard SNAP the instant that map changed: an axis
   // swap (angle changes too — see slotAngleById's own targetScale), a
@@ -359,8 +356,8 @@
   // radialMorphProgress the radius uses during a swap (angle and radius
   // arrive together, node by node); 'plain' is a new uniform 0..1 tween for
   // every other kind of change. null once settled — the byte-identical
-  // steady-state path, same convention as morphFrom above. gutterXFrom (v20
-  // #3) is the gutter x's own displaced channel, riding the SAME two
+  // steady-state path, same convention as morphFrom above. gutterXFrom
+  // is the gutter x's own displaced channel, riding the SAME two
   // clocks as angleFrom — see gutterTargetXById above and the unkeyed loop
   // in `nodes` below.
   let angleFrom: Map<string, number> | null = $state(null)
@@ -387,8 +384,8 @@
   // gutter x): one effect, not more (separate effects would race writing
   // the shared prevSlotAngles/prevGutterX/angleFrom/gutterXFrom mirrors).
   // It tracks slotAngleById AND
-  // gutterTargetXById on EVERY run, not just when the axis changes — the
-  // old early-return here used to sit before those reads, so a same-axis
+  // gutterTargetXById on EVERY run, not just when the axis changes — an
+  // early return placed before those reads would mean a same-axis
   // change (filter edit, spread slider, playlist switch) never reran this
   // effect at all.
   $effect(() => {
@@ -578,7 +575,7 @@
     return displacedTween.current
   }
 
-  /** A displaced scalar (the slot angle, or the gutter x — v20 #2/#3) —
+  /** A displaced scalar (the slot angle, or the gutter x) —
    * captured `from` lerped toward the LIVE `target` by this node's own
    * `displacedProgress`, or `target` directly once settled (`from` null:
    * the byte-identical steady-state path, same convention as morphedScalar
@@ -590,8 +587,8 @@
 
   // Placement runs over the FULL library so every track's angle (and gutter
   // slot) is independent of the filters: filtering only makes nodes appear
-  // or disappear, leaving gaps in the fans — nothing moves (design-v6 §A).
-  // FULL, but AUGMENTED (v33): this pass decides gutter-versus-ring on
+  // or disappear, leaving gaps in the fans — nothing moves.
+  // FULL, but AUGMENTED: this pass decides gutter-versus-ring on
   // `track.key === null`, so reading raw `library` here would leave a track
   // whose key the analysis sidecar filled parked in the gutter for ever,
   // while the Tracks table showed it correctly. Every `$augmentedLibrary`
@@ -600,7 +597,7 @@
     const placed: PlacedNode[] = []
 
     /** Settled gutter y for this track under the live axis/scale, or its
-     * mid-morph lerped y while an axis swap is in flight (v18 #11a). */
+     * mid-morph lerped y while an axis swap is in flight. */
     function unkeyedY(track: Track): number {
       const value = track[$radialAxis]
       const plain = value === null ? gutterBottom + GUTTER_MISSING_Y_GAP : gutterY(value)
@@ -608,10 +605,10 @@
     }
 
     // Tracks without a key live in the gutter, still positioned by the radial
-    // value (remark 3: a missing key must not hide a known BPM/year/rating).
+    // value (a missing key must not hide a known BPM/year/rating).
     // Sort order is paint order only now — band membership and each
     // member's fan index are decided once, on settled y, by
-    // gutterTargetXById above (v20 #3); this loop just draws x glided
+    // gutterTargetXById above; this loop just draws x glided
     // toward that target (displacedScalar) and y unchanged.
     for (const track of unkeyedSorted) {
       const value = track[$radialAxis]
@@ -620,10 +617,10 @@
       placed.push({ track, x, y, unkeyed: true, missingRadial: value === null })
     }
 
-    // Keyed tracks: the relaxed slot angle (memoised below — issue 17),
-    // glided rather than snapped onto a relayout (v20 #2 — see
+    // Keyed tracks: the relaxed slot angle (memoised below),
+    // glided rather than snapped onto a relayout (see
     // displacedScalar above), plus the tween-animated radius, or — mid-swap
-    // — the per-node morph (v18 #11a).
+    // — the per-node morph.
     for (const track of $augmentedLibrary) {
       if (track.key === null) continue
       const value = track[$radialAxis]
@@ -641,7 +638,7 @@
 
   const nodeById = $derived(new Map(visibleNodes.map((n) => [n.track.id, n])))
 
-  // Ghost stars (v18 #11): walk members the active filters hide still have a
+  // Ghost stars: walk members the active filters hide still have a
   // placement (the full-library `nodes` pass above covers every track, not
   // just the visible ones, and the clamped radial scale rim-pins one that's
   // out of the domain for free) — they just aren't in visibleNodes. ids come
@@ -677,8 +674,8 @@
 
   /**
    * Genre classes actually present among the visible nodes: the legend shows
-   * only these, and disappears entirely when the symbols carry no distinction
-   * (design-v6 §B). Symbol assignment still indexes the full-library classes,
+   * only these, and disappears entirely when the symbols carry no distinction.
+   * Symbol assignment still indexes the full-library classes,
    * so a genre keeps its shape while classes come and go.
    */
   const visibleClasses = $derived(
@@ -701,7 +698,7 @@
     $tracklist.slice(0, -1).map((id, i) => [id, $tracklist[i + 1]] as const),
   )
 
-  // Walk-draw reveal (v12 WS1): while a fresh suggestion's window is open the
+  // Walk-draw reveal: while a fresh suggestion's window is open the
   // edges dash-draw in sequence and each reached node pulses once. Keying on
   // the tick restarts cleanly per ✨/⚡; after `seen` catches up a re-mounted
   // wheel renders the walk plainly.
@@ -710,7 +707,7 @@
 
   const focusSet = $derived.by(() => {
     if ($selectedId === null) return null
-    // Threshold 0 (v11 issue 2a): the graph is complete, everything focuses.
+    // Threshold 0: the graph is complete, everything focuses.
     if ($comboComplete) return new Set($visibleLibrary.map((t) => t.id))
     // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived-local
     const set = new Set([$selectedId])
@@ -720,16 +717,16 @@
 
   function nodeOpacity(node: PlacedNode): number {
     const base = node.missingRadial ? 0.55 : 1
-    // The audible track never dims (v29 #4). The focus dim multiplies with the
-    // breathing keyframes below, so a playing star that was not also the
-    // selected one used to pulse between 0.12 and 0.054 — invisible, which is
-    // the opposite of what "you are hearing this one" needs to say.
+    // The audible track never dims. The focus dim multiplies with the
+    // breathing keyframes below, so a playing star that is not also the
+    // selected one would otherwise pulse between 0.12 and 0.054 — invisible,
+    // which is the opposite of what "you are hearing this one" needs to say.
     if (audibleIds.has(node.track.id)) return base
     if (focusSet !== null && !focusSet.has(node.track.id)) return 0.12
     return base
   }
 
-  // Only focus edges are drawn at all (v9 issue 8): the selection's own star
+  // Only focus edges are drawn at all: the selection's own star
   // brightens, the cluster's interconnections stay at the plain base.
   function edgeOpacity(sourceId: string, targetId: string): number {
     const isStar = sourceId === $selectedId || targetId === $selectedId
@@ -741,7 +738,7 @@
   // The selection as it stood before the current click burst. A double-click
   // delivers click, click, dblclick: the first click moves the selection onto
   // the double-clicked node, so the node to insert AFTER is the one selected
-  // before that (v17 #5).
+  // before that.
   let insertAnchor: string | null = null
 
   function select(node: PlacedNode, event: MouseEvent) {
@@ -749,9 +746,9 @@
     // straight back off — and a double-click means "add", never "deselect".
     if (event.detail > 1) return
     insertAnchor = $selectedId
-    // Link mode (v12 WS9): an armed 🔗 turns the next click into a combo
+    // Link mode: an armed 🔗 turns the next click into a combo
     // mark/unmark; the selection stays on the source so marks can chain.
-    // Shared with the tracks table via selectOrLink (v14 WS10).
+    // Shared with the tracks table via selectOrLink.
     selectOrLink(node.track.id)
   }
 
@@ -763,10 +760,10 @@
     return polar(wheelSlotAngleDeg(key), R_MAX + 26)
   }
 
-  // v14 W1: a key sector (and its label) fades when its ring is filtered out
+  // A key sector (and its label) fades when its ring is filtered out
   // (existing keyRing logic) OR its Camelot number falls outside an active
   // key-range filter — composed, not replaced. The 0.6s .excluded transition
-  // animates either cause for free (sector: fill cross-fade, v18 #2a; label:
+  // animates either cause for free (sector: fill cross-fade; label:
   // opacity fade).
   function keyExcluded(key: CamelotKey): boolean {
     const { minor, major } = $effectiveFilters.keyRings
@@ -787,7 +784,7 @@
   const hasUnkeyed = $derived(visibleNodes.some((n) => n.unkeyed))
   const hasMissingRadial = $derived(visibleNodes.some((n) => !n.unkeyed && n.missingRadial))
 
-  // --- zoom & pan (remark 10) ---
+  // --- zoom & pan ---
   // The zoom behaviour + attached selection live inside createViewZoom (plain
   // closure vars — d3 owns them, a $state proxy would swallow their writes).
   // The component keeps only these primitives in $state, written from onZoom.
@@ -815,12 +812,12 @@
     viewZoom.zoomReset()
   }
 
-  // --- hub button: suggest the next track (remark 7) ---
+  // --- hub button: suggest the next track ---
   // Inserts after the selected track when it sits mid-set (fitting both
   // neighbours), otherwise appends after the last track. When the anchor's
   // neighbourhood is exhausted the hub turns into a warning-coloured
   // "force" button: clicking it knowingly breaks the criteria and picks the
-  // closest non-matching track (design-v6 §C). v7 (issue 17): the empty-set
+  // closest non-matching track. The empty-set
   // opener is random per press (random session seed base), the selection
   // jumps to every pick so repeated presses continue from the head, the hub
   // greys out once every visible track is used, and a retry ring swaps the
@@ -833,10 +830,10 @@
   )
 
   /**
-   * v31 #2: `hubExhausted` is derived from `$tracklist`, which is written the
-   * instant a walk is generated — so the hub used to flip to "force" before
-   * the cascade had drawn a single star. The button says nothing, and accepts
-   * nothing, until the constellation stands still.
+   * `hubExhausted` is derived from `$tracklist`, which is written the
+   * instant a walk is generated — so without this guard the hub would flip
+   * to "force" before the cascade had drawn a single star. The button says
+   * nothing, and accepts nothing, until the constellation stands still.
    */
   const hubBusy = $derived(revealing)
   /** The force morph, once the drawing has settled. */
@@ -845,7 +842,7 @@
 
   let lastHubPick = $state<NextSuggestion | null>(null)
   // The FIRST pick made for the slot — what the ⟲ button restores. Survives
-  // retries, dies with the retry window (v8 issue 3).
+  // retries, dies with the retry window.
   let originalPickId = $state<string | null>(null)
   let triedIds = $state<string[]>([])
   // Any external edit to the set closes the retry window.
@@ -857,7 +854,7 @@
     }
   })
   // The ring degrades instead of vanishing: retry → force retry (+ ⟲ reset)
-  // → reset-only, per the pure state machine (v8 issues 2+3).
+  // → reset-only, per the pure state machine.
   const hubRetryState = $derived(
     retryState($neighbours, $tracklist, lastHubPick, triedIds, [...visibleIds], $comboComplete),
   )
@@ -918,7 +915,7 @@
     triedIds = exclude
   }
 
-  /** ⟲: put the slot's original pick back and reopen the cycle (issue 3). */
+  /** ⟲: put the slot's original pick back and reopen the cycle. */
   function hubReset(event?: Event) {
     event?.stopPropagation()
     const pick = lastHubPick
@@ -933,12 +930,12 @@
   }
 
   // Tracks tagged in the Tracks view (essential / opener / closer) wear a
-  // subtle ring on the wheel (issue 7).
+  // subtle ring on the wheel.
   const taggedIds = $derived(
     new Set([...$mustInclude, $pinnedFirst, $pinnedLast].filter((id) => id !== null)),
   )
 
-  // Tracks the player is actually sounding right now (v28.2). All-false when
+  // Tracks the player is actually sounding right now. All-false when
   // the preview is off or disposed, so no settings gate is needed.
   const audibleIds = $derived(
     new Set(
@@ -949,10 +946,10 @@
   )
 
   /**
-   * Paint order within the node layer (v29 #4). SVG has no z-index, so the
+   * Paint order within the node layer. SVG has no z-index, so the
    * last star drawn is the one on top — and the one that wins the click, since
-   * hit-testing runs the same order. Nothing raised a star before this, so an
-   * audible or selected one could sit under whichever neighbours happened to
+   * hit-testing runs the same order. Without this, an
+   * audible or selected one could sit under whichever neighbours happen to
    * come later in the library.
    *
    * A separate derived, used ONLY by the `{#each}` below: `visibleNodes` also
@@ -973,7 +970,7 @@
   })
 
   /**
-   * The node the set list is hovering, drawn in its own layer (v31 #6). See
+   * The node the set list is hovering, drawn in its own layer. See
    * the ring's markup below for why it cannot live inside the node group.
    */
   const hoveredNode = $derived(paintedNodes.find((n) => n.track.id === $hoveredId) ?? null)
@@ -1003,7 +1000,7 @@
   >
     <g class="zoom-layer" transform={zoomTransform}>
       <!-- SVG paint order is document order, so this group's child order is
-           a deliberate layer stack (bugs 1+2, H2, H3). Full paint order for the
+           a deliberate layer stack. Full paint order for the
            zoom-layer group:
              1. sector fills
              2. spokes
@@ -1020,13 +1017,13 @@
                  readable over a star stack; pointer-events: none in the
                  halo CSS keeps the stars interactive underneath)
              11. set-list hover ring (above the nodes so the focus dim can
-                 never multiply it away — v31 #6)
-             12. ⟲ reset disc, then hub (LAST — issue 17)
+                 never multiply it away)
+             12. ⟲ reset disc, then hub (LAST)
            Rule: labels sit above all static geometry and above edges; data
            (nodes) sits above labels, except the gutter tick numbers. -->
 
       <!-- Key sector backgrounds: subtle minor (A) vs major (B) tint per slot.
-           The minor/major filter (v8 issue 10) fades the excluded ring's tint
+           The minor/major filter fades the excluded ring's tint
            so the wheel visibly answers the toggle beyond nodes vanishing. -->
       {#each ALL_CAMELOT_KEYS as key (key)}
         {@const centre = wheelSlotAngleDeg(key)}
@@ -1092,7 +1089,7 @@
         {/each}
       {/if}
 
-      <!-- Suggestion edges: only around the selected track (v9 issue 8) -->
+      <!-- Suggestion edges: only around the selected track -->
       {#each $focusEdges as edge (`${edge.sourceId}→${edge.targetId}`)}
         {@const a = nodeById.get(edge.sourceId)}
         {@const b = nodeById.get(edge.targetId)}
@@ -1109,7 +1106,7 @@
         {/if}
       {/each}
 
-      <!-- Manual combos (v12 WS9): user-marked roads, always visible —
+      <!-- Manual combos: user-marked roads, always visible —
            deliberate and few, they are exempt from the focus-only rule. -->
       {#each $effectiveManualEdges as edge (edge.a + '\n' + edge.b)}
         {@const ma = nodeById.get(edge.a)}
@@ -1130,10 +1127,10 @@
       <!-- Walk (current tracklist): layer 5, after the suggestion edges —
            see the ordering note at the top of this group. -->
       <defs>
-        <!-- Direction chevron (v21 #2): a mid-edge marker instead of an
-             end-of-edge arrowhead — the old head sat where the target star
-             (layer 9) painted over it. See core/walkArrow.ts for the shared
-             geometry and the layer-order note. -->
+        <!-- Direction chevron: a mid-edge marker instead of an
+             end-of-edge arrowhead — an end-of-edge head would sit where the
+             target star (layer 9) paints over it. See core/walkArrow.ts for
+             the shared geometry and the layer-order note. -->
         <marker
           id="walk-chevron"
           viewBox={WALK_CHEVRON_VIEW_BOX}
@@ -1153,7 +1150,7 @@
             stroke-linejoin="round"
           />
         </marker>
-        <!-- Ghost edges (v18 #11) point at a marker of their own: a marker's
+        <!-- Ghost edges point at a marker of their own: a marker's
              content doesn't inherit the referencing line's stroke-opacity,
              so the dimming has to live here too. -->
         <marker
@@ -1178,10 +1175,10 @@
         </marker>
       </defs>
       <!-- Keyed by position: the same ordered pair can occur twice when a
-           track appears in the set more than once (remark 15). The outer key
-           restarts the reveal per suggestion (v12 WS1). -->
+           track appears in the set more than once. The outer key
+           restarts the reveal per suggestion. -->
       {#key $walkRevealTick}
-        <!-- The group carries the completion shimmer (v12 WS2): a revealed
+        <!-- The group carries the completion shimmer: a revealed
              full-length walk swells bright once, right as it finishes. -->
         <g
           class="walk-group"
@@ -1216,7 +1213,7 @@
           {#if revealing}
             <!-- One pulse per unique walk node, fired as the walk reaches it.
                  nodeById (visible-only) is deliberate here, not walkNodeById:
-                 a ghost has no star to pulse at (v18 #11). -->
+                 a ghost has no star to pulse at. -->
             {#each [...revealPlan.nodeDelays] as [id, delay] (id)}
               {@const n = nodeById.get(id)}
               {#if n}
@@ -1322,11 +1319,11 @@
         </g>
       {/if}
 
-      <!-- Ghost stars (v18 #11): walk members the filters currently hide.
+      <!-- Ghost stars: walk members the filters currently hide.
            Layer 8 (see the ordering note above) — real nodes (layer 9)
            painting over this is what lets a track crossing the
            visible/hidden line always show its star on top mid cross-fade.
-           Non-interactive (no hit target, no tooltip) — the same Task-10
+           Non-interactive (no hit target, no tooltip) — the same
            fade wrapper as the real nodes below makes this the star↔ghost
            cross-fade: one node's <g> outros from the block below while
            this one's intros here. -->
@@ -1347,7 +1344,7 @@
 
       <!-- Nodes -->
       {#each paintedNodes as node (node.track.id)}
-        <!-- Outer wrapper carries the enter/exit fade (v18 issue 11b): its
+        <!-- Outer wrapper carries the enter/exit fade: its
              transition sets inline style.opacity, which would otherwise
              clobber the inner opacity ATTRIBUTE if it were on the same
              element. Two nested elements composite (multiply) instead, so a
@@ -1370,7 +1367,7 @@
           >
             <circle cx={node.x} cy={node.y} r={11 / zoomK} fill="transparent" />
             {#if audibleIds.has(node.track.id)}
-              <!-- The breathing's bright half (v29 #4). A star at full opacity
+              <!-- The breathing's bright half. A star at full opacity
                    has nowhere brighter to go, so the peak lives in a halo
                    behind it — the same idiom as .hover-ring and .tag-ring
                    above. Opacity only, like the dot: the dot's transform
@@ -1386,7 +1383,7 @@
             {/if}
             {#if taggedIds.has(node.track.id)}
               <!-- Subtle marker for essential/opener/closer tags set in the
-                   Tracks view (issue 7) — its own ring, so it coexists with
+                   Tracks view — its own ring, so it coexists with
                    the selected and in-walk strokes on the dot itself. -->
               <circle
                 cx={node.x}
@@ -1420,10 +1417,11 @@
         {/each}
       {/if}
 
-      <!-- Set-list hover ring (v9 issue 20, lifted out of the node group in
-           v31 #6): inside the group its own opacity multiplied with the focus
-           dim (0.8 × 0.12 ≈ 0.1), so the ring vanished on exactly the stars it
-           exists for — the off-criteria ones you cannot otherwise find. The
+      <!-- Set-list hover ring, drawn outside the node group: inside the
+           group its own opacity would multiply with the focus
+           dim (0.8 × 0.12 ≈ 0.1), so the ring would vanish on exactly the
+           stars it exists for — the off-criteria ones you cannot otherwise
+           find. The
            star underneath keeps its dim: "this one doesn't match" stays true,
            the ring only says where it is. Coordinates are zoom-layer absolute
            already, so nothing else changes. -->
@@ -1441,11 +1439,11 @@
            see the ordering note at the top of this group. The retry band
            (layer 7) has moved above, before the ghost/node blocks, so
            fallback-ring stars win hover/click inside it; hub + ⟲ stay LAST
-           here so edges and nodes never steal their clicks (issue 17),
+           here so edges and nodes never steal their clicks,
            each with an oversized transparent hit circle. -->
       {#if $visibleLibrary.length > 0}
         {#if hubRetryState !== 'none' && hubRetryState !== 'retry' && triedIds.length > 0 && originalPickId !== lastHubPick?.trackId}
-          <!-- ⟲ reset-to-original: part of the force-retry morph (issue 3),
+          <!-- ⟲ reset-to-original: part of the force-retry morph,
                shown only while the slot actually diverges from the original -->
           <g
             class="hub-reset"
@@ -1536,7 +1534,7 @@
     {/if}
     <span class="chip"><i style="background: {MISSING_COLORS[$effectiveTheme]}"></i>missing</span>
     <!-- Only the classes with visible tracks, and only when the symbols
-         actually distinguish something (design-v6 §B). -->
+         actually distinguish something. -->
     {#if visibleClasses.length > 1}
       {#each visibleClasses as { cls, index, visible } (cls.label)}
         <span class="chip shape-chip" title="{visible} of {cls.size} tracks visible">
@@ -1549,8 +1547,8 @@
     <span class="legend-hint">click: focus · double-click: add to constellation</span>
   </div>
 
-  <!-- The selected-track card lives at the foot of the right aside since v9
-       (issue 19) — see SelectedTrackCard.svelte. -->
+  <!-- The selected-track card lives at the foot of the right aside —
+       see SelectedTrackCard.svelte. -->
 
   {#if hovered}
     <div class="tooltip" style="left: {mouse.x + 14}px; top: {mouse.y + 12}px">
@@ -1634,7 +1632,7 @@
     fill: var(--sector-minor);
     stroke: none;
     /* Match the 600ms radial tween (cubic-out) so the wedge settles WITH the
-       nodes, not ~100ms early — that early settle read as a flash (v10 #7). */
+       nodes, not ~100ms early — an early settle would read as a flash. */
     transition: fill 0.6s cubic-bezier(0.33, 1, 0.68, 1);
   }
 
@@ -1683,7 +1681,7 @@
     letter-spacing: 0.08em;
   }
 
-  /* Labels now paint above chrome and edges (bugs 1+2, H2, H3): a text
+  /* Labels paint above chrome and edges: a text
      halo keeps them legible where a spoke, gridline, or edge crosses
      underneath. SVG text is hit-testable by default, so pointer-events:
      none stops a haloed label from stealing hovers/clicks meant for the
@@ -1716,8 +1714,8 @@
     stroke-width: 2;
   }
 
-  /* Out-of-view edges (v18 #11, restyled v21 #1): a hidden endpoint thins and
-     fades instead of dashing. Dashes on the wheel now mean one thing only —
+  /* Out-of-view edges: a hidden endpoint thins and
+     fades instead of dashing. Dashes on the wheel mean one thing only —
      a manual combo (.manual-edge below). stroke-opacity, NOT opacity —
      .walk-edge.reveal animates `opacity` with animation-fill-mode: forwards,
      so the dimming has to live on a separate property to survive it. */
@@ -1731,7 +1729,7 @@
     stroke-width: 1.6;
     stroke-dasharray: 6 5;
     opacity: 0.75;
-    /* v14 W3: roads dim away from the focus like the combo edges do — the
+    /* Roads dim away from the focus like the combo edges do — the
        selection's own combos stay bright, the rest recede. */
     transition: opacity 0.6s cubic-bezier(0.33, 1, 0.68, 1);
   }
@@ -1740,7 +1738,7 @@
     opacity: 0.12;
   }
 
-  /* Walk-draw reveal (v12 WS1): each edge dash-draws in turn. pathLength=1
+  /* Walk-draw reveal: each edge dash-draws in turn. pathLength=1
      normalises every edge to the same dash space; the element stays hidden
      until its inline delay. Markers ignore the dash pattern, so the chevron
      shows the direction from the first frame while the stroke travels
@@ -1765,7 +1763,7 @@
     }
   }
 
-  /* Completion shimmer (v12 WS2): fires once, timed to the reveal's end. */
+  /* Completion shimmer: fires once, timed to the reveal's end. */
   g.walk-group.celebrate {
     animation: walk-glow 700ms ease-in-out;
     animation-delay: var(--reveal-total);
@@ -1825,7 +1823,7 @@
     }
   }
 
-  /* Ghost stars (v18 #11): non-interactive placeholders for walk members the
+  /* Ghost stars: non-interactive placeholders for walk members the
      filters hide — no label, no tooltip, no hit target. The intro/exit fade
      itself is JS-driven (motionMs, already 0 under reduced motion), so
      nothing more is needed here for that preference. */
@@ -1877,7 +1875,7 @@
   }
 
   /* Retry ring: a second, outer target that redraws the last hub pick.
-     fill-box + center: the enter/exit scale (v18 #11c) grows from each
+     fill-box + center: the enter/exit scale grows from each
      group's own centre rather than the SVG viewport's origin. */
   .hub-retry {
     cursor: pointer;
@@ -1886,7 +1884,7 @@
     transform-origin: center;
   }
 
-  /* Widened to the full donut (v18 #7): band ≈46→70, so clicks land
+  /* Widened to the full donut: band ≈46→70, so clicks land
      anywhere between the ＋ hub's disc and past the visible ring —
      including on the curved label text. */
   .retry-hit {
@@ -1913,7 +1911,7 @@
     stroke-dasharray: 2 3;
   }
 
-  /* The morph to "force retry" (v8 issue 3): the ring adopts the force
+  /* The morph to "force retry": the ring adopts the force
      palette with a short dash-spin announcing the state change. */
   .hub-retry.force .retry-ring {
     stroke: var(--walk-bright);
@@ -2032,14 +2030,12 @@
     }
   }
 
-  /* Two pre-existing (pre-v18) keyframes had no escape (v18 #15 rider):
-     the retry-ring's force/spent dash-spin and the exhausted-hub pulse.
+  /* Two keyframes need their own reduced-motion escape here: the
+     retry-ring's force/spent dash-spin and the exhausted-hub pulse.
      This block must come AFTER both rules above, not in the file's earlier
      shared reduced-motion block: same specificity, so an earlier override
-     loses the cascade tiebreak to these later, unconditional declarations
-     (caught live by Task 15's own review — verified via a running
-     .hub.warning/.hub-retry.force session that the earlier position was a
-     no-op under page.emulateMedia({ reducedMotion: 'reduce' })). */
+     would lose the cascade tiebreak to these later, unconditional
+     declarations. */
   @media (prefers-reduced-motion: reduce) {
     .hub-retry.force .retry-ring,
     .hub-retry.spent .retry-ring {
@@ -2072,9 +2068,9 @@
   }
 
   .hover-ring {
-    /* No fill. Behind the star this read as a soft disc; lifted above the whole
-       node layer (v31 #6) it washed the star's own colour — worst on the dimmed
-       off-criteria stars the ring exists to find. */
+    /* No fill: lifted above the whole node layer, a fill would wash the
+       star's own colour underneath — worst on the dimmed off-criteria stars
+       the ring exists to find. */
     fill: none;
     stroke: var(--accent);
     stroke-width: 1.5;
@@ -2110,11 +2106,11 @@
     stroke-width: 3;
   }
 
-  /* The audible track breathes (v28.2, louder in v29 #4). Opacity only: the
+  /* The audible track breathes. Opacity only: the
      path's transform attribute carries its translate+scale, so a CSS transform
      animation would tear the dot off its wheel position.
 
-     The dot's own dip is shallow now — it never recedes — and the swell that
+     The dot's own dip is shallow — it never recedes — and the swell that
      makes the peak brighter than resting is carried by the halo below. */
   .dot.playing {
     animation: dot-breathe 1.6s ease-in-out infinite;
@@ -2192,7 +2188,7 @@
     left: 12px;
     bottom: 10px;
     /* Bounded on the right (zoom controls live there). Single line now that the
-       pane has a width floor (ISSUES.md #13): it scrolls within its own bar on
+       pane has a width floor: it scrolls within its own bar on
        an unusually chip-heavy library rather than piling into rows. */
     right: 72px;
     flex-wrap: nowrap;
@@ -2254,7 +2250,7 @@
     background: var(--walk);
   }
 
-  /* Right-aligned via auto margin (v11 issue 8): when the chips overflow
+  /* Right-aligned via auto margin: when the chips overflow
      onto a second line, the hint becomes its own deliberate right-aligned
      item instead of a ragged left-aligned tail. */
   .legend-hint {

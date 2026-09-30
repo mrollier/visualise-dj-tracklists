@@ -21,13 +21,13 @@
     visibleLibrary,
   } from '../stores'
 
-  // Easy mode (v12 WS4): the panel keeps its stats and Playlists — filters,
+  // Easy mode: the panel keeps its stats and Playlists — filters,
   // genres and the criteria machinery hide behind their current values.
   const easy = $derived($settings.uiMode === 'easy')
 
   const enabledCount = $derived(CRITERION_FIELDS.filter((f) => $criteria[f].enabled).length)
 
-  // Demanded (locked) criteria are mandatory and floor the threshold (v14 C2).
+  // Demanded (locked) criteria are mandatory and floor the threshold.
   const floor = $derived(demandedCount($criteria))
   // Past a few hundred thousand pairs the count is a sample estimate: show it
   // as one ("≈ 1.2M"), not as a precise-looking number.
@@ -50,7 +50,7 @@
     ].filter((m) => m !== null),
   )
 
-  // Enabling/disabling goes through toggleCriterion (v11 issue 2b): enabling
+  // Enabling/disabling goes through toggleCriterion: enabling
   // while "require all" was set keeps requiring all; disabling clamps.
   function setEnabled(field: CriterionField, event: Event): void {
     const checked = event.currentTarget instanceof HTMLInputElement && event.currentTarget.checked
@@ -58,8 +58,8 @@
   }
 
   // Keep the threshold valid when criteria get disabled elsewhere (e.g. a
-  // loaded project); a deliberate 0 stays 0. A demanded criterion floors it
-  // (v14 C2): the bar can never sit below the locked count.
+  // loaded project); a deliberate 0 stays 0. A demanded criterion floors it:
+  // the bar can never sit below the locked count.
   $effect(() => {
     if ($criteria.threshold > enabledCount && enabledCount > 0) {
       criteria.update((c) => ({ ...c, threshold: enabledCount }))
@@ -70,10 +70,10 @@
 </script>
 
 <!-- With no library loaded, the criteria/filters act on nothing — make the
-     whole panel inert and muted so only Import / Load sample invite a click
-     (v10 additional issue). Clicking empty panel space (not a control) clears
+     whole panel inert and muted so only Import / Load sample invite a click.
+     Clicking empty panel space (not a control) clears
      the track selection, mirroring the wheel's background-click deselect
-     (ISSUES.md #4) — mouse convenience only, keyboard uses Escape/Tab. -->
+     — mouse convenience only, keyboard uses Escape/Tab. -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <aside
@@ -104,7 +104,7 @@
   </div>
 
   <!-- In easy mode Playlists is the only section, so let it grow into the
-       freed vertical space instead of stranding a short list (ISSUES.md #5). -->
+       freed vertical space instead of stranding a short list. -->
   <PlaylistsSection fill={easy} />
 
   {#if !easy}
@@ -116,9 +116,9 @@
       <summary class="micro-label">Combo criteria</summary>
 
       <div class="criterion">
-        <!-- One line per criterion (ISSUES.md #2): the explanatory hint and
+        <!-- One line per criterion: the explanatory hint and
              the advanced-move note fold into an info icon so the row never
-             wraps. The minor/major ring switch lives in Filters (v9 issue 6). -->
+             wraps. The minor/major ring switch lives in Filters. -->
         <div class="criterion-head">
           <label>
             <input
@@ -215,8 +215,8 @@
 
       <div class="criterion">
         <!-- The active method + its parameters fold into the info icon (they
-             already lived in advanced settings, v10 issue 2) so the row is
-             one line (ISSUES.md #2). -->
+             already live in advanced settings) so the row is
+             one line. -->
         <div class="criterion-head">
           <label>
             <input
@@ -303,7 +303,7 @@
 
   /* Easy mode: only stats + Playlists remain, so lay the panel out as a
      column and let PlaylistsSection (fill) claim the freed height, scrolling
-     internally rather than leaving dead space (ISSUES.md #5). Advanced mode
+     internally rather than leaving dead space. Advanced mode
      keeps the default block flow + panel scroll. */
   aside.easy {
     display: flex;
@@ -380,17 +380,16 @@
   }
 
   /* The lock affordance: a small toggle at the row's right edge that pins the
-     criterion as mandatory (v14 C2). Muted when open, accent when locked — so
+     criterion as mandatory. Muted when open, accent when locked — so
      a demanded criterion reads at a glance. Last child of its row's flex
      head, pushed to the edge by margin-left: auto; fixed width so the
-     LockIcon swap can't shift the row (ISSUES.md #6).
+     LockIcon swap can't shift the row.
 
-     Width is the icon plus a hair of chrome (v27): at rest the icon is the
+     Width is the icon plus a hair of chrome: at rest the icon is the
      only thing visible, so every px of padding is a px the padlock sits
      short of the right edge that the track counts, the ↺ buttons and the
-     all/only switches all share — 4px of it, plus 3px of slack inside the
-     old icon's viewBox, read as "not aligned with the rest". The locked
-     state's pill still ends exactly on that shared edge. */
+     all/only switches all share. The locked state's pill still ends exactly
+     on that shared edge. */
   .lock {
     margin-left: auto;
     flex-shrink: 0;
@@ -426,13 +425,13 @@
     gap: 6px;
     flex-wrap: wrap;
     /* Clicking the row toggles the criterion; its label text isn't
-       drag-selectable, so reading it never highlights letters (ISSUES.md #1). */
+       drag-selectable, so reading it never highlights letters. */
     -webkit-user-select: none;
     user-select: none;
   }
 
   /* Every criterion row's head: the label (+ info icon on Key/Genre) and the
-     lock share one line (ISSUES.md #2), vertically centered against the
+     lock share one line, vertically centered against the
      label text so the icons don't read as top-offset. */
   .criterion-head {
     display: flex;

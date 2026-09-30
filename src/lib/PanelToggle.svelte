@@ -2,20 +2,20 @@
   import ChevronIcon from './ChevronIcon.svelte'
 
   /**
-   * The button that puts one panel away, and brings it back (v30).
+   * The button that puts one panel away, and brings it back.
    *
-   * It is a TAB attached to the boundary it controls (v30.1): flat against the
-   * seam, rounded into the central view, and protruding only that way. v30 had
-   * it straddling the seam, half inside the panel — which put chrome on the
-   * panel's own contents, worst at the top where it landed on the deck row's
-   * seek line. The tab pays for that with a sliver of the central view instead,
+   * It is a TAB attached to the boundary it controls: flat against the
+   * seam, rounded into the central view, and protruding only that way.
+   * Straddling the seam instead would put chrome on the panel's own
+   * contents, worst at the top where it would land on the deck row's seek
+   * line. The tab pays for that with a sliver of the central view instead,
    * which has room: the wheel keeps an empty gutter outside its outermost ring.
    *
-   * Either way it is positioned against the CENTRAL column's own edges, which
+   * It is positioned against the CENTRAL column's own edges, which
    * are the panel boundaries in every combination of collapses — so nothing
    * here has to know a rail width, and a collapse moves the tab for free.
-   * Never crossing the seam also retires v30's `.tucked` case: there is no
-   * longer a state in which half the button would hang outside the window.
+   * Never crossing the seam also means there is no state in which half the
+   * button would hang outside the window.
    *
    * The chevron points the way the panel will go, so the button reads as an
    * instruction rather than a state: outward closes, inward re-opens.
@@ -78,8 +78,7 @@
      hunts for. The hit area is not: an invisible cushion brings every tab up to
      the 24px pointer target in both axes without widening what is drawn. It
      grows ONLY into the central view, never back across the seam — a cushion
-     over the panel would take clicks from the contents this wave is trying to
-     stop covering. */
+     over the panel would take clicks from contents it must never cover. */
   .panel-toggle::before {
     content: '';
     position: absolute;

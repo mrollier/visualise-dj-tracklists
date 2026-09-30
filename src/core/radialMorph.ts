@@ -2,13 +2,13 @@
 const cubicOut = (t: number): number => (t - 1) ** 3 + 1
 
 /**
- * Per-node radial morph on an axis swap (v18 #11a).
+ * Per-node radial morph on an axis swap.
  *
- * The prior mechanism tweened the radial DOMAIN's endpoints (old axis's
- * range → new axis's range) while every track's VALUE switched to the new
- * axis instantly. Mid-tween, `radialScale(newAxisValue)` read against a
+ * Tweening only the radial DOMAIN's endpoints (old axis's range → new
+ * axis's range) while every track's VALUE switches to the new axis
+ * instantly would read `radialScale(newAxisValue)` mid-tween against a
  * domain still straddling both axes' numeric ranges — often nowhere near
- * `newAxisValue` — so the clamp pinned nodes to the rim until the domain
+ * `newAxisValue` — so the clamp would pin nodes to the rim until the domain
  * caught up (rim-pinning).
  *
  * This module is the pure planning half of the fix: instead of one shared

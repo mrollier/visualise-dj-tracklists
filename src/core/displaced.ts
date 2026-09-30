@@ -1,12 +1,12 @@
 /**
- * The "displaced scalar" mechanism (v20 #2): a per-node value — the wheel
- * slot ANGLE today, the gutter x arriving in v20 #3 — that used to be read
- * straight off its live target map every frame. Correct once settled, but a
- * hard SNAP the instant the target map itself changes: an axis swap, a
- * radial range-filter edit, a playlist switch, easy-mode, the spread slider.
- * Unlike the node RADIUS, which already glides (morphTween/domainTween),
- * these values landed in a single frame with no animation channel of their
- * own — this module is that channel's pure planning half.
+ * The "displaced scalar" mechanism: a per-node value — the wheel slot ANGLE
+ * and the gutter x — that would otherwise be read straight off its live
+ * target map every frame. Correct once settled, but a hard SNAP the instant
+ * the target map itself changes: an axis swap, a radial range-filter edit, a
+ * playlist switch, easy-mode, the spread slider. Unlike the node RADIUS,
+ * which already glides (morphTween/domainTween), these values would land in
+ * a single frame with no animation channel of their own — this module is
+ * that channel's pure planning half.
  *
  * `captureDisplaced` freezes each node's currently DISPLAYED value the
  * instant a new target map is about to replace the old one — not the stale

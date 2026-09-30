@@ -1,8 +1,8 @@
 /**
- * Pure logic behind the genre map's calm rendering (v13): the resting
- * skeleton, the wheel-style focus tiers, size-scaled physics and the
- * ghost-anchor bookkeeping. The component keeps only wiring; everything
- * decidable from plain data lives here.
+ * Pure logic behind the genre map's calm rendering: the resting skeleton,
+ * the wheel-style focus tiers, size-scaled physics and the ghost-anchor
+ * bookkeeping. The component keeps only wiring; everything decidable from
+ * plain data lives here.
  */
 
 import { packNeighbours } from './genre'
@@ -58,9 +58,9 @@ interface MapMotion {
 }
 
 /**
- * Physics calm scales with node count (v13 issue 2): bigger maps damp harder
- * and a drag injects less energy, so a 36-genre library drifts instead of
- * churning. ≤22 nodes keeps the classic tuning exactly.
+ * Physics calm scales with node count: bigger maps damp harder and a drag
+ * injects less energy, so a 36-genre library drifts instead of churning.
+ * ≤22 nodes keeps the classic tuning exactly.
  */
 export function mapMotion(nodeCount: number): MapMotion {
   const growth = Math.max(1, Math.sqrt(nodeCount / 22))
@@ -72,18 +72,18 @@ export function mapMotion(nodeCount: number): MapMotion {
     dragAlphaTarget: Math.max(0.06, 0.15 / growth),
     // Slow cooling, so nodes drift into place instead of springing, but a
     // map that comes to rest: from a cold start about 460 ticks (~7.6 s at
-    // 60 fps), from a toggle's 0.3 reheat about 340 (~5.6 s). The old 0.002
-    // decay kept every tick of the page busy for nearly a minute.
+    // 60 fps), from a toggle's 0.3 reheat about 340 (~5.6 s). A 0.002 decay
+    // would keep every tick of the page busy for nearly a minute.
     alphaDecay: 0.01,
     alphaMin: 0.01,
   }
 }
 
 /**
- * Which unowned pack neighbours to show as ghosts, and — new in v13 — which
- * library genre(s) summoned each one. Ghosts only ever draw (and are only
- * pulled by) links to their anchors, so "show nearby genres" tethers context
- * to the map instead of flooding it.
+ * Which unowned pack neighbours to show as ghosts, and which library
+ * genre(s) summoned each one. Ghosts only ever draw (and are only pulled
+ * by) links to their anchors, so "show nearby genres" tethers context to
+ * the map instead of flooding it.
  */
 export function ghostAnchors(
   libraryLabels: Iterable<string>,
@@ -113,10 +113,10 @@ interface MapFocusState {
 type EdgeTier = 'pair' | 'star' | 'skeleton' | null
 
 /**
- * The focus state machine (v13 issue 3, mirroring the wheel's focus-only
- * edges): the compare pair's own link pops above everything; a hovered or
- * selected genre lights its full star; the resting set stays faint; the rest
- * is not drawn at all.
+ * The focus state machine, mirroring the wheel's focus-only edges: the
+ * compare pair's own link pops above everything; a hovered or selected
+ * genre lights its full star; the resting set stays faint; the rest is not
+ * drawn at all.
  */
 export function edgeTier(
   edge: { a: string; b: string },

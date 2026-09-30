@@ -59,7 +59,7 @@
     visibleLibrary,
   } from '../stores'
 
-  // v39: with no predictions loaded, every genre-source control is inert —
+  // With no predictions loaded, every genre-source control is inert —
   // and silently so, since a missing prediction leaves the collection's own
   // genre showing. This line is the only thing on screen that says why.
   const genrePredicted = $derived($augmentedLibrary.filter((t) => t.analysedGenre !== null).length)
@@ -67,7 +67,7 @@
     [...$analysedFieldsById.values()].filter((f) => f.has('genre')).length,
   )
 
-  // --- Set & suggestions (v7, issue 10) ---
+  // --- Set & suggestions ---
   // Opener/closer/must-include are CHOSEN in the Tracks view (or via the ⏮/⏭
   // pins on the set rows); this menu only lists the current choices with a
   // remove button — the picker selects were too messy here.
@@ -96,7 +96,7 @@
     viewMode.set('tracks')
   }
 
-  // v9 issue 3: reset everything the advanced panel owns and nothing else.
+  // Reset everything the advanced panel owns and nothing else.
   let resetConfirm: ConfirmDialog
   let tourConfirm: ConfirmDialog
   function resetToDefaults() {
@@ -104,10 +104,10 @@
     criteria.update(resetAdvancedCriteria)
   }
 
-  // --- Track properties (v11 issue 1): one table decides, per property,
+  // --- Track properties: one table decides, per property,
   // whether it shows as a Tracks-view column and as a left-panel filter.
   // Hiding a filter also clears it, so a hidden filter never keeps acting.
-  // Since v23 the same table also carries the three panel pseudo-rows
+  // The same table also carries the three panel pseudo-rows
   // (below, after the trackColumns {#each}) — no column, filter-only, one
   // shared tick spanning both cells; label/aria come from the shared
   // PANEL_FILTERS registry (marks.ts). The two toggle functions are split
@@ -160,7 +160,7 @@
 
   // Column checkboxes list the columns in the user's own order and toggle
   // only the hidden set — a re-enabled column reappears at its previous
-  // position (v8 issue 15, v9 issue 12).
+  // position.
   function toggleColumn(field: TrackSortField) {
     settings.update((s) => ({
       ...s,
@@ -170,8 +170,8 @@
     }))
   }
 
-  // --- Scoped bulk clears (v18 #3, Task 8): the whole-view ★/🔗 bulk
-  // actions Task 7 retired from the Tracks-view header (they're quick
+  // --- Scoped bulk clears: the whole-view ★/🔗 bulk
+  // actions retired from the Tracks-view header (they're quick
   // filters now) come back here, scoped to the current playlist selection
   // and behind a confirm dialog each. `scope` uses bulkScopeIds rather than
   // the playlistScopedLibrary store: an EMPTY playlist selection has to mean
@@ -240,18 +240,18 @@
     rightPanel.set('set')
   }
 
-  // --- section memory (v8 issue 17): all folded on first use, then the
+  // --- section memory: all folded on first use, then the
   // menu remembers which sections the user keeps open, across sessions.
   // MUST be bind:open: Svelte 5 treats a plain open={} as controlled and
   // re-asserts the declared value after every user toggle, so a one-way
   // attribute (reactive or static) permanently slams the sections shut.
-  // 'filters' merged into 'tracks' in v11 (issue 1) — the surviving id keeps
-  // old saves' fold memory for the section that remains. 'audio' became 'view'
-  // in v30 and deliberately did NOT keep it: the section grew from one switch
-  // into the whole of what is on screen, so an old save's fold memory for the
-  // narrower thing is not memory of this one — and an id called 'audio' on a
-  // section called View misleads whoever reads it next. It costs one click,
-  // once.
+  // 'tracks' carries the fold memory for the merged 'filters'+'tracks'
+  // section, so an old save's fold state for either still applies. 'view'
+  // deliberately does NOT inherit 'audio's fold memory: the section grew
+  // from one switch into the whole of what is on screen, so an old save's
+  // fold memory for the narrower thing is not memory of this one — and an
+  // id called 'audio' on a section called View would mislead whoever reads
+  // it next. It costs one click, once.
   const SECTION_IDS = ['genre', 'keybpm', 'display', 'tracks', 'set', 'view', 'analysis'] as const
   type SectionId = (typeof SECTION_IDS)[number]
   // One-time init from the store: settings is a svelte store, not runes state.
@@ -321,7 +321,7 @@
   }}
 />
 
-<!-- Lives in the right aside, swapping with "Your set" (design-v5 §E), so
+<!-- Lives in the right aside, swapping with "Your set", so
      the wheel stays visible while settings change. -->
 <aside class="panel">
   <div class="head">
@@ -336,9 +336,9 @@
     </button>
   </div>
 
-  <!-- Grouped into collapsible sections (ISSUES.md #16). All sections
+  <!-- Grouped into collapsible sections. All sections
        start folded on first use; which ones stay open is remembered in
-       settings (v8 issue 17). -->
+       settings. -->
   <details
     class="section"
     bind:open={sectionState.genre}
@@ -499,7 +499,7 @@
         <option value="violet">Violet</option>
       </select>
     </label>
-    <!-- One consistent rule (v11 issue 13): a control whose effect is not
+    <!-- One consistent rule: a control whose effect is not
          visible in the CURRENT view dims (with a title saying where it
          acts) but stays adjustable — never disabled. The colour scheme
          stays live everywhere. -->
@@ -513,8 +513,8 @@
       dimmed={$viewMode !== 'wheel'}
       title="Only affects the Wheel view"
     />
-    <!-- Edges are focus-only (v9): these dim unless a wheel track is
-         selected, but stay adjustable in advance (v11 issue 13). -->
+    <!-- Edges are focus-only: these dim unless a wheel track is
+         selected, but stay adjustable in advance. -->
     <SliderRow
       label="Edge opacity"
       bind:value={$settings.edgeOpacity}
@@ -554,7 +554,7 @@
     <div class="scroll-list">
       <!-- The header lives INSIDE the scroll list (sticky) so it shares the
            exact scrollbar gutter as the rows and its columns always line up
-           with the checkboxes (ISSUES.md #9). -->
+           with the checkboxes. -->
       <div class="prop-head" aria-hidden="true">
         <span class="prop-name"></span>
         <span>column</span>
@@ -572,7 +572,7 @@
           <div class="group-divider"></div>
         {/if}
         <div class="prop-row" class:descriptor={isDescriptorKey(field)}>
-          <!-- The descriptors carry their rail icon here too (v35.1). The
+          <!-- The descriptors carry their rail icon here too. The
                rail labels them by one letter, and this table is the only
                place that shows icon and full name together — it is how "D"
                becomes readable as Danceability. -->
@@ -597,18 +597,18 @@
           {/if}
         </div>
       {/each}
-      <!-- The three panel quick-filters (v18 #3/#8, v23): filter-only, no
+      <!-- The three panel quick-filters: filter-only, no
            column of their own — starred/combo membership and key-ring
            visibility live elsewhere, not a table cell. One shared tick
-           spans both the column and filter cells (v23): it governs both the
+           spans both the column and filter cells: it governs both the
            left-panel row and the Tracks-view control at once, so it's not
            pretending to be two independent settings. aria-label uses `aria`
            (no emoji), not `label` — a screen reader would otherwise speak
-           the glyph's Unicode name (v18 review fix, D). -->
-      <!-- A divider of its own, not a border on the first row below it (v27):
-           a border sits inside that row's box, so the row was 1px taller than
-           its three siblings and the space under the line could only be
-           bought with padding, which made it taller still. -->
+           the glyph's Unicode name. -->
+      <!-- A divider of its own, not a border on the first row below it: a
+           border sits inside that row's box, making the row 1px taller than
+           its three siblings — the space under the line could only be
+           bought with padding, which would make it taller still. -->
       <div class="group-divider"></div>
       {#each PANEL_FILTERS as m (m.key)}
         <div class="prop-row pseudo">
@@ -623,8 +623,8 @@
         </div>
       {/each}
     </div>
-    <!-- Scoped bulk clears (v18 #3, Task 8): the whole-view ★/🔗 bulk
-         actions retired from the Tracks-view header (3e69be8) come back
+    <!-- Scoped bulk clears: the whole-view ★/🔗 bulk
+         actions retired from the Tracks-view header come back
          here — scoped to the playlist selection above, confirmed, and
          undoable in one Cmd+Z (clearStars/clearCombos). -->
     <div class="bulk-clear">
@@ -697,7 +697,7 @@
       How hard a track pair you marked "mix well" pulls suggested walks. 0 ignores the mark (it
       still counts as an edge); 5 ranks it like an essential; 10 lets it dominate.
     </p>
-    <!-- Read-only listing (issue 10): the choices themselves are made in the
+    <!-- Read-only listing: the choices themselves are made in the
          Tracks view (or via the ⏮/⏭ pins on the set's first/last rows). -->
     <div class="must-block">
       <span class="must-title">Constellation order</span>
@@ -747,8 +747,7 @@
     </div>
   </details>
 
-  <!-- v30: what was the Preview section, widened to the whole of what is on
-       screen. The three rows are the app's three panels, each also collapsible
+  <!-- The three rows are the app's three panels, each also collapsible
        from a button on its own edge; the top one has no separate switch,
        because a bar you cannot see is a bar you cannot stop. -->
   <details class="section" bind:open={sectionState.view} ontoggle={(e) => persistToggle('view', e)}>
@@ -878,10 +877,11 @@
     danger
   />
 
-  <!-- v9 issue 3: everything this panel owns, back to its default value.
-       Filters, playlists, sets, pins, the theme and (v28) the audio-preview
-       toggle are deliberately not touched — they live elsewhere. Confirmed first (v11 issue 14): it
-       changes a lot at once and sits where a stray click can reach it. -->
+  <!-- Everything this panel owns, back to its default value.
+       Filters, playlists, sets, pins, the theme and the audio-preview
+       toggle are deliberately not touched — they live elsewhere. Confirmed
+       first: it changes a lot at once and sits where a stray click can
+       reach it. -->
   <button class="reset-defaults" onclick={() => resetConfirm.open(resetToDefaults)}>
     ↺ Return to default settings
   </button>
@@ -893,7 +893,7 @@
     danger
   />
 
-  <!-- Track properties' scoped bulk-clear buttons (v18 #3, Task 8): kept
+  <!-- Track properties' scoped bulk-clear buttons: kept
        here with the panel's other confirm dialogs, not nested inside the
        Track properties <details>, so a closed section can never suppress a
        dialog that's mid-open (matches tourConfirm/resetConfirm above). -->
@@ -1036,8 +1036,7 @@
 
   label.row {
     justify-content: flex-start;
-    /* Keep the label text beside its checkbox, never wrapped under it (v10
-       issue 19). */
+    /* Keep the label text beside its checkbox, never wrapped under it. */
     flex-wrap: nowrap;
   }
 
@@ -1047,20 +1046,20 @@
     gap: 4px;
   }
 
-  /* A fixed-height scroll box for the long property list (v10 issue 22),
-     matching the Genres/Playlists lists on the left. */
+  /* A fixed-height scroll box for the long property list, matching the
+     Genres/Playlists lists on the left. */
   .scroll-list {
     max-height: 200px;
     overflow-y: auto;
     /* Always reserve the scrollbar gutter so the header (a sticky child, so it
-       shares this exact gutter) and the rows never disagree (ISSUES.md #9). */
+       shares this exact gutter) and the rows never disagree. */
     scrollbar-gutter: stable;
     border: 1px solid var(--border);
     border-radius: 6px;
     padding: 0 8px 4px;
   }
 
-  /* The per-property Column/Filter grid (v11 issue 1). */
+  /* The per-property Column/Filter grid. */
   .prop-head,
   .prop-row {
     display: grid;
@@ -1074,7 +1073,7 @@
     /* Sticky inside .scroll-list: no horizontal padding (the list's 8px + the
        shared scrollbar gutter position it identically to the rows), a top
        inset for breathing room, and the panel bg to hide rows scrolling under
-       it (ISSUES.md #9). */
+       it. */
     position: sticky;
     top: 0;
     z-index: 1;
@@ -1090,14 +1089,14 @@
     padding: 2px 0;
   }
 
-  /* v23: one checkbox governs both the left-panel row and the Tracks-view
+  /* One checkbox governs both the left-panel row and the Tracks-view
      control for these three, so it spans the column+filter pair rather than
      pretending to be two independent settings. */
   .prop-row.pseudo .shared {
     grid-column: 2 / 4;
   }
 
-  /* Equal margins (v27): with the rows' own 2px padding that's the same 8px
+  /* Equal margins: with the rows' own 2px padding that's the same 8px
      of air above and below the line, and none of it inside a row's box. */
   .group-divider {
     border-top: 1px solid var(--grid);
@@ -1113,8 +1112,8 @@
   }
 
   /* flex, so the vector icon and the word are two items with one exact gap
-     between them (v27) — see FiltersSection, which pairs these same four
-     rows with the same icons. The descriptor rows (v35.1) join the same rule
+     between them — see FiltersSection, which pairs these same four
+     rows with the same icons. The descriptor rows join the same rule
      rather than getting one of their own: same icon, same gap, same edge. */
   .prop-row.pseudo .prop-name,
   .prop-row.descriptor .prop-name {
@@ -1129,7 +1128,7 @@
     opacity: 0.6;
   }
 
-  /* v9 issue 1: retired with the ↻ re-jitter button above.
+  /* Retired with the ↻ re-jitter button above.
   .re-jitter {
     padding: 1px 7px;
     font-size: 12px;
@@ -1164,7 +1163,7 @@
     color: var(--ink);
   }
 
-  /* The scoped bulk-clear buttons (v18 #3, Task 8): full width like
+  /* The scoped bulk-clear buttons: full width like
      .reset-defaults, but each stands on its own — no shared hover-color
      override, so button.danger's own colour (app.css) carries through. */
   .bulk-clear {

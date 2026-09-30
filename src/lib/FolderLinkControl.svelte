@@ -38,26 +38,26 @@
   const sampleLibrary = $derived(isSampleLibrary($library))
 
   /**
-   * No browser lets a page aim a folder picker at a path (v28.1): Chromium's
+   * No browser lets a page aim a folder picker at a path: Chromium's
    * `showDirectoryPicker` takes only well-known names — we pass `'music'` —
    * and `<input webkitdirectory>` takes nothing at all. Showing the path is
    * the whole of what is left, and it is enough: the macOS open panel takes
    * ⌘⇧G and a paste, GTK and Windows dialogs take Ctrl+L.
    *
-   * v29 #3: the bare path never said *why* it was the right folder, and it
-   * vanished entirely for a library with one track on another volume. The
-   * worked example — this track, that path, so this folder — survives both.
+   * A bare path never says *why* it is the right folder, and it would vanish
+   * entirely for a library with one track on another volume. The worked
+   * example — this track, that path, so this folder — survives both.
    */
   /**
-   * Which track the worked example should name (v30.1). Both candidates are
-   * drawn from what is ON SCREEN, most-wanted first: the track the user last
+   * Which track the worked example should name. Both candidates are drawn
+   * from what is ON SCREEN, most-wanted first: the track the user last
    * CLICKED, then the first one the filters still leave standing. A clicked
    * track that has since been filtered away does not count — deck B goes on
    * playing it, but the ⓘ is meant to name something the user can see.
    *
    * `clickedTrackId` rather than `selectedId` for the same reason deck B uses
-   * it (v29 #10): it means a track the user picked, not wherever the app moved
-   * the selection.
+   * it: it means a track the user picked, not wherever the app moved the
+   * selection.
    *
    * Two entries, never two thousand: `folderHint` only ever wants the first
    * candidate with a path, so there is nothing to gain by handing it the list.
@@ -91,9 +91,9 @@
   }
 
   /**
-   * What the scan is doing, in words (v29 #2). Both passes are named, because
-   * the second one — matching the library against what the walk found — used
-   * to run in silence after the count stopped moving.
+   * What the scan is doing, in words. Both passes are named, because the
+   * second one — matching the library against what the walk found — would
+   * otherwise run in silence after the count stops moving.
    */
   const scanText = $derived.by(() => {
     const p = $indexProgress
@@ -160,10 +160,10 @@
       <!-- Same tip as before linking: the folder is the thing to change. -->
       {@render folderTip()}
     {:else if layout === 'bar'}
-      <!-- The breakdown lives behind the ⓘ rather than in the line (v29 #6) —
-           WHY a track failed is the half worth keeping. Unconditional since
-           v30: in a narrow bar the button is a bare ✓, so this is the only
-           place the numbers are, whether or not anything failed. -->
+      <!-- The breakdown lives behind the ⓘ rather than in the line — WHY a
+           track failed is the half worth keeping. Unconditional: in a narrow
+           bar the button is a bare ✓, so this is the only place the numbers
+           are, whether or not anything failed. -->
       <InfoTooltip label="What can and cannot be previewed" align="right">
         <span><strong>{$coverage.playable} of {$coverage.total} playable</strong></span>
         {#if $coverage.unsupported > 0}
@@ -188,12 +188,12 @@
       {@render folderTip()}
     {/if}
     {#if layout === 'panel' && fallbackPath !== null}
-      <!-- Panel only since v30.1: in the bar this was the widest thing in
-           `.source`, and what it squeezed was the link button itself — down to
-           `Link` / `music` / `folder…` on three lines, which made the whole bar
-           taller. Advanced → View is where it earns its width, and it is still
-           deliberately a separate control from the button above: the picker is
-           modal, so the copy has to happen first. -->
+      <!-- Panel only: in the bar this would be the widest thing in `.source`,
+           and what it squeezes is the link button itself — down to `Link` /
+           `music` / `folder…` on three lines, which makes the whole bar
+           taller. Advanced → View is where it earns its width, and it is
+           still deliberately a separate control from the button above: the
+           picker is modal, so the copy has to happen first. -->
       <button
         class="path"
         onclick={copyPath}
@@ -223,8 +223,8 @@
   </p>
 {/if}
 
-<!-- The worked example (v29 #3), identical in the bar and the panel: which
-     track, where it claims to live, and therefore which folder to link. -->
+<!-- The worked example, identical in the bar and the panel: which track,
+     where it claims to live, and therefore which folder to link. -->
 {#snippet folderTip()}
   <InfoTooltip label="Which folder to link" align={layout === 'bar' ? 'right' : 'left'}>
     {#if hint?.example != null}
@@ -269,21 +269,21 @@
     padding: 2px 0;
   }
 
-  /* In the bar every label is one line or it is not there (v30.1). A button
-     squeezed by its neighbours is otherwise free to wrap its OWN text, and
-     `.source` clips rather than scrolls — so a wrapped button silently grows
-     the bar's height, which is the one thing v30 said would depend on the deck
-     count and nothing else. The panel is exempt: its coverage read-out is the
-     long form, and wrapping is how it fits the rail. */
+  /* In the bar every label is one line or it is not there. A button squeezed
+     by its neighbours is otherwise free to wrap its OWN text, and `.source`
+     clips rather than scrolls — so a wrapped button would silently grow the
+     bar's height, when the bar's height must depend on the deck count and
+     nothing else. The panel is exempt: its coverage read-out is the long
+     form, and wrapping is how it fits the rail. */
   .link:not(.panel) button {
     white-space: nowrap;
   }
 
-  /* v30: the bar's height must depend on how many decks are showing and on
+  /* The bar's height must depend on how many decks are showing and on
      nothing else — so in the bar the scan label sits BESIDE its progress bar
-     (and disappears entirely when there is no room for it), rather than above
-     it where it made the whole bar taller for the duration of a folder walk.
-     In the panel the stack keeps the full width it always had. */
+     (and disappears entirely when there is no room for it), rather than
+     above it, which would make the whole bar taller for the duration of a
+     folder walk. In the panel the stack keeps the full width it always had. */
   .scan {
     display: flex;
     flex-direction: row;
@@ -300,11 +300,11 @@
   }
 
   /* How much of itself the chip writes out, answered by the room the PLAYER BAR
-     actually has rather than by the right rail's width (v30) — the two stopped
-     being the same thing the moment a panel could be put away. `player` is the
-     container declared on `.player`; the panel copy of this control is not
-     inside it, so the query simply never applies there and the long form
-     always wins. Whatever the short form drops is in the ⓘ and the `title`. */
+     actually has rather than by the right rail's width — the two are not the
+     same thing once a panel can be put away. `player` is the container
+     declared on `.player`; the panel copy of this control is not inside it,
+     so the query simply never applies there and the long form always wins.
+     Whatever the short form drops is in the ⓘ and the `title`. */
   .short {
     display: none;
   }

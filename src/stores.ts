@@ -45,16 +45,17 @@ type ViewMode = 'wheel' | 'genres' | 'tracks'
 
 export const library = writable<Track[]>([])
 /**
- * Audio-analysis results keyed by file path (v33 WS1). Deliberately NOT
- * cleared by `replaceLibrary`: track ids do not survive a re-import but file
- * paths do, and a multi-hour analysis batch is not disposable.
+ * Audio-analysis results keyed by file path. Deliberately NOT cleared by
+ * `replaceLibrary`: track ids do not survive a re-import but file paths do,
+ * and a multi-hour analysis batch is not disposable.
  */
 export const analysis = writable<AnalysisSidecar | null>(null)
 /**
  * Set when a localStorage write fails, cleared when one succeeds. Autosave is
- * best-effort, but before v33 it failed SILENTLY — a quota breach stopped the
- * whole project saving, with nothing on screen to connect the loss to. An
- * analysis sidecar is what makes a breach plausible on a real library.
+ * best-effort, but a failed write must not fail SILENTLY — without this, a
+ * quota breach stops the whole project saving, with nothing on screen to
+ * connect the loss to. An analysis sidecar is what makes a breach plausible
+ * on a real library.
  */
 export const autosaveError = writable<string | null>(null)
 /**
@@ -69,7 +70,7 @@ export const playlists = writable<Playlist[]>([])
 export const viewMode = writable<ViewMode>('wheel')
 /** Right aside: the set, or the advanced settings in its place. Session-only. */
 export const rightPanel = writable<'set' | 'advanced'>('set')
-/** The Tracks table's sort — session-only, but it survives view switches (v8 issue 15). */
+/** The Tracks table's sort — session-only, but it survives view switches. */
 export const trackSort = writable<TrackSort>({ field: 'artist', dir: 'asc' })
 export const libraryName = writable<string>('')
 export const lastImportReport = writable<ImportReport | null>(null)
@@ -85,25 +86,24 @@ export const selectedId = writable<string | null>(null)
  * clicking a track: the wheel hub's suggest/retry/reset picks, undo and redo
  * restoring a captured selection, background clicks, Escape, a project load.
  *
- * The audio preview listens to THIS, not to `selectedId` (v29 #10). Deck B is
+ * The audio preview listens to THIS, not to `selectedId`. Deck B is
  * "the track you clicked", which is a thing the user did; it is not "the
- * selection", which is a thing the app moves around. That is also what retires
- * the v28.1 deselection latch: a click event can never carry null, so there is
- * nothing left to latch against.
+ * selection", which is a thing the app moves around. A click event can never
+ * carry null, so there is nothing here to latch against on deselect.
  *
  * Never persisted, and deliberately not cleared alongside `selectedId` — a
  * deck goes on playing until another track is clicked or the library changes.
  */
 export const clickedTrackId = writable<string | null>(null)
 /**
- * Track hovered in the set list (v9 issue 20): mirrored as a subtle halo on
+ * Track hovered in the set list: mirrored as a subtle halo on
  * the wheel node and a tint on the Tracks-view row, so the eye can find the
  * same track across views. Never persisted, cleared on mouse-leave.
  */
 export const hoveredId = writable<string | null>(null)
 
 /**
- * Walk-draw reveal trigger (v12 WS1, session-only): ✨/⚡ bumps the tick and
+ * Walk-draw reveal trigger (session-only): ✨/⚡ bumps the tick and
  * the wheel + set list replay their staggered reveal; `seen` catches up when
  * the reveal window closes so re-mounting a view (or undoing a suggestion)
  * never replays it.
@@ -114,9 +114,9 @@ export const walkRevealSeen = writable(0)
  * fresh ✨). ⚡ continue-in-place sets this so only the forced tail draws in,
  * leaving the already-drawn prefix/suffix static. */
 export const walkRevealRange = writable<{ from: number; to: number } | null>(null)
-/** The `s` hotkey (v12 WS14) asks whichever set panel is mounted to run ✨. */
+/** The `s` hotkey asks whichever set panel is mounted to run ✨. */
 export const suggestHotkeyTick = writable(0)
-/** Guided-tour position (v12 WS12): null = closed; session-only. */
+/** Guided-tour position: null = closed; session-only. */
 export const tourStep = writable<number | null>(null)
 /** Keeps the window open past the last stagger for the trailing animations —
  * the final row fade (240ms), the last node pulse (320ms) and the completion
@@ -127,9 +127,9 @@ export function bumpWalkReveal(totalMs: number): void {
   walkRevealTick.set(tick)
   // Under reduced motion the walk-draw, the node pulses and the row cascade
   // are all switched off in CSS, so there is no reveal to wait out. Close the
-  // window in the same breath (v31 #2): callers that gate on "still drawing"
-  // — the wheel hub, the ⚡ offer — must not be held for seconds by an
-  // animation nobody is being shown.
+  // window in the same breath: callers that gate on "still drawing" — the
+  // wheel hub, the ⚡ offer — must not be held for seconds by an animation
+  // nobody is being shown.
   if (prefersReducedMotion()) {
     walkRevealSeen.set(tick)
     return
@@ -141,8 +141,8 @@ export function bumpWalkReveal(totalMs: number): void {
 }
 
 /**
- * Multiple named sets (issue 18, persisted): always at least one; the active
- * one is what the wheel/panel edit. `tracklist` below keeps its historical
+ * Multiple named sets (persisted): always at least one; the active one is
+ * what the wheel/panel edit. `tracklist` below keeps its original
  * Writable<string[]> API but is backed by the active set, so the many
  * existing readers and writers stay unchanged.
  */
@@ -218,19 +218,19 @@ function activeSetField<K extends 'mustInclude' | 'pinnedFirst' | 'pinnedLast'>(
 
 /**
  * Append a track to the active set — shared by the wheel's double-click and
- * the Tracks table (issue 7). The same track may appear twice in a set, just
- * not back-to-back.
+ * the Tracks table. The same track may appear twice in a set, just not
+ * back-to-back.
  */
 function appendToSet(id: string): void {
   tracklist.update((ids) => (ids[ids.length - 1] === id ? ids : [...ids, id]))
 }
 
 /**
- * Add a track to the active set (S5): if the anchor track is already in the
+ * Add a track to the active set: if the anchor track is already in the
  * set, splice the new one right after its FIRST occurrence; otherwise append.
  * The anchor defaults to the live selection, but the wheel passes it
  * explicitly — a double-click's two preceding `click` events have already
- * moved and then cleared `selectedId` by the time `ondblclick` runs (v17 #5).
+ * moved and then cleared `selectedId` by the time `ondblclick` runs.
  * `get()` reads are correct here — the callers are event handlers, not
  * reactive contexts. Skips an edit that would place the new track back-to-back
  * with an identical one (mirrors appendToSet's guard).
@@ -265,9 +265,8 @@ export function addSet(inheritMarks = false): void {
 }
 
 /**
- * Rename a set; a name another set already holds gains a " (2)" suffix
- * (v9 issue 18) — names key nothing internally, but an ambiguous dropdown
- * helps no one.
+ * Rename a set; a name another set already holds gains a " (2)" suffix —
+ * names key nothing internally, but an ambiguous dropdown helps no one.
  */
 export function renameSet(id: string, name: string): void {
   const trimmed = name.trim()
@@ -315,23 +314,24 @@ export const pinnedLast = activeSetField('pinnedLast')
 export const mustInclude = activeSetField('mustInclude')
 
 /**
- * Manual edges (v12 WS9): user-marked "these mix well" pairs — planning
- * annotations, persisted with the project, never a play log. Toggled from the
+ * Manual edges: user-marked "these mix well" pairs — planning annotations,
+ * persisted with the project, never a play log. Toggled from the
  * selected-track card's link mode; pruned when a track leaves the library.
  * Declared up here (with the other engine inputs) so the effective layer and
- * the derivations below can consume it without a TDZ (v14 WS6).
+ * the derivations below can consume it without a TDZ.
  */
 export const manualEdges = writable<ManualEdge[]>([])
 
 /**
- * v14 E1: easy mode COMPUTES WITH defaults — it never mutates the stored
- * advanced state (which keeps feeding persist + undo). Playlist selection and
- * the created sets stay SHARED; criteria/filters/settings force to defaults and
- * manual edges go inactive. These are NEW DERIVED STORES swapped into the
- * engine-consuming derivations and the component call sites — the writables
- * themselves are left untouched, so flipping back to All controls returns every
- * stored value exactly as it was. structuredClone keeps the DEFAULT_* objects
- * from being aliased and accidentally mutated by a consumer.
+ * Easy mode COMPUTES WITH defaults — it never mutates the stored advanced
+ * state (which keeps feeding persist + undo). Playlist selection and the
+ * created sets stay SHARED; criteria/filters/settings force to defaults and
+ * manual edges go inactive. These are separate derived stores swapped into
+ * the engine-consuming derivations and the component call sites — the
+ * writables themselves are left untouched, so flipping back to All controls
+ * returns every stored value exactly as it was. structuredClone keeps the
+ * DEFAULT_* objects from being aliased and accidentally mutated by a
+ * consumer.
  */
 const easyMode = derived(settings, ($s) => $s.uiMode === 'easy')
 export const effectiveCriteria = derived([criteria, easyMode], ([$c, $e]) =>
@@ -355,7 +355,7 @@ export const effectiveManualEdges = derived([manualEdges, easyMode], ([$m, $e]) 
 
 /**
  * Wrap a store so subscribers are only notified when the value actually
- * changes per `equal` (v18 #3/#8), not merely re-derived to a new reference.
+ * changes per `equal`, not merely re-derived to a new reference.
  * Svelte's own dedup (`derived`'s internal `safe_not_equal`) treats any
  * object/array as "always changed" — it can't cheaply tell whether one was
  * mutated in place — so an object-valued derived would otherwise re-emit,
@@ -376,7 +376,7 @@ function distinct<T>(store: Readable<T>, equal: (a: T, b: T) => boolean): Readab
 }
 
 /**
- * Throttle a store with a trailing edge (v37): the first write after an idle
+ * Throttle a store with a trailing edge: the first write after an idle
  * period passes through synchronously (a checkbox toggle stays instant), then
  * at most one emission per `ms` while writes keep coming (a slider drag emits
  * ~4×/s at 250ms instead of once per pixel), and the last value is always
@@ -423,7 +423,7 @@ function marksContextEqual(a: MarksContext | null, b: MarksContext | null): bool
 }
 
 /**
- * The marks quick-filters' live context (v18 #3/#8, widened v25): `null`
+ * The marks quick-filters' live context: `null`
  * while `starredOnly`/`comboOnly`/`constellationOnly` are all off, so
  * `visibleLibrary` stays inert to mustInclude/pin/manualEdges/tracklist
  * churn — the perf gate, since `visibleLibrary` feeds the combo graph and
@@ -467,7 +467,7 @@ const marksContext: Readable<MarksContext | null> = distinct(
 
 /**
  * Turn one marks quick-filter on/off — the ONE mutator every write site
- * routes through (v18 #3/#8 review fix, B1): TracksView's header ★/🔗,
+ * routes through: TracksView's header ★/🔗,
  * FiltersSection's all/only switches, and AdvancedMenu's hide-clears branch
  * and "Reset settings" button all call this instead of poking
  * `filters.marks` directly.
@@ -475,8 +475,8 @@ const marksContext: Readable<MarksContext | null> = distinct(
  * Early-returns when `value` already matches — without it, a no-op click
  * (re-clicking the already-active "only" button, hiding an already-off row,
  * resetting an already-off flag) still writes `filters`, which cascades
- * into `marksContext`/`visibleLibrary` — the O(n²) combo recompute Task 6's
- * `distinct` wrapper guards against real churn, not this kind of no-op.
+ * into `marksContext`/`visibleLibrary` — the `distinct` wrapper guards the
+ * O(n²) combo recompute against real churn, not this kind of no-op.
  *
  * Turning a flag ON also force-adds its row to `settings.visibleFilters` if
  * missing: the same "an active filter is never invisible" invariant
@@ -504,7 +504,7 @@ export function toggleMarkFilter(flag: keyof MarksFilter): void {
   setMarkFilter(flag, !get(filters).marks[flag])
 }
 
-/** Neutralise the filter a pseudo row owns, whatever backs it (v23): a
+/** Neutralise the filter a pseudo row owns, whatever backs it: a
  *  hidden control must never keep acting — the same invariant
  *  `toggleFilterVisible` already keeps for property filters. */
 export function clearPanelFilter(key: PanelFilterKey): void {
@@ -520,7 +520,7 @@ export function clearPanelFilter(key: PanelFilterKey): void {
 }
 
 /**
- * The library with analysed values filling the nulls Rekordbox left (v33 WS1).
+ * The library with analysed values filling the nulls Rekordbox left.
  *
  * Everything that DISPLAYS or REASONS about track metadata reads this; raw
  * `library` stays the Rekordbox truth that feeds persistence, the importers
@@ -532,7 +532,7 @@ export function clearPanelFilter(key: PanelFilterKey): void {
  * exactly as it did before the feature existed.
  */
 /**
- * The v36 source preference, projected through `distinct` so unrelated
+ * The source preference, projected through `distinct` so unrelated
  * settings churn (an edge-opacity slider drag) never re-emits into the
  * O(n²) combo view downstream. Reads the EFFECTIVE layer: easy mode runs
  * on Rekordbox truth like every other computed default.
@@ -542,15 +542,15 @@ const sourcePrefs = distinct(
   (a, b) => a.keySource === b.keySource && a.bpmSource === b.bpmSource,
 )
 /**
- * Comment-sourced key/BPM substitution (v36), BEFORE the sidecar merge:
- * the fallback chain is comment token → Rekordbox value → analysis sidecar,
+ * Comment-sourced key/BPM substitution, BEFORE the sidecar merge: the
+ * fallback chain is comment token → Rekordbox value → analysis sidecar,
  * and a comment-sourced key is non-null so the sidecar never fills-and-badges
  * it. Identity when both prefs are 'rekordbox'.
  */
 const sourced = derived([library, sourcePrefs], ([$library, $prefs]) =>
   applySourcePreference($library, $prefs),
 )
-/** The v39 genre preference, `distinct` for the same reason as `sourcePrefs`:
+/** The genre preference, `distinct` for the same reason as `sourcePrefs`:
  * it feeds the O(n²) combo view, so unrelated settings churn must not re-emit. */
 const genrePrefs = distinct(
   derived(effectiveSettings, ($s) => ({
@@ -565,16 +565,16 @@ const merged = derived([sourced, analysis, genrePrefs], ([$sourced, $analysis, $
   // and a multi-hour analysis run must survive a look at the sample.
   const sidecar = $analysis === null ? SAMPLE_ANALYSIS : mergeSidecars(SAMPLE_ANALYSIS, $analysis)
   const result = mergeAnalysis($sourced, sidecar, $genrePrefs)
-  // The own-label ↔ predicted-style aliases are module state in genre.ts
-  // (v39.1): every matcher — wheel, genre map, set panel, suggestions — must
-  // read the same table, and this is the one place a new merge is seen before
+  // The own-label ↔ predicted-style aliases are module state in genre.ts:
+  // every matcher — wheel, genre map, set panel, suggestions — must read the
+  // same table, and this is the one place a new merge is seen before
   // anything downstream matches on genre.
   setGenreBridge(result.genreBridge)
   return result
 })
 export const augmentedLibrary = derived(merged, ($merged) => $merged.tracks)
 /**
- * The own-label ↔ predicted-style aliases this library supports (v39.1).
+ * The own-label ↔ predicted-style aliases this library supports.
  * Exported for the advanced menu's count; the matchers read the installed
  * copy in genre.ts, never this store.
  */
@@ -597,7 +597,7 @@ export const hasAnalysis = derived(
 )
 
 /**
- * Id → track for the surfaces that DISPLAY metadata (v33).
+ * Id → track for the surfaces that DISPLAY metadata.
  *
  * Deliberately separate from `trackById`, which stays raw: that one resolves
  * the CSV export, and the app also IMPORTS CSV — so an augmented `trackById`
@@ -635,8 +635,8 @@ export const effectiveColorAxis = derived(
 )
 
 /**
- * Distinct genres present in the SELECTED PLAYLISTS, alphabetical (issue 14:
- * a whole-collection checklist drowns the playlists you actually work in).
+ * Distinct genres present in the SELECTED PLAYLISTS, alphabetical: a
+ * whole-collection checklist drowns the playlists you actually work in.
  */
 export const scopedGenres = derived(playlistScopedLibrary, ($scoped) => {
   const seen = new Map<string, string>()
@@ -648,7 +648,7 @@ export const scopedGenres = derived(playlistScopedLibrary, ($scoped) => {
 })
 
 /**
- * Criteria as the combo engine sees them (v37): throttled, so a slider drag
+ * Criteria as the combo engine sees them: throttled, so a slider drag
  * or a number-input keystroke burst costs a handful of O(n²) recomputes, not
  * one per input event. Everything else (UI bindings, undo, autosave, tests)
  * keeps reading the synchronous `effectiveCriteria`.
@@ -727,7 +727,7 @@ export const iconClasses = derived(playlistScopedLibrary, ($scoped) =>
 )
 
 /**
- * The slot-spread setting on its own (v37): the wheel's per-slot relaxation
+ * The slot-spread setting on its own: the wheel's per-slot relaxation
  * (relaxSlotAngles, O(m²) per Camelot slot) reads THIS, so unrelated settings
  * writes never re-trigger it and a spread-slider drag coalesces to the
  * throttle window instead of relaxing per pixel.
@@ -755,7 +755,7 @@ export function toggleManualEdge(a: string, b: string): void {
 }
 
 /**
- * A click in link mode (v14 WS10, shared by the wheel and the tracks table): an
+ * A click in link mode (shared by the wheel and the tracks table): an
  * armed 🔗 with a different source selected turns the click into a combo
  * mark/unmark, keeping the selection on the source so marks chain; otherwise it
  * falls through to the plain select/deselect toggle. `get()` reads are correct

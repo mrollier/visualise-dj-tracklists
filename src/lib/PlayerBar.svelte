@@ -27,13 +27,13 @@
   import { isSampleLibrary } from './persistence'
 
   /**
-   * The audition bar (v28). One row while nothing is pinned; a second row and
-   * the crossfader appear once deck A is locked.
+   * The audition bar. One row while nothing is pinned; a second row and the
+   * crossfader appear once deck A is locked.
    *
    * It renders even when nothing can play, and says why — a hidden bar cannot
-   * distinguish "off" from "broken". That now includes an empty library
-   * (v29 #1): switching the preview on used to produce nothing at all, which
-   * reads as a broken setting rather than a missing import.
+   * distinguish "off" from "broken". That includes an empty library: without
+   * this, switching the preview on with no library would produce nothing at
+   * all, which reads as a broken setting rather than a missing import.
    */
   const sampleLibrary = $derived(isSampleLibrary($library))
 
@@ -49,8 +49,8 @@
    * itself raised beats the static guess; the folder state beats both, since
    * without a folder nothing is resolvable at all.
    *
-   * Returns the short line for the row and the long one for the ⓘ beside it
-   * (v29 #7), from one reason and one context so the two cannot disagree.
+   * Returns the short line for the row and the long one for the ⓘ beside it,
+   * from one reason and one context so the two cannot disagree.
    */
   function reasonFor(deck: 'a' | 'b'): { label: string; detail: string } | null {
     // Read the coverage store so this re-evaluates when the resolution map is
@@ -160,13 +160,13 @@
 
 <style>
   /* The bar spans the central column and nothing else, because it IS a child
-     of the central column (v30). v29 #6 got the same result by reserving two
-     empty spacer columns sized to `--left-rail` and `--right-rail`; that only
-     held while the rails held those exact widths, which a collapse ends. There
-     is no number left to keep in step now.
+     of the central column. An alternative — reserving two empty spacer
+     columns sized to `--left-rail` and `--right-rail` — would only hold
+     while the rails kept those exact widths, and a collapse ends that.
+     There is no number to keep in step this way.
 
-     `container-type: inline-size` so the source chip can answer how much room
-     it actually has (v30) rather than the right rail's width. */
+     `container-type: inline-size` so the source chip can answer how much
+     room it actually has rather than the right rail's width. */
   .player {
     flex: 0 0 auto;
     display: flex;
@@ -179,14 +179,14 @@
   }
 
   /* The deck rows beside a narrow fader column; the source chip sits beside
-     them all, so every seek line is the same width and the locks line up. One
-     grid for both states (v28.2) — the fader cell is reserved even while
-     empty, so pinning never shifts the transport sideways. */
+     them all, so every seek line is the same width and the locks line up.
+     One grid for both states — the fader cell is reserved even while empty,
+     so pinning never shifts the transport sideways. */
   .decks {
     flex: 1;
     min-width: 0;
-    /* Backstop: whatever the row cannot shrink stays inside the bar rather than
-       painting over the panel next to it (v30). */
+    /* Backstop: whatever the row cannot shrink stays inside the bar rather
+       than painting over the panel next to it. */
     overflow: hidden;
     display: grid;
     grid-template-columns: 22px 1fr;
@@ -195,11 +195,10 @@
     row-gap: 4px;
   }
 
-  /* Sized by its own content now, not by the right rail (v30) — and capped at
-     a third of the bar so a long read-out can never push the transport off
-     centre. `overflow: hidden` keeps whatever is left of it on one line: the
-     bar's height must depend on how many decks are showing and on nothing
-     else. */
+  /* Sized by its own content, not by the right rail — and capped at a third
+     of the bar so a long read-out can never push the transport off centre.
+     `overflow: hidden` keeps whatever is left of it on one line: the bar's
+     height must depend on how many decks are showing and on nothing else. */
   .source {
     flex: 0 1 auto;
     min-width: 0;
@@ -208,8 +207,8 @@
     overflow: hidden;
   }
 
-  /* Vertical, spanning both rows (v28.1). The old full-width horizontal
-     slider with A/B end letters was a whole extra row under a bar specified as
+  /* Vertical, spanning both rows. A full-width horizontal slider with A/B
+     end letters would be a whole extra row under a bar specified as
      minimal; this costs no height at all. */
   .fader {
     grid-column: 1;

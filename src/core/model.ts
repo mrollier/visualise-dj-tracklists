@@ -17,8 +17,8 @@ export interface Track {
   dateAdded: string | null
   /** File path or URL from the source library; needed for M3U8 export. */
   location: string | null
-  // v9 (issue 10): the remaining Rekordbox collection attributes, so the
-  // Tracks-table columns can cover every metadata type the XML carries.
+  // The remaining Rekordbox collection attributes, so the Tracks-table
+  // columns can cover every metadata type the XML carries.
   composer: string | null
   grouping: string | null
   /** File format as Rekordbox names it, e.g. "MP3 File". */
@@ -33,13 +33,13 @@ export interface Track {
   sampleRate: number | null
   comments: string | null
   /**
-   * Mixed-In-Key-style energy 1–10, derived from Comments at import
-   * (v12 WS8) — the field is real so filters/columns/radius treat it like
-   * any metadata, but no DJ software writes it as a first-class attribute.
+   * Mixed-In-Key-style energy 1–10, derived from Comments at import — the
+   * field is real so filters/columns/radius treat it like any metadata, but
+   * no DJ software writes it as a first-class attribute.
    */
   energy: number | null
   /**
-   * Model-derived descriptors as whole percentages 0–100 (v35). Rekordbox
+   * Model-derived descriptors as whole percentages 0–100. Rekordbox
    * never supplies these — they arrive only from the analysis sidecar, so a
    * null means the track has no analysis entry. `arousal` and `valence` are
    * the emoMusic head's 1–9 rescaled; `danceability` and `happiness` are the
@@ -51,7 +51,7 @@ export interface Track {
   happiness: number | null
   /**
    * The analysis sidecar's Discogs400 style prediction and the probability it
-   * carries (v39): "Deep House", 0.72. Parallel to `genre`, never a
+   * carries: "Deep House", 0.72. Parallel to `genre`, never a
    * replacement for it — the Rekordbox label stays where it is and the
    * `genreSource` setting chooses which one the app reads.
    */
@@ -113,14 +113,14 @@ export const EMPTY_TRACK_FIELDS: Omit<Track, 'id' | 'title'> = {
 }
 
 /**
- * Where a track's genre comes from (v39): the collection's own field, or the
+ * Where a track's genre comes from: the collection's own field, or the
  * Discogs400 prediction in the analysis sidecar. Its own type rather than a
  * third member of MetadataSource — a key can come from a comment token, a
  * genre never can, and the type says so.
  */
 export type GenreSource = 'rekordbox' | 'analysis'
 
-/** Where a track's key/BPM ground truth comes from (v36). */
+/** Where a track's key/BPM ground truth comes from. */
 export type MetadataSource = 'rekordbox' | 'comments'
 
 /** The MIK tokens found in a Comments field; null per slot when absent. */
@@ -139,11 +139,11 @@ const BARE_ENERGY_RE = /^(10|[1-9])$/
 const TEMPO_RE = /^\d{1,3}(\.\d+)?$/
 
 /**
- * Parse the Mixed In Key tokens out of a Comments field (v36). MIK writes
+ * Parse the Mixed In Key tokens out of a Comments field. MIK writes
  * hyphen-delimited segments in any of its eight configured formats — key,
  * tempo and energy in either order, energy worded ("Energy 7") or bare ("7").
- * The worded form is also accepted embedded in prose (the v12 behaviour);
- * bare tokens must be whole segments, so "Track 7 - remix" yields nothing.
+ * The worded form is also accepted embedded in prose; bare tokens must be
+ * whole segments, so "Track 7 - remix" yields nothing.
  */
 export function parseMikComment(comments: string | null): MikComment {
   const result: MikComment = { key: null, bpm: null, energy: null }
@@ -170,7 +170,7 @@ export function parseMikComment(comments: string | null): MikComment {
 
 /**
  * The `[A55V35D90H55]` descriptor token our own analyser writes into a file's
- * comment tag (v38): arousal, valence, danceability, happiness as 0–100 whole
+ * comment tag: arousal, valence, danceability, happiness as 0–100 whole
  * percents, fixed order, uppercase. Values are already on the Track percent
  * scale, so a parse is a straight copy. Out-of-range digits cannot match by
  * construction. The token is written as its own ` - `-delimited segment and
@@ -199,15 +199,15 @@ export function parseDescriptorToken(comments: string | null): DescriptorToken |
 }
 
 /**
- * Mixed-In-Key-style energy from a Comments field (v12 WS8, widened v36 to
- * MIK's bare-number formats: "7", "10A - 7", "10A - 126 - 7").
+ * Mixed-In-Key-style energy from a Comments field, in any of MIK's
+ * bare-number formats: "7", "10A - 7", "10A - 126 - 7".
  */
 export function energyFromComments(comments: string | null): number | null {
   return parseMikComment(comments).energy
 }
 
 /**
- * Substitute comment-sourced key/BPM per the v36 source preference. A
+ * Substitute comment-sourced key/BPM per the source preference. A
  * comment-derived value wins when present; a track whose comment has no
  * parsable token keeps its Rekordbox value — flipping the setting never
  * blanks metadata. Returns the input array by reference when nothing
@@ -247,7 +247,7 @@ export interface ImportReport {
 }
 
 /**
- * A user-marked "these mix well" pair (v12 WS9): a forward-looking planning
+ * A user-marked "these mix well" pair: a forward-looking planning
  * annotation, never a record of performed transitions. Unordered; `tag` is a
  * free short note ("mashup", "tested").
  */

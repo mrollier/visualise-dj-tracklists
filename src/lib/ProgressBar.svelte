@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * The app's one progress bar (v29 #2). Determinate when the total is known,
+   * The app's one progress bar. Determinate when the total is known,
    * indeterminate when it cannot be — a File System Access walk discovers the
    * folder as it goes and has no total until it is finished.
    *

@@ -6,12 +6,11 @@ import { buildSampleSidecar } from './sample-analysis'
 import { SAMPLE_TRACKS } from './sample-tracks'
 
 /**
- * Ten themed sample libraries (remark 9). Every pack is fictional (artists
- * and titles invented) and genre-coherent in keys/BPMs/years. A couple of
- * packs deliberately keep missing-metadata edge cases, like real crates do.
- * They all load together as ONE "Sample collection" whose playlists panel
- * carries a playlist per pack — exactly like a Rekordbox XML import
- * (design-v6 §D).
+ * Ten themed sample libraries. Every pack is fictional (artists and titles
+ * invented) and genre-coherent in keys/BPMs/years. A couple of packs
+ * deliberately keep missing-metadata edge cases, like real crates do. They
+ * all load together as ONE "Sample collection" whose playlists panel
+ * carries a playlist per pack — exactly like a Rekordbox XML import.
  */
 interface SamplePack {
   id: string
@@ -31,7 +30,7 @@ type Row = [
   number | null,
 ]
 
-// Fictional labels and albums per pack (v9 issue 11) — the curated half of
+// Fictional labels and albums per pack — the curated half of
 // the enrichment; durations/dates/play counts are hashed in enrichTrack.
 const PACK_EXTRAS: Record<string, PackExtras> = {
   'peak-techno': {
@@ -499,7 +498,7 @@ export const SAMPLE_COLLECTION: SampleCollection = {
 }
 
 /**
- * The sample's analysis sidecar (v35.1), loaded alongside it so the four
+ * The sample's analysis sidecar, loaded alongside it so the four
  * descriptor filters have values to act on. Kept out of `SAMPLE_COLLECTION`
  * itself: it is not library data, and `loadSampleCollection` hands it to the
  * `analysis` store rather than to `replaceLibrary`.

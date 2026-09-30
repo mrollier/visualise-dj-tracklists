@@ -38,9 +38,9 @@ const materialised: Record<DeckId, string | null> = { a: null, b: null }
 const wanted: Record<DeckId, string | null> = { a: null, b: null }
 /**
  * Loading a track into an element starts a media pipeline, and doing that
- * repeatedly underneath a playing deck is one of the ways the audio drops out
- * (v29 #5). Clicking through the wheel need not pre-load every track it passes
- * — only the one the pointer settles on.
+ * repeatedly underneath a playing deck is one of the ways the audio drops
+ * out. Clicking through the wheel need not pre-load every track it passes —
+ * only the one the pointer settles on.
  */
 const PRELOAD_DELAY_MS = 200
 const preloadTimers: Record<DeckId, ReturnType<typeof setTimeout> | undefined> = {
@@ -51,7 +51,7 @@ const preloadTimers: Record<DeckId, ReturnType<typeof setTimeout> | undefined> =
 const busy: Record<DeckId, boolean> = { a: false, b: false }
 
 /**
- * What the bar was holding when it was hidden (v30).
+ * What the bar was holding when it was hidden.
  *
  * Hiding the bar really does switch the audio off — the graph is disposed, so
  * nothing can be playing out of a transport nobody can see. But the SESSION is
@@ -109,10 +109,10 @@ function apply(effects: readonly DeckEffect[]): void {
   for (const effect of effects) {
     if (effect.kind === 'promote') {
       engine.promote()
-      // A symmetric swap, because promote runs in both directions now (v29
-      // #8): lock moves B up, unlock moves A down. `swapDeckUi` was already
-      // symmetric; this was not, and the `clear` effect that always follows
-      // nulls whichever side is being discarded anyway.
+      // A symmetric swap, because promote runs in both directions: lock
+      // moves B up, unlock moves A down. `swapDeckUi` is already symmetric,
+      // and the `clear` effect that always follows nulls whichever side is
+      // being discarded anyway.
       // Everything this module tracks per deck follows its element across the
       // swap — an in-flight load's staleness check included, or a read started
       // for the discarded track lands on the one the user kept. `busy` stays:
@@ -140,7 +140,7 @@ function apply(effects: readonly DeckEffect[]): void {
       // the wheel does not churn the media pipeline under a playing deck.
       const { deck, trackId } = effect
       // The replaced track stops sounding NOW, not after a materialise that
-      // may fail — the UI already shows the new track (v40, Codex bug 4).
+      // may fail — the UI already shows the new track.
       // whileSilenced supplies the de-click fade and `src` is untouched, so
       // browsing stays as cheap as before.
       if (engine.isPlaying(deck)) engine.pause(deck)
@@ -231,9 +231,9 @@ export function seekDeck(deck: DeckId, seconds: number): void {
 }
 
 /**
- * Both pin and unpin recentre the fader (v29 #5). It was never reset, so
- * pinning with the fader parked off-centre stepped the surviving deck's level
- * in one ramp — and centre is the listening position for a comparison anyway.
+ * Both pin and unpin recentre the fader. Without this, pinning with the
+ * fader parked off-centre would step the surviving deck's level in one
+ * ramp — and centre is the listening position for a comparison anyway.
  */
 export function lockDeck(): void {
   crossfade.set(0)
@@ -251,9 +251,9 @@ export function setCrossfade(position: number): void {
 }
 
 /**
- * Hiding the bar (v30). Turning the feature off must genuinely silence it, not
- * just hide the transport — so the graph goes. The folder link survives, being
- * a property of this machine, and so now does the session.
+ * Hiding the bar. Turning the feature off must genuinely silence it, not
+ * just hide the transport — so the graph goes. The folder link survives,
+ * being a property of this machine, and so does the session.
  */
 function suspendPreview(): void {
   suspended = {
@@ -286,8 +286,8 @@ function resumePreview(): void {
   const snap = suspended
   suspended = null
   // Nothing was suspended — the feature is simply being switched on, and it
-  // must stay as cheap as it was before v30: no graph until a gesture pays for
-  // one. This is also the branch a project load takes.
+  // must stay as cheap as ever: no graph until a gesture pays for one. This
+  // is also the branch a project load takes.
   if (snap === null) return
   decks.set(snap.decks)
   crossfade.set(snap.crossfade)
@@ -324,9 +324,8 @@ export function startPlayer(): void {
   engine.onDeckEvent((deck, kind) => {
     if (kind === 'error') {
       // The element's own verdict, which canPlayType could only guess at. The
-      // three outcomes are genuinely different facts and used to collapse into
-      // two (v29 #7): refused outright, decoded halfway and gave up, or never
-      // read at all.
+      // three outcomes are genuinely different facts: refused outright,
+      // decoded halfway and gave up, or never read at all.
       const code = engine.errorCodeOf(deck)
       const reason: UnplayableReason =
         code === 4 ? 'unsupported' : code === 3 ? 'decode-failed' : 'read-error'
@@ -336,8 +335,8 @@ export function startPlayer(): void {
     }
     if (kind === 'ended') playing.update((p) => ({ ...p, [deck]: false }))
     // The element now knows its duration, which is the first moment a seek can
-    // land — so this is where a deck restored with the bar goes back to where
-    // it stood when the bar was hidden (v30).
+    // land — so this is where a deck restored with the bar goes back to
+    // where it stood when the bar was hidden.
     if (kind === 'meta') {
       const at = pendingSeek[deck]
       pendingSeek[deck] = null
@@ -352,10 +351,10 @@ export function startPlayer(): void {
     }))
   })
 
-  // The CLICK, not the selection (v29 #10). `selectedId` also moves for hub
-  // picks, undo/redo, background clicks, Escape and project loads, and none of
-  // those are the user asking to hear something — following it is what made a
-  // stray click cut the music, and what the v28.1 latch was papering over.
+  // The CLICK, not the selection. `selectedId` also moves for hub picks,
+  // undo/redo, background clicks, Escape and project loads, and none of
+  // those are the user asking to hear something — following it would cut
+  // the music on a stray click.
   clickedTrackId.subscribe((id) => {
     if (id !== null) dispatch({ type: 'select', id })
   })

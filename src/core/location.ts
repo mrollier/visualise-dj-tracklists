@@ -3,9 +3,8 @@
  * `Track.location` — Rekordbox writes `file://localhost/Users/…/Track.mp3`,
  * percent-encoded and NOT decoded at import (importers/rekordbox.ts).
  *
- * Extracted in v28 from the two private copies that had drifted apart
- * (exporters/m3u.ts and importers/m3u.ts) so the audio-preview matcher, the
- * M3U exporter and the M3U importer all fold names the same way.
+ * Shared by the audio-preview matcher, the M3U exporter and the M3U
+ * importer, so all three fold names the same way.
  */
 
 /** Turn a Rekordbox-style location URL into a plain filesystem path. */
@@ -65,7 +64,7 @@ export function basenameOf(location: string): string {
 
 /**
  * The deepest folder every track in the library sits under, as a path a person
- * can read and paste (v28.1).
+ * can read and paste.
  *
  * A browser will not let a page pre-open a folder picker at a path: Chromium's
  * `showDirectoryPicker` takes only well-known names, and `<input
@@ -113,7 +112,7 @@ export function commonAncestorPath(locations: readonly (string | null)[]): strin
 
 /**
  * A track the user will recognise, where it claims to live, and the folder to
- * link because of it (v29 #3).
+ * link because of it.
  *
  * The bare shared-ancestor path was never enough on its own: it says where to
  * go without saying *why*, and it disappears entirely — `commonAncestorPath`
@@ -137,11 +136,11 @@ export interface HintTrack {
 }
 
 /**
- * `preferred` is a candidate list for the EXAMPLE only, most-wanted first
- * (v30.1): the caller passes the track the user just clicked and the first one
- * still visible under the filters, so the ⓘ names something on screen rather
- * than whatever happens to sit at the top of the library. Entries without a
- * path are skipped, and an empty list is the original behaviour exactly.
+ * `preferred` is a candidate list for the EXAMPLE only, most-wanted first:
+ * the caller passes the track the user just clicked and the first one still
+ * visible under the filters, so the ⓘ names something on screen rather than
+ * whatever happens to sit at the top of the library. Entries without a path
+ * are skipped, and an empty list falls back to `tracks` untouched.
  *
  * `suggested` deliberately keeps reading `tracks`: the folder that gets linked
  * has to cover the whole library, not just the part surviving the filters.

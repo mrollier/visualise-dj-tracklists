@@ -51,7 +51,7 @@ const ROWS: Row[] = [
   ['Closing Chord', 'Aurora Fields', '9B', 120, 'Melodic House', 2024, null],
 ]
 
-// The classic pack's fictional label and albums (v9 issue 11). Greyfield is
+// The classic pack's fictional label and albums. Greyfield is
 // deliberately absent: the edge-case tracks keep their gaps.
 const CLASSIC_EXTRAS: PackExtras = {
   label: 'Night Shift Trax',

@@ -1,11 +1,11 @@
 <script module lang="ts">
-  // Matches the .burst i animation duration below (v14.1 WS11) — TracklistPanel
+  // Matches the .burst i animation duration below — TracklistPanel
   // clears `active` at this + 50ms slack so the burst never gets cut mid-flight.
   export const SPARKLE_BURST_MS = 550
 </script>
 
 <script lang="ts">
-  // Six tiny sparks flying out radially from the parent's centre (v12 WS2).
+  // Six tiny sparks flying out radially from the parent's centre.
   // The parent needs position: relative; mount with `active` for ~600ms.
   const SPARKS = [0, 60, 120, 180, 240, 300]
   let { active = false }: { active?: boolean } = $props()

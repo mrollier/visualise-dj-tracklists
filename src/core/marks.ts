@@ -44,17 +44,15 @@ export interface PanelFilterMeta {
 
 /**
  * Single source of truth for the four permanent panel rows, consumed by
- * every UI surface that renders one (v18 #3/#8 review fix, widened v23 —
- * FiltersSection and AdvancedMenu previously hand-rolled their own
- * label/flag maps, which had already drifted: AdvancedMenu's checkbox
- * aria-labels baked the emoji into the accessible name instead of using a
- * clean `aria` string). A second, parallel registry for Keys would risk the
- * exact same drift the v18 review fixed, so this one widened instead of
- * growing a sibling.
+ * every UI surface that renders one — FiltersSection and AdvancedMenu
+ * previously hand-rolled their own label/flag maps, which had already
+ * drifted: AdvancedMenu's checkbox aria-labels baked the emoji into the
+ * accessible name instead of using a clean `aria` string. A second, parallel
+ * registry for Keys would risk the same kind of drift, so this one widened
+ * instead of growing a sibling.
  *
- * No icon field: each row's glyph used to live here as a ★/☰/🔗/♪ string,
- * but four glyphs from three fonts can't share a fixed-width slot without
- * staggering (v27) — `lib/PanelFilterIcon.svelte` draws them as vectors,
+ * No icon field: four glyphs from three fonts can't share a fixed-width slot
+ * without staggering — `lib/PanelFilterIcon.svelte` draws them as vectors,
  * keyed off `key`, so the icon set stays exhaustive by type.
  */
 export const PANEL_FILTERS: readonly PanelFilterMeta[] = [
@@ -121,14 +119,14 @@ export function comboIdSet(edges: readonly ManualEdge[]): Set<string> {
 }
 
 /**
- * The scope a bulk-clear button acts on (v18 #3, Task 8 — the Advanced
- * menu's "Clear ★ marks" / "Clear 🔗 combos" buttons): reuses `filter.ts`'s
+ * The scope a bulk-clear button acts on (the Advanced menu's "Clear ★ marks"
+ * / "Clear 🔗 combos" buttons): reuses `filter.ts`'s
  * `applyPlaylistFilter` for the actual playlist-membership semantics
  * (including the `NOT_IN_PLAYLIST` pseudo-entry), so this never
  * reimplements that logic — EXCEPT for one deliberate difference: an empty
  * selection (`[]`) also falls back to the whole library here, not
  * `applyPlaylistFilter`'s "nothing" (the empty-wheel default for a fresh
- * playlisted import, design-v5 §D). A bulk-clear button reading the same
+ * playlisted import). A bulk-clear button reading the same
  * `filters.playlists` state must not silently become a no-op scope when
  * nothing is ticked — "no selection" is exactly the case the confirm
  * dialog's "across the whole library" copy describes, so the scope has to
@@ -145,7 +143,7 @@ export function bulkScopeIds(
 
 /**
  * Clear the ★ mark (must-include ∪ both pins, `starredIdSet`) from every
- * track in `scope` (v18 #3, Task 8): the Advanced menu's "Clear ★ marks"
+ * track in `scope`: the Advanced menu's "Clear ★ marks"
  * button. Anything outside `scope` survives untouched — a pin only clears
  * when the PINNED TRACK ITSELF is in scope, exactly like a must-include id
  * only drops when IT is in scope; a pin pointing outside `scope` survives
@@ -178,8 +176,8 @@ export function clearStarsInScope(
 }
 
 /**
- * Remove every manual combo edge touching `scope` (v18 #3, Task 8): the
- * Advanced menu's "Clear 🔗 combos" button. An edge drops when EITHER
+ * Remove every manual combo edge touching `scope`: the Advanced menu's
+ * "Clear 🔗 combos" button. An edge drops when EITHER
  * endpoint is in scope, not only when both are — a combo that crosses the
  * scope boundary (one end inside the selected playlists, one end outside)
  * still anchors a relationship on an in-scope track, so it goes too; only an

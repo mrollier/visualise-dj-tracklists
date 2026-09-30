@@ -5,24 +5,24 @@ import { PROPERTY_BY_KEY, TRACK_PROPERTIES, type TrackProperty } from './propert
 import type { TrackSortField } from './trackSort'
 
 /**
- * Library-level filters (remarks 2, 6, 8): they decide which tracks are
- * visible at all — on the wheel, in the combo graph, and for suggestions.
- * Since v11 (issue 1) every track property can carry a filter; the property's
- * kind (registry, `properties.ts`) decides the semantics:
+ * Library-level filters: they decide which tracks are visible at all — on
+ * the wheel, in the combo graph, and for suggestions. Every track property
+ * can carry a filter; the property's kind (registry, `properties.ts`)
+ * decides the semantics:
  *
  * - number: inclusive [min, max]; a missing value never fails (consistent
  *   with the combo engine's missing-data policy).
- * - alpha (v14 WS2): inclusive range over the value's first-letter bucket
- *   (A=0…Z=25, everything else '#'=26); missing passes.
- * - contains (v14 WS2): case-insensitive substring match; missing passes.
- * - colour (v14 WS2): allow-list of raw colour tags (case-insensitive);
- *   missing passes (genre allow-list precedent).
- * - quality (v14 WS2): lossy/lossless, derived from the file `kind` string;
- *   an unknown or missing format passes.
+ * - alpha: inclusive range over the value's first-letter bucket (A=0…Z=25,
+ *   everything else '#'=26); missing passes.
+ * - contains: case-insensitive substring match; missing passes.
+ * - colour: allow-list of raw colour tags (case-insensitive); missing passes
+ *   (genre allow-list precedent).
+ * - quality: lossy/lossless, derived from the file `kind` string; an
+ *   unknown or missing format passes.
  * - date: inclusive 'YYYY-MM-DD' lexical bounds. Unlike the other kinds, a
- *   missing date is EXCLUDED while the filter is active (v10 issue 4b,
- *   generalized) — "between these dates" has no sensible answer for an
- *   unknown date, and hiding them is what a DJ browsing by recency wants.
+ *   missing date is EXCLUDED while the filter is active — "between these
+ *   dates" has no sensible answer for an unknown date, and hiding them is
+ *   what a DJ browsing by recency wants.
  * - key: inclusive range over the Camelot NUMBER (1–12), both rings — the
  *   ring is filtered separately by `keyRings`, so the two compose.
  */
@@ -32,9 +32,9 @@ export type PropertyRange =
   | [string, string] // date
   | { contains: string } // contains kind (case-insensitive substring)
   | { colours: string[] } // colour kind: allow-list of raw tag values
-  | { qualities: QualityChoice[] } // quality kind allow-list (F5); both-on = entry absent, [] = both-off
+  | { qualities: QualityChoice[] } // quality kind allow-list; both-on = entry absent, [] = both-off
 
-// --- alpha buckets (v14 WS2) ---
+// --- alpha buckets ---
 /** The '#' bucket for non-letter / diacritic starts, ordered AFTER Z. */
 export const ALPHA_CATCH_ALL = 26
 export function alphaBucket(value: string): number {
@@ -45,7 +45,7 @@ export function alphaBucketLabel(b: number): string {
   return b === ALPHA_CATCH_ALL ? '#' : String.fromCharCode(65 + b)
 }
 
-// --- audio quality (v14 WS2) ---
+// --- audio quality ---
 const LOSSLESS = /\b(wav|aiff?|flac|alac|apple lossless|pcm)\b/i
 const LOSSY = /\b(mp3|aac|m4a|mp4|ogg|opus|wma)\b/i
 export function audioQuality(kind: string): QualityChoice | null {
@@ -54,7 +54,7 @@ export function audioQuality(kind: string): QualityChoice | null {
   return null // unknown format — passes the filter
 }
 
-// --- PropertyRange shape guards (v14 WS2) ---
+// --- PropertyRange shape guards ---
 function isTuple(range: PropertyRange): range is [number, number] | [string, string] {
   return Array.isArray(range)
 }
@@ -76,14 +76,14 @@ export interface LibraryFilters {
   /**
    * Selected playlist names (may include NOT_IN_PLAYLIST); null = the
    * playlist filter is inactive. A fresh collection import with playlists
-   * starts at [] — nothing selected, empty wheel (design-v5 §D).
+   * starts at [] — nothing selected, empty wheel.
    */
   playlists: string[] | null
   /**
-   * Which Camelot rings to show (F5): independent toggles for minor (A/inner)
+   * Which Camelot rings to show: independent toggles for minor (A/inner)
    * and major (B/outer). Both true = both rings (the old 'both'); both false =
    * no keyed track shows. Lives with the key criterion in the UI but is a
-   * visibility filter; keyless tracks always pass (v8 issue 10), even with both
+   * visibility filter; keyless tracks always pass, even with both
    * toggles off.
    */
   keyRings: { minor: boolean; major: boolean }
@@ -117,10 +117,10 @@ function twoNumbers(entry: unknown): [number, number] | null {
 }
 
 /**
- * One saved range, checked against its property's kind; null = drop it. Since
- * v14 WS2 the array guard lives *inside* the tuple kinds, so v5 text tuples
- * (e.g. `artist: ["b","k"]`) fail the alpha number-checks and drop — the
- * recorded "drop old stored text ranges" migration.
+ * One saved range, checked against its property's kind; null = drop it. The
+ * array guard lives *inside* the tuple kinds, so an old text tuple (e.g.
+ * `artist: ["b","k"]`) fails the alpha number-checks and drops — the "drop
+ * old stored text ranges" migration.
  */
 function sanitizeRange(prop: TrackProperty, entry: unknown): PropertyRange | null {
   switch (prop.kind) {
@@ -160,10 +160,10 @@ function sanitizeRange(prop: TrackProperty, entry: unknown): PropertyRange | nul
       const rec = entry as Record<string, unknown>
       const valid = (v: unknown): v is QualityChoice => v === 'lossy' || v === 'lossless'
       if (Array.isArray(rec.qualities)) {
-        // F5: an empty array is a real "both-off" state — keep it, don't drop.
+        // An empty array is a real "both-off" state — keep it, don't drop.
         return { qualities: [...new Set(rec.qualities.filter(valid))] }
       }
-      if (valid(rec.quality)) return { qualities: [rec.quality] } // old v6 → v7 migration
+      if (valid(rec.quality)) return { qualities: [rec.quality] } // old singular field, migrated into the array
       return null
     }
   }
@@ -172,9 +172,10 @@ function sanitizeRange(prop: TrackProperty, entry: unknown): PropertyRange | nul
 /**
  * Normalize saved filters, whatever their vintage: the per-property map is
  * sanitized entry by entry (unknown properties and kind-mismatched tuples
- * dropped, key ranges clamped into 1–12); v3-and-older saves carried
- * top-level bpm/year/rating/dateAdded ranges, which lift into the map. The
- * bespoke fields (genres, playlists, keyRing) carry over.
+ * dropped, key ranges clamped into 1–12); older saves without a properties
+ * map carried top-level bpm/year/rating/dateAdded ranges instead, which lift
+ * into the map here. The bespoke fields (genres, playlists, keyRing) carry
+ * over.
  *
  * The marks quick-filters are read only with `keepMarks` (schema 11+, where
  * the marks they filter by are saved too). Older saves kept the marks in
@@ -191,7 +192,7 @@ export function migrateFilters(raw: unknown, keepMarks = false): LibraryFilters 
   if (Array.isArray(p.playlists)) {
     out.playlists = p.playlists.filter((n): n is string => typeof n === 'string')
   }
-  // F5: new-shape {minor,major} toggles; else migrate the old string enum.
+  // New-shape {minor,major} toggles; else migrate the old string enum.
   const kr = p.keyRings
   if (typeof kr === 'object' && kr !== null && !Array.isArray(kr)) {
     out.keyRings = {
@@ -257,7 +258,7 @@ export function propertyExtents(
 }
 
 /**
- * Colour-chip rendering options (v14.1 WS7): chips must show every colour
+ * Colour-chip rendering options: chips must show every colour
  * the store is actually filtering by, not just the ones in scope — a stored
  * selection can retain a colour that dropped out of scope after a playlist
  * switch, and hiding its chip would filter invisibly. Scoped colours come
@@ -282,8 +283,8 @@ export function colourChipOptions(
  * reads as the whole scope. Collapsing back to null asks whether every SCOPED
  * genre is selected — set membership, not a length comparison: a selection
  * carried over from another playlist's scope can be longer than the current
- * scope, and the old `next.length >= scoped.length` check turned an untick
- * into "show everything" (v40, Codex bug 5).
+ * scope, and a length comparison (`next.length >= scoped.length`) would turn
+ * an untick into "show everything".
  */
 export function nextGenreSelection(
   current: readonly string[] | null,
@@ -311,8 +312,8 @@ export function wholeExtent(extent: [number, number]): [number, number] {
 
 /**
  * Keep min <= max by pulling the side the user just edited to the other
- * bound (editing min past max collapses onto max, and vice versa). Generic
- * since v11: string bounds clamp lexically for the text filters.
+ * bound (editing min past max collapses onto max, and vice versa). Generic,
+ * so string bounds clamp lexically for the text filters too.
  */
 export function clampRange<T extends number | string>(
   range: [T, T],
@@ -373,18 +374,17 @@ function passesProperty(track: Track, prop: TrackProperty, range: PropertyRange)
       if (!isQualities(range)) return true
       if (raw === null) return true
       const quality = audioQuality(String(raw))
-      // Unknown/missing format always passes (F5); a known one must be allowed.
+      // Unknown/missing format always passes; a known one must be allowed.
       return quality === null || range.qualities.includes(quality)
     }
   }
 }
 
 /**
- * The marks-quick-filter pass test (v18 #3/#8, widened v25): true unless a
- * flag is on AND a context is present that excludes the track. A missing
- * context makes ALL THREE flags inert, not "hide everything" — the safe
- * default for a stray caller (existing tests, a future one-off filter
- * preview) that never passed one.
+ * The marks-quick-filter pass test: true unless a flag is on AND a context
+ * is present that excludes the track. A missing context makes ALL THREE
+ * flags inert, not "hide everything" — the safe default for a stray caller
+ * (existing tests, a future one-off filter preview) that never passed one.
  */
 function passesMarks(track: Track, flags: MarksFilter, context: MarksContext | undefined): boolean {
   if (context === undefined) return true
@@ -447,7 +447,7 @@ export function applyFilters(
   const allowed =
     filters.genres === null ? null : new Set(filters.genres.map((g) => g.toLowerCase()))
   const allowedIds = playlistMemberIds(tracks, filters.playlists, playlists)
-  // F5: a track passes iff keyless (always) or its ring toggle is on.
+  // A track passes iff keyless (always) or its ring toggle is on.
   const { minor, major } = filters.keyRings
   return tracks.filter(
     (t) =>

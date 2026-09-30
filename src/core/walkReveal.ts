@@ -1,5 +1,5 @@
 /**
- * Timing plan for the walk-draw reveal (v12 WS1): after ✨/⚡ the wheel draws
+ * Timing plan for the walk-draw reveal: after ✨/⚡ the wheel draws
  * the walk node-by-node. Node i lights up at i·step; edge i (from node i to
  * node i+1) draws during [i·step, (i+1)·step]; the whole reveal lasts n·step.
  * Purely presentational — the set itself is written in one store update, so
@@ -8,7 +8,7 @@
 
 export const WALK_REVEAL_STEP_MS = 140
 /** A reveal never runs longer than this: long walks compress their step so a
- * 99-track set draws in ~4s, not 14 (v12). */
+ * 99-track set draws in ~4s, not 14. */
 const MAX_REVEAL_TOTAL_MS = 4000
 const MIN_STEP_MS = 40
 
@@ -17,7 +17,7 @@ interface WalkRevealPlan {
    * lights its dot once; prefix/suffix (already-drawn) nodes are absent. */
   nodeDelays: Map<string, number>
   /** Delay per walk edge, indexed like the walk's consecutive pairs; `null` =
-   * an already-drawn edge that must NOT re-animate (S4). */
+   * an already-drawn edge that must NOT re-animate. */
   edgeDelays: (number | null)[]
   /** The step actually used (capped for long walks) — views animate with
    * THIS, never the raw constant, or their stagger drifts off the plan. */
@@ -25,7 +25,7 @@ interface WalkRevealPlan {
   /** Total reveal duration; 0 for an empty walk. */
   totalMs: number
   /** First animated node index (0 for a fresh, full reveal). Consumers gate
-   * their per-row reveal on `index >= from` (S4). */
+   * their per-row reveal on `index >= from`. */
   from: number
   /** Delay anchor = max(0, from-1): the already-drawn seam node the animated
    * tail chains from, so its first new node lands one step in. */
@@ -33,12 +33,12 @@ interface WalkRevealPlan {
 }
 
 /**
- * Plan the reveal over `ids`. With no `from`/`to` the whole walk animates from
- * index 0 (fresh ✨, unchanged from v12). ⚡ continue-in-place (S4) passes the
- * `[from, to)` range of newly-added nodes — from a prefix+suffix diff of the
- * old vs new walk (`revealRange`) — so only that middle animates and the
- * already-drawn prefix/suffix stay put. `origin = max(0, from-1)` chains the
- * tail off the last drawn node.
+ * Plan the reveal over `ids`. With no `from`/`to` the whole walk animates
+ * from index 0 (fresh ✨). ⚡ continue-in-place passes the `[from, to)`
+ * range of newly-added nodes — from a prefix+suffix diff of the old vs new
+ * walk (`revealRange`) — so only that middle animates and the already-drawn
+ * prefix/suffix stay put. `origin = max(0, from-1)` chains the tail off the
+ * last drawn node.
  */
 export function walkRevealPlan(
   ids: readonly string[],
@@ -73,7 +73,7 @@ export function walkRevealPlan(
 
 /**
  * Longest common prefix + suffix diff of the old vs new walk: the animated
- * node range is `[from, to)`. Handles both S2 force shapes — a single-arm
+ * node range is `[from, to)`. Handles both force shapes — a single-arm
  * strict-prefix extension (suffix empty → tail animates) and a pinned-end
  * two-arm seam-fill (stable start-arm prefix AND end-arm suffix → only the
  * middle animates).

@@ -17,12 +17,12 @@
   import WheelView from './lib/WheelView.svelte'
   import { library, rightPanel, settings, suggestHotkeyTick, viewMode } from './stores'
 
-  // Easy mode (v12 WS4) is visibility-only: the stored viewMode survives
+  // Easy mode is visibility-only: the stored viewMode survives
   // untouched, the centre just always shows the wheel while easy is on.
   const effectiveView = $derived($settings.uiMode === 'easy' ? 'wheel' : $viewMode)
 
   /**
-   * Which of the three panels are on screen (v30).
+   * Which of the three panels are on screen.
    *
    * The right rail is the only one with two owners: ⚙ Advanced borrows it, and
    * that borrow OVERRIDES the collapse — pressing ⚙ has to produce a panel
@@ -86,7 +86,7 @@
 <TourOverlay />
 
 <main>
-  <!-- Collapsing CLIPS, it never unmounts (v30): Playlists, Filters and Genres
+  <!-- Collapsing CLIPS, it never unmounts: Playlists, Filters and Genres
        are plain <details> whose fold state lives in uncontrolled DOM, and the
        panel keeps its own width inside the clip so nothing reflows or loses its
        scroll position on the way out and back. -->
@@ -95,9 +95,9 @@
   </div>
 
   <!-- The central column, and the reason the audition bar lines up with the
-       view it describes: the bar is INSIDE the column now (v30), not a
-       full-width strip above everything reserving two spacer columns to match
-       the rails (v29 #6). Alignment is structural, so no collapse can break it.
+       view it describes: the bar sits INSIDE the column, not as a
+       full-width strip above everything that would need two spacer columns to
+       match the rails. Alignment is structural, so no collapse can break it.
        The bar sits outside .center-scroll, so a narrow window scrolls the wheel
        without dragging the transport sideways. -->
   <div class="centre">
@@ -156,8 +156,8 @@
   </div>
 
   <!-- The right rail: advanced settings swap in where the set lives, so the
-       wheel stays visible while settings change (design-v5 §E). The selected
-       track's card docks at its foot whichever panel is open (v9 issue 19). -->
+       wheel stays visible while settings change. The selected
+       track's card docks at its foot whichever panel is open. -->
   {#if rightMounted}
     <div id="panel-right" class="right-rail" class:collapsed={!rightOpen} inert={!rightOpen}>
       <div class="right-aside">
@@ -179,7 +179,7 @@
     min-height: 0;
   }
 
-  /* The two clipping rails (v30). The panel inside keeps its own width, so a
+  /* The two clipping rails. The panel inside keeps its own width, so a
      collapse changes exactly one number and reflows nothing. */
   .left-rail,
   .right-rail {
@@ -218,7 +218,7 @@
     position: relative;
   }
 
-  /* Central-pane scroll container (#13): shrinks with the window (min-width:0)
+  /* Central-pane scroll container: shrinks with the window (min-width:0)
      but its floored view overflows and scrolls here — the fixed-width sidebars
      never move. */
   .center-scroll {
@@ -227,7 +227,7 @@
     min-height: 0;
     display: flex;
     overflow: auto;
-    /* The three edges a panel tab protrudes over (v30.1). Reserving the strip
+    /* The three edges a panel tab protrudes over. Reserving the strip
        is what keeps the tabs off the content rather than merely off the panels:
        without it the top tab sat squarely on the Tracks view's KEY header, and
        the side ones on its ★ and rating columns. The wheel and the genre map
@@ -254,8 +254,8 @@
   }
 
   .right-aside {
-    /* v14 R1: fix the rail at the panels' own width so a long selected-track
-       title or link hint can never stretch it wider — and, since v30, so the
+    /* Fixes the rail at the panels' own width so a long selected-track
+       title or link hint can never stretch it wider, and so the
        whole column keeps its layout while the rail around it clips to nothing. */
     width: var(--right-rail);
     flex-shrink: 0;

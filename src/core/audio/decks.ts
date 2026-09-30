@@ -2,7 +2,7 @@
  * The two-deck state machine.
  *
  * Deck A is the track the user pinned; deck B holds the last track the user
- * clicked directly (v29 #10 — it followed `selectedId` until then).
+ * clicked directly.
  * The reducer returns EFFECTS rather than touching anything, which is what lets
  * the whole machine — including the element-swap decision — be covered by unit
  * tests in a repo whose vitest runs with no DOM at all. The engine is a dumb
@@ -22,11 +22,11 @@ export const EMPTY_DECKS: DeckState = { a: null, aLocked: false, b: null }
 
 export type DeckEvent =
   /**
-   * The user clicked a track directly — a wheel star or a Tracks-view row
-   * (v29 #10). NOT "the selection changed": `selectedId` also moves for hub
-   * picks, undo/redo, background clicks and project loads, none of which are
-   * anyone asking to hear something. So `id` is always a real track; there is
-   * no null case to latch against any more.
+   * The user clicked a track directly — a wheel star or a Tracks-view row.
+   * NOT "the selection changed": `selectedId` also moves for hub picks,
+   * undo/redo, background clicks and project loads, none of which are
+   * anyone asking to hear something. So `id` is always a real track; there
+   * is no null case to latch against.
    */
   | { type: 'select'; id: string }
   | { type: 'lock' }
@@ -39,10 +39,10 @@ export type DeckEffect =
   | { kind: 'clear'; deck: DeckId }
   /**
    * Swap which element plays which role, in either direction: lock moves deck
-   * B up, unlock moves deck A down (v29 #8). The element being kept goes on
-   * playing, uninterrupted, at its exact position — reloading it from the same
-   * file at 0:00 would restart the audio mid-listen, which is precisely wrong
-   * for both "pin this one" and "keep only this one". The `clear` that always
+   * B up, unlock moves deck A down. The element being kept goes on playing,
+   * uninterrupted, at its exact position — reloading it from the same file
+   * at 0:00 would restart the audio mid-listen, which is precisely wrong for
+   * both "pin this one" and "keep only this one". The `clear` that always
    * follows disposes of the side being discarded.
    */
   | { kind: 'promote' }
@@ -74,11 +74,11 @@ export function reduceDecks(state: DeckState, event: DeckEvent): DeckTransition 
     }
     case 'unlock': {
       if (state.a === null) return { state, effects: [] }
-      // Unpinning KEEPS the track it is named after (v29 #8). It used to clear
-      // deck A and leave deck B, which threw away the very track the button
-      // says it is acting on. The promote swaps roles so the pinned element
-      // goes on playing, uninterrupted, as the single deck B; whatever deck B
-      // held is what goes.
+      // Unpinning KEEPS the track it is named after. Clearing deck A and
+      // leaving deck B would throw away the very track the button says it
+      // is acting on. The promote swaps roles so the pinned element goes on
+      // playing, uninterrupted, as the single deck B; whatever deck B held
+      // is what goes.
       return {
         state: { ...state, a: null, aLocked: false, b: state.a },
         effects: [{ kind: 'promote' }, { kind: 'clear', deck: 'a' }],

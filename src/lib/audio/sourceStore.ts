@@ -25,9 +25,9 @@ export type SourceState = 'no-source' | 'needs-permission' | 'indexing' | 'ready
 export type Resolution = ReturnType<typeof resolveTrack<AudioHandle>>
 
 /**
- * What the link is doing right now (v29 #2). Two phases, because there are two
- * passes and the second used to happen in silence: the folder is walked, and
- * then the whole library is matched against what the walk found.
+ * What the link is doing right now. Two phases, both named so neither runs
+ * in silence: the folder is walked, and then the whole library is matched
+ * against what the walk found.
  *
  * `total` is null when it cannot be known — an FSA walk discovers the tree as
  * it goes, so the bar is honestly indeterminate there. The picker backend
@@ -74,8 +74,8 @@ export function resolutionFor(trackId: string): Resolution | undefined {
 }
 
 /**
- * `ready` waits for the match to finish (v29 #2). It used to be set first, so
- * the control flipped to its linked state with `coverage` still null and fell
+ * `ready` waits for the match to finish. Setting it first would flip the
+ * control to its linked state while `coverage` is still null, falling
  * through to "Link music folder…" until the pass completed.
  */
 async function adopt(next: AudioSource): Promise<void> {
@@ -122,8 +122,8 @@ export function canLinkPersistently(): boolean {
 export async function linkFolder(): Promise<void> {
   const handle = await pickDirectory()
   if (handle === null) return
-  // Named before the walk, not after it: `adopt` used to be the first thing to
-  // set this, so a first link read "Scanning… 0" with no folder in it.
+  // Named before the walk, not after it: setting this only once `adopt` runs
+  // would read "Scanning… 0" with no folder in it for a first link.
   rootName.set(handle.name)
   beginScan()
   try {
@@ -144,10 +144,10 @@ export async function linkFolder(): Promise<void> {
 
 /**
  * A link attempt failed partway. Forgetting everything is only right when
- * there was nothing before it (v40, Codex bug 2) — a failed REPLACEMENT used
- * to unlink the still-working folder from memory and IndexedDB. `adopt` never
- * ran, so `resolutions`/`coverage` still describe the surviving source and
- * only the three stores the attempt touched need restoring.
+ * there was nothing before it — a failed REPLACEMENT must not unlink the
+ * still-working folder from memory and IndexedDB. `adopt` never ran, so
+ * `resolutions`/`coverage` still describe the surviving source and only the
+ * three stores the attempt touched need restoring.
  */
 async function abandonLink(): Promise<void> {
   if (source === null) {
@@ -171,9 +171,9 @@ function reportScan(done: number): void {
 /**
  * The webkitdirectory path: files the user has just picked, session-only.
  *
- * Async and chunked (v29 #2). It used to set 'indexing' and adopt in the same
- * synchronous tick, so on Firefox and Safari — the only browsers that take
- * this path — no scanning state ever painted at all.
+ * Async and chunked: setting 'indexing' and adopting in the same synchronous
+ * tick would mean no scanning state ever paints, on Firefox and Safari — the
+ * only browsers that take this path.
  */
 export async function usePickedFiles(files: readonly File[]): Promise<void> {
   if (files.length === 0) return
@@ -194,10 +194,10 @@ export async function usePickedFiles(files: readonly File[]): Promise<void> {
 export async function reconnect(): Promise<void> {
   const handle = pendingHandle
   if (handle === null) return
-  // The prompt must come BEFORE the walk (v40, Codex bug 1): iterating an
-  // ungranted handle rejects, and the old order treated that rejection — and
-  // even a plain Cancel on the prompt — as a reason to forget the folder.
-  // A refusal keeps the parked handle; the Reconnect button stays offered.
+  // The prompt must come BEFORE the walk: iterating an ungranted handle
+  // rejects, and walking first would treat that rejection — and even a
+  // plain Cancel on the prompt — as a reason to forget the folder. A
+  // refusal keeps the parked handle; the Reconnect button stays offered.
   if (!(await requestReadPermission(handle))) return
   beginScan()
   try {

@@ -1,6 +1,6 @@
 <script lang="ts">
-  // A reusable labelled range-slider row, extracted from AdvancedMenu (v14.1
-  // WS11) — same markup/styles as the original inline rows, just shared.
+  // A reusable labelled range-slider row, extracted from AdvancedMenu —
+  // same markup/styles as the original inline rows, just shared.
   let {
     label,
     value = $bindable(),

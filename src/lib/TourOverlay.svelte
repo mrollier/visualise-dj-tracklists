@@ -1,5 +1,5 @@
 <script lang="ts">
-  // The guided tour (v12 WS12; rebuilt v16 #12): a spotlight coachmark walk.
+  // The guided tour: a spotlight coachmark walk.
   // Each step dims the app and highlights the real element it describes — the
   // UI stays interactive through the cutout, so every step can be *done*. The
   // controlled demo state (Classic + Key/BPM) is set up in tour.ts.
@@ -78,8 +78,8 @@
     const el = document.querySelector(`[data-tour="${sel}"]`)
     const box = el ? el.getBoundingClientRect() : null
     // A target inside a collapsed panel is clipped to nothing, and an all-zeros
-    // rect is not null — without this the spotlight became a 12px hole in the
-    // top-left corner instead of falling back to the plain dim (v30).
+    // rect is not null — without this the spotlight becomes a 12px hole in the
+    // top-left corner instead of falling back to the plain dim.
     rect = box === null || box.width === 0 || box.height === 0 ? null : box
   }
 
@@ -88,7 +88,7 @@
   $effect(() => {
     void $tourStep
     // Collapsing a panel mid-tour moves or clips whatever is spotlighted, and
-    // fires neither resize nor scroll (v30).
+    // fires neither resize nor scroll.
     void $settings.audioPreview
     void $settings.showLeftPanel
     void $settings.showRightPanel

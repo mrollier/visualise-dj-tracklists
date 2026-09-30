@@ -1,8 +1,8 @@
 <script lang="ts">
-  // The genre checklist as its own top-level section (v9 issue 7): it used
-  // to nest INSIDE the Filters disclosure at the same visual width, which
-  // broke the hierarchy — as a sibling it mirrors the Playlists pattern,
-  // summary count included. Still playlist-scoped, still part of `filters`.
+  // The genre checklist as its own top-level section, not nested inside
+  // the Filters disclosure: nested at the same visual width breaks the
+  // hierarchy. As a sibling it mirrors the Playlists pattern, summary count
+  // included. Still playlist-scoped, still part of `filters`.
   import { nextGenreSelection } from '../core/filter'
   import { filters, scopedGenres } from '../stores'
 
@@ -88,7 +88,7 @@
     padding: 2px 0;
     font-size: 13px;
     /* The whole row toggles the box; the genre name isn't drag-selectable, so
-       clicking never accidentally highlights the text (ISSUES.md #1). */
+       clicking never accidentally highlights the text. */
     -webkit-user-select: none;
     user-select: none;
   }

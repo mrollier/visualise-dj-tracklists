@@ -1,6 +1,6 @@
 /**
- * Ghost stars (v18 #10 + #11): a walk (constellation) member the active
- * filters hide doesn't drop off the wheel — it renders as a dim, rim-pinned
+ * Ghost stars: a walk (constellation) member the active filters hide
+ * doesn't drop off the wheel — it renders as a dim, rim-pinned
  * placeholder instead (WheelView's full-library placement already positions
  * and clamps it for free). This is the pure half: which walk ids need a
  * ghost marker at all.

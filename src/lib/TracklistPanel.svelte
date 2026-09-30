@@ -50,8 +50,8 @@
 
   let clearDialog: ConfirmDialog
 
-  // v36: the panel DISPLAYS and REASONS (key·bpm meta, transition chips), so
-  // it resolves through the augmented map like every other display surface —
+  // The panel DISPLAYS and REASONS (key·bpm meta, transition chips), so it
+  // resolves through the augmented map like every other display surface —
   // otherwise the wheel places by comment/analysis keys while the chips judge
   // by raw Rekordbox ones. The two data exports below stay raw.
   const walkTracks = $derived(
@@ -64,14 +64,14 @@
     $tracklist.map((id) => $trackById.get(id)).filter((t): t is Track => t !== undefined),
   )
 
-  // Rows cascade in while the wheel draws the walk (v12 WS1). Keying the list
-  // on the tick restarts the animation cleanly per suggestion; once `seen`
-  // catches up, re-renders (view switches, undo) replay nothing.
+  // Rows cascade in while the wheel draws the walk. Keying the list on the
+  // tick restarts the animation cleanly per suggestion; once `seen` catches
+  // up, re-renders (view switches, undo) replay nothing.
   const revealing = $derived($walkRevealTick > $walkRevealSeen)
   const revealPlan = $derived(walkRevealPlan($tracklist, $walkRevealRange ?? undefined))
-  // v31 #2: the ⚡ offer and both verdict notes only exist once the walk has
-  // finished drawing itself. Judging a constellation the user cannot see yet
-  // is premature — and popping the notes in mid-cascade shoved the still
+  // The ⚡ offer and both verdict notes only exist once the walk has finished
+  // drawing itself. Judging a constellation the user cannot see yet is
+  // premature — and popping the notes in mid-cascade would shove the still
   // animating rows down the panel.
   const settled = $derived(!revealing)
 
@@ -83,9 +83,9 @@
     year: 'year',
   }
 
-  // Easy mode runs the whole panel on defaults (v14 WS6/E1): the generator,
-  // the transition chips and the ⚡ drift guard all read the effective stores,
-  // and the pins/marks are hidden and forced inert.
+  // Easy mode runs the whole panel on defaults: the generator, the transition
+  // chips and the ⚡ drift guard all read the effective stores, and the
+  // pins/marks are hidden and forced inert.
   const easy = $derived($settings.uiMode === 'easy')
 
   function transition(a: Track, b: Track) {
@@ -93,12 +93,12 @@
   }
 
   function removeAt(index: number) {
-    // v14 W2: a removed row can't stay hovered — drop the shared hover so no
+    // A removed row can't stay hovered — drop the shared hover so no
     // Tracks-view row or wheel node keeps the highlight of a track that left.
     const removedId = get(tracklist)[index]
     if (removedId !== undefined && get(hoveredId) === removedId) hoveredId.set(null)
     tracklist.update((ids) => ids.toSpliced(index, 1))
-    // A hand-edit of the same set closes the ⚡ window (v14.1): the forced-count
+    // A hand-edit of the same set closes the ⚡ window: the forced-count
     // banner and force button must never describe a set the user has altered.
     closeForceWindow()
   }
@@ -122,9 +122,9 @@
     reorder(index, delta === -1 ? target : target + 1)
   }
 
-  // Drag-reorder (v17 #6): the ↑/↓ buttons stay for touch and keyboard; this
-  // is the pointer path. `dropGap` is a gap index — the insertion line renders
-  // on the row below it, or after the last row when it equals the length.
+  // Drag-reorder: the ↑/↓ buttons stay for touch and keyboard; this is the
+  // pointer path. `dropGap` is a gap index — the insertion line renders on
+  // the row below it, or after the last row when it equals the length.
   let dragIndex = $state<number | null>(null)
   let dropGap = $state<number | null>(null)
 
@@ -197,13 +197,12 @@
     }
   }
 
-  // The sets ARE the suggestion browser (v8 issue 18): the dropdown
-  // navigates the (≤ 8) named sets. ✨ regenerates IN PLACE while the active
-  // set is untouched generator output or empty — successive presses are one
-  // Cmd+Z apart, which replaces the old ◀-history — and otherwise starts a
-  // NEW set so a hand-edited one is never overwritten. Generator writes go
-  // through setGeneratedTracklist so the ✨ badge appears and disappears
-  // again on the first manual edit.
+  // The sets ARE the suggestion browser: the dropdown navigates the (≤ 8)
+  // named sets. ✨ regenerates IN PLACE while the active set is untouched
+  // generator output or empty — successive presses are one Cmd+Z apart —
+  // and otherwise starts a NEW set so a hand-edited one is never overwritten.
+  // Generator writes go through setGeneratedTracklist so the ✨ badge appears
+  // and disappears again on the first manual edit.
   let suggestSeed = 0
   const canRegenerateInPlace = $derived($activeSet.generated || $activeSet.trackIds.length === 0)
   const suggestDisabled = $derived(
@@ -211,18 +210,18 @@
   )
 
   // When a suggestion stops short of the target length, the button morphs
-  // into a force variant (v11 issue 16b) — mirroring the wheel hub — and a
-  // notice reports how many steps had to break the criteria. The window is
-  // tied to the set the suggestion wrote (a suggest may itself CREATE a set
-  // via addSet, so a bare on-id-change reset would wipe it immediately);
-  // navigating to any other set closes it.
-  // The exact options the last plain ✨ ran with (v14 S2): ⚡ replays this
-  // snapshot with force so it CONTINUES the short walk in place instead of
-  // rolling a fresh seed. Continue-in-place holds only while the same seed
-  // meets the same inputs — and it takes two shapes: a single-arm walk is a
-  // STRICT PREFIX (forced.ids extend short.ids), while a pinned-end two-arm
-  // walk is ARM-STABLE (forced keeps the plain start-arm prefix AND end-arm
-  // suffix, filling only the broken seam between them, since the output is
+  // into a force variant — mirroring the wheel hub — and a notice reports
+  // how many steps had to break the criteria. The window is tied to the set
+  // the suggestion wrote (a suggest may itself CREATE a set via addSet, so a
+  // bare on-id-change reset would wipe it immediately); navigating to any
+  // other set closes it.
+  // The exact options the last plain ✨ ran with: ⚡ replays this snapshot
+  // with force so it CONTINUES the short walk in place instead of rolling a
+  // fresh seed. Continue-in-place holds only while the same seed meets the
+  // same inputs — and it takes two shapes: a single-arm walk is a STRICT
+  // PREFIX (forced.ids extend short.ids), while a pinned-end two-arm walk is
+  // ARM-STABLE (forced keeps the plain start-arm prefix AND end-arm suffix,
+  // filling only the broken seam between them, since the output is
   // startArm ++ reverse(endArm)).
   type SuggestSnapshot = {
     seed: number
@@ -259,15 +258,14 @@
   // Any hand-edit (wheel double-click, an insert, Tracks ＋/✕) flips the active
   // set to non-generated; the ⚡ window describes generator output, so close it
   // whenever that happens — covering the edit paths that don't route through
-  // removeAt/move (S5). Fresh ✨/⚡ write via setGeneratedTracklist (generated
+  // removeAt/move. Fresh ✨/⚡ write via setGeneratedTracklist (generated
   // stays true), so they never trip this.
   $effect(() => {
     if (!$activeSet.generated && shortSnapshot !== null) closeForceWindow()
   })
-  // The ⚡ window also closes when the inputs it was seeded against drift
-  // (v14 S2, review finding): a force must never replay a stale seed against a
-  // changed library or criteria — mirroring the retry ring's "any external
-  // edit closes it" rule.
+  // The ⚡ window also closes when the inputs it was seeded against drift: a
+  // force must never replay a stale seed against a changed library or
+  // criteria — mirroring the retry ring's "any external edit closes it" rule.
   let lastLibrary = $visibleLibrary
   let lastCriteriaKey = JSON.stringify($effectiveCriteria)
   $effect(() => {
@@ -279,8 +277,8 @@
     closeForceWindow()
   })
 
-  // The ✨/⚡ press throws a short spark burst (v12 WS2) — pure celebration,
-  // remounted per press so rapid presses restart it.
+  // The ✨/⚡ press throws a short spark burst — pure celebration, remounted
+  // per press so rapid presses restart it.
   let bursting = $state(false)
   let burstTimer: ReturnType<typeof setTimeout> | undefined
   function burst() {
@@ -294,11 +292,11 @@
     if (suggestDisabled) return
     burst()
     if (!canRegenerateInPlace) addSet(true) // a fresh set, activated, keeping the marks
-    // ⚡ continues the short walk (v14 S2): replay the exact snapshot with
-    // force, so the forced walk continues the short one in place — a strict
-    // extension for a single-arm walk, arm-stable seam-fill for a pinned-end
-    // two-arm walk. Plain ✨ rolls a fresh seed and, if it stops short,
-    // remembers its snapshot so the next ⚡ can pick up where it left off.
+    // ⚡ continues the short walk: replay the exact snapshot with force, so
+    // the forced walk continues the short one in place — a strict extension
+    // for a single-arm walk, arm-stable seam-fill for a pinned-end two-arm
+    // walk. Plain ✨ rolls a fresh seed and, if it stops short, remembers its
+    // snapshot so the next ⚡ can pick up where it left off.
     if (force && shortSnapshot !== null) {
       const oldIds = get(tracklist)
       const walk = suggestWalk($visibleLibrary, $effectiveCriteria, {
@@ -306,7 +304,7 @@
         force: true,
         genreMatch: $genreMatcher,
       })
-      // S4: only the newly-forced tail animates in — the already-drawn prefix
+      // Only the newly-forced tail animates in — the already-drawn prefix
       // (and, for a pinned-end walk, suffix) stays put instead of redrawing.
       const range = revealRange(oldIds, walk.ids)
       setGeneratedTracklist(walk.ids)
@@ -320,8 +318,8 @@
       return
     }
     // Easy mode ignores the pins and must-include marks (they are hidden and
-    // inert) and reads the effective settings/edges (v14 WS6/E1); advanced
-    // keeps its stored pins, marks and manual edges.
+    // inert) and reads the effective settings/edges; advanced keeps its
+    // stored pins, marks and manual edges.
     const snapshot: SuggestSnapshot = {
       seed: suggestSeed++,
       seedId: easy ? $selectedId : ($pinnedFirst ?? $selectedId),
@@ -340,19 +338,19 @@
       genreMatch: $genreMatcher,
     })
     setGeneratedTracklist(walk.ids)
-    walkRevealRange.set(null) // S4: a fresh ✨ always animates the whole walk
+    walkRevealRange.set(null) // a fresh ✨ always animates the whole walk
     bumpWalkReveal(walkRevealPlan(walk.ids).totalMs)
     forceForSetId = $activeSet.id
     shortBy = force ? 0 : Math.max(0, $effectiveSettings.suggestLength - walk.ids.length)
     shortSnapshot = shortBy > 0 ? snapshot : null
-    // Honesty tweak (v14 S2): plain ✨ can now force essentials in, so the
-    // forced-count chip reports whenever any step broke the criteria.
+    // Plain ✨ can force essentials in, so the forced-count chip reports
+    // whenever any step broke the criteria.
     forcedSteps = walk.forced > 0 ? walk.forced : null
     sameArtistSteps = walk.sameArtist > 0 ? walk.sameArtist : null
   }
 
-  // The s hotkey (v12 WS14) presses whichever suggest button is showing —
-  // ⚡ force when the walk stopped short, plain ✨ otherwise.
+  // The s hotkey presses whichever suggest button is showing — ⚡ force when
+  // the walk stopped short, plain ✨ otherwise.
   let lastSuggestHotkey = get(suggestHotkeyTick)
   $effect(() => {
     const tick = $suggestHotkeyTick
@@ -365,8 +363,8 @@
     store.set(pinned ? null : id)
   }
 
-  // Set naming (issue 18): the header shows a switcher over the project's
-  // named sets; ✎ renames inline (no native prompt), ＋ adds "Second Set" …
+  // Set naming: the header shows a switcher over the project's named sets;
+  // ✎ renames inline (no native prompt), ＋ adds "Second Set" …
   let renaming = $state(false)
   let renameValue = $state('')
   function startRename() {
@@ -384,7 +382,7 @@
 </script>
 
 <!-- Clicking empty panel space (not a row or control) clears the track
-     selection, mirroring the wheel's background-click deselect (ISSUES.md #4)
+     selection, mirroring the wheel's background-click deselect
      — mouse convenience only, keyboard uses Escape/Tab. -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -408,8 +406,8 @@
         }}
       />
     {:else}
-      <!-- v9 issue 18: the ◀/▶ arrows are gone (the dropdown covers set
-           switching) — the name gets the room and a bigger face instead. -->
+      <!-- No ◀/▶ arrows: the dropdown covers set switching, so the name
+           gets the room and a bigger face instead. -->
       <select
         class="set-switch"
         aria-label="Active constellation"
@@ -451,7 +449,7 @@
   <div class="suggest-row">
     {#if forceOffer}
       <!-- The walk stopped short: offer to push through to full length with
-           rule-breaking picks, like the wheel hub's force (v11 issue 16b). -->
+           rule-breaking picks, like the wheel hub's force. -->
       <button
         class="primary force"
         onclick={() => suggest(true)}
@@ -487,16 +485,16 @@
   </div>
   {#if settled && forcedSteps !== null && forcedSteps > 0}
     <!-- The denominator is the ACTUAL rendered walk's transition count, not
-         the suggestLength snapshot (review finding): a live slider change
-         must not make this lie, and essentials growing the walk past
-         suggestLength must not understate it either. -->
+         the suggestLength snapshot: a live slider change must not make this
+         lie, and essentials growing the walk past suggestLength must not
+         understate it either. -->
     <p class="forced-note">
       ⚡ {forcedSteps} of {walkTracks.length - 1} transitions were forced past the criteria.
     </p>
   {/if}
   {#if settled && $effectiveSettings.avoidSameArtist && sameArtistSteps !== null}
-    <!-- A plain count, never a claim of impossibility (v31 #1): the same-artist
-         rule is a soft penalty, so a step can also land here because the
+    <!-- A plain count, never a claim of impossibility: the same-artist rule
+         is a soft penalty, so a step can also land here because the
          alternative was far worse, or through adventurous sampling. -->
     <p class="forced-note">
       🎤 {sameArtistSteps} of {walkTracks.length - 1} transitions stay with the same artist.
@@ -511,14 +509,14 @@
       from there.
     </p>
   {:else}
-    <!-- v31 #3: the whole list accepts the drop, not just the track rows. The
+    <!-- The whole list accepts the drop, not just the track rows. The
          insertion line is drawn AT the gap — which is where the thin transition
-         rows sit — so aiming at the line often meant releasing over a
-         non-target. The browser then rejected the drop, played its ~400ms
-         snap-back of the ghost to the source, and only fired `dragend`
-         afterwards, which is what used to perform the reorder: the row appeared
-         to bounce home and then move half a second later. `dragover` bubbles,
-         so accepting here accepts anywhere in the list. -->
+         rows sit — so aiming at the line often means releasing over a
+         non-target. The browser then rejects such a drop and plays its
+         ~400ms snap-back of the ghost to the source before firing `dragend`
+         — so reordering from `dragend` would show the row bouncing home and
+         only moving half a second later. `dragover` bubbles, so accepting
+         here accepts anywhere in the list. -->
     <ol
       ondragover={(e) => e.preventDefault()}
       ondrop={(e) => {
@@ -575,14 +573,15 @@
             {#if !easy && (i === 0 || i === walkTracks.length - 1)}
               {@const isFirst = i === 0}
               {@const pinned = isFirst ? $pinnedFirst === track.id : $pinnedLast === track.id}
-              <!-- v31 #4: mousedown must not focus this button. Focus matches
+              <!-- mousedown must not focus this button. Focus matches
                    `.track:focus-within`, which flips the ↑/↓ arrows from
                    `display: none` into flow; `.row` is `flex: 1` and absorbs
-                   it, so the pin (which sits BEFORE `.actions`) slid ~45px
-                   left between press and release. Mouseup then landed on an
-                   arrow and the click resolved on the <li>, which has no
-                   handler — so the first click only ever revealed the arrows.
-                   Keyboard focus is untouched: Tab still reaches it. -->
+                   it, so the pin (which sits BEFORE `.actions`) would slide
+                   ~45px left between press and release. Mouseup would then
+                   land on an arrow and the click would resolve on the <li>,
+                   which has no handler — so the first click would only ever
+                   reveal the arrows. Keyboard focus is untouched: Tab still
+                   reaches it. -->
               <button
                 class="pin"
                 class:pinned
@@ -743,7 +742,7 @@
 
   .suggest-row .primary {
     flex: 1;
-    position: relative; /* anchors the ✨ spark burst (v12 WS2) */
+    position: relative; /* anchors the ✨ spark burst */
   }
 
   /* The rule-breaking variant borrows the wheel hub's warning look. */
@@ -786,8 +785,8 @@
     border-color: var(--accent);
   }
 
-  /* Drag-reorder (v17 #6): a line marks the gap the row will land in, rather
-     than highlighting the row it displaces — the destination is what you are
+  /* Drag-reorder: a line marks the gap the row will land in, rather than
+     highlighting the row it displaces — the destination is what you are
      aiming at. Drawn on the ::before/::after so it costs no layout. */
   .track[draggable='true'] {
     cursor: grab;
@@ -818,8 +817,8 @@
     bottom: -1px;
   }
 
-  /* Walk-draw cascade (v12 WS1): rows arrive as the wheel reaches them.
-     Hidden until each row's inline animation-delay elapses. */
+  /* Walk-draw cascade: rows arrive as the wheel reaches them. Hidden until
+     each row's inline animation-delay elapses. */
   li.reveal {
     opacity: 0;
     animation: row-reveal 240ms ease-out forwards;
@@ -894,13 +893,13 @@
     background: none;
     border: none;
     padding: 1px 2px;
-    /* v31 #5: ⏮/⏭, the same first/last glyphs the Tracks view star and the
-       selected-track card use — a monochrome glyph, so the emoji's
-       grayscale desaturation is gone with the pushpin. */
+    /* ⏮/⏭, the same first/last glyphs the Tracks view star and the
+       selected-track card use — a monochrome glyph avoids the emoji's
+       grayscale desaturation. */
     font-size: 12px;
     line-height: 1;
     opacity: 0.5;
-    /* Springy press (v12 WS2): squash on :active, overshoot on release. */
+    /* Springy press: squash on :active, overshoot on release. */
     transition: var(--bounce-transition);
   }
 
@@ -934,8 +933,8 @@
     font-size: 11px;
   }
 
-  /* v18 #5: mouse users drag-reorder; ↑/↓ stay for touch (coarse pointer)
-     and reappear for keyboard focus on every device. */
+  /* Mouse users drag-reorder; ↑/↓ stay for touch (coarse pointer) and
+     reappear for keyboard focus on every device. */
   @media (pointer: fine) {
     .actions .move {
       display: none;

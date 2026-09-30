@@ -22,12 +22,12 @@ export function minAngularGapDeg(r1: number, r2: number, nodeRadius: number): nu
 }
 
 /**
- * Place same-slot nodes at angular offsets that minimise overlap (issue 17):
- * every node keeps its exact radius, offsets stay within ±halfSpreadDeg.
- * Deterministic by construction — nodes sort by radius (ties by id).
+ * Place same-slot nodes at angular offsets that minimise overlap: every node
+ * keeps its exact radius, offsets stay within ±halfSpreadDeg. Deterministic
+ * by construction — nodes sort by radius (ties by id).
  *
- * Only nodes that actually risk overlapping are moved (issue #6): the slot is
- * split into connected components of the overlap graph (two nodes are linked
+ * Only nodes that actually risk overlapping are moved: the slot is split
+ * into connected components of the overlap graph (two nodes are linked
  * when `minAngularGapDeg` > 0), and each component is relaxed on its own,
  * centred on the slot line. A node that overlaps nobody is a one-member
  * component pinned to 0 — a radially isolated track stays dead-centre in its
@@ -158,7 +158,7 @@ function relaxComponentAngles(
     )
     if (angles[cur] - angles[prev] < gap) angles[cur] = angles[prev] + gap
   }
-  // Re-centre on the slot line (v10 issue 5): the one-directional sweep above
+  // Re-centre on the slot line: the one-directional sweep above
   // biases the cloud's centroid off 0, so a key's weight drifts off its angle.
   // Subtract the mean to pin the centroid to 0, then — if the span overflows
   // the window — scale about the origin, which keeps the centroid at 0 while
@@ -178,7 +178,7 @@ function relaxComponentAngles(
   return angles
 }
 
-/** v14 W4: slider 0–2. Piecewise so 1 keeps today's exact look: 0→0°, 1→4°,
+/** Slider 0–2. Piecewise so 1 keeps today's exact look: 0→0°, 1→4°,
  * 2→ the ±7.5° wedge edge minus the node's angular radius (node EDGE kisses
  * the boundary; angular radius depends on radial distance r). */
 export function spreadHalfDeg(factor: number, nodeRadius: number, r: number): number {
@@ -188,25 +188,23 @@ export function spreadHalfDeg(factor: number, nodeRadius: number, r: number): nu
 }
 
 /**
- * Gutter x-slot per unkeyed track (v20 #3), keyed by id. Tracks band
- * together when their y falls in the same `bandHeight`-px bucket (rounded,
- * so a boundary sits exactly between two bands, never inside one), then fan
- * 14px apart within a band, centred on `gutterX` — the exact grouping
- * WheelView's gutter loop used to run per animation frame, straight off the
- * ANIMATED y. Read that way, band membership (and each member's index
- * within it) flips the instant a track's y crosses a boundary mid-glide,
- * so already-settled members jump sideways in `spacing`-px steps for no
- * reason visible in the data. The fix is entirely in the caller: this
- * function is unchanged maths, just fed the SETTLED target y instead
- * (WheelView's `gutterTargetXById`) — banding is now a function of where a
- * track is headed, not where it currently happens to be on screen, so the
- * grouping itself is stable through a glide and only the displayed x
- * (via `displacedScalar`) still eases smoothly toward it.
+ * Gutter x-slot per unkeyed track, keyed by id. Tracks band together when
+ * their y falls in the same `bandHeight`-px bucket (rounded, so a boundary
+ * sits exactly between two bands, never inside one), then fan 14px apart
+ * within a band, centred on `gutterX`.
+ *
+ * Callers must feed the SETTLED target y (WheelView's `gutterTargetXById`),
+ * not the animated one: banding on the animated y would flip band
+ * membership (and each member's index within it) the instant a track's y
+ * crosses a boundary mid-glide, so already-settled members would jump
+ * sideways in `spacing`-px steps for no reason visible in the data. Fed the
+ * settled y, banding is a function of where a track is headed rather than
+ * where it currently happens to be on screen, so the grouping stays stable
+ * through a glide and only the displayed x (via `displacedScalar`) eases
+ * smoothly toward it.
  *
  * `entries` are taken in the caller's given order — that order IS each
- * track's index within its band (and so its fan position), matching the
- * legacy per-frame code's `Array.push` order exactly for a like-for-like
- * settled result.
+ * track's index within its band, and so its fan position.
  */
 export function gutterSlotX(
   entries: readonly { id: string; y: number }[],

@@ -1,8 +1,8 @@
 /**
- * Mid-edge direction chevron (v21 #2) — shared by the two places that draw
- * the walk: lib/WheelView.svelte and core/exporters/portrait.ts. The
- * arrowhead it replaces sat at the target end, where the star paints over
- * it (layer 9 over layer 5); a midpoint marker has clear canvas.
+ * Mid-edge direction chevron — shared by the two places that draw the walk:
+ * lib/WheelView.svelte and core/exporters/portrait.ts. An arrowhead at the
+ * target end would sit where the star paints over it (layer 9 over layer
+ * 5); a midpoint marker has clear canvas.
  */
 export const WALK_CHEVRON_VIEW_BOX = '0 0 10 10'
 /** Open ›, drawn stroked and unfilled — lighter ink than a solid head. */

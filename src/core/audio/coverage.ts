@@ -75,8 +75,8 @@ export function coverageLine(report: CoverageReport): string {
 }
 
 /**
- * The same answer at the width the player bar's right column actually has
- * (v29 #6): `2043/2080 playable`. The clauses `coverageLine` adds move into
+ * The same answer at the width the player bar's right column actually has:
+ * `2043/2080 playable`. The clauses `coverageLine` adds move into
  * the ⓘ beside it, where they can be read in full rather than truncated —
  * and the reasons a track failed are the interesting half.
  */

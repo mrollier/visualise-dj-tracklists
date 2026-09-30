@@ -29,7 +29,7 @@ export function trackFromTags(id: string, fileName: string, tags: FlatTags): Tra
     bpm: tags.bpm !== undefined && tags.bpm > 0 ? tags.bpm : null,
     genre: tags.genre?.[0]?.trim() || null,
     year: tags.year !== undefined && tags.year > 0 ? tags.year : null,
-    rating: null, // star ratings are proprietary per player; not read in v1
+    rating: null, // star ratings are proprietary per player, so none is read here
     durationSec: tags.durationSec !== undefined ? Math.round(tags.durationSec) : null,
     album: tags.album?.trim() || null,
     dateAdded: null, // no library timestamp inside a bare audio file

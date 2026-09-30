@@ -2,9 +2,9 @@
   import type { Snippet } from 'svelte'
 
   // A small info icon revealing a tooltip on hover / keyboard focus, or
-  // PINNED open by a click (v11 issue 6 — links inside stay reachable) until
+  // PINNED open by a click (links inside stay reachable) until
   // an outside click or Escape. The panel positions itself `fixed` and
-  // clamps to the viewport (v11 issue 4), so the two scrolling side panels
+  // clamps to the viewport, so the two scrolling side panels
   // and the central viewer can never clip or cover it.
   interface Props {
     /** Accessible label for the trigger button. */
@@ -13,8 +13,8 @@
     align?: 'left' | 'right'
     /**
      * Replaces the ⓘ glyph, for rows whose own content is the natural place
-     * to hover (v35.1: the descriptor filters, where a 250px rail has no
-     * width for a label AND an icon). Styling comes from the caller — a
+     * to hover — the descriptor filters, where a 250px rail has no
+     * width for a label AND an icon. Styling comes from the caller — a
      * snippet is scoped where it is defined, not where it renders — so the
      * button only drops its own type and colour here.
      */
@@ -157,15 +157,15 @@
     white-space: normal;
   }
 
-  /* Inline, so a <strong> mid-sentence doesn't break the paragraph in three
-     (v17 #7). Report-style tooltips get their heading line from the <span>
+  /* Inline, so a <strong> mid-sentence doesn't break the paragraph in three.
+     Report-style tooltips get their heading line from the <span>
      rule below instead. */
   .tooltip :global(strong) {
     color: var(--ink);
   }
 
-  /* Report-style content: each span reads as its own line (the import
-     popover's look, kept through the v11 conversion). */
+  /* Report-style content: each span reads as its own line, matching the
+     import popover's look. */
   .tooltip :global(span) {
     display: block;
   }

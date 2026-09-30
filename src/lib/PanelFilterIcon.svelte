@@ -4,10 +4,10 @@
 
   /**
    * Icons for the left panel's non-plain filter rows: the four permanent panel
-   * rows, as vectors rather than the ★/☰/🔗/♪ text glyphs they replace (v27
-   * fix), and since v35.1 the four analysis descriptors, which are labelled by
-   * a single letter in the rail and so lean on their icon to be recognisable.
-   * The v27 reasoning below is exactly why those four are not emoji either.
+   * rows, as vectors rather than the ★/☰/🔗/♪ text glyphs they replace, and
+   * the four analysis descriptors, which are labelled by a single letter in
+   * the rail and so lean on their icon to be recognisable. The reasoning
+   * below is exactly why those four are not emoji either.
    *
    * Those four glyphs come from three different fonts (🔗 is a colour emoji,
    * the rest are text) and their advance widths ran 9.5px…18px at the same
@@ -70,7 +70,7 @@
         { d: 'M18 13a3 3 0 1 0 0 6 3 3 0 0 0 0-6z' },
       ],
     },
-    // The four descriptors (v35.1). Chosen to be distinguishable by SHAPE at
+    // The four descriptors. Chosen to be distinguishable by SHAPE at
     // 14px, not by metaphor: a bolt is angular, the wave horizontal, the tone
     // mark a square and the smiley a circle — so the four never read as one
     // another in a stacked rail even before the eye resolves the drawing.

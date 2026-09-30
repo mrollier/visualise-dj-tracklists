@@ -20,31 +20,31 @@ import { sanitizeAnalysis, type AnalysisSidecar } from './analysis'
 /**
  * A saved project: the whole app state as one JSON document. Used both for
  * explicit save/load (a .json file the user keeps) and the autosave.
- * Version history: v1 (no filters/settings, criteria had a rating criterion),
- * v2 (filters + settings + colour axis; rating became a filter),
- * v3 (multiple named sets replace the single tracklist — issue 18),
- * v4 (filters carry a per-property range map — v11 issue 1),
- * v5 (manual edges — planning annotations, v12 WS9),
- * v6 (v14: text filter kind split into alpha/contains/colour/quality, so old
- *  stored text ranges are dropped on load — WS2; per-criterion `demanded`
- *  flags — WS4; per-track `isVinyl` dropped — WS1; `slotSpreadFactor` clamp
- *  widened to 0–2 — WS7; `manualEdgeWeight` setting — WS5),
- * v7 (F5: filters `keyRing` string enum → `keyRings` {minor,major} toggle
- *  pair; quality range `{quality}` → `{qualities: []}`, where an empty array
- *  is the "both-off" state — old shapes migrate on load),
- * v8 (v23: ★ Starred, 🔗 Combos and 🎵 Keys become permanent left-panel
- *  pseudo-rows — a save older than v8 back-fills all three into
- *  `settings.visibleFilters` on load, since v8+ is trusted verbatim a
- *  deliberate hide made afterwards sticks),
- * v9 (Energy joins Key/BPM/Genre/Year as a 5th combo criterion — a save
- *  older than v9 has no `criteria.energy`; migrateCriteria fills it from
+ * Version history: schema 1 (no filters/settings, criteria had a rating
+ *  criterion), schema 2 (filters + settings + colour axis; rating became a
+ *  filter), schema 3 (multiple named sets replace the single tracklist),
+ *  schema 4 (filters carry a per-property range map), schema 5 (manual
+ *  edges — planning annotations), schema 6 (text filter kind split into
+ *  alpha/contains/colour/quality, so old stored text ranges are dropped on
+ *  load; per-criterion `demanded` flags; per-track `isVinyl` dropped;
+ *  `slotSpreadFactor` clamp widened to 0–2; `manualEdgeWeight` setting),
+ *  schema 7 (filters `keyRing` string enum → `keyRings` {minor,major}
+ *  toggle pair; quality range `{quality}` → `{qualities: []}`, where an
+ *  empty array is the "both-off" state — old shapes migrate on load),
+ *  schema 8 (★ Starred, 🔗 Combos and 🎵 Keys become permanent left-panel
+ *  pseudo-rows — a save older than schema 8 back-fills all three into
+ *  `settings.visibleFilters` on load, since schema 8+ is trusted verbatim
+ *  a deliberate hide made afterwards sticks), schema 9 (Energy joins
+ *  Key/BPM/Genre/Year as a 5th combo criterion — a save older than schema 9
+ *  has no `criteria.energy`; migrateCriteria fills it from
  *  DEFAULT_CRITERIA.energy, so an old save gains the field enabled with
  *  the default 2-step tolerance rather than failing to evaluate it),
- * v10 (v25: ☰ Constellation joins ★ Starred/🔗 Combos/♪ Keys as a fourth
- *  permanent left-panel pseudo-row — a save older than v10 back-fills it
- *  into `settings.visibleFilters` on load, same as v8's three-row back-fill),
- * v11 (★ essentials and ⏮/⏭ pins are saved per set; the marks quick-filters
- *  are saved too — older saves load with empty marks and the flags off).
+ *  schema 10 (☰ Constellation joins ★ Starred/🔗 Combos/♪ Keys as a fourth
+ *  permanent left-panel pseudo-row — a save older than schema 10 back-fills
+ *  it into `settings.visibleFilters` on load, same as schema 8's three-row
+ *  back-fill), schema 11 (★ essentials and ⏮/⏭ pins are saved per set; the
+ *  marks quick-filters are saved too — older saves load with empty marks
+ *  and the flags off).
  */
 export interface Project {
   version: 11
@@ -55,7 +55,7 @@ export interface Project {
   settings: AppSettings
   /** Named sets; always at least one. */
   sets: TrackSet[]
-  /** User-marked "these mix well" pairs (v12 WS9) — planning, never a log. */
+  /** User-marked "these mix well" pairs — planning, never a log. */
   manualEdges: ManualEdge[]
   /** Which set is being edited; always one of `sets`. */
   activeSetId: string
@@ -64,8 +64,8 @@ export interface Project {
   radialAxis: 'bpm' | 'rating' | 'year' | 'energy'
   colorAxis: 'auto' | 'bpm' | 'rating' | 'year' | 'energy'
   /**
-   * Audio-analysis results, keyed by file path (v33 WS1). Fills metadata
-   * Rekordbox left null; never overwrites what Rekordbox supplied. Additive,
+   * Audio-analysis results, keyed by file path. Fills metadata Rekordbox
+   * left null; never overwrites what Rekordbox supplied. Additive,
    * so the schema stays at 10 — see the note in `parseProject`.
    */
   analysis: AnalysisSidecar | null
@@ -124,15 +124,15 @@ function finiteOr(
   return value < bounds.min || value > bounds.max ? fallback : value
 }
 
-/** Upgrade a v1 criteria object: drop rating, add genre method/threshold. */
+/** Upgrade a raw criteria object: drop rating, add genre method/threshold. */
 function migrateCriteria(raw: Record<string, unknown>): CriteriaConfig {
   const defaults = structuredClone(DEFAULT_CRITERIA)
   const genre = (raw.genre ?? {}) as Partial<CriteriaConfig['genre']>
   // Saves from before the split carried a single advancedMoves toggle
   // covering both the +2 and +7 wheel moves — fan it out to both flags.
   const key = (raw.key ?? {}) as Partial<CriteriaConfig['key']> & { advancedMoves?: boolean }
-  // v14 (WS4): `demanded` locks a criterion as mandatory. The whitelist reads
-  // it explicitly with `=== true` coercion so a non-boolean in a hand-edited
+  // `demanded` locks a criterion as mandatory. The whitelist reads it
+  // explicitly with `=== true` coercion so a non-boolean in a hand-edited
   // save (or its absence in an old one) becomes a clean false, never leaks.
   const bpm = (raw.bpm ?? {}) as Partial<CriteriaConfig['bpm']>
   const energy = (raw.energy ?? {}) as Partial<CriteriaConfig['energy']>
@@ -172,10 +172,10 @@ function migrateCriteria(raw: Record<string, unknown>): CriteriaConfig {
     },
     threshold: typeof raw.threshold === 'number' ? raw.threshold : defaults.threshold,
   }
-  // 0 is a deliberate "require nothing" since v11 (issue 2a).
+  // 0 is a deliberate "require nothing" state.
   criteria.threshold = Math.max(0, Math.min(5, criteria.threshold))
-  // v14 C2: a demanded criterion is mandatory, so the threshold can never sit
-  // below the demanded count — floor it after the clamp.
+  // A demanded criterion is mandatory, so the threshold can never sit below
+  // the demanded count — floor it after the clamp.
   criteria.threshold = Math.max(criteria.threshold, demandedCount(criteria))
   return criteria
 }
@@ -189,8 +189,8 @@ function sanitizeTrack(raw: unknown): Track | null {
   if (!isRecord(raw)) return null
   const entry = raw
   // The empty string is the suggestion engine's "no successor" sentinel
-  // (suggest.ts), so a track may never carry it as an id — sanitizeSet has
-  // rejected it since v3; this is the same rule one layer up.
+  // (suggest.ts), so a track may never carry it as an id — sanitizeSet
+  // already rejects it; this is the same rule one layer up.
   if (typeof entry.id !== 'string' || entry.id === '' || typeof entry.title !== 'string')
     return null
   const num = (v: unknown): number | null =>
@@ -218,18 +218,19 @@ function sanitizeTrack(raw: unknown): Track | null {
     bitRate: num(entry.bitRate),
     sampleRate: num(entry.sampleRate),
     comments: str(entry.comments),
-    // Older saves carry Comments but no energy — derive it here (v12 WS8) so
-    // an existing project gains the field without a re-import.
+    // Older saves carry Comments but no energy — derive it here so an
+    // existing project gains the field without a re-import.
     energy: num(entry.energy) ?? energyFromComments(str(entry.comments)),
-    // v35 descriptors. Only the analysis merge ever sets these, and the merge
-    // re-runs from the persisted sidecar on load, so in practice they arrive
-    // null here — the lines exist so a save that does carry them survives.
+    // These descriptors: only the analysis merge ever sets them, and the
+    // merge re-runs from the persisted sidecar on load, so in practice they
+    // arrive null here — the lines exist so a save that does carry them
+    // survives.
     arousal: num(entry.arousal),
     valence: num(entry.valence),
     danceability: num(entry.danceability),
     happiness: num(entry.happiness),
-    // v39: derived, never saved — the analysed genre lives on the merged
-    // layer, and the raw library a save round-trips is Rekordbox truth.
+    // Derived, never saved — the analysed genre lives on the merged layer,
+    // and the raw library a save round-trips is Rekordbox truth.
     analysedGenre: null,
     analysedGenreScore: null,
     playCount: num(entry.playCount),
@@ -315,8 +316,9 @@ export function sanitizeProject(raw: unknown): Project {
     knownIds.add(track.id)
     tracks.push(track)
   }
-  // v1/v2 carried one flat tracklist — it becomes the (un-generated) First
-  // Set. v3 sets are sanitized per entry; nothing valid left = one empty set.
+  // Saves at schema 1/2 carried one flat tracklist — it becomes the
+  // (un-generated) First Set. Schema 3+ sets are sanitized per entry;
+  // nothing valid left = one empty set.
   let sets: TrackSet[]
   if (Array.isArray(p.sets)) {
     sets = (p.sets as unknown[])
@@ -329,14 +331,13 @@ export function sanitizeProject(raw: unknown): Project {
     sets = [freshFirstSet(oldList)]
   }
   if (sets.length === 0) sets = [freshFirstSet()]
-  // The sets are the suggestion browser (v8 issue 18): a hand-edited save
-  // with more than the cap keeps its first MAX_SETS entries.
+  // The sets are the suggestion browser: a hand-edited save with more than
+  // the cap keeps its first MAX_SETS entries.
   sets = sets.slice(0, MAX_SETS)
-  // v17: pre-v17 saves carried the noun in the default names ("First
-  // Constellation"); strip it so old work matches the new short defaults.
-  // v9 (issue 18): saves that already carry duplicate names get the same
-  // auto-suffix a rename would — run after the shortening, which can itself
-  // create a clash.
+  // Old saves carried the noun in the default names ("First Constellation");
+  // strip it so old work matches the new short defaults. Saves that already
+  // carry duplicate names get the same auto-suffix a rename would — run
+  // after the shortening, which can itself create a clash.
   const seenNames: string[] = []
   sets = sets.map((s) => {
     const name = uniqueSetName(shortenLegacySetName(s.name), seenNames)
@@ -348,13 +349,13 @@ export function sanitizeProject(raw: unknown): Project {
       ? p.activeSetId
       : sets[0].id
   const rawSettings = (p.settings ?? {}) as Partial<AppSettings> & { slotSpreadDeg?: number }
-  // v9 (issue 12): trackColumns became the full ordering + a hidden list;
-  // older partial lists keep their order and visible set.
+  // trackColumns became the full ordering + a hidden list; older partial
+  // lists keep their order and visible set.
   const columns = migrateColumns(rawSettings.trackColumns, rawSettings.hiddenColumns)
-  // v7: the same-key spread became a 0–1 factor of the ±7.5° half-slot window;
-  // older saves stored degrees (capped at 7.5; pre-v5 allowed 15/20). v14
-  // (WS7): the factor slider widened to 0–2. Either source clamps into [0, 2],
-  // a non-finite value falling back to the default (never NaN through).
+  // The same-key spread was once stored in degrees (capped at 7.5, older
+  // still allowing 15/20); it is now a factor of the ±7.5° half-slot window,
+  // clamped to 0–2. Either source clamps into that range, a non-finite value
+  // falling back to the default (never NaN through).
   const slotSpreadDeg = rawSettings.slotSpreadDeg
   const slotSpreadFactor =
     typeof slotSpreadDeg === 'number' && rawSettings.slotSpreadFactor === undefined
@@ -371,9 +372,8 @@ export function sanitizeProject(raw: unknown): Project {
   // Every field is rebuilt explicitly from the untrusted save: a value that
   // fails its type/range check resolves to the default rather than leaking
   // through. Because only known keys are ever copied, no stray property can
-  // enter — the old spread needed a Reflect.deleteProperty to undo the
-  // slotSpreadDeg leak; that is gone. Field order mirrors AppSettings so a
-  // valid save still serializes byte-identically.
+  // enter. Field order mirrors AppSettings so a valid save still serializes
+  // byte-identically.
   const settings: AppSettings = {
     theme:
       rawSettings.theme === 'light' || rawSettings.theme === 'dark' || rawSettings.theme === null
@@ -410,8 +410,8 @@ export function sanitizeProject(raw: unknown): Project {
       max: 1,
       mode: 'clamp',
     }),
-    // v31: additive boolean, no version bump — an older save with no key
-    // resolves to true, the preference the generator now ships with.
+    // Additive boolean, no schema bump — an older save with no key resolves
+    // to true, the preference the generator now ships with.
     avoidSameArtist:
       typeof rawSettings.avoidSameArtist === 'boolean'
         ? rawSettings.avoidSameArtist
@@ -424,8 +424,8 @@ export function sanitizeProject(raw: unknown): Project {
       rawSettings.bpmProgression === 'sawtooth'
         ? rawSettings.bpmProgression
         : DEFAULT_SETTINGS.bpmProgression,
-    // v14 (WS5): the manual-combo pull is a 0–10 knob; out-of-range resets to
-    // the default rather than clamping (reject mode).
+    // The manual-combo pull is a 0–10 knob; out-of-range resets to the
+    // default rather than clamping (reject mode).
     manualEdgeWeight: finiteOr(rawSettings.manualEdgeWeight, DEFAULT_SETTINGS.manualEdgeWeight, {
       min: 0,
       max: 10,
@@ -439,15 +439,15 @@ export function sanitizeProject(raw: unknown): Project {
     advancedOpen: Array.isArray(rawSettings.advancedOpen)
       ? (rawSettings.advancedOpen as unknown[]).filter((s): s is string => typeof s === 'string')
       : [...DEFAULT_SETTINGS.advancedOpen],
-    // v12 (WS4): easy mode — anything but the two literals means an older or
-    // mangled save, which stays in the full UI it was written from.
+    // Easy mode: anything but the two literals means an older or mangled
+    // save, which stays in the full UI it was written from.
     uiMode:
       rawSettings.uiMode === 'easy' || rawSettings.uiMode === 'advanced'
         ? rawSettings.uiMode
         : DEFAULT_SETTINGS.uiMode,
-    // v30: additive booleans, no version bump either — an older save with
-    // neither key resolves to true, which is the fixed three-panel layout it
-    // was written from.
+    // Additive booleans, no schema bump — an older save with neither key
+    // resolves to true, which is the fixed three-panel layout it was
+    // written from.
     showLeftPanel:
       typeof rawSettings.showLeftPanel === 'boolean'
         ? rawSettings.showLeftPanel
@@ -456,14 +456,14 @@ export function sanitizeProject(raw: unknown): Project {
       typeof rawSettings.showRightPanel === 'boolean'
         ? rawSettings.showRightPanel
         : DEFAULT_SETTINGS.showRightPanel,
-    // v28: additive boolean, no version bump — an older save with no key
-    // resolves to false, which is exactly the wanted "preview off".
+    // Additive boolean, no schema bump — an older save with no key resolves
+    // to false, which is exactly the wanted "preview off".
     audioPreview:
       typeof rawSettings.audioPreview === 'boolean'
         ? rawSettings.audioPreview
         : DEFAULT_SETTINGS.audioPreview,
-    // v36: additive enums, no version bump — an older save with no key
-    // resolves to 'rekordbox', which is exactly today's behaviour.
+    // Additive enums, no schema bump — an older save with no key resolves
+    // to 'rekordbox', which is exactly today's behaviour.
     keySource:
       rawSettings.keySource === 'rekordbox' || rawSettings.keySource === 'comments'
         ? rawSettings.keySource
@@ -472,8 +472,8 @@ export function sanitizeProject(raw: unknown): Project {
       rawSettings.bpmSource === 'rekordbox' || rawSettings.bpmSource === 'comments'
         ? rawSettings.bpmSource
         : DEFAULT_SETTINGS.bpmSource,
-    // v39: additive, no version bump — an older save resolves to
-    // 'rekordbox', the behaviour that predates the analysed-genre layer.
+    // Additive, no schema bump — an older save resolves to 'rekordbox', the
+    // behaviour that predates the analysed-genre layer.
     genreSource:
       rawSettings.genreSource === 'rekordbox' || rawSettings.genreSource === 'analysis'
         ? rawSettings.genreSource
@@ -484,16 +484,17 @@ export function sanitizeProject(raw: unknown): Project {
       rawSettings.genreThreshold <= 1
         ? rawSettings.genreThreshold
         : DEFAULT_SETTINGS.genreThreshold,
-    // v38: additive boolean, no version bump — an older save with no key
-    // resolves to false, which is exactly the wanted "never touch files".
+    // Additive boolean, no schema bump — an older save with no key resolves
+    // to false, which is exactly the wanted "never touch files".
     analysisWriteTags:
       typeof rawSettings.analysisWriteTags === 'boolean'
         ? rawSettings.analysisWriteTags
         : DEFAULT_SETTINGS.analysisWriteTags,
   }
   // Filters normalize into the per-property map, whatever their vintage;
-  // migrateFilters lifts v3 top-level ranges and drops garbage entries. The
-  // marks quick-filters survive only from saves that also carry the marks.
+  // migrateFilters lifts pre-schema-4 top-level ranges and drops garbage
+  // entries. The marks quick-filters survive only from saves that also
+  // carry the marks.
   const filters = migrateFilters(p.filters, version >= 11)
   // visibleFilters: saved arrays keep their valid keys; older saves back-fill
   // to the default. [] is a valid "hide every property filter" choice. The
@@ -523,18 +524,18 @@ export function sanitizeProject(raw: unknown): Project {
       settings.visibleFilters.push(prop.key)
     }
   }
-  // v23: saves written before schema 8 predate the permanent pseudo-row
-  // group — back-fill the three so an upgrade never silently removes the
-  // Keys row. Schema 8+ is trusted verbatim, so a deliberate hide sticks.
+  // Saves written before schema 8 predate the permanent pseudo-row group —
+  // back-fill the three so an upgrade never silently removes the Keys row.
+  // Schema 8+ is trusted verbatim, so a deliberate hide sticks.
   if (version < 8) {
     for (const m of PANEL_FILTERS) {
       if (!settings.visibleFilters.includes(m.key)) settings.visibleFilters.push(m.key)
     }
   }
-  // v25: saves written before schema 10 predate the fourth permanent row
-  // (☰ Constellation) — a narrower, separate back-fill from the one above,
-  // since a save already at v8/v9 has the first three rows but not this
-  // one. Schema 10+ is trusted verbatim.
+  // Saves written before schema 10 predate the fourth permanent row (☰
+  // Constellation) — a narrower, separate back-fill from the one above,
+  // since a save already at schema 8/9 has the first three rows but not
+  // this one. Schema 10+ is trusted verbatim.
   if (version < 10 && !settings.visibleFilters.includes('constellation')) {
     settings.visibleFilters.push('constellation')
   }
@@ -543,7 +544,7 @@ export function sanitizeProject(raw: unknown): Project {
       settings.visibleFilters.push(m.key)
     }
   }
-  // Manual edges (v12 WS9): unordered unique pairs between known tracks.
+  // Manual edges: unordered unique pairs between known tracks.
   const manualEdges: ManualEdge[] = []
   {
     const seenPairs = new Set<string>()
@@ -586,7 +587,7 @@ export function sanitizeProject(raw: unknown): Project {
       p.colorAxis === 'energy'
         ? p.colorAxis
         : 'auto',
-    // Additive, no version bump: an old save has no key and gets null.
+    // Additive, no schema bump: an old save has no key and gets null.
     // Bumping would be actively worse: parseProject throws on an unknown
     // version while the autosave deliberately preserves a save it cannot
     // read, so a bundle rollback would brick autosave restore entirely —

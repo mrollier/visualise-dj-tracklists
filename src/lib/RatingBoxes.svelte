@@ -1,8 +1,8 @@
 <script lang="ts">
   // Discrete require-N-of-M control: N boxes, fill k to require k matches
   // (star-rating semantics). Sliders are for continuous values; this is a
-  // count, so it gets boxes (v10 issue 3). Clicking the top-filled box steps
-  // down one — all the way to zero (v11 issue 2a): "require 0" is a valid,
+  // count, so it gets boxes. Clicking the top-filled box steps
+  // down one — all the way to zero: "require 0" is a valid,
   // deliberate everything-connects choice.
   interface Props {
     value: number
@@ -10,7 +10,7 @@
     onchange: (value: number) => void
     /**
      * Boxes at or below `floor` are locked ON — mandatory (demanded) criteria
-     * pin the count there (v14 C2). The step-down never drops below the floor,
+     * pin the count there. The step-down never drops below the floor,
      * and locked boxes read as non-declinable.
      */
     floor?: number

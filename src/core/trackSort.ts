@@ -2,7 +2,7 @@ import { ALL_CAMELOT_KEYS } from './keys'
 import type { Track } from './model'
 
 /**
- * Column sorting for the Tracks table view (issue 7). Strings compare per
+ * Column sorting for the Tracks table view. Strings compare per
  * locale, numbers numerically, keys in Camelot-wheel order ("2A" before
  * "10A"; the A wheel before B). Missing values sink to the bottom in both
  * directions — a null BPM is never "the slowest track".

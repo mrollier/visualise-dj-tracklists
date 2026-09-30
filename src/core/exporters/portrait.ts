@@ -18,7 +18,7 @@ import {
 } from '../walkArrow'
 
 /**
- * The set portrait (v12 WS3): the walk over the wheel as a standalone SVG
+ * The set portrait: the walk over the wheel as a standalone SVG
  * poster — title, date and the tracklist down the side. Pure string building,
  * no DOM; rasterisation to PNG lives in the lib layer. The palette mirrors
  * the app.css theme tokens; the wheel geometry mirrors WheelView (24 zigzag
@@ -82,7 +82,7 @@ const R_FALLBACK = 68
 const GUTTER_X = CX + R_MAX + 44 // keyless walk tracks park here
 const PANEL_X = 828
 const PANEL_RIGHT = 1160
-const HALF_SPREAD_DEG = 4 // the v10 fan cap
+const HALF_SPREAD_DEG = 4 // the fan cap
 const NODE_RADIUS_WORLD = 5
 
 const FONT = "-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"

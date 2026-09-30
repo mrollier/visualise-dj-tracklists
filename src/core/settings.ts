@@ -5,8 +5,8 @@ import { DEFAULT_VISIBLE_FILTERS } from './properties'
 import type { TrackSortField } from './trackSort'
 
 /**
- * Preferred BPM trajectory for generated sets (design-v6 §C): 'any' adds no
- * preference, 'sawtooth' builds up and drops back in cycles.
+ * Preferred BPM trajectory for generated sets: 'any' adds no preference,
+ * 'sawtooth' builds up and drops back in cycles.
  */
 export type BpmProgression = 'any' | 'steady' | 'rising' | 'falling' | 'sawtooth'
 
@@ -23,16 +23,15 @@ export interface AppSettings {
   colorScheme: 'blue' | 'aqua' | 'violet'
   /**
    * Max angular fan-out of same-key tracks as a 0–2 factor (1 = classic ±4°,
-   * 2 = node edge kisses the ±7.5° wedge boundary) — since v9 (issue 17) the
-   * hard bound of the deterministic slot relaxation, which replaced the
-   * seeded fan.
+   * 2 = node edge kisses the ±7.5° wedge boundary) — the hard bound of the
+   * deterministic slot relaxation.
    */
   slotSpreadFactor: number
   /** Base opacity of suggestion edges. */
   edgeOpacity: number
   /**
-   * Also draw the edges AMONG the selected track's neighbours (v9 issue 8).
-   * Off = just the star around the selection; edges never draw without one.
+   * Also draw the edges AMONG the selected track's neighbours. Off = just
+   * the star around the selection; edges never draw without one.
    */
   focusClusterEdges: boolean
   /** Target number of tracks for the suggested-set generator. */
@@ -41,68 +40,66 @@ export interface AppSettings {
   suggestRandomness: number
   /**
    * Steer suggested constellations away from two tracks by the same artist in
-   * a row (v31 #1). A preference, not a rule: the generator still takes a
-   * same-artist step when nothing else fits, and says so under the set.
+   * a row. A preference, not a rule: the generator still takes a same-artist
+   * step when nothing else fits, and says so under the set.
    */
   avoidSameArtist: boolean
   /** Preferred BPM trajectory for generated sets. */
   bpmProgression: BpmProgression
   /**
-   * How strongly a user-marked combo pulls suggested walks (v14 S3): 0–10,
+   * How strongly a user-marked combo pulls suggested walks: 0–10,
    * default 5. 0 removes the preference (the marked pair still counts as an
    * edge), 10 lets it dominate every ordinary match.
    */
   manualEdgeWeight: number
   /**
-   * The Tracks table's column ORDER — always every column (v9 issue 12);
-   * header drag reorders this list. Visibility lives in hiddenColumns, so a
+   * The Tracks table's column ORDER — always every column; header drag
+   * reorders this list. Visibility lives in hiddenColumns, so a
    * column keeps its position while hidden.
    */
   trackColumns: TrackSortField[]
   /** Columns currently hidden from the Tracks table. */
   hiddenColumns: TrackSortField[]
   /**
-   * Which property filters appear in the left panel (v11 issue 1); the rest
-   * are hidden until ticked in the advanced "Track properties" table. Since
-   * v18 (#3/#8), widened v23 and again v25, also carries the four permanent
-   * panel pseudo-keys ('starred'/'constellation'/'combos'/'keys') —
-   * same show/hide semantics, just not backed by a `TrackProperty`.
+   * Which property filters appear in the left panel; the rest are hidden
+   * until ticked in the advanced "Track properties" table. Also carries the
+   * four permanent panel pseudo-keys ('starred'/'constellation'/'combos'/
+   * 'keys') — same show/hide semantics, just not backed by a `TrackProperty`.
    */
   visibleFilters: (TrackSortField | PanelFilterKey)[]
   /**
-   * Which advanced-menu sections the user has opened (v8 issue 17). Empty on
-   * first use — every section starts folded; the menu then remembers.
+   * Which advanced-menu sections the user has opened. Empty on first use —
+   * every section starts folded; the menu then remembers.
    */
   advancedOpen: string[]
   /**
-   * Easy mode (v12 WS4; computation v14 WS6/E1): one hard toggle. Easy shows
-   * the wheel, Playlists, ✨ and the set panel; criteria, filters, genres,
-   * advanced settings and the view/axis controls hide behind their current
-   * values. It is not visibility-only, though: easy also COMPUTES with
-   * sensible defaults via the effective-store layer (stores.ts). The stored
-   * advanced state underneath is never mutated, so toggling back restores it
-   * exactly.
+   * Easy mode: one hard toggle. Easy shows the wheel, Playlists, ✨ and the
+   * set panel; criteria, filters, genres, advanced settings and the view/axis
+   * controls hide behind their current values. It is not visibility-only,
+   * though: easy also COMPUTES with sensible defaults via the effective-store
+   * layer (stores.ts). The stored advanced state underneath is never
+   * mutated, so toggling back restores it exactly.
    */
   uiMode: 'advanced' | 'easy'
   /**
-   * The two side panels' visibility (v30). Both on by default: this is the
-   * layout the app has always had, so an older save with neither key resolves
-   * to it. The THIRD panel — the audition bar across the top of the central
+   * The two side panels' visibility. Both on by default: this is the layout
+   * the app has always had, so an older save with neither key resolves to
+   * it. The THIRD panel — the audition bar across the top of the central
    * column — has no flag of its own; `audioPreview` below is that flag, since a
    * bar you cannot see is a bar you cannot stop.
    */
   showLeftPanel: boolean
   showRightPanel: boolean
   /**
-   * Audio preview (v28): show the two-deck audition bar under the top bar.
-   * Off by default. A browser cannot open a file from `Track.location`, so
+   * Audio preview: show the two-deck audition bar under the top bar. Off by
+   * default. A browser cannot open a file from `Track.location`, so
    * turning this on only reveals the bar — hearing anything additionally
    * needs the user to grant a music folder.
    */
   audioPreview: boolean
   /**
-   * Ground truth for a track's key / BPM (v36): Rekordbox's XML attribute, or
-   * the Mixed In Key token in Comments. With 'comments', a track whose comment
+   * Ground truth for a track's key / BPM: Rekordbox's XML attribute, or the
+   * Mixed In Key token in Comments. With 'comments', a track whose comment
    * has no parsable token keeps its Rekordbox value — flipping the setting
    * never blanks metadata. Energy has no source setting: it is always read
    * from Comments, because Rekordbox produces none.
@@ -110,7 +107,7 @@ export interface AppSettings {
   keySource: MetadataSource
   bpmSource: MetadataSource
   /**
-   * Genre ground truth (v39): the collection's own field, or the analysis
+   * Genre ground truth: the collection's own field, or the analysis
    * sidecar's Discogs400 style prediction. Same never-blank rule as key and
    * BPM — with 'analysis', a track with no prediction, or one scoring below
    * `genreThreshold`, keeps the genre it already had.
@@ -126,7 +123,7 @@ export interface AppSettings {
   genreThreshold: number
   /**
    * Ask the analysis helper to write the `[AxxVxxDxxHxx]` descriptor token
-   * into each analysed file's comment tag (v38). Off by default: it modifies
+   * into each analysed file's comment tag. Off by default: it modifies
    * audio files on disk, and Rekordbox only sees the result after a Reload
    * Tags — which can overwrite Rekordbox-only fields.
    */

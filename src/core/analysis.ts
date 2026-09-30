@@ -5,7 +5,7 @@ import { learnGenreBridge, type GenreBridgeEdge } from './genre'
 import { parseDescriptorToken, type GenreSource, type Track } from './model'
 
 /**
- * The analysis provenance layer (v33 WS1).
+ * The analysis provenance layer.
  *
  * Audio analysis produces a file-keyed sidecar that fills metadata Rekordbox
  * left null. Rekordbox is authoritative and is never overwritten: the merge
@@ -17,10 +17,10 @@ import { parseDescriptorToken, type GenreSource, type Track } from './model'
  */
 
 /**
- * The Track fields analysis can fill. The last four (v35) are analysis-only:
- * no DJ library supplies them, so every non-null value on a Track came from
- * here. Energy is deliberately absent (v36): it comes exclusively from the
- * "Energy N" comment token (Mixed In Key), never from analysis — the
+ * The Track fields analysis can fill. The last four are analysis-only: no DJ
+ * library supplies them, so every non-null value on a Track came from here.
+ * Energy is deliberately absent: it comes exclusively from the "Energy N"
+ * comment token (Mixed In Key), never from analysis — the
  * arousal-derived fallback was removed after MIK beat it against Michiel's
  * own labels, and an honest null beats an inferior guess.
  */
@@ -40,9 +40,9 @@ export interface AnalysisEntry {
   danceability?: number | null
   /**
    * The Discogs400 head's strongest styles for this track, `[label, score]`
-   * strongest first, labels in the model's own `Parent---Style` spelling
-   * (v39). All of them are stored: the confidence cutoff is a setting the
-   * user moves, not a decision the analyser bakes in.
+   * strongest first, labels in the model's own `Parent---Style` spelling.
+   * All of them are stored: the confidence cutoff is a setting the user
+   * moves, not a decision the analyser bakes in.
    */
   genre?: [string, number][]
 }
@@ -95,8 +95,8 @@ export interface MergeResult {
    */
   stats: MergeStats
   /**
-   * Aliases learned from this library's own (label, predicted style) pairs
-   * (v39.1) — empty unless the analysed genre is the one in use. Install with
+   * Aliases learned from this library's own (label, predicted style) pairs —
+   * empty unless the analysed genre is the one in use. Install with
    * `setGenreBridge` before anything matches on genre.
    */
   genreBridge: GenreBridgeEdge[]
@@ -106,15 +106,15 @@ export interface MergeStats {
   bpmFilled: number
   keyFilled: number
   /**
-   * Tracks that gained at least one v35 descriptor. One counter rather than
-   * four: the import note reports what a run achieved, and four near-identical
+   * Tracks that gained at least one descriptor. One counter rather than four:
+   * the import note reports what a run achieved, and four near-identical
    * numbers would bury the BPM and key figures that actually vary.
    */
   descriptorsFilled: number
   /**
-   * Tracks that gained a descriptor from the `[A..V..D..H..]` comment token
-   * (v38) — the sidecar's own lossy export, read back when no sidecar entry
-   * matched. Counted separately so the note can say where values came from.
+   * Tracks that gained a descriptor from the `[A..V..D..H..]` comment token —
+   * the sidecar's own lossy export, read back when no sidecar entry matched.
+   * Counted separately so the note can say where values came from.
    */
   descriptorsFromComments: number
   /** Tracks whose Rekordbox BPM/key was absent — the gap analysis could close. */
@@ -209,7 +209,7 @@ function sanitizeRun(raw: unknown): AnalysisRun | null {
 }
 
 /**
- * Join a sidecar onto a library. Reuses v28's suffix matcher (pathMatch.ts),
+ * Join a sidecar onto a library. Reuses the suffix matcher (pathMatch.ts),
  * which refuses ambiguous ties rather than guessing — attaching the wrong BPM
  * and key to a track would corrupt the exact judgement this feature serves.
  *
@@ -222,8 +222,8 @@ function sanitizeRun(raw: unknown): AnalysisRun | null {
 export function mergeAnalysis(
   tracks: Track[],
   sidecar: AnalysisSidecar | null,
-  // Defaults to the collection's own genre, so every caller that predates
-  // v39 — and every test — behaves exactly as it did.
+  // Defaults to the collection's own genre, so a caller that omits prefs —
+  // and every existing test — keeps reading Rekordbox's genre unchanged.
   prefs: GenrePrefs = { genreSource: 'rekordbox', genreThreshold: 1 },
 ): MergeResult {
   const analysedFields = new Map<string, Set<AnalysedField>>()
@@ -301,11 +301,11 @@ export function mergeAnalysis(
           }
         } else stats.belowConfidence += 1
       }
-      // Energy is NEVER filled from analysis (v36): the only source is the
+      // Energy is never filled from analysis: the only source is the
       // "Energy N" comment token, parsed at import. A track without one keeps
       // an honest null rather than an arousal-derived guess.
 
-      // The v35 descriptors. Every one is analysis-only, so fill-nulls-only is
+      // The descriptors are all analysis-only, so fill-nulls-only is
       // vacuously true here; the loop keeps them on the same path as the rest
       // rather than inventing a second one.
       let gainedDescriptor = false
@@ -319,7 +319,7 @@ export function mergeAnalysis(
       }
       if (gainedDescriptor) stats.descriptorsFilled += 1
 
-      // The Discogs400 prediction (v39). Attached to every matched track
+      // The Discogs400 prediction is attached to every matched track
       // whatever the setting says — it is a PARALLEL value, not a fill, and
       // the Rekordbox genre it sits beside is never touched. Only the
       // substitution below is thresholded, and it reads the threshold at
@@ -337,13 +337,13 @@ export function mergeAnalysis(
           // Every (own label, predicted style) pair votes on the vocabulary
           // bridge, whatever the threshold does with this particular track —
           // the aliases describe the LIBRARY, so moving the slider must not
-          // move them (v39.1).
+          // move them.
           if (t.genre !== null) bridgePairs.push([t.genre, next.analysedGenre])
         }
       }
     }
 
-    // The `[A..V..D..H..]` comment token (v38): the sidecar's own lossy 0-100
+    // The `[A..V..D..H..]` comment token is the sidecar's own lossy 0-100
     // export, read back. Runs AFTER the sidecar loop and fills nulls only, so
     // a matched sidecar entry — the precise original — always wins.
     const token = parseDescriptorToken(t.comments)
@@ -376,8 +376,8 @@ export function mergeAnalysis(
 }
 
 /**
- * Union two sidecars, next wins per path (v38). A playlist-scoped helper run
- * must add to a whole-library sidecar, never discard it — and the union is
+ * Union two sidecars, next wins per path. A playlist-scoped helper run must
+ * add to a whole-library sidecar, never discard it — and the union is
  * bounded by unique file paths, so it adds nothing to the autosave footprint
  * a full sidecar would not.
  */
@@ -444,15 +444,14 @@ function confident(conf: number | null | undefined): boolean {
   return conf >= MIN_CONFIDENCE
 }
 
-// The arousal→energy mapping (energyOf / energyFromArousal, v33–v35) lived
-// here until v36. It was removed, not retuned: against Michiel's 18 anchor
-// labels the arousal-derived energy managed r = +0.83 / MAE 2.31 while the
-// Mixed In Key tag managed r = +0.91, and above 155 BPM the model's slope
-// inverted outright. Energy now has exactly one source — the "Energy N"
-// comment token — and a track without one stays null.
+// Energy has no arousal-derived fallback. Measured against Michiel's 18
+// anchor labels, arousal-derived energy manages r = +0.83 / MAE 2.31 while
+// the Mixed In Key tag manages r = +0.91, and above 155 BPM the arousal
+// model's slope inverts outright. Energy has exactly one source — the
+// "Energy N" comment token — and a track without one stays null.
 
 /**
- * The descriptor percent scales (v35). `arousal` and `valence` come off the
+ * The descriptor percent scales. `arousal` and `valence` come off the
  * emoMusic head on its annotation range of 1–9; `danceability` and
  * `happiness` are softmax probabilities on 0–1. Both land on Track as whole
  * percentages so the column and the range filter share one unit — and so the

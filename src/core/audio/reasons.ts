@@ -5,10 +5,10 @@ import { formatNote } from './formats'
  * Kept as data + pure label functions so the wording is under test and the
  * component stays a thin view.
  *
- * Two levels (v29 #7): a short `reasonLabel` that fits the deck row, and a
+ * Two levels: a short `reasonLabel` that fits the deck row, and a
  * `reasonDetail` behind the ⓘ beside it saying what happened, why, and what
- * to do about it. The short one alone was not enough — "format unsupported in
- * this browser" named neither the format nor the reason.
+ * to do about it. The short one alone is not enough — "format unsupported in
+ * this browser" names neither the format nor the reason.
  */
 export type UnplayableReason =
   | 'no-source'
@@ -29,8 +29,8 @@ export interface ReasonContext {
   extension?: string | null
   /**
    * True when the media element itself refused the file, false when this is
-   * `canPlayType`'s advance guess. They are different facts and used to read
-   * identically: one is a prediction, the other is a verdict.
+   * `canPlayType`'s advance guess. Keep the two apart: one is a prediction,
+   * the other is a verdict, and collapsing them would read identically.
    */
   raised?: boolean
 }

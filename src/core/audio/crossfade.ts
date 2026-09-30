@@ -1,7 +1,7 @@
 /**
  * The crossfade curve. `position` runs -1 (all A) to +1 (all B).
  *
- * A UNITY PLATEAU, not equal power (v28.1 reversal). The deck the fader points
+ * A UNITY PLATEAU, not equal power. The deck the fader points
  * at stays at 1.0 across its whole half; only the far deck tapers away. So
  * centre is both tracks at full level, and nothing is turned down at the one
  * position an A/B comparison actually sits at.

@@ -1,5 +1,5 @@
 /**
- * Rasterise an SVG document string to a PNG blob (v12 WS3). DOM-bound (Image
+ * Rasterise an SVG document string to a PNG blob. DOM-bound (Image
  * + canvas), so it lives in the lib layer; the SVG itself is built in core.
  */
 export async function svgToPngBlob(svg: string, scale = 2): Promise<Blob> {

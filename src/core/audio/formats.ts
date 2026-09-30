@@ -6,7 +6,7 @@
  * directions, so ground truth stays the media element's own `error` event.
  */
 
-/** The extensions the file importer accepts (v28: moved here from TopBar). */
+/** The extensions the file importer accepts. */
 export const AUDIO_EXTENSIONS = /\.(mp3|wav|flac|aiff?|m4a|ogg)$/i
 
 export type FormatVerdict = 'supported' | 'unknown' | 'unsupported'
@@ -58,9 +58,9 @@ export function formatVerdict(extension: string | null, probe: CanPlayProbe): Fo
 }
 
 /**
- * Why one format does or does not play, in a sentence a person can act on
- * (v29 #7). "format unsupported in this browser" named neither the format nor
- * the reason, and this is the message a Rekordbox library hits most often.
+ * Why one format does or does not play, in a sentence a person can act on.
+ * "format unsupported in this browser" names neither the format nor the
+ * reason, and this is the message a Rekordbox library hits most often.
  *
  * Keyed by extension, because that is all we know: the verdict comes from
  * `canPlayType` on a MIME string built from the extension, and nothing here

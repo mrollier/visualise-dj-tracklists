@@ -6,12 +6,11 @@ import { applyProject, currentProject, loadSampleCollection } from './persistenc
 import { criteria, library, rightPanel, settings, tourStep, viewMode } from '../stores'
 
 /**
- * The guided tour (v12 WS12; rebuilt v16 #12): a spotlight coachmark walk
- * through the whole app. It runs on a controlled demo state — the Classic
- * pack with just Key + BPM criteria — so every step reads simply. On a replay
- * it first snapshots the user's real work, and the last step offers to restore
- * it. Seen-state persists outside the project autosave so a Reset never
- * re-triggers it.
+ * The guided tour: a spotlight coachmark walk through the whole app. It runs
+ * on a controlled demo state — the Classic pack with just Key + BPM criteria
+ * — so every step reads simply. On a replay it first snapshots the user's
+ * real work, and the last step offers to restore it. Seen-state persists
+ * outside the project autosave so a Reset never re-triggers it.
  */
 const TOUR_SEEN_KEY = 'visualise-dj-tracklists:tour-seen'
 
@@ -23,11 +22,11 @@ const TOUR_SEEN_KEY = 'visualise-dj-tracklists:tour-seen'
 export const tourSnapshot = writable<Project | null>(null)
 
 /**
- * The three panel switches as they stood before the tour (v29 #9, widened in
- * v30). The tour turns all three on, since every step points at something
- * inside one of them, and puts them back at the end — a guided tour has no
- * business leaving a default-off feature on, or re-opening a panel someone
- * deliberately put away.
+ * The three panel switches as they stood before the tour. The tour turns all
+ * three on, since every step points at something inside one of them, and
+ * puts them back at the end — a guided tour has no business leaving a
+ * default-off feature on, or re-opening a panel someone deliberately put
+ * away.
  */
 type PanelSwitches = Pick<AppSettings, 'audioPreview' | 'showLeftPanel' | 'showRightPanel'>
 let panelsBefore: PanelSwitches | null = null

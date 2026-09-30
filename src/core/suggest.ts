@@ -12,7 +12,7 @@ import { mulberry32 } from './random'
 import type { BpmProgression } from './settings'
 
 /**
- * Set suggestions (remarks 6/7): greedy walks over the combo graph, with an
+ * Set suggestions: greedy walks over the combo graph, with an
  * optional taste for adventure.
  *
  * Candidates are scored by how many criteria they match, sweetened by the
@@ -36,26 +36,26 @@ interface SuggestOptions {
   /** Preferred BPM trajectory; 'any' (the default) adds no term at all. */
   progression?: BpmProgression
   /**
-   * Tracks that MUST appear in the walk (v14 S1). Slots are reserved so every
-   * one is placed — harmonious neighbours preferred, a forced edge as a last
+   * Tracks that MUST appear in the walk. Slots are reserved so every one is
+   * placed — harmonious neighbours preferred, a forced edge as a last
    * resort, even in plain (non-`force`) mode. Fillers may reorder under
    * randomness; an essential is never dropped.
    */
   mustIncludeIds?: readonly string[]
   /**
    * When a tip runs out of combo candidates, fill the step with the best
-   * NON-matching track instead of stopping short (v11 issue 16b) — the same
+   * NON-matching track instead of stopping short — the same
    * knowingly-rule-breaking pool as the wheel hub's force, softmax-sampled
    * with the same randomness. Each such step counts into `forced`.
    */
   force?: boolean
   /**
-   * Planning annotations (v12 WS9): user-marked pairs count as edges (the
-   * walk may traverse them) and carry a strong bonus, like must-include.
+   * Planning annotations: user-marked pairs count as edges (the walk may
+   * traverse them) and carry a strong bonus, like must-include.
    */
   manualEdges?: readonly ManualPair[]
   /**
-   * How strongly a user-marked combo pulls the walk (v14 S3). Defaults to
+   * How strongly a user-marked combo pulls the walk. Defaults to
    * MANUAL_EDGE_BONUS (5); 0 removes the preference (the edge still exists),
    * 10 lets it dominate every ordinary match. The Advanced menu tunes it.
    */
@@ -67,7 +67,7 @@ interface SuggestOptions {
    */
   genreMatch?: GenreMatcher
   /**
-   * Steer away from two tracks by the same artist back to back (v31 #1).
+   * Steer away from two tracks by the same artist back to back.
    * A soft penalty, not a ban: a same-artist candidate loses to any
    * reasonable alternative but still wins when nothing else is left, so the
    * preference can never cut a walk short or displace a guaranteed essential.
@@ -90,7 +90,7 @@ interface SuggestedWalk {
   /** How many steps had to break the criteria (0 without `force`). */
   forced: number
   /**
-   * How many transitions in the FINISHED walk keep the same artist (v31 #1).
+   * How many transitions in the FINISHED walk keep the same artist.
    * Counted over the emitted ids rather than tallied per step, so it also
    * sees the two-arm seam and the pinned anchors — neither of which is scored.
    */
@@ -114,7 +114,7 @@ const MANUAL_EDGE_BONUS = 5
  */
 const KEY_AFFINITY_BONUS = 0.3
 /**
- * Two tracks by one artist back to back read as a mistake in a set (v31 #1).
+ * Two tracks by one artist back to back read as a mistake in a set.
  * Soft, not a ban: above the practical matched-criteria spread, so a
  * same-artist candidate loses to any reasonable alternative — but below
  * MUST_INCLUDE_BONUS / MANUAL_EDGE_BONUS, so a guaranteed essential and a
@@ -264,9 +264,9 @@ function buildNeighbours(
 }
 
 /**
- * Uniformly random walk opener (remark: generated sets must not always open
- * with the same track): a connected track when any exists, excluding the
- * pinned end so a two-ended walk never collapses onto itself.
+ * Uniformly random walk opener: generated sets must not always open with the
+ * same track. A connected track when any exists, excluding the pinned end
+ * so a two-ended walk never collapses onto itself.
  */
 function randomStart(
   tracks: Track[],
@@ -307,8 +307,8 @@ function rankedCandidates(
 }
 
 /**
- * The forced candidate pool (v8 issue 16, shared with suggestNext since
- * v11): every unused track ranked by the usual score, edge gate ignored,
+ * The forced candidate pool, shared with suggestNext: every unused track
+ * ranked by the usual score, edge gate ignored,
  * with a gentle preference for keys a +2 or +7 wheel move away — the least
  * dissonant of the rule-breaking options.
  */
@@ -374,23 +374,23 @@ export function suggestWalk(
   const end = pinnedEnd !== null && pinnedEnd !== start ? pinnedEnd : null
 
   // Must-include: a strong bonus keeps essentials near the front of the
-  // ranking, but placement is a hard GUARANTEE (v14 S1), not a bias.
+  // ranking, but placement is a hard GUARANTEE, not a bias.
   const pending = new Set(mustIncludeIds.filter((id) => byId.has(id)))
   pending.delete(start)
   if (end !== null) pending.delete(end)
   const pendingBonus = (candidate: Track) => (pending.has(candidate.id) ? MUST_INCLUDE_BONUS : 0)
 
-  // v14 S1: essentials are guaranteed. Slots are RESERVED — the target length
-  // grows to fit every pending essential (plus the pinned anchors); once the
+  // Essentials are guaranteed. Slots are RESERVED — the target length grows
+  // to fit every pending essential (plus the pinned anchors); once the
   // remaining slots equal the pending count only essentials may take a slot,
   // harmonious (neighbour) placements first and a forced edge as a last
   // resort, even in plain ✨ mode. Randomness may reorder fillers, never cost
   // an essential. The plain and force runs consume the PRNG identically up to
   // the plain run's stopping point — the only branch that reads `force` is the
   // final "stop short vs. force through" gate — so a force re-run CONTINUES a
-  // short walk in place (v14 S2): strictly extending it for a single-arm walk,
-  // and (since a two-arm walk emits startArm ++ reverse(endArm) and forcing
-  // only ever appends to an arm) keeping both arms while it fills the seam.
+  // short walk in place: strictly extending it for a single-arm walk, and
+  // (since a two-arm walk emits startArm ++ reverse(endArm) and forcing only
+  // ever appends to an arm) keeping both arms while it fills the seam.
   const anchors = end === null ? 1 : 2
   const targetLength = Math.max(length, anchors + pending.size)
   const progressionTerm = (current: Track, step: number, arm: BpmProgression) =>
@@ -442,7 +442,7 @@ export function suggestWalk(
         }
       } else if (candidates.length === 0) {
         // Essentials may break the criteria even without the force flag — a
-        // disconnected must-include is still guaranteed (v14 S1).
+        // disconnected must-include is still guaranteed.
         if (pending.size > 0) {
           candidates = forcedCandidates(
             current,
@@ -473,7 +473,7 @@ export function suggestWalk(
   // Pinned closer: grow two arms — from the opener forward and the closer
   // backward — always extending the arm with the better candidate, nudged
   // toward each other by a genre-similarity convergence bonus. The seam
-  // where the arms meet is not guaranteed to be a combo edge (design-v5 §C).
+  // where the arms meet is not guaranteed to be a combo edge.
   // The end arm grows backward in play order, so it sees the progression
   // time-reversed (rising ↔ falling; the sawtooth phase there is an
   // approximation — the arm's final play positions aren't known yet).
@@ -535,7 +535,7 @@ export function suggestWalk(
     let extendStart: boolean
     let pool: { item: string; score: number }[]
     if (mustPlaceEssential) {
-      // Every remaining slot is reserved for an essential (v14 S1). Seat one
+      // Every remaining slot is reserved for an essential. Seat one
       // this step: harmonious on either tip first, a forced edge otherwise.
       const startPending = fromStart.filter((c) => pending.has(c.item))
       const endPending = fromEnd.filter((c) => pending.has(c.item))
@@ -552,7 +552,7 @@ export function suggestWalk(
     } else if (fromStart.length === 0 && fromEnd.length === 0) {
       // Both arms stalled. A disconnected essential is still guaranteed even
       // without the force flag; otherwise force through the broken middle
-      // (v11 issue 16b) from the start arm, or stop short as before.
+      // from the start arm, or stop short as before.
       const stalledPending =
         pending.size > 0
           ? forcedCandidates(tipA, tracks, visited, criteria, genreMatch, startExtra).filter((c) =>
@@ -606,7 +606,7 @@ export function nextAnchorId(tracklist: string[], selectedId: string | null): st
 /**
  * True when the hub's anchor has no unused combo neighbour left — the state
  * where suggestNext would return null and only a forced (non-matching) pick
- * remains (design-v6 §C). Takes the stores' adjacency map shape so the view
+ * remains. Takes the stores' adjacency map shape so the view
  * derives it without re-running edge computation. An empty set is never
  * exhausted: it always has an opener.
  */
@@ -616,7 +616,7 @@ export function nextExhausted(
   selectedId: string | null,
   complete = false,
 ): boolean {
-  // A complete graph (threshold 0, v11 issue 2a) never exhausts — the
+  // A complete graph (threshold 0) never exhausts — the
   // stores' adjacency map is deliberately empty then.
   if (complete) return false
   const anchorId = nextAnchorId(tracklist, selectedId)
@@ -629,7 +629,7 @@ export function nextExhausted(
 }
 
 /**
- * The retry ring's state after a hub pick (v8 issues 2+3) — the ring never
+ * The retry ring's state after a hub pick — the ring never
  * silently vanishes mid-cycle, it degrades:
  * - 'retry': the anchor still has an unused, untried matching neighbour
  *   (for the edge-less opener slot: any unused, untried visible track).
@@ -662,7 +662,7 @@ export function retryState(
     // Opener slot: openers are drawn from the whole pool, not edge-gated.
     if (visibleIds.some(fresh)) return 'retry'
   } else if (complete) {
-    // Threshold 0 (v11 issue 2a): every fresh track is a MATCHING retry.
+    // Threshold 0: every fresh track is a MATCHING retry.
     if (visibleIds.some(fresh)) return 'retry'
   } else {
     for (const id of neighbours.get(tracklist[insertIndex - 1]) ?? []) {
@@ -717,7 +717,7 @@ export function suggestNext(
 
   if (tracklist.length === 0) {
     // Opener: the selection when one is set, else a seeded RANDOM connected
-    // track — pressing the hub again explores instead of repeating (issue 17).
+    // track — pressing the hub again explores instead of repeating.
     if (selectedId !== null && byId.has(selectedId) && !excluded.has(selectedId)) {
       return { trackId: selectedId, insertIndex: 0 }
     }

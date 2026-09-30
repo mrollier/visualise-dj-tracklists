@@ -150,7 +150,7 @@
         const sidecar = sanitizeAnalysis(parsed)
         if (sidecar !== null) {
           const summary = summariseAnalysisImport(get(library), sidecar)
-          // Union, not replace (v37): a playlist-scoped run must add to a
+          // Union, not replace: a playlist-scoped run must add to a
           // whole-library sidecar, never discard it.
           analysis.update((prev) => mergeSidecars(prev, sidecar))
           lastImportReport.set({
@@ -173,8 +173,7 @@
         if (isRekordboxTxt(buffer)) {
           // A Rekordbox playlist TXT carries full metadata in playlist order:
           // it becomes the library AND the set, plus a playlist named after
-          // the file — toggled on, so the collection view shows immediately
-          // (design-v6 §E).
+          // the file — toggled on, so the collection view shows immediately.
           const result = importRekordboxTxt(buffer)
           if (result.tracks.length === 0) {
             // Nothing usable in the file: report it, keep the current library.
@@ -246,14 +245,14 @@
     return isXml ? importRekordboxXml(text) : importCsv(text)
   }
 
-  // One sample collection (design-v6 §D): all packs as playlists in a single
+  // One sample collection: all packs as playlists in a single
   // library, loaded like an XML import. Confirms once over user work, via
-  // the in-app dialog (issue 6) — including work sitting on top of an
-  // already-loaded sample, which used to rewipe silently (v18 #1).
+  // the in-app dialog — including work sitting on top of an
+  // already-loaded sample, which would otherwise rewipe silently.
   function loadSample() {
     const load = () => {
       loadSampleCollection()
-      maybeStartTour() // first-ever sample load opens the guided tour (WS12)
+      maybeStartTour() // first-ever sample load opens the guided tour
     }
     if (sampleLoadNeedsConfirmation()) replaceDialog.open(load)
     else load()
@@ -268,7 +267,7 @@
     return parts.length > 0 ? `missing: ${parts.join(', ')}` : null
   })
 
-  // Genre-coverage diagnosis (v12 WS6 — science doc P1): how much of the
+  // Genre-coverage diagnosis (science doc P1): how much of the
   // library the similarity data reaches, always current, not just at import.
   const genreCoverage = $derived($library.length > 0 ? computeGenreCoverage($library) : null)
   const coverageSummary = $derived.by(() => {
@@ -282,7 +281,7 @@
     return `${cov.outside} of ${cov.tagged} tagged tracks have genres outside the similarity data${invisible} — top: ${top}`
   })
 
-  // Easy mode (v12 WS4; computation v14 WS6/E1): one hard toggle — entering
+  // Easy mode: one hard toggle — entering
   // easy switches computation onto sensible defaults via the effective-store
   // layer, not just hiding controls. It also puts the set panel back — the
   // advanced panel it would orphan is hidden.
@@ -293,7 +292,7 @@
     if (entering) {
       rightPanel.set('set')
       // Link mode is an advanced affordance and its 🔗 button vanishes in easy
-      // (v14 WS6): disarm it so a wheel click can't silently toggle an edge.
+      // mode: disarm it so a wheel click can't silently toggle an edge.
       linkArmed.set(false)
     }
   }
@@ -305,7 +304,7 @@
   <div class="controls">
     <!-- Easy mode hides these wheel-only controls but KEEPS their layout box
          (visibility, not removal) so the surviving buttons never slide — the
-         empty gap signals "options fell away" (ISSUES.md #5). -->
+         empty gap signals "options fell away". -->
     <div
       class="view-switch"
       class:easy-hidden={easy}
@@ -330,8 +329,8 @@
       >
     </div>
 
-    <!-- Radius/Colour only mean something on the wheel (issue 4): off-wheel
-       they DIM but stay adjustable (v11 issue 13). Without a library they
+    <!-- Radius/Colour only mean something on the wheel: off-wheel
+       they DIM but stay adjustable. Without a library they
        act on nothing and disable outright — a different rule that stays. -->
     <label
       class:off-view={$viewMode !== 'wheel' || $library.length === 0}
@@ -362,7 +361,7 @@
       </select>
     </label>
 
-    <!-- The sample's own info icon moved to the status ⓘ (v11 issue 4):
+    <!-- The sample's own info icon moved to the status ⓘ:
          loading raises an import report like any other import. -->
     <button
       onclick={loadSample}
@@ -371,7 +370,7 @@
     >
     <!-- A .json here is a saved project (auto-detected in onFileChosen), not
          a fresh library import — the label says so and the button sits next
-         to Save so the pair reads as one load/save unit (ISSUES.md). -->
+         to Save so the pair reads as one load/save unit. -->
     <button
       onclick={() => fileInput.click()}
       disabled={$importStatus !== null}
@@ -401,7 +400,7 @@
     >
       ⚙ Advanced
     </button>
-    <!-- Easy mode (v12 WS4; computation v14 WS6/E1): a hard toggle — easy
+    <!-- Easy mode: a hard toggle — easy
          shows the wheel, Playlists, ✨ and the set; everything else hides AND
          computes on sensible defaults instead of its current values. -->
     <button
@@ -459,7 +458,7 @@
   </div>
 
   <!-- Just the collection name; the import details live behind the ⓘ icon
-       (hover or focus it) so the header stays uncrowded (ISSUES.md #7/#13). -->
+       (hover or focus it) so the header stays uncrowded. -->
   <div class="status">
     {#if $importStatus}
       <span class="busy" role="status">{$importStatus}</span>
@@ -521,7 +520,7 @@
 
 <style>
   /* The header may wrap on narrow windows, and the flexible pieces shrink
-     with ellipsis — the view switch must never clip (ISSUES.md #13). */
+     with ellipsis — the view switch must never clip. */
   header {
     display: flex;
     align-items: center;
@@ -569,7 +568,7 @@
   }
 
   /* Easy mode hides the wheel-only controls but keeps their layout box, so
-     the surviving buttons hold their position (ISSUES.md #5). visibility
+     the surviving buttons hold their position. visibility
      already removes them from tab order and the a11y tree. */
   .easy-hidden {
     visibility: hidden;
@@ -578,7 +577,7 @@
 
   /* The mode toggle's label flips between "Easy mode" (83px) and "All
      controls" (85px); a fixed min-width keeps the theme + Reset buttons after
-     it from shifting when it changes (ISSUES.md #5). */
+     it from shifting when it changes. */
   .mode-toggle {
     min-width: 92px;
     text-align: center;
@@ -642,7 +641,4 @@
   .status .busy {
     white-space: nowrap;
   }
-
-  /* The import-report popover converted to the shared InfoTooltip (v11
-     issues 3+6) — its hand-rolled twin CSS is gone with it. */
 </style>
