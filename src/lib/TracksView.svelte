@@ -19,6 +19,7 @@
   // the track's position number(s) once included; per-row
   // toggles mark a track as essential (must-include) or as the opener/closer
   // of generated sets — the same pins as everywhere else.
+  import { untrack } from 'svelte'
   import { COLUMN_LABELS, visibleColumns } from '../core/columns'
   import { MARK_FILTERS } from '../core/marks'
   import type { Track } from '../core/model'
@@ -43,6 +44,7 @@
     patchActiveSet,
     pinnedFirst,
     pinnedLast,
+    revealRequest,
     selectedId,
     selectOrLink,
     settings,
@@ -228,14 +230,37 @@
   })
   // Only the rows on screen are mounted — thousands of rows with per-row
   // controls take seconds to build — between two spacer rows that keep the
-  // scrollbar true to the whole list. Every body row is pinned to ROW_H
-  // (its content measures 30.9 px) so the window math holds.
+  // scrollbar true to the whole list. Every body row is at least ROW_H tall
+  // (its content measures 30.9 px); a larger font makes rows taller, so the
+  // window math uses the height a mounted row actually has.
   const ROW_H = 31
+  let rowHeight = $state(ROW_H)
+  let sectionEl: HTMLElement
   let scrollTop = $state(0)
   let viewportHeight = $state(0)
   const listed = $derived(inSetOnly ? inSetRows : sorted)
-  const view = $derived(rowWindow(scrollTop, viewportHeight, ROW_H, listed.length))
+  const view = $derived(rowWindow(scrollTop, viewportHeight, rowHeight, listed.length))
   const rows = $derived(listed.slice(view.start, view.end))
+  $effect(() => {
+    void rows // measure again whenever the mounted rows change
+    const row = sectionEl.querySelector('tbody tr:not(.spacer, .empty-row)')
+    const height = row?.getBoundingClientRect().height
+    if (height !== undefined && Math.abs(height - untrack(() => rowHeight)) > 0.5) {
+      rowHeight = height
+    }
+  })
+
+  // Quick find: scroll the picked track to the middle of the table.
+  $effect(() => {
+    const id = $revealRequest
+    if (id === null) return
+    const index = untrack(() => listed.findIndex((t) => t.id === id))
+    if (index === -1) return
+    const head = sectionEl.querySelector('thead')?.getBoundingClientRect().height ?? 0
+    const h = untrack(() => rowHeight)
+    sectionEl.scrollTop = Math.max(0, head + index * h + h / 2 - sectionEl.clientHeight / 2)
+    revealRequest.set(null)
+  })
   const connectedIds = $derived.by(() => {
     if ($selectedId === null) return null
     // Threshold 0: complete graph, every other row connects.
@@ -435,6 +460,7 @@
 </script>
 
 <section
+  bind:this={sectionEl}
   class="tracks-view"
   bind:clientHeight={viewportHeight}
   onscroll={(e) => (scrollTop = e.currentTarget.scrollTop)}

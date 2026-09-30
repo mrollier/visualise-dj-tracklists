@@ -116,6 +116,15 @@ export const walkRevealSeen = writable(0)
 export const walkRevealRange = writable<{ from: number; to: number } | null>(null)
 /** The `s` hotkey asks whichever set panel is mounted to run ✨. */
 export const suggestHotkeyTick = writable(0)
+/** Quick find's dialog (`/`, ⌘K, the top bar's Find). */
+export const quickFindOpen = writable(false)
+/**
+ * A track Quick find picked, for whichever central view is mounted to bring
+ * into sight — the wheel centres on it, the Tracks table scrolls to it. The
+ * view that handles it sets it back to null, so a view mounted later never
+ * replays an old pick.
+ */
+export const revealRequest = writable<string | null>(null)
 /** Guided-tour position: null = closed; session-only. */
 export const tourStep = writable<number | null>(null)
 /** Keeps the window open past the last stagger for the trailing animations —

@@ -16,6 +16,7 @@
     comboPairCount,
     criteria,
     library,
+    quickFindOpen,
     selectedId,
     settings,
     visibleLibrary,
@@ -84,6 +85,11 @@
     if (e.target === e.currentTarget) selectedId.set(null)
   }}
 >
+  <!-- Looks like the search box above a DJ app's track browser; opens Quick
+       find, which the / and ⌘K keys open from anywhere. -->
+  <button class="find" onclick={() => quickFindOpen.set(true)}>
+    <span>Find a track</span><kbd>/</kbd>
+  </button>
   <div class="stats">
     <div class="stat">
       <span class="value">
@@ -335,6 +341,34 @@
     border-top: none;
     margin-top: 0;
     padding-top: 0;
+  }
+
+  .find {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-bottom: 12px;
+    padding: 5px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--ink-muted);
+    font-size: 12px;
+    text-align: left;
+    cursor: text;
+  }
+
+  .find:hover {
+    border-color: var(--ink-muted);
+  }
+
+  .find kbd {
+    padding: 0 5px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-family: inherit;
+    font-size: 11px;
   }
 
   .stats {

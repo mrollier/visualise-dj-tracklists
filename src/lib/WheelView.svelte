@@ -55,6 +55,7 @@
     radialAxis,
     type RadialAxis,
     rightPanel,
+    revealRequest,
     selectedId,
     slotSpreadFactor,
     tracklist,
@@ -818,6 +819,25 @@
   function zoomReset() {
     viewZoom.zoomReset()
   }
+
+  // Quick find: centre the picked star, zoomed in far enough to pick it out
+  // of its slot — never zoomed back out if the view is already closer.
+  const REVEAL_ZOOM = 3
+  $effect(() => {
+    const id = $revealRequest
+    if (id === null) return
+    const node = untrack(() => nodeById.get(id))
+    if (node === undefined) return
+    viewZoom.centerOn(
+      node.x,
+      node.y,
+      Math.max(
+        REVEAL_ZOOM,
+        untrack(() => zoomK),
+      ),
+    )
+    revealRequest.set(null)
+  })
 
   // --- hub button: suggest the next track ---
   // Inserts after the selected track when it sits mid-set (fitting both

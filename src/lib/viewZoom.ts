@@ -19,6 +19,8 @@ export interface ViewZoom {
   attach(el: SVGSVGElement): () => void
   zoomBy(factor: number): void
   zoomReset(): void
+  /** Centre the view on (x, y) in the zoomed layer's coordinates, at scale k. */
+  centerOn(x: number, y: number, k: number): void
 }
 
 /**
@@ -59,5 +61,11 @@ export function createViewZoom(options: ViewZoomOptions): ViewZoom {
     if (selection !== null) behavior.transform(selection, zoomIdentity)
   }
 
-  return { attach, zoomBy, zoomReset }
+  function centerOn(x: number, y: number, k: number): void {
+    if (selection === null) return
+    behavior.scaleTo(selection, k)
+    behavior.translateTo(selection, x, y)
+  }
+
+  return { attach, zoomBy, zoomReset, centerOn }
 }

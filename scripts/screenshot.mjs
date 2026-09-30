@@ -2516,6 +2516,63 @@ if ((await page.locator('.status .info').count()) !== 0) {
 }
 await page.screenshot({ path: `${scratch}/17-after-reset.png` })
 
+// Quick find: / opens it, typing narrows, Enter selects the track and brings
+// it into sight; matches that playlists hide are counted, never shown.
+await page.getByRole('button', { name: 'Load sample' }).click()
+await page.locator('g.node').first().waitFor()
+{
+  const layer = page.locator('g.zoom-layer')
+  const before = await layer.getAttribute('transform')
+  const input = page.locator('dialog[open] input[role=combobox]')
+  await page.keyboard.press('/')
+  await input.waitFor()
+  await input.fill('glasswork')
+  if ((await page.locator('dialog[open] [role=option]').count()) !== 1) {
+    errors.push('Quick find should list exactly one match for "glasswork"')
+  }
+  await page.keyboard.press('Enter')
+  await page
+    .locator('dialog[open]')
+    .waitFor({ state: 'detached', timeout: 2000 })
+    .catch(() => {
+      errors.push('Quick find should close on Enter')
+    })
+  if ((await layer.getAttribute('transform')) === before) {
+    errors.push('Quick find should centre the wheel on the picked track')
+  }
+  if (
+    !/Glasswork/.test(
+      await page
+        .locator('.selected-card')
+        .innerText()
+        .catch(() => ''),
+    )
+  ) {
+    errors.push('Quick find should select the picked track')
+  }
+  await page.getByRole('button', { name: /Find a track/ }).click()
+  await input.fill('a')
+  const hint = await page.locator('dialog[open] .hint').innerText()
+  if (!/hidden by your playlists or filters/.test(hint)) {
+    errors.push(`Quick find should count matches the playlists hide — "${hint}"`)
+  }
+  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: 'Tracks', exact: true }).click()
+  await page.keyboard.press('ControlOrMeta+k')
+  await input.fill('slow horizon')
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(300)
+  const inView = await page.evaluate(() => {
+    const row = document.querySelector('.tracks-view tbody tr.selected')
+    if (row === null) return false
+    const r = row.getBoundingClientRect()
+    const v = document.querySelector('.tracks-view').getBoundingClientRect()
+    return r.top >= v.top && r.bottom <= v.bottom
+  })
+  if (!inView) errors.push('Quick find should scroll the Tracks table to the picked track')
+  await page.screenshot({ path: `${scratch}/18-quick-find.png` })
+}
+
 console.log('CONSOLE ERRORS:', errors.length ? errors : 'none')
 if (errors.length > 0) process.exitCode = 1
 await browser.close()

@@ -190,6 +190,12 @@ Your library never leaves your machine — there is no backend, no account, no u
   edits, selection changes **and your settings/criteria tweaks** (a slider drag
   lands as one step; the theme, easy mode and fold state deliberately stay put).
   Plain **1/2/3** switch the central view, and **s** presses ✨ for you.
+- **Find any track**: press **/** or **⌘K** (or click *Find a track* above the
+  panel) and type part of an artist or title — accents and word order don't
+  matter. ↑/↓ and Enter pick one: it is selected, and the wheel zooms to it or
+  the Tracks table scrolls to it. It searches what the wheel shows; matches
+  your playlists or filters hide are counted ("12 more hidden by your
+  playlists or filters"), never revealed by changing them behind your back.
 - **Watch it walk — and mark your own roads**: ✨ **draws the suggested walk
   node by node across the wheel** — each hop lights up as the tracklist cascades
   in sync, a shimmer runs down a full-length walk as it completes, and the button

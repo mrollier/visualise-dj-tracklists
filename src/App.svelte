@@ -10,12 +10,20 @@
   import SelectedTrackCard from './lib/SelectedTrackCard.svelte'
   import { startTheme } from './lib/theme'
   import TopBar from './lib/TopBar.svelte'
+  import QuickFind from './lib/QuickFind.svelte'
   import TourOverlay from './lib/TourOverlay.svelte'
   import TracklistPanel from './lib/TracklistPanel.svelte'
   import TracksView from './lib/TracksView.svelte'
   import { redoOnce, startUndo, undoOnce } from './lib/undoStore'
   import WheelView from './lib/WheelView.svelte'
-  import { library, rightPanel, settings, suggestHotkeyTick, viewMode } from './stores'
+  import {
+    library,
+    quickFindOpen,
+    rightPanel,
+    settings,
+    suggestHotkeyTick,
+    viewMode,
+  } from './stores'
 
   // Easy mode is visibility-only: the stored viewMode survives
   // untouched, the centre just always shows the wheel while easy is on.
@@ -44,13 +52,23 @@
   startPlayer()
 
   // The deliberately small hotkey set: Cmd/Ctrl+S saves the project from
-  // anywhere; Cmd/Ctrl+Z undoes set edits, selection AND settings changes
-  // (+Shift redoes); plain 1/2/3 switch the central view; plain s runs ✨.
-  // Text fields and open dialogs keep their native behaviour.
+  // anywhere; Cmd/Ctrl+K (anywhere) or / opens Quick find; Cmd/Ctrl+Z undoes
+  // set edits, selection AND settings changes (+Shift redoes); plain 1/2/3
+  // switch the central view; plain s runs ✨. Text fields and open dialogs
+  // keep their native behaviour.
   function onKeydown(e: KeyboardEvent) {
     if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 's') {
       e.preventDefault() // never the browser's "save this page"
       if ($library.length > 0) void saveProject()
+      return
+    }
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'k') {
+      e.preventDefault()
+      // A second ⌘K closes it; another open dialog keeps the keyboard.
+      if ($quickFindOpen) quickFindOpen.set(false)
+      else if ($library.length > 0 && document.querySelector('dialog[open]') === null) {
+        quickFindOpen.set(true)
+      }
       return
     }
     const target = e.target instanceof HTMLElement ? e.target : null
@@ -70,6 +88,11 @@
       return
     }
     if (e.metaKey || e.ctrlKey || e.altKey || $library.length === 0) return
+    if (e.key === '/') {
+      e.preventDefault() // never the browser's own quick find
+      quickFindOpen.set(true)
+      return
+    }
     // View digits stay inert in easy mode — the switch they mirror is hidden.
     if ($settings.uiMode !== 'easy') {
       if (e.key === '1') viewMode.set('wheel')
@@ -84,6 +107,7 @@
 
 <TopBar />
 <TourOverlay />
+<QuickFind />
 
 <main>
   <!-- Collapsing CLIPS, it never unmounts: Playlists, Filters and Genres
