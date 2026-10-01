@@ -290,8 +290,10 @@ Your library never leaves your machine — there is no backend, no account, no u
   your library, so you point the app at your music folder once: Chrome and Edge
   remember it and open the picker at your music, Firefox and Safari ask again each
   session and show you the folder to paste. It then reports what it
-  found — _2043 of 2080 playable · 31 unsupported format · 6 not found_ — and any
-  track it can't play says why rather than failing silently. The audio is read on
+  found — _2072 of 2080 playable · 8 unsupported format_ — and any
+  track it can't play says why rather than failing silently. AIFF plays in every
+  browser: where there is no AIFF decoder (Chrome, Firefox) the app rewraps the file
+  as WAV while it loads, which for a large file takes about a second. The audio is read on
   your machine and never uploaded, **and nothing you play is recorded**: no play
   counts are written, no history is kept, and none of it is saved into the project.
   The sample collection has no audio behind it, so this needs your own library.

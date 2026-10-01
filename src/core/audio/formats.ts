@@ -67,9 +67,9 @@ export function formatVerdict(extension: string | null, probe: CanPlayProbe): Fo
  * ever opens the file to look inside it.
  */
 const AIFF_NOTE =
-  'AIFF is uncompressed Apple audio, and the format Rekordbox writes when it converts. ' +
-  'Chrome and Firefox ship no AIFF decoder at all; Safari does. ' +
-  'So: open Zodiac Tracker in Safari, or convert these tracks to FLAC or WAV.'
+  'Plain AIFF plays in every browser here — where the browser has no AIFF decoder, ' +
+  'the app rewraps it as WAV while it loads. This one uses a variant it cannot rewrap, ' +
+  'most likely compressed AIFF-C: convert it with Rekordbox’s Convert File Format to AIFF.'
 
 const FORMAT_NOTES: Readonly<Record<string, string>> = {
   aif: AIFF_NOTE,
@@ -77,7 +77,8 @@ const FORMAT_NOTES: Readonly<Record<string, string>> = {
   m4a:
     'An .m4a holds either AAC, which every browser plays, or ALAC (Apple Lossless), ' +
     'which only Safari decodes — the extension is the same either way. ' +
-    'An .m4a that will not play is almost certainly ALAC.',
+    'An .m4a that will not play is almost certainly ALAC: convert it once with ' +
+    'Rekordbox’s Convert File Format to AIFF, which keeps its cue points and plays everywhere.',
   flac:
     'FLAC plays in Chrome, Firefox and Safari 11 and later, ' +
     'so a refusal here points at an old browser or a file that is not really FLAC.',

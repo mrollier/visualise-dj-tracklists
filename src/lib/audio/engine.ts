@@ -173,7 +173,7 @@ function whileSilenced(slot: 0 | 1, action: () => void): Promise<void> {
   })
 }
 
-export function loadDeck(deck: DeckId, file: File): Promise<void> {
+export function loadDeck(deck: DeckId, file: Blob): Promise<void> {
   if (elements === null) return Promise.resolve()
   const slot = roles[deck]
   const element = elements[slot]

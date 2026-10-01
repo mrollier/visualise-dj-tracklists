@@ -79,15 +79,16 @@ describe('reasonDetail', () => {
     }
   })
 
-  test('an unsupported AIFF says which browsers decode it and what to do', () => {
+  test('an unplayable AIFF names the variant the app cannot rewrap and what to do', () => {
     const detail = reasonDetail('unsupported', { ...base, extension: 'aiff' })
-    expect(detail).toContain('AIFF')
-    expect(detail).toContain('Safari')
-    expect(detail).toContain('FLAC')
+    expect(detail).toContain('AIFF-C')
+    expect(detail).toContain('Convert File Format')
   })
 
   test('an unsupported m4a points at ALAC, since the extension hides the codec', () => {
-    expect(reasonDetail('unsupported', { ...base, extension: 'm4a' })).toContain('ALAC')
+    const detail = reasonDetail('unsupported', { ...base, extension: 'm4a' })
+    expect(detail).toContain('ALAC')
+    expect(detail).toContain('Convert File Format')
   })
 
   test('says whether the browser guessed or actually tried', () => {

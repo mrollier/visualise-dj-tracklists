@@ -2610,6 +2610,29 @@ await page.locator('g.node').first().waitFor()
   await page.screenshot({ path: `${scratch}/18-quick-find.png` })
 }
 
+// AIFF: Chromium ships no AIFF decoder, so the app rewraps AIFF as WAV. A
+// 24-bit stereo file, one second long, must load in a real <audio> element
+// with its full duration: the proof that Chrome takes the 24-bit WAV.
+{
+  const result = await page.evaluate(async () => {
+    const { aiffToWav } = await import('/src/core/audio/aiff.ts')
+    const { aiffBytes } = await import('/tests/aiffFixture.ts')
+    const samples = Array.from({ length: 48000 * 2 }, (_, i) =>
+      Math.round(Math.sin(i / 20) * 1_000_000),
+    )
+    const blob = aiffToWav(aiffBytes({ bits: 24, rate: 48000, samples }))
+    if (blob === null) return 'the converter refused'
+    const audio = new Audio()
+    audio.src = URL.createObjectURL(blob)
+    return await new Promise((resolve) => {
+      audio.onloadedmetadata = () => resolve(audio.duration)
+      audio.onerror = () => resolve(`media error ${audio.error?.code}`)
+    })
+  })
+  if (typeof result !== 'number' || Math.abs(result - 1) > 0.01)
+    errors.push(`A 24-bit AIFF rewrapped as WAV should load with a 1 s duration — got ${result}`)
+}
+
 console.log('CONSOLE ERRORS:', errors.length ? errors : 'none')
 if (errors.length > 0) process.exitCode = 1
 await browser.close()

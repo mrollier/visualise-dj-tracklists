@@ -1,4 +1,5 @@
 import { get, writable } from 'svelte/store'
+import { aiffToWav } from '../../core/audio/aiff'
 import { crossfadeGains } from '../../core/audio/crossfade'
 import {
   type DeckEffect,
@@ -49,6 +50,21 @@ const preloadTimers: Record<DeckId, ReturnType<typeof setTimeout> | undefined> =
 }
 /** togglePlay awaits a load between its own checks; one click at a time. */
 const busy: Record<DeckId, boolean> = { a: false, b: false }
+
+/**
+ * Chrome and Firefox cannot decode AIFF, so for them an AIFF is rewrapped as
+ * WAV while it loads (same audio, other byte order). Safari plays it as it is.
+ */
+let rewrapAiff = false
+
+/** The file in a form the element can play. */
+async function playableForm(file: File): Promise<Blob> {
+  if (!rewrapAiff || !/\.aiff?$/i.test(file.name)) return file
+  // ponytail: reads the whole file first (about 0.6 s for a typical AIFF on an
+  // SD card); streaming through the service worker is the upgrade if that wait
+  // bothers.
+  return aiffToWav(await file.arrayBuffer()) ?? file
+}
 
 /**
  * What the bar was holding when it was hidden.
@@ -176,9 +192,11 @@ async function materialise(deck: DeckId, trackId: string): Promise<boolean> {
     const file = await source.fileFor(resolution.handle)
     // A newer click won while this one was reading the disk.
     if (wanted[deck] !== trackId) return false
+    const playable = await playableForm(file)
+    if (wanted[deck] !== trackId) return false
     // Awaited: loadDeck fades a sounding deck down before it swaps `src`, so
     // the bytes are not in the element the instant the call returns.
-    await engine.loadDeck(deck, file)
+    await engine.loadDeck(deck, playable)
   } catch {
     deckError.update((e) => ({ ...e, [deck]: 'read-error' }))
     return false
@@ -319,7 +337,9 @@ function trackById(tracks: readonly Track[], id: string | null): Track | undefin
 /** Called once from App.svelte, alongside startTheme / startAutosave / startUndo. */
 export function startPlayer(): void {
   const scratch = new Audio()
-  setProbe((mime) => scratch.canPlayType(mime) !== '')
+  rewrapAiff = scratch.canPlayType('audio/aiff') === ''
+  // An AIFF plays either way: natively, or rewrapped by playableForm.
+  setProbe((mime) => mime.includes('aiff') || scratch.canPlayType(mime) !== '')
 
   engine.onDeckEvent((deck, kind) => {
     if (kind === 'error') {

@@ -1,6 +1,7 @@
 import { get } from 'svelte/store'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { EMPTY_TRACK_FIELDS } from '../src/core/model'
+import { aiffBytes } from './aiffFixture'
 
 /**
  * playerStore holds module-singleton deck bookkeeping (materialised, wanted),
@@ -196,5 +197,96 @@ describe('deck bookkeeping (review fixes)', () => {
     engineMock.play.mockClear()
     await player.togglePlay('a')
     expect(engineMock.play).toHaveBeenCalledWith('a')
+  })
+})
+
+describe('AIFF on a browser without an AIFF decoder', () => {
+  const stubAudio = (aiff: string) =>
+    vi.stubGlobal(
+      'Audio',
+      class {
+        canPlayType(mime: string) {
+          return mime.includes('aiff') ? aiff : ''
+        }
+      },
+    )
+
+  beforeEach(() => {
+    vi.resetModules()
+    vi.clearAllMocks()
+    vi.useFakeTimers()
+    sourceMock.resolutionFor.mockReturnValue({ kind: 'playable', handle: {} })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+  })
+
+  test('an AIFF is rewrapped as WAV before it reaches the deck', async () => {
+    stubAudio('')
+    const file = new File([aiffBytes({ samples: [1, 2, 3, 4] })], 'Track.aiff')
+    sourceMock.state.fileFor.mockReturnValue(Promise.resolve(file))
+    const { stores } = await freshPlayer()
+
+    stores.clickedTrackId.set('t1')
+    await vi.advanceTimersByTimeAsync(200)
+
+    const loaded = (engineMock.loadDeck.mock.calls as unknown as [string, Blob][])[0][1]
+    expect(loaded.type).toBe('audio/wav')
+    expect(loaded.size).toBe(44 + 8)
+  })
+
+  test('a browser that plays AIFF gets the file untouched', async () => {
+    stubAudio('maybe')
+    const file = new File([aiffBytes({ samples: [1, 2] })], 'Track.aiff')
+    sourceMock.state.fileFor.mockReturnValue(Promise.resolve(file))
+    const { stores } = await freshPlayer()
+
+    stores.clickedTrackId.set('t1')
+    await vi.advanceTimersByTimeAsync(200)
+
+    expect((engineMock.loadDeck.mock.calls as unknown as [string, Blob][])[0][1]).toBe(file)
+  })
+
+  test('an AIFF the converter refuses goes to the deck as it is', async () => {
+    stubAudio('')
+    const file = new File([aiffBytes({ samples: [1, 2], form: 'AIFC' })], 'Track.aif')
+    sourceMock.state.fileFor.mockReturnValue(Promise.resolve(file))
+    const { stores } = await freshPlayer()
+
+    stores.clickedTrackId.set('t1')
+    await vi.advanceTimersByTimeAsync(200)
+
+    expect((engineMock.loadDeck.mock.calls as unknown as [string, Blob][])[0][1]).toBe(file)
+  })
+
+  test('a newer click during an AIFF read wins', async () => {
+    stubAudio('')
+    let release: (bytes: ArrayBuffer) => void = () => {}
+    const slow = {
+      name: 'Big.aiff',
+      arrayBuffer: () => new Promise<ArrayBuffer>((resolve) => (release = resolve)),
+    }
+    sourceMock.state.fileFor.mockReturnValueOnce(Promise.resolve(slow))
+    sourceMock.state.fileFor.mockReturnValue(new Promise(() => {}))
+    const { stores } = await freshPlayer()
+
+    stores.clickedTrackId.set('t1')
+    await vi.advanceTimersByTimeAsync(200)
+    stores.clickedTrackId.set('t2')
+    release(aiffBytes({ samples: [1, 2] }))
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(engineMock.loadDeck).not.toHaveBeenCalled()
+  })
+
+  test('the coverage probe counts AIFF as playable', async () => {
+    stubAudio('')
+    await freshPlayer()
+    const probe = (sourceMock.setProbe.mock.calls as unknown as [(mime: string) => boolean][])[0][0]
+    expect(probe('audio/aiff')).toBe(true)
+    expect(probe('audio/x-aiff')).toBe(true)
+    expect(probe('audio/flac')).toBe(false)
   })
 })
