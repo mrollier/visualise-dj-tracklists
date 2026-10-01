@@ -168,3 +168,121 @@ describe('sourceStore link/reconnect failure paths (v40, Codex bugs 1+2)', () =>
     expect(get(store.sourceState)).toBe('needs-permission')
   })
 })
+
+/**
+ * A granted folder that answers path lookups (getDirectoryHandle /
+ * getFileHandle) as well as a walk (entries), recording both.
+ */
+function pathHandle(opts: { name: string; files: string[]; unreachable?: boolean }) {
+  const events: string[] = []
+  const folder = (prefix: string): unknown => ({
+    name: prefix === '' ? opts.name : prefix.split('/').at(-2),
+    kind: 'directory',
+    queryPermission: () => Promise.resolve('granted'),
+    requestPermission: () => Promise.resolve('granted'),
+    getDirectoryHandle(name: string) {
+      const path = `${prefix}${name}/`
+      events.push(`dir ${path}`)
+      return !opts.unreachable && opts.files.some((f) => f.startsWith(path))
+        ? Promise.resolve(folder(path))
+        : Promise.reject(new DOMException('missing', 'NotFoundError'))
+    },
+    getFileHandle(name: string) {
+      const path = `${prefix}${name}`
+      events.push(`file ${path}`)
+      return !opts.unreachable && opts.files.includes(path)
+        ? Promise.resolve({ kind: 'file', name, path })
+        : Promise.reject(new DOMException('missing', 'NotFoundError'))
+    },
+    entries() {
+      events.push('iterate')
+      function* iterate(): Generator<[string, { kind: 'file'; name: string }]> {
+        if (opts.unreachable === true) throw new DOMException('gone', 'NotFoundError')
+        for (const path of opts.files) {
+          const name = path.split('/').at(-1)!
+          yield [name, { kind: 'file', name }]
+        }
+      }
+      return iterate()
+    },
+  })
+  return { handle: folder('') as FileSystemDirectoryHandle, events }
+}
+
+describe('the folder resolves the library by path', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.clearAllMocks()
+  })
+
+  const at = (path: string) => `file://localhost${encodeURI(path)}`
+
+  async function withLibrary(locations: string[]) {
+    const stores = await import('../src/stores')
+    const { track } = await import('./helpers')
+    stores.library.set(locations.map((location, i) => track({ id: `t${i}`, location })))
+    return stores
+  }
+
+  test('a restored folder finds its tracks without walking', async () => {
+    const { handle, events } = pathHandle({ name: 'Music', files: ['House/a.mp3', 'House/b.mp3'] })
+    handleStore.loadRootHandle.mockResolvedValue(handle)
+    await withLibrary([
+      at('/Volumes/SD 1TB/Music/House/a.mp3'),
+      at('/Volumes/SD 1TB/Music/House/b.mp3'),
+    ])
+    const store = await freshStore()
+    store.setProbe(() => true)
+
+    await store.restoreSavedFolder()
+
+    expect(events).not.toContain('iterate')
+    expect(get(store.sourceState)).toBe('ready')
+    expect(get(store.coverage)?.playable).toBe(2)
+  })
+
+  test('a library whose paths miss the folder falls back to the walk', async () => {
+    const { handle, events } = pathHandle({ name: 'Music', files: ['a.mp3'] })
+    handleStore.loadRootHandle.mockResolvedValue(handle)
+    await withLibrary([at('/Users/dj/Tunes/a.mp3')])
+    const store = await freshStore()
+    store.setProbe(() => true)
+
+    await store.restoreSavedFolder()
+
+    expect(events).toContain('iterate')
+    expect(get(store.coverage)?.playable).toBe(1)
+  })
+
+  test('an unplugged drive at start parks the folder', async () => {
+    const { handle } = pathHandle({ name: 'Music', files: ['House/a.mp3'], unreachable: true })
+    handleStore.loadRootHandle.mockResolvedValue(handle)
+    await withLibrary([at('/Volumes/SD 1TB/Music/House/a.mp3')])
+    const store = await freshStore()
+
+    await store.restoreSavedFolder()
+
+    expect(get(store.sourceState)).toBe('needs-permission')
+    expect(handleStore.forgetRootHandle).not.toHaveBeenCalled()
+  })
+
+  test('a re-import looks up only the new tracks', async () => {
+    const { handle, events } = pathHandle({ name: 'Music', files: ['House/a.mp3', 'House/b.mp3'] })
+    handleStore.loadRootHandle.mockResolvedValue(handle)
+    const stores = await withLibrary([at('/Volumes/SD 1TB/Music/House/a.mp3')])
+    const store = await freshStore()
+    store.setProbe(() => true)
+    await store.restoreSavedFolder()
+    const before = events.filter((e) => e.startsWith('file ')).length
+
+    const { track } = await import('./helpers')
+    stores.library.set([
+      track({ id: 't0', location: at('/Volumes/SD 1TB/Music/House/a.mp3') }),
+      track({ id: 't1', location: at('/Volumes/SD 1TB/Music/House/b.mp3') }),
+    ])
+    await store.reindex()
+
+    expect(events.filter((e) => e.startsWith('file ')).length - before).toBe(1)
+    expect(get(store.coverage)?.playable).toBe(2)
+  })
+})

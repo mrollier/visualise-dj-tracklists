@@ -47,7 +47,7 @@ export async function openPickerSource(
   return {
     kind: 'picker',
     rootName,
-    index,
+    indexFor: () => Promise.resolve(index),
     fileFor: (file) => (file instanceof File ? Promise.resolve(file) : file.getFile()),
     ensurePermission: () => Promise.resolve(true),
   }

@@ -1,6 +1,7 @@
 import { isAudioFileName } from '../../core/audio/formats'
-import { buildFileIndex } from '../../core/audio/pathMatch'
-import { type AudioHandle, type AudioSource, MAX_INDEXED_FILES } from './source'
+import { createPathResolver, shouldWalk } from '../../core/audio/folderPaths'
+import { buildFileIndex, type FileIndex } from '../../core/audio/pathMatch'
+import { type AudioHandle, type AudioSource, type IndexProgress, MAX_INDEXED_FILES } from './source'
 
 /** Chromium only. Firefox has declined to implement this; Safari has not shipped it. */
 export function supportsDirectoryPicker(): boolean {
@@ -70,10 +71,10 @@ async function* walk(
  * artwork. We never call getFile() here — on this backend that is an IPC
  * round-trip per file, and nothing about indexing needs the bytes.
  */
-export async function openFsaSource(
+async function walkIndex(
   handle: FileSystemDirectoryHandle,
   onProgress?: (indexed: number) => void,
-): Promise<AudioSource> {
+): Promise<FileIndex<AudioHandle>> {
   const entries: { path: string[]; handle: AudioHandle }[] = []
   for await (const entry of walk(handle, [])) {
     entries.push(entry)
@@ -85,11 +86,40 @@ export async function openFsaSource(
     if (entries.length >= MAX_INDEXED_FILES) break
   }
   onProgress?.(entries.length)
-  return {
-    kind: 'fsa',
+  return buildFileIndex(entries)
+}
+
+/**
+ * The Chromium source. Each library track is looked up along its own path
+ * inside the granted folder, which costs a few lookups per track instead of
+ * reading every file on the drive. When fewer than half the tracks are found
+ * that way, the paths do not run through this folder, and it walks the whole
+ * folder and matches by path suffix instead. The walk also throws when the
+ * folder cannot be reached, which is how an unplugged drive is noticed.
+ */
+export async function openFsaSource(
+  handle: FileSystemDirectoryHandle,
+  locations: readonly string[],
+  onProgress?: (progress: IndexProgress) => void,
+): Promise<AudioSource> {
+  const finding = (report?: (progress: IndexProgress) => void) => (done: number, total: number) =>
+    report?.({ phase: 'finding', done, total })
+  const base = {
+    kind: 'fsa' as const,
     rootName: handle.name,
-    index: buildFileIndex(entries),
-    fileFor: (file) => (file instanceof File ? Promise.resolve(file) : file.getFile()),
+    fileFor: (file: AudioHandle) => (file instanceof File ? Promise.resolve(file) : file.getFile()),
     ensurePermission: () => requestReadPermission(handle),
+  }
+  const resolver = createPathResolver<FileSystemFileHandle>(handle, handle.name)
+  const first = await resolver.lookUp(locations, finding(onProgress))
+  if (shouldWalk(first.found, locations.length)) {
+    const index = await walkIndex(handle, (done) =>
+      onProgress?.({ phase: 'scanning', done, total: null }),
+    )
+    return { ...base, indexFor: () => Promise.resolve(index) }
+  }
+  return {
+    ...base,
+    indexFor: async (more, report) => (await resolver.lookUp(more, finding(report))).index,
   }
 }

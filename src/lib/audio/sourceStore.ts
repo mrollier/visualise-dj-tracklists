@@ -1,6 +1,7 @@
 import { get, writable } from 'svelte/store'
 import { type CoverageReport, resolveTrack, summarize } from '../../core/audio/coverage'
 import type { CanPlayProbe } from '../../core/audio/formats'
+import type { Track } from '../../core/model'
 import { library } from '../../stores'
 import {
   openFsaSource,
@@ -11,7 +12,7 @@ import {
 } from './fsaSource'
 import { forgetRootHandle, loadRootHandle, saveRootHandle } from './handleStore'
 import { openPickerSource } from './pickerSource'
-import type { AudioHandle, AudioSource } from './source'
+import type { AudioHandle, AudioSource, IndexProgress } from './source'
 
 /**
  * The granted music folder and what it resolves the library to.
@@ -24,21 +25,7 @@ import type { AudioHandle, AudioSource } from './source'
 export type SourceState = 'no-source' | 'needs-permission' | 'indexing' | 'ready'
 export type Resolution = ReturnType<typeof resolveTrack<AudioHandle>>
 
-/**
- * What the link is doing right now. Two phases, both named so neither runs
- * in silence: the folder is walked, and then the whole library is matched
- * against what the walk found.
- *
- * `total` is null when it cannot be known — an FSA walk discovers the tree as
- * it goes, so the bar is honestly indeterminate there. The picker backend
- * hands over a flat File[] up front, so that one counts down properly.
- */
-export type IndexPhase = 'scanning' | 'matching'
-export interface IndexProgress {
-  phase: IndexPhase
-  done: number
-  total: number | null
-}
+export type { IndexPhase, IndexProgress } from './source'
 
 export const sourceState = writable<SourceState>('no-source')
 export const rootName = writable<string | null>(null)
@@ -51,6 +38,14 @@ const MATCH_CHUNK = 2000
 /** Hand the browser a frame, so a progress bar can actually paint. */
 export function yieldToPaint(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
+}
+
+function locationsOf(tracks: readonly Track[]): string[] {
+  return tracks.flatMap((track) => (track.location === null ? [] : [track.location]))
+}
+
+function reportProgress(progress: IndexProgress): void {
+  indexProgress.set(progress)
 }
 
 /** Third-party objects and lookup tables — plain module state, never $state. */
@@ -100,9 +95,12 @@ export async function reindex(): Promise<void> {
     return
   }
   const run = ++matchRun
+  const index = await against.indexFor(locationsOf(tracks), reportProgress)
+  // Overtaken while the folder was being searched; the newer pass owns the stores.
+  if (run !== matchRun) return
   const next = new Map<string, Resolution>()
   for (let i = 0; i < tracks.length; i += 1) {
-    next.set(tracks[i].id, resolveTrack(tracks[i], against.index, probe))
+    next.set(tracks[i].id, resolveTrack(tracks[i], index, probe))
     if ((i + 1) % MATCH_CHUNK === 0) {
       indexProgress.set({ phase: 'matching', done: i + 1, total: tracks.length })
       await yieldToPaint()
@@ -127,7 +125,7 @@ export async function linkFolder(): Promise<void> {
   rootName.set(handle.name)
   beginScan()
   try {
-    const next = await openFsaSource(handle, reportScan)
+    const next = await openFsaSource(handle, locationsOf(get(library)), reportProgress)
     await saveRootHandle(handle)
     await adopt(next)
   } catch {
@@ -164,10 +162,6 @@ function beginScan(): void {
   indexProgress.set({ phase: 'scanning', done: 0, total: null })
 }
 
-function reportScan(done: number): void {
-  indexProgress.set({ phase: 'scanning', done, total: null })
-}
-
 /**
  * The webkitdirectory path: files the user has just picked, session-only.
  *
@@ -201,7 +195,7 @@ export async function reconnect(): Promise<void> {
   if (!(await requestReadPermission(handle))) return
   beginScan()
   try {
-    const next = await openFsaSource(handle, reportScan)
+    const next = await openFsaSource(handle, locationsOf(get(library)), reportProgress)
     pendingHandle = null
     await adopt(next)
   } catch {
@@ -247,7 +241,7 @@ export async function restoreSavedFolder(): Promise<void> {
     rootName.set(handle.name)
     beginScan()
     try {
-      await adopt(await openFsaSource(handle, reportScan))
+      await adopt(await openFsaSource(handle, locationsOf(get(library)), reportProgress))
     } catch {
       park(handle)
     }

@@ -90,15 +90,13 @@
     else folderInput?.click()
   }
 
-  /**
-   * What the scan is doing, in words. Both passes are named, because the
-   * second one — matching the library against what the walk found — would
-   * otherwise run in silence after the count stops moving.
-   */
+  /** What the link is doing, in words. Every phase is named, so none runs in silence. */
   const scanText = $derived.by(() => {
     const p = $indexProgress
     if (p === null) return 'Linking…'
     const where = $rootName === null ? '' : ` “${$rootName}”`
+    if (p.phase === 'finding')
+      return `Finding tracks in${where}… ${p.done.toLocaleString()} of ${p.total?.toLocaleString() ?? '?'}`
     if (p.phase === 'scanning')
       return p.total === null
         ? `Scanning${where}… ${p.done.toLocaleString()} files`
