@@ -12,10 +12,31 @@ import { analysis, lastImportReport, library } from '../stores'
  * no helper, and a request to 127.0.0.1 can raise a browser permission prompt
  * (Chrome's local-network access) nobody asked for.
  *
+ * A successful Connect is remembered in this browser (localStorage, never in
+ * the project, so a shared project cannot make someone else's app call their
+ * machine); from then on, opening the section connects by itself.
+ *
  * ponytail: the port is a const; lift it into AppSettings on the first real
  * port conflict (the script side already takes --port).
  */
 const HELPER_URL = 'http://127.0.0.1:8765'
+const REMEMBER_KEY = 'vdt-helper'
+
+function remembered(): boolean {
+  try {
+    return localStorage.getItem(REMEMBER_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function remember(): void {
+  try {
+    localStorage.setItem(REMEMBER_KEY, '1')
+  } catch {
+    // Blocked storage only costs the automatic reconnect.
+  }
+}
 
 export interface HelperJob {
   state: 'running' | 'done' | 'failed'
@@ -48,9 +69,12 @@ let fetchedFor: string | null = null
  */
 export function setPanelOpen(open: boolean): void {
   panelOpen = open
-  if (open && get(helperConnected)) {
+  if (!open) return
+  if (get(helperConnected)) {
     void refresh()
     ensureTimer()
+  } else if (remembered()) {
+    void connectHelper()
   }
 }
 
@@ -59,7 +83,10 @@ export async function connectHelper(): Promise<boolean> {
   await refresh()
   const connected = get(helperJob) !== 'offline'
   helperConnected.set(connected)
-  if (connected) ensureTimer()
+  if (connected) {
+    remember()
+    ensureTimer()
+  }
   return connected
 }
 

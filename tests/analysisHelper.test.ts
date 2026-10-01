@@ -102,3 +102,73 @@ describe('the helper is contacted only on request', () => {
     expect(resultCalls).toHaveLength(2)
   })
 })
+
+describe('a helper this browser has used before', () => {
+  beforeEach(() => vi.resetModules())
+  afterEach(() => vi.unstubAllGlobals())
+
+  function storage(initial: Record<string, string> = {}) {
+    const items = new Map(Object.entries(initial))
+    return {
+      getItem: vi.fn((key: string) => items.get(key) ?? null),
+      setItem: vi.fn((key: string, value: string) => void items.set(key, value)),
+      items,
+    }
+  }
+
+  const status = () => vi.fn(() => Promise.resolve(new Response(JSON.stringify({ job: null }))))
+
+  test('a successful Connect is remembered in this browser', async () => {
+    const local = storage()
+    vi.stubGlobal('localStorage', local)
+    vi.stubGlobal('fetch', status())
+    const helper = await import('../src/lib/analysisHelper')
+
+    await helper.connectHelper()
+
+    expect(local.items.get('vdt-helper')).toBe('1')
+  })
+
+  test('opening the section reconnects by itself when remembered', async () => {
+    vi.stubGlobal('localStorage', storage({ 'vdt-helper': '1' }))
+    const fetch = status()
+    vi.stubGlobal('fetch', fetch)
+    const helper = await import('../src/lib/analysisHelper')
+
+    helper.setPanelOpen(true)
+    await vi.waitFor(() => expect(get(helper.helperConnected)).toBe(true))
+
+    expect(fetch).toHaveBeenCalled()
+    helper.setPanelOpen(false)
+  })
+
+  test('without the memory, opening the section sends nothing', async () => {
+    vi.stubGlobal('localStorage', storage())
+    const fetch = status()
+    vi.stubGlobal('fetch', fetch)
+    const helper = await import('../src/lib/analysisHelper')
+
+    helper.setPanelOpen(true)
+    await Promise.resolve()
+
+    expect(fetch).not.toHaveBeenCalled()
+    helper.setPanelOpen(false)
+  })
+
+  test('a storage that throws does not break Connect', async () => {
+    vi.stubGlobal('localStorage', {
+      getItem: () => {
+        throw new Error('blocked')
+      },
+      setItem: () => {
+        throw new Error('blocked')
+      },
+    })
+    vi.stubGlobal('fetch', status())
+    const helper = await import('../src/lib/analysisHelper')
+
+    expect(await helper.connectHelper()).toBe(true)
+    helper.setPanelOpen(true)
+    helper.setPanelOpen(false)
+  })
+})
