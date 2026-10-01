@@ -437,8 +437,10 @@ one-shot would otherwise acquire a mood.
 
 The analyser can also run as the app's **localhost helper**: start it with `--serve`,
 press Connect in Advanced → Audio analysis, and analyse the selected playlists from
-inside the app, with live progress, merging the result automatically. (Nothing
-contacts localhost until you press Connect.) The analysis columns, filters and the
+inside the app, with live progress, merging the result automatically. It answers the
+deployed site and a local dev server, and nothing else. (Nothing contacts localhost
+until you press Connect; after one successful Connect, this browser reconnects by
+itself whenever you open the section.) The analysis columns, filters and the
 genre-source switch appear once analysis actually matches your tracks.
 `--write-tags` (or the section's checkbox) additionally writes a `[A78V35D86H55]`
 descriptor token into each analysed file's Comment tag — Mixed In Key content is
@@ -448,6 +450,19 @@ Rekordbox XML after a Reload Tags.
 ```sh
 scripts/.venv/bin/python scripts/analyse-audio.py --serve
 ```
+
+On a Mac it can start by itself at every login instead. Run this once from the repo
+folder, adding any flags the helper should keep (such as `--write-tags`):
+
+```sh
+scripts/.venv/bin/python scripts/analyse-audio.py --install-agent
+scripts/.venv/bin/python scripts/analyse-audio.py --uninstall-agent   # to stop it
+```
+
+Its log is `~/Library/Logs/zodiac-tracker-helper.log`. A helper started this way
+needs macOS's permission to read an external drive: allow it when asked, or turn it
+on under System Settings → Privacy & Security → Files and Folders (Removable
+Volumes) for the venv's Python.
 
 To check a produced sidecar against a collection without opening a browser:
 

@@ -410,6 +410,33 @@ def write_token(path: str, entry: dict) -> str | None:
 
 def self_test() -> int:
     """One runnable check: synthesised signals with known answers."""
+    # The helper answers only the app's own pages.
+    allowed = [SITE_ORIGIN, "http://localhost:5173", "http://127.0.0.1:4173"]
+    refused = [
+        SITE_ORIGIN + ".evil.com",
+        SITE_ORIGIN.replace("https://", "http://"),
+        "https://evil.workers.dev",
+        "null",
+    ]
+    if not all(origin_allowed(o) for o in allowed) or any(origin_allowed(o) for o in refused):
+        print("FAIL: origin_allowed accepts or refuses the wrong origins", file=sys.stderr)
+        return 1
+    plist = agent_plist(
+        "/venv/python", Path("/repo/scripts/analyse-audio.py"), Path("/repo"), ["--write-tags"], Path("/log")
+    )
+    expected_args = ["/venv/python", "/repo/scripts/analyse-audio.py", "--serve", "--write-tags"]
+    if (
+        plist["Label"] != AGENT_LABEL
+        or plist["ProgramArguments"] != expected_args
+        or plist["WorkingDirectory"] != "/repo"
+        or plist["RunAtLoad"] is not True
+        or plist["KeepAlive"] is not True
+        or plist["StandardErrorPath"] != "/log"
+    ):
+        print(f"FAIL: agent_plist built {plist}", file=sys.stderr)
+        return 1
+    print("helper origins and login agent: OK")
+
     # The descriptor-token contract (v38). The SAME vector is pinned from the
     # TS side in tests/analysis-contract.test.ts — change one, change both.
     contract = {"arousal": 5.37, "valence": 3.8, "danceability": 0.898, "happiness": 0.55}
@@ -731,18 +758,92 @@ def run_batch(
     }
 
 
+# The deployed app. An exact match: a look-alike host never passes.
+SITE_ORIGIN = "https://zodiac-tracker.michielrollier.workers.dev"
+LOCAL_ORIGIN = re.compile(r"^https?://(localhost|127\.0\.0\.1)(:\d{1,5})?$")
+
+
+def origin_allowed(origin: str) -> bool:
+    """A browser request must come from the app: the deployed site or a local dev server."""
+    return origin == SITE_ORIGIN or LOCAL_ORIGIN.match(origin) is not None
+
+
+AGENT_LABEL = "app.zodiac-tracker.helper"
+
+
+def agent_plist(python: str, script: Path, repo: Path, extra: list[str], log: Path) -> dict:
+    """The launchd job that keeps the helper running. The working directory is
+    the repo, because the defaults (scripts/models, scripts/out/…) are relative
+    to it."""
+    return {
+        "Label": AGENT_LABEL,
+        "ProgramArguments": [python, str(script), "--serve", *extra],
+        "WorkingDirectory": str(repo),
+        "RunAtLoad": True,
+        "KeepAlive": True,
+        "StandardOutPath": str(log),
+        "StandardErrorPath": str(log),
+    }
+
+
+def agent_path() -> Path:
+    return Path.home() / "Library" / "LaunchAgents" / f"{AGENT_LABEL}.plist"
+
+
+def install_agent(extra: list[str]) -> int:
+    """macOS: start the helper at every login, with the flags given alongside
+    --install-agent. Installing again replaces the running agent."""
+    if sys.platform != "darwin":
+        print("--install-agent is macOS only; start the helper with --serve", file=sys.stderr)
+        return 2
+    import plistlib
+    import subprocess
+
+    script = Path(__file__).resolve()
+    log = Path.home() / "Library" / "Logs" / "zodiac-tracker-helper.log"
+    path = agent_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    log.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(plistlib.dumps(agent_plist(sys.executable, script, script.parent.parent, extra, log)))
+    domain = f"gui/{os.getuid()}"
+    # A first install has nothing to stop; a reinstall stops the old agent.
+    subprocess.run(["launchctl", "bootout", f"{domain}/{AGENT_LABEL}"], capture_output=True)
+    # bootout can return before launchd has let go of the label, and bootstrap
+    # then fails with an I/O error; a few seconds of retries cover it.
+    for _ in range(5):
+        result = subprocess.run(["launchctl", "bootstrap", domain, str(path)], capture_output=True, text=True)
+        if result.returncode == 0:
+            print(f"helper agent installed: {path}\nlog: {log}")
+            return 0
+        time.sleep(1)
+    print(f"launchctl bootstrap failed: {result.stderr.strip()}", file=sys.stderr)
+    return 1
+
+
+def uninstall_agent() -> int:
+    """macOS: stop the login agent and remove its file."""
+    if sys.platform != "darwin":
+        print("--uninstall-agent is macOS only", file=sys.stderr)
+        return 2
+    import subprocess
+
+    subprocess.run(["launchctl", "bootout", f"gui/{os.getuid()}/{AGENT_LABEL}"], capture_output=True)
+    agent_path().unlink(missing_ok=True)
+    print(f"helper agent removed: {agent_path()}")
+    return 0
+
+
 def serve(args) -> int:
     """The localhost helper (v38): the app POSTs a playlist's paths, polls the
     progress, and fetches the finished sidecar — the CLI workflow without the
-    terminal. 127.0.0.1 only; browser requests additionally need a localhost
-    Origin, so a random website the user has open cannot start a run (or,
+    terminal. 127.0.0.1 only; browser requests additionally need the app's Origin (a local dev
+    server or the deployed site), so a random website the user has open cannot start a run (or,
     with writeTags, rewrite their files).
 
     ponytail: one job at a time behind one lock; queueing when someone needs it.
     """
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-    origin_re = re.compile(r"^https?://(localhost|127\.0\.0\.1)(:\d{1,5})?$")
     lock = threading.Lock()
     state: dict = {"job": None}
 
@@ -783,7 +884,7 @@ def serve(args) -> int:
             origin = self.headers.get("Origin")
             if origin is None:
                 return True, None
-            return origin_re.match(origin) is not None, origin
+            return origin_allowed(origin), origin
 
         def _json(self, status: int, origin: str | None, payload: dict) -> None:
             body = json.dumps(payload).encode("utf-8")
@@ -942,6 +1043,14 @@ def main() -> int:
     )
     parser.add_argument("--port", type=int, default=8765, help="helper port (default 8765)")
     parser.add_argument(
+        "--install-agent",
+        action="store_true",
+        help="macOS: start the helper at every login, with the other flags given here",
+    )
+    parser.add_argument(
+        "--uninstall-agent", action="store_true", help="macOS: stop and remove that login agent"
+    )
+    parser.add_argument(
         "--write-tags",
         action="store_true",
         help="write the [AxxVxxDxxHxx] descriptor token into each analysed "
@@ -953,6 +1062,8 @@ def main() -> int:
         return self_test()
     if args.genre_report:
         return genre_report(args.out, args.collection)
+    if args.uninstall_agent:
+        return uninstall_agent()
 
     needed = GENRE_MODEL_FILES if args.genre else MODEL_FILES
     missing = [n for n in needed.values() if not (args.models / n).exists()]
@@ -963,6 +1074,9 @@ def main() -> int:
     if args.write_tags and not mutagen_available():
         print("mutagen missing — pip install -r scripts/requirements.txt", file=sys.stderr)
         return 2
+    if args.install_agent:
+        extra = [a for a in sys.argv[1:] if a not in ("--install-agent", "--serve")]
+        return install_agent(extra)
     if args.serve:
         return serve(args)
     if args.paths_from is not None and not args.paths_from.exists():
