@@ -281,6 +281,48 @@ describe('AIFF on a browser without an AIFF decoder', () => {
     expect(engineMock.loadDeck).not.toHaveBeenCalled()
   })
 
+  test('Play during the preload’s AIFF read shares that read', async () => {
+    stubAudio('')
+    let release: (bytes: ArrayBuffer) => void = () => {}
+    const reads = vi.fn(() => new Promise<ArrayBuffer>((resolve) => (release = resolve)))
+    sourceMock.state.fileFor.mockReturnValue(
+      Promise.resolve({ name: 'Big.aiff', arrayBuffer: reads }),
+    )
+    const { stores, player } = await freshPlayer()
+
+    stores.clickedTrackId.set('t1')
+    await vi.advanceTimersByTimeAsync(200)
+    const playing = player.togglePlay('b')
+    await vi.advanceTimersByTimeAsync(0)
+    release(aiffBytes({ samples: [1, 2] }))
+    await playing
+
+    expect(reads).toHaveBeenCalledTimes(1)
+    expect(engineMock.loadDeck).toHaveBeenCalledTimes(1)
+  })
+
+  test('an AIFF read that went stale is not converted', async () => {
+    stubAudio('')
+    let release: (bytes: ArrayBuffer) => void = () => {}
+    const slow = {
+      name: 'Big.aiff',
+      arrayBuffer: () => new Promise<ArrayBuffer>((resolve) => (release = resolve)),
+    }
+    sourceMock.state.fileFor.mockReturnValueOnce(Promise.resolve(slow))
+    sourceMock.state.fileFor.mockReturnValue(new Promise(() => {}))
+    const { stores } = await freshPlayer()
+    const bytes = aiffBytes({ samples: [1, 2] })
+
+    stores.clickedTrackId.set('t1')
+    await vi.advanceTimersByTimeAsync(200)
+    stores.clickedTrackId.set('t2')
+    release(bytes)
+    await vi.advanceTimersByTimeAsync(0)
+
+    // The audio starts at byte 54 and is still big-endian: no swap ran.
+    expect(new DataView(bytes).getInt16(54)).toBe(1)
+  })
+
   test('the coverage probe counts AIFF as playable', async () => {
     stubAudio('')
     await freshPlayer()

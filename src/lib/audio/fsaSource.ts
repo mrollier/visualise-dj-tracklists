@@ -118,8 +118,24 @@ export async function openFsaSource(
     )
     return { ...base, indexFor: () => Promise.resolve(index) }
   }
+  let walked: FileIndex<AudioHandle> | null = null
   return {
     ...base,
-    indexFor: async (more, report) => (await resolver.lookUp(more, finding(report))).index,
+    indexFor: async (all, report) => {
+      if (walked !== null) return walked
+      const { index, found } = await resolver.lookUp(all, finding(report))
+      // A library re-imported from another machine may no longer run through
+      // this folder; it gets the walk a fresh link would have chosen.
+      if (all.length === 0 || !shouldWalk(found, all.length)) return index
+      try {
+        walked = await walkIndex(handle, (done) =>
+          report?.({ phase: 'scanning', done, total: null }),
+        )
+        return walked
+      } catch {
+        // Out of reach (an unplugged drive): keep what the paths found.
+        return index
+      }
+    },
   }
 }

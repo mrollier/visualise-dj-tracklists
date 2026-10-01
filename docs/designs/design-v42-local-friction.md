@@ -105,8 +105,7 @@ accepts either.
 ### Cost accepted
 
 Click-to-sound for an AIFF is the time to read the whole file: about 0.6 s at
-the median, about 1 s at p90, up to about 3 s for the largest. Memory peaks at
-the file's size per loading deck. Streaming the conversion through the service
+the median, about 1 s at p90, up to about 3 s for the largest. Memory peaks at about twice the file's size per loading deck: the bytes read from disk, plus the WAV Blob's own copy. Streaming the conversion through the service
 worker (instant start, flat memory) was declined. It needs about a day more,
 and the service worker only runs in production builds, so it could not be
 probed in dev. It stays the recorded upgrade path.

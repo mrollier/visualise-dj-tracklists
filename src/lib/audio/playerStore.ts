@@ -57,13 +57,26 @@ const busy: Record<DeckId, boolean> = { a: false, b: false }
  */
 let rewrapAiff = false
 
-/** The file in a form the element can play. */
-async function playableForm(file: File): Promise<Blob> {
+/** The file in a form the element can play, or null once the load went stale. */
+async function playableForm(file: File, stale: () => boolean): Promise<Blob | null> {
   if (!rewrapAiff || !/\.aiff?$/i.test(file.name)) return file
   // ponytail: reads the whole file first (about 0.6 s for a typical AIFF on an
-  // SD card); streaming through the service worker is the upgrade if that wait
-  // bothers.
-  return aiffToWav(await file.arrayBuffer()) ?? file
+  // SD card) and cannot cancel the read; streaming through the service worker
+  // is the upgrade if that wait bothers.
+  const bytes = await file.arrayBuffer()
+  // A newer click won during the read: skip the swap and the copy.
+  if (stale()) return null
+  return aiffToWav(bytes) ?? file
+}
+
+/**
+ * The load each deck has in flight. A Play pressed while the click's preload
+ * is still reading joins that read instead of starting a second one — for an
+ * AIFF, a second whole-file read off the same disk.
+ */
+const inFlight: Record<DeckId, { trackId: string; done: Promise<boolean> } | null> = {
+  a: null,
+  b: null,
 }
 
 /**
@@ -179,9 +192,20 @@ function dispatch(event: DeckEvent): void {
   applyGains(result.state)
 }
 
-async function materialise(deck: DeckId, trackId: string): Promise<boolean> {
-  if (materialised[deck] === trackId) return true
+function materialise(deck: DeckId, trackId: string): Promise<boolean> {
+  if (materialised[deck] === trackId) return Promise.resolve(true)
   wanted[deck] = trackId
+  const pending = inFlight[deck]
+  if (pending?.trackId === trackId) return pending.done
+  const entry = { trackId, done: load(deck, trackId) }
+  inFlight[deck] = entry
+  void entry.done.finally(() => {
+    if (inFlight[deck] === entry) inFlight[deck] = null
+  })
+  return entry.done
+}
+
+async function load(deck: DeckId, trackId: string): Promise<boolean> {
   const source = currentSource()
   const resolution = resolutionFor(trackId)
   // Not an error of this deck's: the bar reads the folder and the resolution
@@ -192,8 +216,8 @@ async function materialise(deck: DeckId, trackId: string): Promise<boolean> {
     const file = await source.fileFor(resolution.handle)
     // A newer click won while this one was reading the disk.
     if (wanted[deck] !== trackId) return false
-    const playable = await playableForm(file)
-    if (wanted[deck] !== trackId) return false
+    const playable = await playableForm(file, () => wanted[deck] !== trackId)
+    if (playable === null || wanted[deck] !== trackId) return false
     // Awaited: loadDeck fades a sounding deck down before it swaps `src`, so
     // the bytes are not in the element the instant the call returns.
     await engine.loadDeck(deck, playable)

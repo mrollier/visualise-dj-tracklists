@@ -11,7 +11,7 @@ import { buildFileIndex, type FileIndex } from './pathMatch'
  * 60,000 of them for one real library, to find 2,000.
  */
 
-/** The routes inside a folder called `rootName` for one location, deepest occurrence first. */
+/** The routes inside a folder called `rootName` for one location, one per occurrence of the name. */
 export function routesUnder(rootName: string, location: string): string[][] {
   const segments = locationSegments(location)
   const root = foldSegment(rootName)
@@ -48,8 +48,8 @@ export interface PathLookup<F> {
 
 export function createPathResolver<F>(root: Directory<F>, rootName: string, concurrency = 8) {
   const folders = new Map<string, Promise<Directory<F> | null>>()
-  /** Location → the route key it resolved to, or null for a miss. */
-  const tried = new Map<string, string | null>()
+  /** Location → whether any of its routes reached a file. */
+  const tried = new Map<string, boolean>()
   /** Route key → file; keyed by route so two locations reaching one file stay one entry. */
   const files = new Map<string, { path: string[]; handle: F }>()
 
@@ -68,20 +68,29 @@ export function createPathResolver<F>(root: Directory<F>, rootName: string, conc
     return found
   }
 
-  async function resolve(location: string): Promise<string | null> {
+  /**
+   * Every route that reaches a file goes into the index, not just the first:
+   * when the folder name occurs twice in a path, the matcher's longest-suffix
+   * rule then picks among them exactly as it does after a walk.
+   */
+  async function resolve(location: string): Promise<boolean> {
+    let reached = false
     for (const route of routesUnder(rootName, location)) {
       const key = route.join('/')
-      if (files.has(key)) return key
+      if (files.has(key)) {
+        reached = true
+        continue
+      }
       const parent = await folder(route.slice(0, -1))
       if (parent === null) continue
       try {
         files.set(key, { path: route, handle: await parent.getFileHandle(route[route.length - 1]) })
-        return key
+        reached = true
       } catch {
-        // Not at this depth; a shallower occurrence of the folder name may hold it.
+        // Not at this depth.
       }
     }
-    return null
+    return reached
   }
 
   async function lookUp(
@@ -102,7 +111,7 @@ export function createPathResolver<F>(root: Directory<F>, rootName: string, conc
     }
     await Promise.all(Array.from({ length: Math.min(concurrency, fresh.length) }, worker))
     if (fresh.length > 0) onProgress?.(fresh.length, fresh.length)
-    const found = locations.filter((location) => (tried.get(location) ?? null) !== null).length
+    const found = locations.filter((location) => tried.get(location) === true).length
     return { index: buildFileIndex(files.values()), found }
   }
 

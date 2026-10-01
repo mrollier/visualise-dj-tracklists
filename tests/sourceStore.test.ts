@@ -173,8 +173,10 @@ describe('sourceStore link/reconnect failure paths (v40, Codex bugs 1+2)', () =>
  * A granted folder that answers path lookups (getDirectoryHandle /
  * getFileHandle) as well as a walk (entries), recording both.
  */
-function pathHandle(opts: { name: string; files: string[]; unreachable?: boolean }) {
+function pathHandle(opts: { name: string; files: string[]; unreachable?: boolean; hold?: string }) {
   const events: string[] = []
+  let release: () => void = () => {}
+  const held = new Promise<void>((resolve) => (release = resolve))
   const folder = (prefix: string): unknown => ({
     name: prefix === '' ? opts.name : prefix.split('/').at(-2),
     kind: 'directory',
@@ -190,6 +192,7 @@ function pathHandle(opts: { name: string; files: string[]; unreachable?: boolean
     getFileHandle(name: string) {
       const path = `${prefix}${name}`
       events.push(`file ${path}`)
+      if (path === opts.hold) return held.then(() => ({ kind: 'file', name, path }))
       return !opts.unreachable && opts.files.includes(path)
         ? Promise.resolve({ kind: 'file', name, path })
         : Promise.reject(new DOMException('missing', 'NotFoundError'))
@@ -206,7 +209,7 @@ function pathHandle(opts: { name: string; files: string[]; unreachable?: boolean
       return iterate()
     },
   })
-  return { handle: folder('') as FileSystemDirectoryHandle, events }
+  return { handle: folder('') as FileSystemDirectoryHandle, events, release }
 }
 
 describe('the folder resolves the library by path', () => {
@@ -284,5 +287,103 @@ describe('the folder resolves the library by path', () => {
 
     expect(events.filter((e) => e.startsWith('file ')).length - before).toBe(1)
     expect(get(store.coverage)?.playable).toBe(2)
+  })
+
+  test('a re-imported library that no longer runs through the folder gets the walk', async () => {
+    const { handle, events } = pathHandle({ name: 'Music', files: ['House/a.mp3', 'House/b.mp3'] })
+    handleStore.loadRootHandle.mockResolvedValue(handle)
+    const stores = await withLibrary([
+      at('/Volumes/SD 1TB/Music/House/a.mp3'),
+      at('/Volumes/SD 1TB/Music/House/b.mp3'),
+    ])
+    const store = await freshStore()
+    store.setProbe(() => true)
+    await store.restoreSavedFolder()
+    const { track } = await import('./helpers')
+
+    stores.library.set([
+      track({ id: 'x0', location: at('/Users/other/Tunes/House/a.mp3') }),
+      track({ id: 'x1', location: at('/Users/other/Tunes/House/b.mp3') }),
+    ])
+    await store.reindex()
+
+    expect(events).toContain('iterate')
+    expect(get(store.coverage)?.playable).toBe(2)
+  })
+
+  test('a few new tracks from elsewhere do not trigger a walk', async () => {
+    const { handle, events } = pathHandle({ name: 'Music', files: ['House/a.mp3', 'House/b.mp3'] })
+    handleStore.loadRootHandle.mockResolvedValue(handle)
+    const a = at('/Volumes/SD 1TB/Music/House/a.mp3')
+    const b = at('/Volumes/SD 1TB/Music/House/b.mp3')
+    const stores = await withLibrary([a, b])
+    const store = await freshStore()
+    store.setProbe(() => true)
+    await store.restoreSavedFolder()
+    const { track } = await import('./helpers')
+
+    stores.library.set([
+      track({ id: 't0', location: a }),
+      track({ id: 't1', location: b }),
+      track({ id: 't2', location: at('/Users/dj/Downloads/c.mp3') }),
+    ])
+    await store.reindex()
+
+    expect(events).not.toContain('iterate')
+    expect(get(store.coverage)?.notFound).toBe(1)
+  })
+
+  test('a lookup overtaken by a newer pass leaves no progress bar behind', async () => {
+    const { handle, release } = pathHandle({
+      name: 'Music',
+      files: ['House/a.mp3', 'House/b.mp3'],
+      hold: 'House/b.mp3',
+    })
+    handleStore.loadRootHandle.mockResolvedValue(handle)
+    const a = at('/Volumes/SD 1TB/Music/House/a.mp3')
+    const stores = await withLibrary([a])
+    const store = await freshStore()
+    store.setProbe(() => true)
+    await store.restoreSavedFolder()
+    const { track } = await import('./helpers')
+
+    stores.library.set([
+      track({ id: 't0', location: a }),
+      track({ id: 't1', location: at('/Volumes/SD 1TB/Music/House/b.mp3') }),
+    ])
+    const overtaken = store.reindex()
+    stores.library.set([track({ id: 't0', location: a })])
+    await store.reindex()
+    release()
+    await overtaken
+
+    expect(get(store.indexProgress)).toBeNull()
+  })
+
+  test('emptying the library during a lookup leaves no stale coverage', async () => {
+    const { handle, release } = pathHandle({
+      name: 'Music',
+      files: ['House/a.mp3', 'House/b.mp3'],
+      hold: 'House/b.mp3',
+    })
+    handleStore.loadRootHandle.mockResolvedValue(handle)
+    const a = at('/Volumes/SD 1TB/Music/House/a.mp3')
+    const stores = await withLibrary([a])
+    const store = await freshStore()
+    store.setProbe(() => true)
+    await store.restoreSavedFolder()
+    const { track } = await import('./helpers')
+
+    stores.library.set([
+      track({ id: 't0', location: a }),
+      track({ id: 't1', location: at('/Volumes/SD 1TB/Music/House/b.mp3') }),
+    ])
+    const overtaken = store.reindex()
+    stores.library.set([])
+    await store.reindex()
+    release()
+    await overtaken
+
+    expect(get(store.coverage)).toBeNull()
   })
 })

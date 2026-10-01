@@ -21,6 +21,8 @@ import { analysis, lastImportReport, library } from '../stores'
  */
 const HELPER_URL = 'http://127.0.0.1:8765'
 const REMEMBER_KEY = 'vdt-helper'
+const POLL_TIMEOUT_MS = 800
+const CONNECT_TIMEOUT_MS = 60_000
 
 function remembered(): boolean {
   try {
@@ -35,6 +37,29 @@ function remember(): void {
     localStorage.setItem(REMEMBER_KEY, '1')
   } catch {
     // Blocked storage only costs the automatic reconnect.
+  }
+}
+
+/**
+ * The finished job this browser last merged. The helper keeps reporting its
+ * last job as done for as long as it runs, so without this every new session
+ * that connects would merge that sidecar again and replace the import report.
+ */
+const MERGED_KEY = 'vdt-helper-merged'
+
+function lastMerged(): string | null {
+  try {
+    return localStorage.getItem(MERGED_KEY)
+  } catch {
+    return null
+  }
+}
+
+function rememberMerged(startedAt: string): void {
+  try {
+    localStorage.setItem(MERGED_KEY, startedAt)
+  } catch {
+    // Blocked storage: this session still merges it only once (fetchedFor).
   }
 }
 
@@ -80,7 +105,10 @@ export function setPanelOpen(open: boolean): void {
 
 /** Ask the helper whether it is there (the Connect button). */
 export async function connectHelper(): Promise<boolean> {
-  await refresh()
+  // From the deployed site, Chrome holds the first request until the person
+  // answers its local-network prompt, so Connect waits for them rather than
+  // giving up at the poll's deadline.
+  await refresh(CONNECT_TIMEOUT_MS)
   const connected = get(helperJob) !== 'offline'
   helperConnected.set(connected)
   if (connected) {
@@ -110,15 +138,19 @@ export async function startAnalysis(paths: string[], writeTags: boolean): Promis
   }
 }
 
-async function refresh(): Promise<void> {
+async function refresh(timeoutMs = POLL_TIMEOUT_MS): Promise<void> {
   try {
-    const res = await fetch(`${HELPER_URL}/status`, { signal: AbortSignal.timeout(800) })
+    const res = await fetch(`${HELPER_URL}/status`, { signal: AbortSignal.timeout(timeoutMs) })
     const data = (await res.json()) as { job: HelperJob | null }
     misses = 0
     helperJob.set(data.job)
     // Marked fetched only once it merged: a failed download is retried.
-    if (data.job?.state === 'done' && fetchedFor !== data.job.startedAt) {
-      if (await fetchResult()) fetchedFor = data.job.startedAt
+    const job = data.job
+    if (job?.state === 'done' && fetchedFor !== job.startedAt && lastMerged() !== job.startedAt) {
+      if (await fetchResult()) {
+        fetchedFor = job.startedAt
+        rememberMerged(job.startedAt)
+      }
     }
   } catch {
     if (get(helperConnected) && ++misses < MAX_MISSES) return

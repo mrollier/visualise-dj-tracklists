@@ -3,8 +3,9 @@
  *
  * Plain AIFF and WAV hold the same uncompressed PCM; AIFF stores each sample
  * big-endian and WAV little-endian. So the conversion is a new 44-byte header
- * plus a byte swap per sample, done in place on the bytes read from disk: the
- * audio is never copied. Compressed AIFF-C and bit depths other than 16 and
+ * plus a byte swap per sample, done in place on the bytes read from disk. The
+ * Blob then holds its own copy, so a load briefly needs about twice the file's
+ * size. Compressed AIFF-C and bit depths other than 16 and
  * 24 are refused (null), and the caller hands the file on untouched.
  */
 

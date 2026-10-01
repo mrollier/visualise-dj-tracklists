@@ -42,7 +42,7 @@ describe('routesUnder', () => {
     ])
   })
 
-  test('every occurrence, deepest first', () => {
+  test('one route per occurrence of the name, deepest first', () => {
     expect(routesUnder('Music', loc('/Volumes/Music/Music/x.mp3'))).toEqual([
       ['x.mp3'],
       ['Music', 'x.mp3'],
@@ -114,12 +114,20 @@ describe('createPathResolver', () => {
     expect(matchLocation(index, library[2]).kind).toBe('miss')
   })
 
-  test('the deepest occurrence is tried first, then shallower ones', async () => {
+  test('every occurrence of the folder name is tried', async () => {
     const { root } = fakeFolder(['Music/x.mp3'])
     const { found } = await createPathResolver(root, 'Music').lookUp([
       loc('/Volumes/Music/Music/x.mp3'),
     ])
     expect(found).toBe(1)
+  })
+
+  test('with a file at two depths, the deeper path match wins, as after a walk', async () => {
+    const { root } = fakeFolder(['x.mp3', 'Music/x.mp3'])
+    const location = loc('/Volumes/Music/Music/x.mp3')
+    const { index } = await createPathResolver(root, 'Music').lookUp([location])
+    const hit = matchLocation(index, location)
+    expect(hit.kind === 'hit' ? hit.entry.handle : hit.kind).toBe('Music/x.mp3')
   })
 
   test('two locations reaching one file stay one entry', async () => {

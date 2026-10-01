@@ -89,13 +89,17 @@ export async function reindex(): Promise<void> {
   const tracks = get(library)
   const against = source
   if (against === null || tracks.length === 0) {
+    // Also ends any pass still running, or it would write over this one.
+    matchRun += 1
     resolutions = new Map()
     coverage.set(null)
     indexProgress.set(null)
     return
   }
   const run = ++matchRun
-  const index = await against.indexFor(locationsOf(tracks), reportProgress)
+  const index = await against.indexFor(locationsOf(tracks), (progress) => {
+    if (run === matchRun) reportProgress(progress)
+  })
   // Overtaken while the folder was being searched; the newer pass owns the stores.
   if (run !== matchRun) return
   const next = new Map<string, Resolution>()

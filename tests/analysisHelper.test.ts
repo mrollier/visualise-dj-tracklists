@@ -172,3 +172,85 @@ describe('a helper this browser has used before', () => {
     helper.setPanelOpen(false)
   })
 })
+
+describe('the first Connect from the deployed site', () => {
+  beforeEach(() => vi.resetModules())
+  afterEach(() => vi.unstubAllGlobals())
+
+  test('waits while Chrome asks for local-network access', async () => {
+    // Chrome holds the request until the person answers its prompt; a request
+    // that gives up after a poll's deadline would report "no helper".
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_url: string, init?: RequestInit) =>
+          new Promise<Response>((resolve, reject) => {
+            const answer = setTimeout(
+              () => resolve(new Response(JSON.stringify({ job: null }))),
+              1200,
+            )
+            init?.signal?.addEventListener('abort', () => {
+              clearTimeout(answer)
+              reject(new DOMException('aborted', 'AbortError'))
+            })
+          }),
+      ),
+    )
+    const helper = await import('../src/lib/analysisHelper')
+
+    expect(await helper.connectHelper()).toBe(true)
+  })
+})
+
+describe('a finished job is merged once, across sessions', () => {
+  beforeEach(() => vi.resetModules())
+  afterEach(() => vi.unstubAllGlobals())
+
+  const job = {
+    state: 'done',
+    done: 1,
+    total: 1,
+    rate: 1,
+    etaSec: 0,
+    errors: 0,
+    startedAt: 'run-1',
+  }
+  const helperAnswering = () =>
+    vi.fn((url: string) =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify(url.endsWith('/status') ? { job } : { zodiacAnalysis: 1, tracks: {} }),
+        ),
+      ),
+    )
+  function storage(initial: Record<string, string> = {}) {
+    const items = new Map(Object.entries(initial))
+    return {
+      getItem: (key: string) => items.get(key) ?? null,
+      setItem: (key: string, value: string) => void items.set(key, value),
+      items,
+    }
+  }
+
+  test('a merged job is remembered', async () => {
+    const local = storage()
+    vi.stubGlobal('localStorage', local)
+    vi.stubGlobal('fetch', helperAnswering())
+    const helper = await import('../src/lib/analysisHelper')
+
+    await helper.connectHelper()
+
+    expect(local.items.get('vdt-helper-merged')).toBe('run-1')
+  })
+
+  test('a job this browser already merged is not fetched again after a reload', async () => {
+    vi.stubGlobal('localStorage', storage({ 'vdt-helper': '1', 'vdt-helper-merged': 'run-1' }))
+    const fetch = helperAnswering()
+    vi.stubGlobal('fetch', fetch)
+    const helper = await import('../src/lib/analysisHelper')
+
+    await helper.connectHelper()
+
+    expect(fetch.mock.calls.filter(([url]) => String(url).endsWith('/result'))).toHaveLength(0)
+  })
+})
